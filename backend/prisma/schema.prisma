@@ -1,0 +1,805 @@
+// ---------------------------------------------------------------------------
+// Quran Memorization Circles - Database schema
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  SUPERVISOR
+  TEACHER
+  EXAM_COMMITTEE
+  PARENT
+  SUPPORT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum Evaluation {
+  EXCELLENT
+  VERY_GOOD
+  GOOD
+  ACCEPTABLE
+  UNSATISFACTORY
+}
+
+enum StudentStatus {
+  ACTIVE
+  SUSPENDED
+  GRADUATED
+  WITHDRAWN
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  VOLUNTEER
+}
+
+enum CircleTeacherRole {
+  PRIMARY
+  ASSISTANT
+}
+
+/// Three practical states only: present, absent with an excuse, absent without one.
+enum AttendanceStatus {
+  PRESENT
+  ABSENT  // غياب بدون عذر
+  EXCUSED // غياب بعذر
+}
+
+enum RecitationType {
+  MEMORIZATION // تسميع جديد
+  MINOR_REVIEW // مراجعة صغرى
+  MAJOR_REVIEW // مراجعة كبرى
+  TAJWEED      // تجويد
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum TransferKind {
+  STUDENT_TRANSFER
+  TEACHER_TRANSFER
+  TEACHER_SWAP
+  ASSISTANT_ADD
+  ASSISTANT_REMOVE
+}
+
+enum ExamRequestStatus {
+  PENDING     // في قائمة الانتظار
+  SCHEDULED   // تم تحديد موعد
+  REJECTED
+  CANCELLED
+  COMPLETED
+}
+
+enum ExamStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  ABSENT
+}
+
+enum ExamResult {
+  PASSED
+  FAILED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum NotificationType {
+  TRANSFER_REQUEST
+  TRANSFER_DECISION
+  SUSPENSION_REQUEST
+  SUSPENSION_DECISION
+  EXAM_REQUEST
+  EXAM_SCHEDULED
+  EXAM_RESULT
+  SUPPORT_TICKET
+  SUPPORT_REPLY
+  CHAT_MESSAGE
+  ATTENDANCE
+  ANNOUNCEMENT
+  SYSTEM
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(uuid())
+  /// Login identity. Stored lower-cased so lookups are case-insensitive.
+  email        String    @unique
+  passwordHash String
+  fullName     String
+  role         Role
+  phone        String?
+  avatarUrl    String?
+  isActive     Boolean   @default(true)
+  /// Set when the management creates the account or resets the password, so the
+  /// first login lands on the profile page until a personal password is chosen.
+  mustChangePassword Boolean @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  teacher  TeacherProfile?
+  parent   ParentProfile?
+
+  refreshTokens        RefreshToken[]
+  supervisedCircles    Circle[]              @relation("CircleSupervisor")
+  notifications        Notification[]
+  activityLogs         ActivityLog[]
+  conversationsCreated Conversation[]        @relation("ConversationCreator")
+  conversationMembers  ConversationMember[]
+  messages             Message[]
+  ticketsCreated       SupportTicket[]       @relation("TicketCreator")
+  ticketsAssigned      SupportTicket[]       @relation("TicketAssignee")
+  ticketMessages       TicketMessage[]
+  attendanceRecorded   Attendance[]          @relation("AttendanceRecorder")
+  transfersRequested   TransferRequest[]     @relation("TransferRequester")
+  transfersDecided     TransferRequest[]     @relation("TransferDecider")
+  suspensionsRequested SuspensionRequest[]   @relation("SuspensionRequester")
+  suspensionsDecided   SuspensionRequest[]   @relation("SuspensionDecider")
+  examRequestsReviewed ExamRequest[]         @relation("ExamRequestReviewer")
+  examsGraded          Exam[]                @relation("ExamGrader")
+  examsExamined        Exam[]                @relation("ExamExaminer")
+  evaluationsSet       StudentEvaluation[]   @relation("EvaluationAuthor")
+  studentNotes         StudentNote[]
+
+  @@index([role])
+  @@index([isActive])
+  @@index([fullName])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  userAgent String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// People
+// ---------------------------------------------------------------------------
+
+model TeacherProfile {
+  id             String          @id @default(uuid())
+  userId         String          @unique
+  nationalId     String?         @unique
+  birthDate      DateTime?
+  gender         Gender          @default(MALE)
+  address        String?
+  qualification  String?
+  specialization String?
+  memorizedParts Int?            @default(0)
+  employmentType EmploymentType  @default(VOLUNTEER)
+  hireDate       DateTime?
+  salary         Decimal?        @db.Decimal(10, 2)
+  notes          String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  circleRoles  CircleTeacher[]
+  recitations  Recitation[]
+  examRequests ExamRequest[]       @relation("ExamRequestTeacher")
+
+  @@index([isActive])
+  @@map("teacher_profiles")
+}
+
+model ParentProfile {
+  id         String    @id @default(uuid())
+  userId     String    @unique
+  nationalId String?   @unique
+  phone      String?
+  altPhone   String?
+  address    String?
+  occupation String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  students Student[]
+
+  @@map("parent_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// Circles
+// ---------------------------------------------------------------------------
+
+model Circle {
+  id           String    @id @default(uuid())
+  name         String
+  code         String    @unique
+  description  String?
+  location     String?
+  level        String?
+  capacity     Int       @default(25)
+  scheduleDays String[]  @default([])
+  startTime    String?
+  endTime      String?
+  supervisorId String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  supervisor  User?           @relation("CircleSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
+  teachers    CircleTeacher[]
+  students    Student[]
+  attendance  Attendance[]
+  recitations Recitation[]
+  memberships CircleMembership[]
+
+  transfersFrom TransferRequest[] @relation("TransferFromCircle")
+  transfersTo   TransferRequest[] @relation("TransferToCircle")
+
+  @@index([supervisorId])
+  @@index([isActive])
+  @@index([name])
+  @@map("circles")
+}
+
+/// Link between a circle and a teacher. `endedAt == null` means currently assigned,
+/// which also preserves the full assignment history.
+model CircleTeacher {
+  id        String            @id @default(uuid())
+  circleId  String
+  teacherId String
+  role      CircleTeacherRole @default(ASSISTANT)
+  startedAt DateTime          @default(now())
+  endedAt   DateTime?
+  note      String?
+  createdAt DateTime          @default(now())
+
+  circle  Circle         @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([circleId, endedAt])
+  @@index([teacherId, endedAt])
+  @@map("circle_teachers")
+}
+
+// ---------------------------------------------------------------------------
+// Students
+// ---------------------------------------------------------------------------
+
+model Student {
+  id               String        @id @default(uuid())
+  code             String        @unique
+  fullName         String
+  birthDate        DateTime?
+  gender           Gender        @default(MALE)
+  nationalId       String?       @unique
+  fatherNationalId String?
+  address          String?
+  phone            String?
+  parentId         String?
+  guardianName     String?
+  guardianPhone    String?
+  guardianRelation String?
+  circleId         String?
+  enrollmentDate   DateTime      @default(now())
+  status           StudentStatus @default(ACTIVE)
+  evaluation       Evaluation?
+  evaluationNote   String?
+  evaluatedAt      DateTime?
+  memorizedParts   Int           @default(0)
+  currentSurah     String?
+  currentPage      Int?
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  deletedAt        DateTime?
+
+  parentProfile ParentProfile? @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  circle        Circle?        @relation(fields: [circleId], references: [id], onDelete: SetNull)
+
+  attendance   Attendance[]
+  recitations  Recitation[]
+  memberships  CircleMembership[]
+  suspensions  SuspensionRequest[]
+  examRequests ExamRequest[]
+  exams        Exam[]
+  evaluations  StudentEvaluation[]
+  studentNotes StudentNote[]
+  transfers    TransferRequest[]  @relation("TransferStudent")
+
+  @@index([circleId])
+  @@index([parentId])
+  @@index([status])
+  @@index([fullName])
+  @@map("students")
+}
+
+/// History of which circle a student belonged to and when.
+model CircleMembership {
+  id        String    @id @default(uuid())
+  studentId String
+  circleId  String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  reason    String?
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  circle  Circle  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, endedAt])
+  @@index([circleId, endedAt])
+  @@map("circle_memberships")
+}
+
+/// Manual evaluation history (the teacher sets the current evaluation on the student).
+model StudentEvaluation {
+  id         String     @id @default(uuid())
+  studentId  String
+  evaluation Evaluation
+  note       String?
+  authorId   String
+  createdAt  DateTime   @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  author  User    @relation("EvaluationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+  @@map("student_evaluations")
+}
+
+model StudentNote {
+  id        String    @id @default(uuid())
+  studentId String
+  authorId  String
+  body      String
+  isPrivate Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+  @@map("student_notes")
+}
+
+// ---------------------------------------------------------------------------
+// Attendance & recitation
+// ---------------------------------------------------------------------------
+
+model Attendance {
+  id         String           @id @default(uuid())
+  studentId  String
+  circleId   String
+  date       DateTime         @db.Date
+  status     AttendanceStatus
+  /// Free-text reason, only meaningful for EXCUSED entries.
+  note       String?
+  recordedById String
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  student    Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  circle     Circle  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  recordedBy User    @relation("AttendanceRecorder", fields: [recordedById], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, date])
+  @@index([circleId, date])
+  @@index([date])
+  @@index([status])
+  @@map("attendance")
+}
+
+model Recitation {
+  id         String         @id @default(uuid())
+  studentId  String
+  circleId   String
+  teacherId  String
+  date       DateTime       @db.Date
+  type       RecitationType @default(MEMORIZATION)
+  fromSurah  String
+  fromAyah   Int
+  toSurah    String
+  toAyah     Int
+  pagesCount Float?
+  /// Daily recitation is graded with a plain evaluation only — no score, no mistake count.
+  /// Numeric grading belongs to the formal exams instead.
+  evaluation Evaluation?
+  notes      String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  deletedAt  DateTime?
+
+  student Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  circle  Circle         @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, date])
+  @@index([circleId, date])
+  @@index([date])
+  @@map("recitations")
+}
+
+// ---------------------------------------------------------------------------
+// Transfers / swaps (students, teachers, assistants)
+// ---------------------------------------------------------------------------
+
+model TransferRequest {
+  id           String        @id @default(uuid())
+  kind         TransferKind
+  status       RequestStatus @default(PENDING)
+  reason       String?
+  requestedById String
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+  effectiveAt  DateTime?
+
+  // student transfer
+  studentId String?
+
+  // teacher transfer / swap / assistant changes
+  teacherAId String?
+  teacherBId String?
+
+  fromCircleId String?
+  toCircleId   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student     Student? @relation("TransferStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  fromCircle  Circle?  @relation("TransferFromCircle", fields: [fromCircleId], references: [id], onDelete: SetNull)
+  toCircle    Circle?  @relation("TransferToCircle", fields: [toCircleId], references: [id], onDelete: SetNull)
+  requestedBy User     @relation("TransferRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  decidedBy   User?    @relation("TransferDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([status, kind])
+  @@index([studentId])
+  @@index([requestedById])
+  @@index([createdAt])
+  @@map("transfer_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Suspension
+// ---------------------------------------------------------------------------
+
+model SuspensionRequest {
+  id            String        @id @default(uuid())
+  studentId     String
+  reason        String
+  durationDays  Int
+  startDate     DateTime      @db.Date
+  endDate       DateTime      @db.Date
+  status        RequestStatus @default(PENDING)
+  requestedById String
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  /// Set when the student is brought back before / at the end of the suspension.
+  returnedAt    DateTime?
+  returnedNote  String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  requestedBy User    @relation("SuspensionRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  decidedBy   User?   @relation("SuspensionDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([studentId])
+  @@index([status])
+  @@index([endDate])
+  @@map("suspension_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Examinations
+// ---------------------------------------------------------------------------
+
+/// An ordered milestone in the memorization programme (e.g. Juz' 30, Juz' 29 ...).
+/// `order` defines the required progression: a student may only be examined in a
+/// section once every *required* section with a lower order has been passed.
+model ExamSection {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  code        String   @unique
+  order       Int      @unique
+  isRequired  Boolean  @default(true)
+  pagesCount  Int?
+  minScore    Int      @default(60)
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  examRequests ExamRequest[]
+  exams        Exam[]
+
+  @@index([order])
+  @@map("exam_sections")
+}
+
+model ExamRequest {
+  id         String            @id @default(uuid())
+  studentId  String
+  sectionId  String
+  teacherId  String
+  status     ExamRequestStatus @default(PENDING)
+  note       String?
+  reviewedById String?
+  reviewedAt DateTime?
+  reviewNote String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  student    Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  section    ExamSection    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  teacher    TeacherProfile @relation("ExamRequestTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  reviewedBy User?          @relation("ExamRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  exam       Exam?
+
+  @@index([status, createdAt])
+  @@index([studentId])
+  @@map("exam_requests")
+}
+
+model Exam {
+  id          String      @id @default(uuid())
+  requestId   String?     @unique
+  studentId   String
+  sectionId   String
+  examinerId  String?
+  scheduledAt DateTime
+  location    String?
+  status      ExamStatus  @default(SCHEDULED)
+  /// Grade out of 100; compared against the section's `minScore` to decide the result.
+  score       Int?
+  /// Derived from `score` by the school's grading scale — never chosen by hand.
+  /// Stored rather than computed on read so an official result cannot change
+  /// retroactively if the scale is ever adjusted.
+  evaluation  Evaluation?
+  /// Optional — the examiner may record a score and notes without counting mistakes.
+  mistakes    Int?
+  result      ExamResult?
+  notes       String?
+  gradedById  String?
+  gradedAt    DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  request  ExamRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  student  Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  section  ExamSection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  examiner User?        @relation("ExamExaminer", fields: [examinerId], references: [id], onDelete: SetNull)
+  gradedBy User?        @relation("ExamGrader", fields: [gradedById], references: [id], onDelete: SetNull)
+
+  @@index([studentId, status])
+  @@index([scheduledAt])
+  @@index([status])
+  @@map("exams")
+}
+
+// ---------------------------------------------------------------------------
+// Technical support
+// ---------------------------------------------------------------------------
+
+model SupportTicket {
+  id          String         @id @default(uuid())
+  number      Int            @unique @default(autoincrement())
+  subject     String
+  category    String?
+  description String
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(NORMAL)
+  createdById String
+  assignedToId String?
+  resolvedAt  DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  createdBy  User            @relation("TicketCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  assignedTo User?           @relation("TicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  messages   TicketMessage[]
+
+  @@index([status])
+  @@index([createdById])
+  @@index([assignedToId])
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id         String   @id @default(uuid())
+  ticketId   String
+  senderId   String
+  body       String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String?
+  link      String?
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+// ---------------------------------------------------------------------------
+// Chat
+// ---------------------------------------------------------------------------
+
+model Conversation {
+  id          String           @id @default(uuid())
+  type        ConversationType @default(DIRECT)
+  title       String?
+  description String?
+  avatarUrl   String?
+  createdById String?
+  lastMessageAt DateTime?
+  /// Group is archived: history stays readable but no new messages are accepted.
+  isClosed    Boolean          @default(false)
+  /// Only group admins may post; everyone else has read-only access.
+  adminOnly   Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  createdBy User?                @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  members   ConversationMember[]
+  messages  Message[]
+
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model ConversationMember {
+  id             String    @id @default(uuid())
+  conversationId String
+  userId         String
+  isAdmin        Boolean   @default(false)
+  lastReadAt     DateTime?
+  joinedAt       DateTime  @default(now())
+  leftAt         DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_members")
+}
+
+model Message {
+  id             String    @id @default(uuid())
+  conversationId String
+  senderId       String
+  body           String
+  attachmentUrl  String?
+  /// Set the first time the sender edits the message, so the UI can mark it.
+  editedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  deletedAt      DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// ---------------------------------------------------------------------------
+// Settings & activity
+// ---------------------------------------------------------------------------
+
+model SchoolSettings {
+  id           String   @id @default("default")
+  name         String   @default("حلقات تحفيظ القرآن الكريم")
+  mosqueName   String?
+  logoUrl      String?
+  phone        String?
+  email        String?
+  address      String?
+  about        String?
+  facebook     String?
+  twitter      String?
+  instagram    String?
+  youtube      String?
+  telegram     String?
+  whatsapp     String?
+  website      String?
+  academicYear String?
+  updatedAt    DateTime @updatedAt
+
+  @@map("school_settings")
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String?
+  entityId   String?
+  summary    String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId])
+  @@map("activity_logs")
+}

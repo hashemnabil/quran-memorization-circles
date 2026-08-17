@@ -15,9 +15,10 @@ export class CreateStudentTransferDto {
   @IsUUID('4', { message: 'معرّف الطالب غير صالح' })
   studentId: string;
 
-  @ApiProperty({ description: 'الحلقة المطلوب النقل إليها' })
+  @ApiPropertyOptional({ description: 'لا يحددها المعلم؛ الإدارة تحدد الحلقة عند الموافقة' })
+  @IsOptional()
   @IsUUID('4', { message: 'معرّف الحلقة غير صالح' })
-  toCircleId: string;
+  toCircleId?: string;
 
   @ApiProperty()
   @IsString()
@@ -64,11 +65,16 @@ export class CreateTeacherSwapDto {
 }
 
 export class DecideTransferDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'ملاحظة القرار' })
   @IsOptional()
   @IsString()
   @MaxLength(1000)
   decisionNote?: string;
+
+  @ApiPropertyOptional({ description: 'الحلقة التي تعينها الإدارة عند قبول نقل الطالب' })
+  @IsOptional()
+  @IsUUID('4', { message: 'معرّف الحلقة غير صالح' })
+  toCircleId?: string;
 }
 
 export class QueryTransfersDto extends PaginationDto {

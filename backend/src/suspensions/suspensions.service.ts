@@ -19,9 +19,8 @@ import {
   ReturnStudentDto,
 } from './dto/suspension.dto';
 
-function toDateOnly(value: string | Date): Date {
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) throw new BadRequestException('التاريخ غير صالح');
+function today(): Date {
+  const d = new Date();
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
@@ -59,19 +58,20 @@ export class SuspensionsService {
     const pending = await this.prisma.suspensionRequest.findFirst({
       where: { studentId: dto.studentId, status: RequestStatus.PENDING },
     });
-    if (pending) throw new ConflictException('يوجد طلب إيقاف معلق لهذا الطالب');
+    if (pending) throw new ConflictException('يوجد طلب فصل معلق لهذا الطالب');
 
-    const startDate = toDateOnly(dto.startDate ?? new Date());
-    const endDate = new Date(startDate);
-    endDate.setUTCDate(endDate.getUTCDate() + dto.durationDays);
+    // The request is now reason-only. The existing date columns are retained
+    // for backward-compatible database shape; the same day is stored in both
+    // columns so no duration is imposed by the teacher's request.
+    const requestDate = today();
 
     const request = await this.prisma.suspensionRequest.create({
       data: {
         studentId: dto.studentId,
         reason: dto.reason,
-        durationDays: dto.durationDays,
-        startDate,
-        endDate,
+        durationDays: 0,
+        startDate: requestDate,
+        endDate: requestDate,
         requestedById: actor.id,
       },
       include: SUSPENSION_INCLUDE,
@@ -79,15 +79,15 @@ export class SuspensionsService {
 
     await this.notifications.notifyRoles([Role.ADMIN], {
       type: NotificationType.SUSPENSION_REQUEST,
-      title: 'طلب إيقاف طالب',
-      body: `طلب إيقاف الطالب ${student.fullName} لمدة ${dto.durationDays} يوماً`,
+      title: 'طلب فصل طالب',
+      body: `طلب فصل الطالب ${student.fullName} — السبب: ${dto.reason}`,
       link: `/suspensions/${request.id}`,
     });
 
     await this.activity.log({
       userId: actor.id,
       action: 'SUSPENSION_REQUEST',
-      summary: `طلب إيقاف الطالب ${student.fullName} لمدة ${dto.durationDays} يوماً`,
+      summary: `طلب فصل الطالب ${student.fullName}`,
       entityType: 'SuspensionRequest',
       entityId: request.id,
     });
@@ -121,18 +121,16 @@ export class SuspensionsService {
       }),
     ]);
 
-    // Re-read so the embedded student carries the new status.
     const updated = await this.prisma.suspensionRequest.findUniqueOrThrow({
       where: { id },
       include: SUSPENSION_INCLUDE,
     });
 
     await this.notifyDecision(updated, true, dto.decisionNote);
-
     await this.activity.log({
       userId: actor.id,
       action: 'SUSPENSION_APPROVE',
-      summary: `الموافقة على إيقاف الطالب ${request.student.fullName}`,
+      summary: `الموافقة على فصل الطالب ${request.student.fullName}`,
       entityType: 'SuspensionRequest',
       entityId: id,
     });
@@ -162,11 +160,10 @@ export class SuspensionsService {
     });
 
     await this.notifyDecision(updated, false, dto.decisionNote);
-
     await this.activity.log({
       userId: actor.id,
       action: 'SUSPENSION_REJECT',
-      summary: `رفض طلب إيقاف الطالب ${request.student.fullName}`,
+      summary: `رفض طلب فصل الطالب ${request.student.fullName}`,
       entityType: 'SuspensionRequest',
       entityId: id,
     });
@@ -174,7 +171,6 @@ export class SuspensionsService {
     return this.decorate(updated);
   }
 
-  /** Brings a suspended student back, either at the end of the period or early. */
   async returnStudent(actor: AuthUser, id: string, dto: ReturnStudentDto) {
     const request = await this.prisma.suspensionRequest.findUnique({
       where: { id },
@@ -182,7 +178,7 @@ export class SuspensionsService {
     });
     if (!request) throw new NotFoundException('الطلب غير موجود');
     if (request.status !== RequestStatus.APPROVED) {
-      throw new BadRequestException('هذا الإيقاف غير سارٍ');
+      throw new BadRequestException('هذا الفصل غير سارٍ');
     }
     if (request.returnedAt) throw new BadRequestException('تم إرجاع الطالب مسبقاً');
 
@@ -205,7 +201,7 @@ export class SuspensionsService {
     await this.notifications.notify({
       userId: request.requestedById,
       type: NotificationType.SUSPENSION_DECISION,
-      title: 'عودة طالب من الإيقاف',
+      title: 'عودة طالب من الفصل',
       body: `تم إرجاع الطالب ${request.student.fullName} إلى الحلقة`,
       link: `/students/${request.studentId}`,
     });
@@ -214,7 +210,7 @@ export class SuspensionsService {
       await this.notifications.notify({
         userId: request.student.parentProfile.userId,
         type: NotificationType.SUSPENSION_DECISION,
-        title: 'انتهاء فترة الإيقاف',
+        title: 'عودة الطالب',
         body: `تم إرجاع الطالب ${request.student.fullName} إلى الحلقة`,
         link: `/parent/children/${request.studentId}`,
       });
@@ -223,7 +219,7 @@ export class SuspensionsService {
     await this.activity.log({
       userId: actor.id,
       action: 'SUSPENSION_RETURN',
-      summary: `إرجاع الطالب ${request.student.fullName} من الإيقاف`,
+      summary: `إرجاع الطالب ${request.student.fullName} من الفصل`,
       entityType: 'SuspensionRequest',
       entityId: id,
     });
@@ -251,15 +247,11 @@ export class SuspensionsService {
 
   async findAll(user: AuthUser, query: QuerySuspensionsDto) {
     const scope = await this.acl.studentScope(user);
-
     const where: Prisma.SuspensionRequestWhereInput = {
       student: { ...scope, deletedAt: null },
       ...(query.status ? { status: query.status } : {}),
       ...(query.studentId ? { studentId: query.studentId } : {}),
       ...(query.circleId ? { student: { ...scope, circleId: query.circleId } } : {}),
-      ...(query.activeOnly === 'true'
-        ? { status: RequestStatus.APPROVED, returnedAt: null, endDate: { gte: this.today() } }
-        : {}),
     };
 
     const [rows, total] = await this.prisma.$transaction([
@@ -286,7 +278,6 @@ export class SuspensionsService {
     return this.decorate(request);
   }
 
-  /** Currently suspended students with their remaining time. */
   async activeList(user: AuthUser) {
     const scope = await this.acl.studentScope(user);
     const rows = await this.prisma.suspensionRequest.findMany({
@@ -296,55 +287,26 @@ export class SuspensionsService {
         returnedAt: null,
       },
       include: SUSPENSION_INCLUDE,
-      orderBy: { endDate: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
     return rows.map((r) => this.decorate(r));
   }
 
-  /**
-   * Reactivates students whose suspension period has elapsed.
-   * Called opportunistically by the dashboard so no scheduler is required.
-   */
   async releaseExpired() {
-    const expired = await this.prisma.suspensionRequest.findMany({
-      where: {
-        status: RequestStatus.APPROVED,
-        returnedAt: null,
-        endDate: { lt: this.today() },
-      },
-      select: { id: true, studentId: true },
-    });
-    if (expired.length === 0) return { released: 0 };
-
-    await this.prisma.$transaction([
-      this.prisma.suspensionRequest.updateMany({
-        where: { id: { in: expired.map((e) => e.id) } },
-        data: { returnedAt: new Date(), returnedNote: 'انتهاء المدة تلقائياً' },
-      }),
-      this.prisma.student.updateMany({
-        where: { id: { in: expired.map((e) => e.studentId) }, status: StudentStatus.SUSPENDED },
-        data: { status: StudentStatus.ACTIVE },
-      }),
-    ]);
-
-    return { released: expired.length };
+    // Reason-only requests are indefinite until an administrator explicitly
+    // returns the student, so there is no automatic release.
+    return { released: 0 };
   }
 
   async pendingCount() {
     return this.prisma.suspensionRequest.count({ where: { status: RequestStatus.PENDING } });
   }
 
-  // -------------------------------------------------------------------------
-
   private decorate(request: any) {
-    const remainingDays =
-      request.status === RequestStatus.APPROVED && !request.returnedAt
-        ? Math.max(0, Math.ceil((new Date(request.endDate).getTime() - Date.now()) / 86400000))
-        : 0;
     return {
       ...request,
-      remainingDays,
-      isActive: request.status === RequestStatus.APPROVED && !request.returnedAt && remainingDays > 0,
+      remainingDays: null,
+      isActive: request.status === RequestStatus.APPROVED && !request.returnedAt,
     };
   }
 
@@ -352,7 +314,7 @@ export class SuspensionsService {
     await this.notifications.notify({
       userId: request.requestedById,
       type: NotificationType.SUSPENSION_DECISION,
-      title: approved ? 'تمت الموافقة على طلب الإيقاف' : 'تم رفض طلب الإيقاف',
+      title: approved ? 'تمت الموافقة على طلب الفصل' : 'تم رفض طلب الفصل',
       body: `الطالب ${request.student.fullName}${note ? ` — ${note}` : ''}`,
       link: `/suspensions/${request.id}`,
     });
@@ -361,15 +323,10 @@ export class SuspensionsService {
       await this.notifications.notify({
         userId: request.student.parentProfile.userId,
         type: NotificationType.SUSPENSION_DECISION,
-        title: 'إشعار إيقاف',
-        body: `تم إيقاف الطالب ${request.student.fullName} لمدة ${request.durationDays} يوماً. السبب: ${request.reason}`,
+        title: 'إشعار فصل',
+        body: `تم فصل الطالب ${request.student.fullName}. السبب: ${request.reason}`,
         link: `/parent/children/${request.studentId}`,
       });
     }
-  }
-
-  private today() {
-    const d = new Date();
-    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   }
 }

@@ -15,6 +15,7 @@ import { RecitationsModule } from './recitations/recitations.module';
 import { TransfersModule } from './transfers/transfers.module';
 import { SuspensionsModule } from './suspensions/suspensions.module';
 import { ExamsModule } from './exams/exams.module';
+import { CoursesModule } from './courses/courses.module';
 import { SupportModule } from './support/support.module';
 import { ChatModule } from './chat/chat.module';
 import { SettingsModule } from './settings/settings.module';
@@ -23,15 +24,11 @@ import { DashboardModule } from './dashboard/dashboard.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'] }),
-
-    // Infrastructure (all global).
     PrismaModule,
     CommonModule,
     RealtimeModule,
     AuthModule,
     NotificationsModule,
-
-    // Domain.
     UsersModule,
     TeachersModule,
     ParentsModule,
@@ -42,6 +39,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     TransfersModule,
     SuspensionsModule,
     ExamsModule,
+    CoursesModule,
     SupportModule,
     ChatModule,
     SettingsModule,

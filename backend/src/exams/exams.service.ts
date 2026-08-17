@@ -186,8 +186,8 @@ export class ExamsService {
       pendingSection: pendingSection
         ? { id: pendingSection.id, name: pendingSection.name, order: pendingSection.order }
         : null,
-      /** True only when no required section is left unpassed. */
-      isComplete: !firstUnpassedRequired,
+      /** True only when every section (required or optional) has been passed. */
+      isComplete: progression.every((p) => p.isPassed),
       progression,
     };
   }

@@ -249,13 +249,13 @@ export class ExamsService {
       throw new BadRequestException('لا يمكن تقديم طلب اختبار لطالب موقوف');
     }
 
-    const section = await this.assertEligible(dto.studentId, dto.sectionId);
+    const section = await this.assertEligible(dto.studentId, dto.sectionIds);
     const teacherId = await this.resolveTeacherId(actor, student.circleId);
 
     const request = await this.prisma.examRequest.create({
       data: {
         studentId: dto.studentId,
-        sectionId: dto.sectionId,
+        sectionId: dto.sectionIds,
         teacherId,
         note: dto.note,
       },

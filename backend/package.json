@@ -4,7 +4,7 @@
   "description": "Backend for the Quran Memorization Circles Management System",
   "private": true,
   "scripts": {
-    "build": "nest build",
+    "build": "prisma generate && nest build",
     "start": "nest start",
     "dev": "nest start --watch",
     "start:prod": "node dist/main.js",

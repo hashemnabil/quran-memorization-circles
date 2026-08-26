@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  * {
+    @apply border-slate-200;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-800 font-sans antialiased;
+    font-feature-settings: 'kern';
+  }
+
+  /* Slim, unobtrusive scrollbars that match the palette. */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400;
+  }
+
+  /*
+   * Numbers, dates, codes and phone numbers inside RTL text.
+   *
+   * `plaintext` picks the base direction from the first strong character of the
+   * content, so "14/08/2026" and "ST-0004" stay LTR while "5 أيام" stays RTL.
+   * Never set `display` here: this class is applied to <td> elements, and any
+   * display override would drop them out of the table layout and break the
+   * column alignment.
+   */
+  .numeric {
+    font-variant-numeric: tabular-nums;
+    unicode-bidi: plaintext;
+    white-space: nowrap;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-slate-100;
+  }
+
+  .card-hover {
+    @apply transition-shadow duration-200 hover:shadow-card-hover;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold
+           transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap;
+  }
+  .btn-primary {
+    @apply btn bg-primary-700 text-white hover:bg-primary-800 focus-visible:ring-primary-500 shadow-sm;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 focus-visible:ring-slate-400;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500;
+  }
+  .btn-success {
+    @apply btn bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-slate-600 hover:bg-slate-100 focus-visible:ring-slate-300;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs rounded-lg;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800
+           placeholder:text-slate-400 transition
+           focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100
+           disabled:bg-slate-50 disabled:text-slate-500;
+  }
+  .label {
+    @apply block text-sm font-semibold text-slate-700 mb-1.5;
+  }
+  .form-error {
+    @apply mt-1 text-xs font-medium text-red-600;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold;
+  }
+
+  .table-wrap {
+    @apply overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-card;
+    /* Momentum scrolling on touch devices when the table is wider than the screen. */
+    -webkit-overflow-scrolling: touch;
+  }
+  .table {
+    /* `min-width` keeps columns readable on narrow screens: the wrapper scrolls
+       horizontally instead of squeezing every column into a few pixels. */
+    @apply w-full min-w-[44rem] text-sm text-right border-collapse;
+  }
+  /* Alignment is inherited from `.table` so per-cell `text-center` utilities still win. */
+  .table thead th {
+    @apply bg-slate-50 px-4 py-3 text-xs font-bold tracking-wide text-slate-500 whitespace-nowrap;
+  }
+  /*
+   * Cells do not wrap by default: names and dates staying on one line keeps every
+   * row the same height, and the wrapper scrolls when the columns need more room.
+   * Long free-text columns opt back in with `whitespace-normal`.
+   */
+  .table tbody td {
+    @apply whitespace-nowrap border-t border-slate-100 px-4 py-3 text-slate-700 align-middle;
+  }
+  .table tbody tr {
+    @apply transition-colors hover:bg-slate-50/70;
+  }
+  /* Opt-in helpers for individual columns. */
+  .table .col-tight {
+    @apply w-px whitespace-nowrap;
+  }
+  .table .col-actions {
+    @apply w-px whitespace-nowrap text-center;
+  }
+
+  .skeleton {
+    @apply animate-pulse rounded-lg bg-slate-200;
+  }
+}

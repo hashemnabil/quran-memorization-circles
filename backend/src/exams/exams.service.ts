@@ -42,7 +42,7 @@ import {
 // أنواع مساعدة
 // ============================================================================
 
-interface SectionWithStatus extends Prisma.ExamSectionGetPayload<{}> {
+interface SectionWithStatus extends Omit<Prisma.ExamSectionGetPayload<{}>, 'createdAt' | 'updatedAt'> {
   isPassed: boolean;
   hasOpenRequest: boolean;
   eligible: boolean;

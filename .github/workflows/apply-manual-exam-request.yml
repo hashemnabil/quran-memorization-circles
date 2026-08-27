@@ -1,0 +1,30 @@
+name: Apply manual exam request changes
+
+on:
+  push:
+    branches:
+      - feat/manual-exam-request
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply patch
+        run: python scripts/apply-manual-exam-request.py
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/prisma/schema.prisma backend/src/exams/dto/exam.dto.ts backend/src/exams/exams.service.ts frontend/src/pages/students/StudentDetailsPage.tsx frontend/src/pages/exams/ExamsPage.tsx frontend/src/types/index.ts backend/prisma/migrations/20260828090000_manual_exam_request_fields/migration.sql
+          git diff --cached --quiet || git commit -m "feat: replace exam request form with manual values"
+          git push origin feat/manual-exam-request

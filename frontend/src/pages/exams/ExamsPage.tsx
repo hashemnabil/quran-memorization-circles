@@ -196,7 +196,7 @@ function RequestsTab({ isCommittee }: { isCommittee: boolean }) {
                       </td>
                       <td className="text-xs text-slate-500">{req.student.circle?.name ?? '—'}</td>
                       <td>
-                        <SectionBadges primary={req.section} sections={req.sections} />
+                        <ManualRequestSummary request={req} />
                       </td>
                       <td className="text-xs text-slate-500">{req.teacher.user.fullName}</td>
                       <td className="text-xs text-slate-400">{timeAgo(req.createdAt)}</td>
@@ -267,7 +267,27 @@ function RequestsTab({ isCommittee }: { isCommittee: boolean }) {
   );
 }
 
-function ScheduleModal({ request, onClose }: { request: ExamRequest; onClose: () => void }) {
+function ManualRequestSummary({ request }: { request: ExamRequest }) {
+  const items = [
+    request.requestedHizb != null ? `حزب: ${request.requestedHizb}` : null,
+    request.requestedJuz != null ? `جزء: ${request.requestedJuz}` : null,
+    request.requestedCombined != null ? `مجتمعة: ${request.requestedCombined}` : null,
+  ].filter(Boolean);
+
+  if (!items.length) {
+    return <SectionBadges primary={request.section} sections={request.sections} />;
+  }
+
+  return (
+    <div className="space-y-1 text-xs text-slate-600">
+      {items.map((item) => (
+        <div key={item} className="font-semibold">{item}</div>
+      ))}
+      {request.note && <div className="mt-1 text-[11px] text-slate-400">ملاحظة: {request.note}</div>}
+    </div>
+  );
+}
+
   const queryClient = useQueryClient();
   const [scheduledAt, setScheduledAt] = useState(() => {
     const d = new Date();

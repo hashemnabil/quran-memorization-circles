@@ -23,7 +23,14 @@ import {
 import { IconAlert, IconBell, IconPlus, IconTrash } from '@/components/ui/Icons';
 import type { Announcement, PaginatedResponse, Role } from '@/types';
 
-const AUDIENCE_ROLES: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'PARENT', 'SUPPORT'];
+const AUDIENCE_ROLES: Role[] = [
+  'ADMIN',
+  'SUPERVISOR',
+  'TEACHER',
+  'EXAM_COMMITTEE',
+  'PARENT',
+  'SUPPORT',
+];
 
 /** Pages an announcement can usefully point at. */
 const LINK_OPTIONS = [
@@ -50,12 +57,16 @@ export default function AnnouncementsPage() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['announcements', page],
     queryFn: async () =>
-      (await api.get<PaginatedResponse<Announcement>>('/announcements', { params: { page, limit: 15 } }))
-        .data,
+      (
+        await api.get<PaginatedResponse<Announcement>>('/announcements', {
+          params: { page, limit: 15 },
+        })
+      ).data,
   });
 
   const remove = useMutation({
-    mutationFn: async (id: string) => (await api.delete(`/announcements/${id}`)).data,
+    mutationFn: async (id: string) =>
+      (await api.delete(`/announcements/${id}`)).data,
     onSuccess: () => {
       toast.success('تم حذف الإعلان');
       void qc.invalidateQueries({ queryKey: ['announcements'] });
@@ -65,9 +76,15 @@ export default function AnnouncementsPage() {
 
   const toggle = useMutation({
     mutationFn: async (a: Announcement) =>
-      (await api.patch(`/announcements/${a.id}`, { isActive: !a.isActive })).data,
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['announcements'] }),
-    onError: (err) => toast.error(apiError(err, 'تعذر تحديث الإعلان')),
+      (
+        await api.patch(`/announcements/${a.id}`, {
+          isActive: !a.isActive,
+        })
+      ).data,
+    onSuccess: () =>
+      void qc.invalidateQueries({ queryKey: ['announcements'] }),
+    onError: (err) =>
+      toast.error(apiError(err, 'تعذر تحديث الإعلان')),
   });
 
   const rows = data?.data ?? [];
@@ -92,7 +109,10 @@ export default function AnnouncementsPage() {
       {isLoading ? (
         <LoadingState />
       ) : error ? (
-        <ErrorState message={apiError(error, 'تعذر تحميل الإعلانات')} onRetry={refetch} />
+        <ErrorState
+          message={apiError(error, 'تعذر تحميل الإعلانات')}
+          onRetry={refetch}
+        />
       ) : rows.length === 0 ? (
         <EmptyState
           icon={<IconBell size={30} />}
@@ -107,7 +127,10 @@ export default function AnnouncementsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-bold text-slate-800">{a.title}</h3>
+                      <h3 className="font-bold text-slate-800">
+                        {a.title}
+                      </h3>
+
                       <Badge
                         className={
                           !a.isActive
@@ -117,15 +140,27 @@ export default function AnnouncementsPage() {
                               : 'bg-emerald-100 text-emerald-800'
                         }
                       >
-                        {!a.isActive ? 'موقوف' : a.isExpired ? 'منتهي' : 'معروض'}
+                        {!a.isActive
+                          ? 'موقوف'
+                          : a.isExpired
+                            ? 'منتهي'
+                            : 'معروض'}
                       </Badge>
                     </div>
-                    {a.body && <p className="mt-1.5 text-sm text-slate-600">{a.body}</p>}
+
+                    {a.body && (
+                      <p className="mt-1.5 text-sm text-slate-600">
+                        {a.body}
+                      </p>
+                    )}
 
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                       <span className="text-slate-400">الفئات:</span>
+
                       {a.audience.length === 0 ? (
-                        <Badge className="bg-primary-100 text-primary-800">الجميع</Badge>
+                        <Badge className="bg-primary-100 text-primary-800">
+                          الجميع
+                        </Badge>
                       ) : (
                         a.audience.map((r) => (
                           <Badge key={r} className={ROLE_COLORS[r]}>
@@ -133,6 +168,7 @@ export default function AnnouncementsPage() {
                           </Badge>
                         ))
                       )}
+
                       {a.link && (
                         <span className="inline-flex items-center gap-1 text-slate-400">
                           {isExternalLink(a.link) && (
@@ -140,7 +176,12 @@ export default function AnnouncementsPage() {
                               رابط خارجي
                             </Badge>
                           )}
-                          <span className="numeric max-w-[18rem] truncate" dir="ltr" title={a.link}>
+
+                          <span
+                            className="numeric max-w-[18rem] truncate"
+                            dir="ltr"
+                            title={a.link}
+                          >
                             → {a.link}
                           </span>
                         </span>
@@ -149,15 +190,22 @@ export default function AnnouncementsPage() {
 
                     <p className="mt-2 text-xs text-slate-400">
                       نُشر {formatDateTime(a.publishedAt)}
-                      {a.expiresAt ? ` — ينتهي ${formatDateTime(a.expiresAt)}` : ''}
+                      {a.expiresAt
+                        ? ` — ينتهي ${formatDateTime(a.expiresAt)}`
+                        : ''}
                       {a.createdBy ? ` — ${a.createdBy.fullName}` : ''}
                     </p>
                   </div>
 
                   <div className="flex shrink-0 gap-1.5">
-                    <Button variant="ghost" size="sm" onClick={() => toggle.mutate(a)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggle.mutate(a)}
+                    >
                       {a.isActive ? 'إيقاف' : 'تفعيل'}
                     </Button>
+
                     <Button
                       variant="ghost"
                       size="sm"
@@ -168,6 +216,7 @@ export default function AnnouncementsPage() {
                     >
                       تعديل
                     </Button>
+
                     <Button
                       variant="ghost"
                       size="sm"
@@ -179,6 +228,7 @@ export default function AnnouncementsPage() {
                           confirmLabel: 'حذف',
                           variant: 'danger',
                         });
+
                         if (yes) remove.mutate(a.id);
                       }}
                     >
@@ -223,20 +273,22 @@ function AnnouncementForm({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const empty = { title: '', body: '', link: '', audience: [] as Role[], expiresAt: '' };
-  // Which kind of destination the admin is filling in; derived from the saved
-  // value when editing so an existing external link opens on the right tab.
+
+  const empty = {
+    title: '',
+    body: '',
+    link: '',
+    audience: [] as Role[],
+    expiresAt: '',
+  };
+
   const [linkKind, setLinkKind] = useState<'internal' | 'external'>(
     isExternalLink(announcement?.link) ? 'external' : 'internal',
   );
+
   const [form, setForm] = useState(empty);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [ready, setReady] = useState(false);
-
-  // Recomputed from both halves of the choice: changing the audience can make
-  // an already-picked page unreachable just as easily as changing the page.
-  const unreachableFor =
-    linkKind === 'internal' ? rolesWithoutAccess(form.link, form.audience) : [];
 
   if (open && !ready) {
     setForm(
@@ -250,49 +302,116 @@ function AnnouncementForm({
           }
         : empty,
     );
+
     setErrors({});
-    // Re-derived on every open: the modal stays mounted between announcements.
-    setLinkKind(isExternalLink(announcement?.link) ? 'external' : 'internal');
+
+    setLinkKind(
+      isExternalLink(announcement?.link) ? 'external' : 'internal',
+    );
+
     setReady(true);
   }
-  if (!open && ready) setReady(false);
+
+  if (!open && ready) {
+    setReady(false);
+  }
+
+  const unreachableFor =
+    linkKind === 'internal'
+      ? rolesWithoutAccess(form.link, form.audience)
+      : [];
 
   const mutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
       announcement
-        ? (await api.patch(`/announcements/${announcement.id}`, payload)).data
+        ? (
+            await api.patch(
+              `/announcements/${announcement.id}`,
+              payload,
+            )
+          ).data
         : (await api.post('/announcements', payload)).data,
+
     onSuccess: () => {
-      toast.success(announcement ? 'تم تحديث الإعلان' : 'تم نشر الإعلان');
-      void qc.invalidateQueries({ queryKey: ['announcements'] });
+      toast.success(
+        announcement ? 'تم تحديث الإعلان' : 'تم نشر الإعلان',
+      );
+
+      void qc.invalidateQueries({
+        queryKey: ['announcements'],
+      });
+
       onClose();
     },
-    onError: (err) => setErrors({ form: apiError(err, 'تعذر حفظ الإعلان') }),
+
+    onError: (err) =>
+      setErrors({
+        form: apiError(err, 'تعذر حفظ الإعلان'),
+      }),
   });
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+
+    setErrors({});
+
     if (!form.title.trim()) {
-      setErrors({ title: 'عنوان الإعلان مطلوب' });
+      setErrors({
+        title: 'عنوان الإعلان مطلوب',
+      });
       return;
     }
-    // Mirrors the server's rule so the admin hears about it before saving.
-    if (linkKind === 'external' && form.link && !isExternalLink(form.link)) {
-      setErrors({ link: 'الرابط الخارجي يجب أن يبدأ بـ https:// أو http://' });
+
+    const cleanLink = form.link.trim();
+
+    /*
+     * الرابط اختياري:
+     * إذا كان فارغاً لا نرسله للـBackend نهائياً.
+     */
+    if (
+      cleanLink &&
+      linkKind === 'external' &&
+      !isExternalLink(cleanLink)
+    ) {
+      setErrors({
+        link: 'الرابط الخارجي يجب أن يبدأ بـ https:// أو http://',
+      });
       return;
     }
-    mutation.mutate({
+
+    /*
+     * نبني البيانات الأساسية.
+     * link لن يتم إرساله إذا كان فارغاً.
+     */
+    const payload: Record<string, unknown> = {
       title: form.title.trim(),
       body: form.body.trim(),
-      link: form.link || '',
       audience: form.audience,
       expiresAt: form.expiresAt || undefined,
-    });
+    };
+
+    /*
+     * فقط إذا كتب المستخدم رابطاً فعلياً نرسله.
+     */
+    if (cleanLink) {
+      payload.link = cleanLink;
+    }
+
+    mutation.mutate(payload);
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={announcement ? 'تعديل الإعلان' : 'إعلان جديد'} size="lg">
-      <form onSubmit={submit} className="space-y-4" noValidate>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={announcement ? 'تعديل الإعلان' : 'إعلان جديد'}
+      size="lg"
+    >
+      <form
+        onSubmit={submit}
+        className="space-y-4"
+        noValidate
+      >
         {errors.form && (
           <div className="rounded-xl border border-red-100 bg-red-50 px-3.5 py-3 text-sm text-red-700">
             {errors.form}
@@ -303,8 +422,15 @@ function AnnouncementForm({
           label="العنوان"
           value={form.title}
           onChange={(e) => {
-            setForm((f) => ({ ...f, title: e.target.value }));
-            setErrors((x) => ({ ...x, title: '' }));
+            setForm((f) => ({
+              ...f,
+              title: e.target.value,
+            }));
+
+            setErrors((x) => ({
+              ...x,
+              title: '',
+            }));
           }}
           error={errors.title}
           placeholder="مثال: افتتاح دورة أحكام التجويد"
@@ -313,19 +439,36 @@ function AnnouncementForm({
 
         <Textarea
           label="نص الإعلان"
-          rows={3}
+          rows={5}
           value={form.body}
-          onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
+          onChange={(e) =>
+            setForm((f) => ({
+              ...f,
+              body: e.target.value,
+            }))
+          }
+          placeholder="اكتب كامل محتوى الإعلان هنا..."
         />
 
         {unreachableFor.length > 0 && (
           <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs leading-6 text-amber-900">
-            <IconAlert size={15} className="mt-1 shrink-0" />
+            <IconAlert
+              size={15}
+              className="mt-1 shrink-0"
+            />
+
             <span>
               الصفحة المختارة غير متاحة لـ
-              <span className="font-bold"> {unreachableFor.map((r) => ROLE_LABELS[r]).join('، ')}</span>.
-              سيظهر لهم الإعلان بلا رابط بدل نقلهم إلى صفحة محجوبة — اختر صفحة أخرى، أو رابطاً
-              خارجياً، أو احصر الفئات المستهدفة.
+              <span className="font-bold">
+                {' '}
+                {unreachableFor
+                  .map((r) => ROLE_LABELS[r])
+                  .join('، ')}
+              </span>
+              .
+              سيظهر لهم الإعلان بلا رابط بدل نقلهم إلى صفحة محجوبة —
+              اختر صفحة أخرى، أو رابطاً خارجياً، أو احصر الفئات
+              المستهدفة.
             </span>
           </div>
         )}
@@ -342,13 +485,21 @@ function AnnouncementForm({
                   type="button"
                   onClick={() => {
                     setLinkKind(kind);
-                    // The two fields hold different things; carrying a path
-                    // into the URL box (or the reverse) only produces errors.
-                    setForm((f) => ({ ...f, link: '' }));
-                    setErrors((x) => ({ ...x, link: '' }));
+
+                    setForm((f) => ({
+                      ...f,
+                      link: '',
+                    }));
+
+                    setErrors((x) => ({
+                      ...x,
+                      link: '',
+                    }));
                   }}
                   className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    linkKind === kind ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-500'
+                    linkKind === kind
+                      ? 'bg-white text-primary-700 shadow-sm'
+                      : 'text-slate-500'
                   }`}
                 >
                   {label}
@@ -360,53 +511,85 @@ function AnnouncementForm({
               <Select
                 label="ينتقل إلى"
                 value={form.link}
-                onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))}
-                hint="الصفحة التي تُفتح عند الضغط على الإعلان"
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    link: e.target.value,
+                  }))
+                }
+                hint="اختياري — يمكنك اختيار بدون رابط"
               >
                 {LINK_OPTIONS.map((o) => {
-                  // Named right in the list, so the choice is informed rather
-                  // than discovered later by a parent hitting a locked page.
-                  const blocked = rolesWithoutAccess(o.value, form.audience);
+                  const blocked = rolesWithoutAccess(
+                    o.value,
+                    form.audience,
+                  );
+
                   return (
-                    <option key={o.value} value={o.value}>
+                    <option
+                      key={o.value}
+                      value={o.value}
+                    >
                       {o.label}
-                      {blocked.length ? ` — لا تتاح لـ${blocked.map((r) => ROLE_LABELS[r]).join('، ')}` : ''}
+                      {blocked.length
+                        ? ` — لا تتاح لـ${blocked
+                            .map((r) => ROLE_LABELS[r])
+                            .join('، ')}`
+                        : ''}
                     </option>
                   );
                 })}
               </Select>
             ) : (
               <Input
-                label="الرابط الخارجي"
+                label="الرابط الخارجي (اختياري)"
                 value={form.link}
                 dir="ltr"
                 onChange={(e) => {
-                  setForm((f) => ({ ...f, link: e.target.value }));
-                  setErrors((x) => ({ ...x, link: '' }));
+                  setForm((f) => ({
+                    ...f,
+                    link: e.target.value,
+                  }));
+
+                  setErrors((x) => ({
+                    ...x,
+                    link: '',
+                  }));
                 }}
                 error={errors.link}
                 placeholder="https://example.org/news"
-                hint="يُفتح في تبويب جديد ولا يغادر المستخدم النظام"
+                hint="اتركه فارغاً إذا كان الإعلان لا يحتاج إلى رابط"
               />
             )}
           </div>
+
           <Input
             label="ينتهي بتاريخ"
             type="date"
             value={form.expiresAt}
-            onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                expiresAt: e.target.value,
+              }))
+            }
             hint="اتركه فارغاً ليبقى معروضاً"
           />
         </div>
 
         <div>
-          <span className="label">الفئات المستهدفة</span>
+          <span className="label">
+            الفئات المستهدفة
+          </span>
+
           <p className="mb-2 text-xs text-slate-400">
             لا تحدد أي فئة ليظهر الإعلان لجميع المستخدمين.
           </p>
+
           <div className="flex flex-wrap gap-2">
             {AUDIENCE_ROLES.map((role) => {
               const active = form.audience.includes(role);
+
               return (
                 <button
                   key={role}
@@ -415,7 +598,9 @@ function AnnouncementForm({
                     setForm((f) => ({
                       ...f,
                       audience: active
-                        ? f.audience.filter((r) => r !== role)
+                        ? f.audience.filter(
+                            (r) => r !== role,
+                          )
                         : [...f.audience, role],
                     }))
                   }
@@ -433,10 +618,18 @@ function AnnouncementForm({
         </div>
 
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+          >
             إلغاء
           </Button>
-          <Button type="submit" loading={mutation.isPending}>
+
+          <Button
+            type="submit"
+            loading={mutation.isPending}
+          >
             {announcement ? 'حفظ' : 'نشر'}
           </Button>
         </div>

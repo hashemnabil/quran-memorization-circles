@@ -323,7 +323,6 @@ export class ExamsService {
   }
 
   async createSection(actor: AuthUser, dto: CreateSectionDto) {
-    // التحقق من التكرار
     const existing = await this.prisma.examSection.findFirst({
       where: {
         OR: [{ code: dto.code }, { order: dto.order }, { name: dto.name }],
@@ -363,7 +362,7 @@ export class ExamsService {
   }
 
   // ==========================================================================
-  // أهلية الطالب للاختبار
+  // أهلية الطالب للاختبار - المكان الرئيسي للتعديل
   // ==========================================================================
 
   /**
@@ -377,6 +376,9 @@ export class ExamsService {
    */
   async eligibility(user: AuthUser, studentId: string): Promise<EligibilityResult> {
     await this.acl.assertStudentAccess(user, studentId);
+
+    // ✅ تشخيص المشكلة - سجل البيانات
+    this.logger.log(`🔍 جاري التحقق من أهلية الطالب: ${studentId}`);
 
     const [sections, passed, openWork] = await Promise.all([
       this.prisma.examSection.findMany({
@@ -395,11 +397,17 @@ export class ExamsService {
           isActive: true,
         },
       }),
+      
+      // ✅ تأكد من أن الطالب قد اجتاز الاختبار بالفعل (مكتمل وناجح)
       this.prisma.exam.findMany({
         where: {
           studentId,
           status: ExamStatus.COMPLETED,
           result: ExamResult.PASSED,
+          // ✅ تأكد من وجود درجة
+          score: {
+            not: null,
+          },
         },
         select: {
           sectionId: true,
@@ -412,6 +420,8 @@ export class ExamsService {
           },
         },
       }),
+      
+      // ✅ الطلبات القائمة فقط (ليست مكتملة)
       this.prisma.examRequest.findMany({
         where: {
           studentId,
@@ -431,15 +441,41 @@ export class ExamsService {
       }),
     ]);
 
-    // جميع الأحزاب/الأجزاء التي اجتازها الطالب
+    // ✅ تشخيص المشكلة - سجل النتائج
+    this.logger.log(`📊 عدد المقررات الكلي: ${sections.length}`);
+    this.logger.log(`📊 عدد الاختبارات المجتازة: ${passed.length}`);
+    this.logger.log(`📊 عدد الطلبات المفتوحة: ${openWork.length}`);
+
+    // ✅ تأكد من أن passedIds تحتوي على المعرفات الصحيحة فقط
     const passedIds = new Set(
-      passed.flatMap((p) => [p.sectionId, ...p.sections.map((x) => x.sectionId)]),
+      passed.flatMap((p) => {
+        const ids = [p.sectionId];
+        if (p.sections && p.sections.length > 0) {
+          ids.push(...p.sections.map((x) => x.sectionId));
+        }
+        return ids;
+      }),
     );
 
-    // جميع الأحزاب/الأجزاء الموجودة في طلبات قائمة
+    // ✅ تأكد من أن openIds تحتوي على المعرفات الصحيحة فقط
     const openIds = new Set(
-      openWork.flatMap((o) => [o.sectionId, ...o.sections.map((x) => x.sectionId)]),
+      openWork.flatMap((o) => {
+        const ids = [o.sectionId];
+        if (o.sections && o.sections.length > 0) {
+          ids.push(...o.sections.map((x) => x.sectionId));
+        }
+        return ids;
+      }),
     );
+
+    // ✅ تشخيص المشكلة - سجل المعرفات
+    this.logger.log(`🧪 المعرفات المجتازة: ${Array.from(passedIds).join(', ') || 'لا يوجد'}`);
+    this.logger.log(`🧪 المعرفات المفتوحة: ${Array.from(openIds).join(', ') || 'لا يوجد'}`);
+
+    // ✅ إذا كان هناك مقررات مجتازة ولكن الطالب لم يقدم أي اختبار، هذا يعني وجود خطأ
+    if (passedIds.size > 0 && passed.length === 0) {
+      this.logger.warn(`⚠️ تحذير: يوجد ${passedIds.size} مقرر مجتاز ولكن لا يوجد اختبارات للطالب ${studentId}`);
+    }
 
     const progression = sections.map((section) => {
       const isPassed = passedIds.has(section.id);
@@ -466,7 +502,7 @@ export class ExamsService {
           passed.find(
             (p) =>
               p.sectionId === section.id ||
-              p.sections.some((x) => x.sectionId === section.id),
+              (p.sections && p.sections.some((x) => x.sectionId === section.id)),
           )?.score ?? null,
       };
     });
@@ -485,6 +521,9 @@ export class ExamsService {
         order: p.order,
         kind: p.kind,
       }));
+
+    // ✅ تشخيص المشكلة - سجل المقررات القابلة للاختيار
+    this.logger.log(`✅ المقررات المتاحة للاختيار: ${selectableSections.length}`);
 
     return {
       passedCount: passedIds.size,
@@ -541,11 +580,17 @@ export class ExamsService {
       throw new BadRequestException('المقرر المحدد غير موجود');
     }
 
+    // ✅ تأكد من أن الطالب اجتاز الاختبار بنجاح مع درجة
     const alreadyPassed = await this.prisma.exam.findFirst({
       where: {
         studentId,
         status: ExamStatus.COMPLETED,
         result: ExamResult.PASSED,
+        // ✅ تأكد من وجود درجة وأنها أعلى من الحد الأدنى
+        score: {
+          gte: section.minScore,
+          not: null,
+        },
         OR: [
           { sectionId },
           {
@@ -637,20 +682,16 @@ export class ExamsService {
 
     this.validateStudentStatus(student);
 
-    // إزالة التكرار
     const sectionIds = [...new Set(dto.sectionIds)];
 
     if (sectionIds.length === 0) {
       throw new BadRequestException('يجب اختيار مقرر اختبار واحد على الأقل');
     }
 
-    // جلب المقررات مع التحقق من وجودها
     const sections = await this.fetchActiveSections(sectionIds);
 
-    // التحقق من أهلية كل مقرر
     await this.validateAllSectionsEligibility(dto.studentId, sections);
 
-    // أول مقرر حسب الترتيب يصبح primary section
     const primary = sections[0];
 
     const teacherId = await this.resolveTeacherId(actor, student.circleId);
@@ -876,7 +917,6 @@ export class ExamsService {
     const when = this.formatDateArabic(scheduledAt);
     const notificationPromises: Promise<any>[] = [];
 
-    // إشعار للمعلم
     if (request.teacher?.user?.id) {
       notificationPromises.push(
         this.notifications.notify({
@@ -889,7 +929,6 @@ export class ExamsService {
       );
     }
 
-    // إشعار لولي الأمر
     if (request.student.parentProfile?.userId) {
       notificationPromises.push(
         this.notifications.notify({
@@ -902,7 +941,6 @@ export class ExamsService {
       );
     }
 
-    // إشعار للممتحن
     if (examinerId) {
       notificationPromises.push(
         this.notifications.notify({
@@ -976,7 +1014,6 @@ export class ExamsService {
       return created;
     });
 
-    // إرسال الإشعارات
     await this.sendExamScheduledNotifications(request, exam, scheduledAt, dto.examinerId);
 
     await this.activity.log({
@@ -1214,7 +1251,6 @@ export class ExamsService {
       return result;
     });
 
-    // إرسال الإشعارات
     await this.sendResultNotifications(exam, updated, passed, dto.score);
 
     await this.activity.log({

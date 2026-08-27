@@ -1020,40 +1020,19 @@ function SuspendModal({ student, onClose }: { student: Student; onClose: () => v
  */
 function ExamRequestModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [take, setTake] = useState(0);
-  const [route, setRoute] = useState<ExamDirection | null>(null);
+  const [hizb, setHizb] = useState('');
+  const [juz, setJuz] = useState('');
+  const [combined, setCombined] = useState('');
   const [note, setNote] = useState('');
-
-  const { data: eligibility, isLoading } = useQuery({
-    queryKey: ['exams', 'eligibility', student.id],
-    queryFn: async () => (await api.get<ExamEligibility>(`/exams/eligibility/${student.id}`)).data,
-  });
-
-  const chains = eligibility?.chains ?? [];
-  /**
-   * Only routes that actually have something on them.
-   *
-   * A route comes back empty when the hizb at its head is already on a pending
-   * request, and offering that direction put the teacher in front of an empty
-   * grid with no explanation. It also happens on older records where both ends
-   * were passed, so the server cannot tell which way the student was going.
-   */
-  const usableChains = chains.filter((c) => c.sections.length > 0);
-  // One route left means the direction is settled — by the student's history or
-  // by everything else being blocked — so there is nothing to ask.
-  const chain =
-    usableChains.length === 1
-      ? usableChains[0]
-      : usableChains.find((c) => c.direction === route) ?? null;
-  const available = chain?.sections ?? [];
-  const picked = available.slice(0, take);
 
   const mutation = useMutation({
     mutationFn: () =>
       api.post('/exams/requests', {
         studentId: student.id,
-        sectionIds: picked.map((s) => s.id),
-        note: note || undefined,
+        requestedHizb: hizb ? Number(hizb) : undefined,
+        requestedJuz: juz ? Number(juz) : undefined,
+        requestedCombined: combined ? Number(combined) : undefined,
+        note: note.trim() || undefined,
       }),
     onSuccess: () => {
       toast.success('تم إرسال طلب الاختبار إلى لجنة الاختبارات');
@@ -1062,6 +1041,8 @@ function ExamRequestModal({ student, onClose }: { student: Student; onClose: () 
     },
     onError: (error) => toast.error(apiError(error)),
   });
+
+  const hasValue = Boolean(hizb || juz || combined);
 
   return (
     <Modal
@@ -1074,132 +1055,55 @@ function ExamRequestModal({ student, onClose }: { student: Student; onClose: () 
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
-          <Button onClick={() => mutation.mutate()} loading={mutation.isPending} disabled={take === 0}>
-            إرسال الطلب {take > 1 ? `(${take} أحزاب)` : ''}
+          <Button onClick={() => mutation.mutate()} loading={mutation.isPending} disabled={!hasValue}>
+            تقديم طلب
           </Button>
         </>
       }
     >
-      {isLoading ? (
-        <LoadingState rows={2} />
-      ) : usableChains.length === 0 ? (
-        <EmptyState
-          title={
-            eligibility?.isComplete
-              ? 'اكتملت جميع الأحزاب'
-              : eligibility?.pendingSection
-                ? `يوجد طلب قائم لمقرر «${eligibility.pendingSection.name}»`
-                : 'لا يوجد حزب متاح حالياً'
-          }
-          message={
-            eligibility?.isComplete
-              ? 'اجتاز الطالب الأحزاب الستين كاملة، ولا يوجد ما يُطلب.'
-              : 'لا يمكن طلب حزب جديد قبل أن تبتّ اللجنة في الطلب القائم أو يُلغى.'
-          }
-          icon={<IconAward size={24} />}
-        />
-      ) : (
-        <>
-          <p className="mb-4 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-500">
-            تم اجتياز <span className="numeric font-bold">{eligibility?.hizbPassed ?? 0}</span> من{' '}
-            <span className="numeric font-bold">{eligibility?.hizbTotal ?? 60}</span> حزباً
-            {eligibility?.juzEquivalent ? (
-              <>
-                {' '}
-                (ما يعادل <span className="numeric font-bold">{eligibility.juzEquivalent}</span> جزءاً)
-              </>
-            ) : null}
-            . الأحزاب تُطلب بالتسلسل، ويمكن ضمّ أكثر من حزب متتالٍ إلى الاختبار نفسه.
-          </p>
+      <div className="space-y-3">
+        <p className="rounded-xl bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-500">
+          اختر ما تريد طلب اختباره. يمكنك تعبئة خانة واحدة فقط أو أكثر من خانة، ولا يلزم تعبئة الجميع.
+        </p>
 
-          {/* Nothing passed yet: the circle decides which way the student goes. */}
-          {usableChains.length > 1 && (
-            <div className="mb-3">
-              <p className="mb-1.5 text-xs font-semibold text-slate-500">اتجاه المسار</p>
-              <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
-                {usableChains.map((c) => (
-                  <button
-                    key={c.direction}
-                    type="button"
-                    onClick={() => {
-                      setRoute(c.direction);
-                      setTake(0);
-                    }}
-                    className={cx(
-                      'flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-                      chain?.direction === c.direction
-                        ? 'bg-white text-primary-700 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700',
-                    )}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {!chain ? (
-            <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
-              اختر اتجاه المسار أولاً
-            </p>
-          ) : (
-            <>
-              <div className="grid max-h-56 grid-cols-3 gap-1.5 overflow-y-auto rounded-xl border border-slate-100 p-2 sm:grid-cols-4">
-                {available.map((s, index) => {
-                  const chosen = index < take;
-                  // The run is contiguous, so only the next one along can be
-                  // added and only the last one taken can be given back.
-                  const reachable = index <= take;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      disabled={!reachable}
-                      aria-pressed={chosen}
-                      onClick={() => setTake(index + 1 === take ? index : index + 1)}
-                      className={cx(
-                        'rounded-lg border px-2 py-2 text-center text-[11px] font-bold transition',
-                        chosen
-                          ? 'border-primary-500 bg-primary-50 text-primary-800'
-                          : reachable
-                            ? 'border-gold-300 bg-gold-50 text-gold-800 hover:bg-gold-100'
-                            : 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300',
-                      )}
-                      title={reachable ? undefined : `يجب اجتياز "${available[index - 1]?.name}" أولاً`}
-                    >
-                      {s.name}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <p className="mt-2 text-xs text-slate-500">
-                {take === 0 ? (
-                  <>
-                    المقرر التالي في المسار:{' '}
-                    <span className="font-bold text-slate-700">{available[0]?.name}</span>
-                  </>
-                ) : (
-                  <>
-                    تم اختيار <span className="numeric font-bold text-primary-700">{take}</span> حزباً:{' '}
-                    <span className="font-bold text-slate-700">
-                      {picked.map((s) => s.name).join('، ')}
-                    </span>
-                  </>
-                )}
-              </p>
-            </>
-          )}
-
-          <Textarea
-            label="ملاحظة للجنة (اختياري)"
-            className="mt-3"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Input
+            label="حزب"
+            type="number"
+            min={1}
+            max={60}
+            value={hizb}
+            onChange={(e) => setHizb(e.target.value)}
+            placeholder="رقم الحزب"
           />
-        </>
-      )}
+          <Input
+            label="جزء"
+            type="number"
+            min={1}
+            max={30}
+            value={juz}
+            onChange={(e) => setJuz(e.target.value)}
+            placeholder="رقم الجزء"
+          />
+          <Input
+            label="مجتمعة"
+            type="number"
+            min={1}
+            max={60}
+            value={combined}
+            onChange={(e) => setCombined(e.target.value)}
+            placeholder="الرقم"
+          />
+        </div>
+
+        <Textarea
+          label="ملاحظة (اختياري)"
+          rows={4}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="أي ملاحظة تريد إرسالها للجنة الاختبارات"
+        />
+      </div>
     </Modal>
   );
 }

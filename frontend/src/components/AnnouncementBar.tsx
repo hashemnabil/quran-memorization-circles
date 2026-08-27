@@ -80,7 +80,7 @@ export default function AnnouncementBar() {
       >
         <div className="flex h-11 items-center">
 
-          {/* عنوان الإعلانات */}
+          {/* عنوان الشريط */}
           <div className="z-20 flex h-11 shrink-0 items-center gap-2 border-l border-[#ded6c8] bg-[#f4efe6] px-4 text-[#6f6252] shadow-[4px_0_10px_rgba(0,0,0,0.04)]">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5dccd]">
               <IconBell size={15} />
@@ -91,20 +91,20 @@ export default function AnnouncementBar() {
             </span>
           </div>
 
-          {/* منطقة الإعلان */}
+          {/* منطقة الإعلان المتحركة */}
           <div className="relative h-full min-w-0 flex-1 overflow-hidden">
             {visible.map((announcement) => (
               <button
                 key={announcement.id}
                 type="button"
                 onClick={() => setSelectedAnnouncement(announcement)}
-                className={`announcement-item absolute top-0 flex h-11 items-center gap-3 whitespace-nowrap px-6 text-right ${
+                className={`announcement-item ${
                   paused ? 'is-paused' : ''
                 }`}
               >
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
 
-                <span className="font-bold text-sm text-[#51483d]">
+                <span className="shrink-0 text-sm font-bold text-[#51483d]">
                   {announcement.title}
                 </span>
 
@@ -118,14 +118,14 @@ export default function AnnouncementBar() {
                   </>
                 )}
 
-                <span className="text-[11px] font-semibold text-[#9b8d79]">
+                <span className="whitespace-nowrap text-[11px] font-semibold text-[#9b8d79]">
                   اضغط لعرض التفاصيل
                 </span>
               </button>
             ))}
           </div>
 
-          {/* إخفاء الإعلان */}
+          {/* زر إخفاء الإعلان */}
           <button
             type="button"
             onClick={() => dismiss(visible[0].id)}
@@ -189,7 +189,7 @@ export default function AnnouncementBar() {
               )}
             </div>
 
-            {/* أسفل النافذة */}
+            {/* أزرار النافذة */}
             <div className="flex items-center justify-between gap-3 border-t border-[#e8e1d7] bg-[#faf8f5] px-5 py-4">
               <button
                 type="button"
@@ -199,6 +199,7 @@ export default function AnnouncementBar() {
                 إغلاق
               </button>
 
+              {/* يظهر فقط إذا كان هناك رابط */}
               {selectedAnnouncement.link && (
                 <button
                   type="button"
@@ -228,24 +229,38 @@ export default function AnnouncementBar() {
         </div>
       )}
 
+      {/* حركة شريط الأخبار من اليسار إلى اليمين */}
       <style>{`
         .announcement-item {
-          left: 100%;
-          animation: announcement-slide 18s linear infinite;
+          position: absolute;
+          top: 0;
+          left: -100%;
+          display: flex;
+          height: 44px;
+          align-items: center;
+          gap: 12px;
+          white-space: nowrap;
+          padding: 0 24px;
+          text-align: right;
+          animation: announcement-slide-left-to-right 18s linear infinite;
           will-change: left;
+        }
+
+        .announcement-item:hover {
+          background: rgba(255, 255, 255, 0.5);
         }
 
         .announcement-item.is-paused {
           animation-play-state: paused;
         }
 
-        @keyframes announcement-slide {
+        @keyframes announcement-slide-left-to-right {
           0% {
-            left: 100%;
+            left: -100%;
           }
 
           100% {
-            left: -100%;
+            left: 100%;
           }
         }
 

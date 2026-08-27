@@ -24,7 +24,7 @@ export default function AnnouncementBar() {
   const userId = useAuthStore((s) => s.user?.id);
 
   const [dismissed, setDismissed] = useState<string[]>(() =>
-    readDismissed(userId)
+    readDismissed(userId),
   );
 
   const [selectedAnnouncement, setSelectedAnnouncement] =
@@ -46,7 +46,7 @@ export default function AnnouncementBar() {
 
   const visible = useMemo(
     () => (data ?? []).filter((a) => !dismissed.includes(a.id)),
-    [data, dismissed]
+    [data, dismissed],
   );
 
   const dismiss = (id: string) => {
@@ -57,7 +57,7 @@ export default function AnnouncementBar() {
     try {
       localStorage.setItem(
         dismissedKey(userId),
-        JSON.stringify(next.slice(-100))
+        JSON.stringify(next.slice(-100)),
       );
     } catch {
       // Ignore storage errors.
@@ -68,25 +68,20 @@ export default function AnnouncementBar() {
     return null;
   }
 
-  /*
-   * نكرر الإعلانات مرتين حتى تستمر الحركة بشكل سلس
-   * بدون فراغ في نهاية الشريط.
-   */
-  const scrollingAnnouncements = [...visible, ...visible];
-
   return (
     <>
       <div
-        className="overflow-hidden border-b border-[#ded6c8] bg-[#f4efe6]"
+        className="announcement-bar overflow-hidden border-b border-[#ded6c8] bg-[#f4efe6]"
+        dir="rtl"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         onTouchStart={() => setPaused(true)}
         onTouchEnd={() => setPaused(false)}
       >
-        <div className="flex items-center">
+        <div className="flex h-11 items-center">
 
-          {/* أيقونة الإعلان */}
-          <div className="z-10 flex h-11 shrink-0 items-center gap-2 border-l border-[#ded6c8] bg-[#f4efe6] px-4 text-[#6f6252] shadow-[4px_0_10px_rgba(0,0,0,0.04)]">
+          {/* عنوان الإعلانات */}
+          <div className="z-20 flex h-11 shrink-0 items-center gap-2 border-l border-[#ded6c8] bg-[#f4efe6] px-4 text-[#6f6252] shadow-[4px_0_10px_rgba(0,0,0,0.04)]">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5dccd]">
               <IconBell size={15} />
             </span>
@@ -96,50 +91,45 @@ export default function AnnouncementBar() {
             </span>
           </div>
 
-          {/* شريط الحركة */}
-          <div className="relative min-w-0 flex-1 overflow-hidden">
-            <div
-              className="announcement-marquee flex w-max items-center"
-              style={{
-                animationPlayState: paused ? 'paused' : 'running',
-              }}
-            >
-              {scrollingAnnouncements.map((announcement, index) => (
-                <button
-                  key={`${announcement.id}-${index}`}
-                  type="button"
-                  onClick={() => setSelectedAnnouncement(announcement)}
-                  className="flex shrink-0 items-center gap-3 px-8 py-2.5 text-right transition hover:bg-white/50"
-                >
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
+          {/* منطقة الإعلان */}
+          <div className="relative h-full min-w-0 flex-1 overflow-hidden">
+            {visible.map((announcement) => (
+              <button
+                key={announcement.id}
+                type="button"
+                onClick={() => setSelectedAnnouncement(announcement)}
+                className={`announcement-item absolute top-0 flex h-11 items-center gap-3 whitespace-nowrap px-6 text-right ${
+                  paused ? 'is-paused' : ''
+                }`}
+              >
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
 
-                  <span className="max-w-[320px] truncate text-sm font-bold text-[#51483d] sm:max-w-[500px]">
-                    {announcement.title}
-                  </span>
+                <span className="font-bold text-sm text-[#51483d]">
+                  {announcement.title}
+                </span>
 
-                  {announcement.body && (
-                    <>
-                      <span className="text-[#b2a898]">—</span>
+                {announcement.body && (
+                  <>
+                    <span className="text-[#b2a898]">—</span>
 
-                      <span className="max-w-[300px] truncate text-xs text-[#756b60] sm:max-w-[500px]">
-                        {announcement.body}
-                      </span>
-                    </>
-                  )}
+                    <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
+                      {announcement.body}
+                    </span>
+                  </>
+                )}
 
-                  <span className="whitespace-nowrap text-[11px] font-semibold text-[#9b8d79]">
-                    عرض التفاصيل
-                  </span>
-                </button>
-              ))}
-            </div>
+                <span className="text-[11px] font-semibold text-[#9b8d79]">
+                  اضغط لعرض التفاصيل
+                </span>
+              </button>
+            ))}
           </div>
 
-          {/* زر إخفاء الإعلان الحالي */}
+          {/* إخفاء الإعلان */}
           <button
             type="button"
             onClick={() => dismiss(visible[0].id)}
-            className="z-10 shrink-0 border-r border-[#ded6c8] bg-[#f4efe6] p-3 text-[#9b9185] transition hover:bg-white hover:text-[#51483d]"
+            className="z-20 flex h-11 shrink-0 items-center justify-center border-r border-[#ded6c8] bg-[#f4efe6] px-3 text-[#9b9185] transition hover:bg-white hover:text-[#51483d]"
             aria-label="إخفاء الإعلان"
           >
             <IconX size={15} />
@@ -186,7 +176,7 @@ export default function AnnouncementBar() {
               </button>
             </div>
 
-            {/* محتوى الإعلان */}
+            {/* كامل محتوى الإعلان */}
             <div className="max-h-[60vh] overflow-y-auto px-6 py-6">
               {selectedAnnouncement.body ? (
                 <div className="whitespace-pre-wrap text-sm leading-8 text-[#51483d]">
@@ -221,7 +211,7 @@ export default function AnnouncementBar() {
                       window.open(
                         link,
                         '_blank',
-                        'noopener,noreferrer'
+                        'noopener,noreferrer',
                       );
                     } else {
                       window.location.href = link;
@@ -238,32 +228,37 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS للحركة */}
       <style>{`
-        .announcement-marquee {
-          animation: announcement-marquee 35s linear infinite;
-          will-change: transform;
+        .announcement-item {
+          left: 100%;
+          animation: announcement-slide 18s linear infinite;
+          will-change: left;
         }
 
-        @keyframes announcement-marquee {
-          from {
-            transform: translateX(0);
+        .announcement-item.is-paused {
+          animation-play-state: paused;
+        }
+
+        @keyframes announcement-slide {
+          0% {
+            left: 100%;
           }
 
-          to {
-            transform: translateX(50%);
+          100% {
+            left: -100%;
           }
         }
 
         @media (max-width: 640px) {
-          .announcement-marquee {
-            animation-duration: 28s;
+          .announcement-item {
+            animation-duration: 14s;
           }
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .announcement-marquee {
+          .announcement-item {
             animation: none;
+            left: 20px;
           }
         }
       `}</style>

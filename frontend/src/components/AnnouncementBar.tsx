@@ -1,28 +1,11 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
-import { canOpenPath } from '@/config/navigation';
-import { IconBell, IconChevronLeft, IconChevronRight, IconExternal, IconX } from '@/components/ui/Icons';
+import { IconBell, IconExternal, IconX } from '@/components/ui/Icons';
 import { isExternalLink } from '@/lib/format';
 import type { Announcement } from '@/types';
 
-/**
- * The announcements bar.
- *
- * Only the administration publishes; the backend already filters by audience,
- * so whatever arrives here is meant for this user. Clicking an announcement
- * navigates to the page it points at — a new course goes to /courses, a new
- * circle to /circles, and so on — or opens an outside address in a new tab,
- * leaving the app where it was.
- *
- * Dismissals are remembered per announcement id, so a notice a user has already
- * read and closed does not reappear on every page load. They are keyed by user:
- * a mosque office shares one browser between the administration, the teachers
- * and visiting parents, and one person closing a notice must not close it for
- * everyone who signs in after them.
- */
 const DISMISSED_PREFIX = 'qc.dismissedAnnouncements';
 
 const dismissedKey = (userId?: string) =>
@@ -38,133 +21,252 @@ function readDismissed(userId?: string): string[] {
 }
 
 export default function AnnouncementBar() {
-  const navigate = useNavigate();
   const userId = useAuthStore((s) => s.user?.id);
-  const role = useAuthStore((s) => s.user?.role);
-  const [dismissed, setDismissed] = useState<string[]>(() => readDismissed(userId));
-  const [index, setIndex] = useState(0);
 
-  // Signing in as somebody else on the same tab brings their own list.
+  const [dismissed, setDismissed] = useState<string[]>(() =>
+    readDismissed(userId)
+  );
+
+  const [selectedAnnouncement, setSelectedAnnouncement] =
+    useState<Announcement | null>(null);
+
+  const [paused, setPaused] = useState(false);
+
   useEffect(() => {
     setDismissed(readDismissed(userId));
-    setIndex(0);
   }, [userId]);
 
   const { data } = useQuery({
     queryKey: ['announcements', 'active'],
-    queryFn: async () => (await api.get<Announcement[]>('/announcements/active')).data,
+    queryFn: async () =>
+      (await api.get<Announcement[]>('/announcements/active')).data,
     staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
   });
 
-  const visible = (data ?? []).filter((a) => !dismissed.includes(a.id));
-
-  // Keep the cursor inside the list when one is dismissed or the list refreshes.
-  useEffect(() => {
-    if (index >= visible.length) setIndex(0);
-  }, [visible.length, index]);
-
-  if (!visible.length) return null;
-
-  const current = visible[Math.min(index, visible.length - 1)];
-
-  /**
-   * A link is only offered to someone who can actually follow it.
-   *
-   * The same notice goes to several roles at once — "a new course has opened"
-   * is for the whole school — but the page behind it may not exist for all of
-   * them. A parent following `/courses` used to land on «لا تملك صلاحية
-   * الوصول», so for them the announcement is now simply text: still shown,
-   * still theirs, just not a door into a wall.
-   */
-  const reachable =
-    !!current.link && (isExternalLink(current.link) || !role || canOpenPath(role, current.link));
+  const visible = useMemo(
+    () => (data ?? []).filter((a) => !dismissed.includes(a.id)),
+    [data, dismissed]
+  );
 
   const dismiss = (id: string) => {
     const next = [...dismissed, id];
+
     setDismissed(next);
+
     try {
-      // Capped so the list cannot grow without bound over years of use.
-      localStorage.setItem(dismissedKey(userId), JSON.stringify(next.slice(-100)));
+      localStorage.setItem(
+        dismissedKey(userId),
+        JSON.stringify(next.slice(-100))
+      );
     } catch {
-      /* storage unavailable: the notice simply comes back next time */
+      // Ignore storage errors.
     }
   };
 
-  const open = () => {
-    if (!current.link || !reachable) return;
-    if (isExternalLink(current.link)) {
-      // `noopener` matters: without it the opened page can reach back through
-      // `window.opener` and navigate this tab.
-      window.open(current.link, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    navigate(current.link);
-  };
+  if (!visible.length) {
+    return null;
+  }
+
+  /*
+   * نكرر الإعلانات مرتين حتى تستمر الحركة بشكل سلس
+   * بدون فراغ في نهاية الشريط.
+   */
+  const scrollingAnnouncements = [...visible, ...visible];
 
   return (
-    <div className="border-b border-gold-200/70 bg-gradient-to-l from-gold-50 via-gold-50/70 to-white">
-      <div className="flex items-center gap-3 px-4 py-2.5 sm:px-6">
-        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-gold-400/20 text-gold-700">
-          <IconBell size={15} />
-        </span>
+    <>
+      <div
+        className="overflow-hidden border-b border-[#ded6c8] bg-[#f4efe6]"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onTouchStart={() => setPaused(true)}
+        onTouchEnd={() => setPaused(false)}
+      >
+        <div className="flex items-center">
 
-        <button
-          type="button"
-          onClick={open}
-          disabled={!reachable}
-          className={`min-w-0 flex-1 text-right ${reachable ? 'cursor-pointer' : 'cursor-default'}`}
-        >
-          <span className="block truncate text-sm font-bold text-slate-800">{current.title}</span>
-          {current.body && (
-            <span className="block truncate text-xs text-slate-500">{current.body}</span>
-          )}
-        </button>
-
-        {visible.length > 1 && (
-          <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setIndex((i) => (i - 1 + visible.length) % visible.length)}
-              className="rounded-md p-1 text-slate-400 transition hover:bg-white hover:text-slate-700"
-              aria-label="الإعلان السابق"
-            >
-              <IconChevronRight size={15} />
-            </button>
-            <span className="numeric text-[11px] font-semibold text-slate-400">
-              {index + 1}/{visible.length}
+          {/* أيقونة الإعلان */}
+          <div className="z-10 flex h-11 shrink-0 items-center gap-2 border-l border-[#ded6c8] bg-[#f4efe6] px-4 text-[#6f6252] shadow-[4px_0_10px_rgba(0,0,0,0.04)]">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5dccd]">
+              <IconBell size={15} />
             </span>
-            <button
-              type="button"
-              onClick={() => setIndex((i) => (i + 1) % visible.length)}
-              className="rounded-md p-1 text-slate-400 transition hover:bg-white hover:text-slate-700"
-              aria-label="الإعلان التالي"
-            >
-              <IconChevronLeft size={15} />
-            </button>
-          </div>
-        )}
 
-        {reachable && (
+            <span className="hidden text-xs font-bold sm:inline">
+              الإعلانات
+            </span>
+          </div>
+
+          {/* شريط الحركة */}
+          <div className="relative min-w-0 flex-1 overflow-hidden">
+            <div
+              className="announcement-marquee flex w-max items-center"
+              style={{
+                animationPlayState: paused ? 'paused' : 'running',
+              }}
+            >
+              {scrollingAnnouncements.map((announcement, index) => (
+                <button
+                  key={`${announcement.id}-${index}`}
+                  type="button"
+                  onClick={() => setSelectedAnnouncement(announcement)}
+                  className="flex shrink-0 items-center gap-3 px-8 py-2.5 text-right transition hover:bg-white/50"
+                >
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
+
+                  <span className="max-w-[320px] truncate text-sm font-bold text-[#51483d] sm:max-w-[500px]">
+                    {announcement.title}
+                  </span>
+
+                  {announcement.body && (
+                    <>
+                      <span className="text-[#b2a898]">—</span>
+
+                      <span className="max-w-[300px] truncate text-xs text-[#756b60] sm:max-w-[500px]">
+                        {announcement.body}
+                      </span>
+                    </>
+                  )}
+
+                  <span className="whitespace-nowrap text-[11px] font-semibold text-[#9b8d79]">
+                    عرض التفاصيل
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* زر إخفاء الإعلان الحالي */}
           <button
             type="button"
-            onClick={open}
-            className="hidden shrink-0 items-center gap-1 rounded-lg bg-gold-500 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-gold-600 sm:flex"
+            onClick={() => dismiss(visible[0].id)}
+            className="z-10 shrink-0 border-r border-[#ded6c8] bg-[#f4efe6] p-3 text-[#9b9185] transition hover:bg-white hover:text-[#51483d]"
+            aria-label="إخفاء الإعلان"
           >
-            {isExternalLink(current.link) ? 'فتح الرابط' : 'عرض التفاصيل'}
-            {isExternalLink(current.link) && <IconExternal size={12} />}
+            <IconX size={15} />
           </button>
-        )}
-
-        <button
-          type="button"
-          onClick={() => dismiss(current.id)}
-          className="shrink-0 rounded-md p-1 text-slate-400 transition hover:bg-white hover:text-slate-700"
-          aria-label="إخفاء الإعلان"
-        >
-          <IconX size={15} />
-        </button>
+        </div>
       </div>
-    </div>
+
+      {/* نافذة تفاصيل الإعلان */}
+      {selectedAnnouncement && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          onClick={() => setSelectedAnnouncement(null)}
+        >
+          <div
+            className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            dir="rtl"
+          >
+            {/* رأس النافذة */}
+            <div className="flex items-center justify-between border-b border-[#e8e1d7] bg-[#f4efe6] px-5 py-4">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e5dccd] text-[#6f6252]">
+                  <IconBell size={18} />
+                </span>
+
+                <div>
+                  <p className="text-xs font-semibold text-[#9b8d79]">
+                    إعلان
+                  </p>
+
+                  <h2 className="text-lg font-bold text-[#403a34]">
+                    {selectedAnnouncement.title}
+                  </h2>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedAnnouncement(null)}
+                className="rounded-lg p-2 text-[#8e857b] transition hover:bg-white hover:text-[#403a34]"
+                aria-label="إغلاق"
+              >
+                <IconX size={20} />
+              </button>
+            </div>
+
+            {/* محتوى الإعلان */}
+            <div className="max-h-[60vh] overflow-y-auto px-6 py-6">
+              {selectedAnnouncement.body ? (
+                <div className="whitespace-pre-wrap text-sm leading-8 text-[#51483d]">
+                  {selectedAnnouncement.body}
+                </div>
+              ) : (
+                <p className="text-sm text-[#8e857b]">
+                  لا يوجد محتوى إضافي لهذا الإعلان.
+                </p>
+              )}
+            </div>
+
+            {/* أسفل النافذة */}
+            <div className="flex items-center justify-between gap-3 border-t border-[#e8e1d7] bg-[#faf8f5] px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setSelectedAnnouncement(null)}
+                className="rounded-xl border border-[#ddd4c7] px-4 py-2 text-sm font-semibold text-[#62594f] transition hover:bg-white"
+              >
+                إغلاق
+              </button>
+
+              {selectedAnnouncement.link && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const link = selectedAnnouncement.link;
+
+                    if (!link) return;
+
+                    if (isExternalLink(link)) {
+                      window.open(
+                        link,
+                        '_blank',
+                        'noopener,noreferrer'
+                      );
+                    } else {
+                      window.location.href = link;
+                    }
+                  }}
+                  className="flex items-center gap-2 rounded-xl bg-[#756858] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#62574a]"
+                >
+                  فتح الرابط
+                  <IconExternal size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSS للحركة */}
+      <style>{`
+        .announcement-marquee {
+          animation: announcement-marquee 35s linear infinite;
+          will-change: transform;
+        }
+
+        @keyframes announcement-marquee {
+          from {
+            transform: translateX(0);
+          }
+
+          to {
+            transform: translateX(50%);
+          }
+        }
+
+        @media (max-width: 640px) {
+          .announcement-marquee {
+            animation-duration: 28s;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .announcement-marquee {
+            animation: none;
+          }
+        }
+      `}</style>
+    </>
   );
 }

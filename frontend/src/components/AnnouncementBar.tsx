@@ -70,6 +70,9 @@ export default function AnnouncementBar() {
 
   return (
     <>
+      {/* =========================
+          شريط الإعلانات
+      ========================== */}
       <div
         className="announcement-bar overflow-hidden border-b border-[#ded6c8] bg-[#f4efe6]"
         dir="rtl"
@@ -80,7 +83,7 @@ export default function AnnouncementBar() {
       >
         <div className="flex h-11 items-center">
 
-          {/* عنوان الشريط */}
+          {/* عنوان الإعلانات */}
           <div className="z-20 flex h-11 shrink-0 items-center gap-2 border-l border-[#ded6c8] bg-[#f4efe6] px-4 text-[#6f6252] shadow-[4px_0_10px_rgba(0,0,0,0.04)]">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5dccd]">
               <IconBell size={15} />
@@ -91,8 +94,8 @@ export default function AnnouncementBar() {
             </span>
           </div>
 
-          {/* منطقة الإعلان المتحركة */}
-          <div className="relative h-full min-w-0 flex-1 overflow-hidden">
+          {/* منطقة الحركة */}
+          <div className="relative h-11 min-w-0 flex-1 overflow-hidden">
             {visible.map((announcement) => (
               <button
                 key={announcement.id}
@@ -102,12 +105,15 @@ export default function AnnouncementBar() {
                   paused ? 'is-paused' : ''
                 }`}
               >
+                {/* نقطة */}
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
 
+                {/* عنوان الإعلان */}
                 <span className="shrink-0 text-sm font-bold text-[#51483d]">
                   {announcement.title}
                 </span>
 
+                {/* نص الإعلان */}
                 {announcement.body && (
                   <>
                     <span className="text-[#b2a898]">—</span>
@@ -118,6 +124,7 @@ export default function AnnouncementBar() {
                   </>
                 )}
 
+                {/* تعليمات */}
                 <span className="whitespace-nowrap text-[11px] font-semibold text-[#9b8d79]">
                   اضغط لعرض التفاصيل
                 </span>
@@ -137,7 +144,9 @@ export default function AnnouncementBar() {
         </div>
       </div>
 
-      {/* نافذة تفاصيل الإعلان */}
+      {/* =========================
+          نافذة تفاصيل الإعلان
+      ========================== */}
       {selectedAnnouncement && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
@@ -148,9 +157,11 @@ export default function AnnouncementBar() {
             onClick={(e) => e.stopPropagation()}
             dir="rtl"
           >
+
             {/* رأس النافذة */}
             <div className="flex items-center justify-between border-b border-[#e8e1d7] bg-[#f4efe6] px-5 py-4">
               <div className="flex items-center gap-3">
+
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e5dccd] text-[#6f6252]">
                   <IconBell size={18} />
                 </span>
@@ -164,8 +175,10 @@ export default function AnnouncementBar() {
                     {selectedAnnouncement.title}
                   </h2>
                 </div>
+
               </div>
 
+              {/* إغلاق */}
               <button
                 type="button"
                 onClick={() => setSelectedAnnouncement(null)}
@@ -176,7 +189,7 @@ export default function AnnouncementBar() {
               </button>
             </div>
 
-            {/* كامل محتوى الإعلان */}
+            {/* محتوى الإعلان الكامل */}
             <div className="max-h-[60vh] overflow-y-auto px-6 py-6">
               {selectedAnnouncement.body ? (
                 <div className="whitespace-pre-wrap text-sm leading-8 text-[#51483d]">
@@ -189,8 +202,9 @@ export default function AnnouncementBar() {
               )}
             </div>
 
-            {/* أزرار النافذة */}
+            {/* أسفل النافذة */}
             <div className="flex items-center justify-between gap-3 border-t border-[#e8e1d7] bg-[#faf8f5] px-5 py-4">
+
               <button
                 type="button"
                 onClick={() => setSelectedAnnouncement(null)}
@@ -199,7 +213,7 @@ export default function AnnouncementBar() {
                 إغلاق
               </button>
 
-              {/* يظهر فقط إذا كان هناك رابط */}
+              {/* الرابط اختياري */}
               {selectedAnnouncement.link && (
                 <button
                   type="button"
@@ -224,25 +238,38 @@ export default function AnnouncementBar() {
                   <IconExternal size={14} />
                 </button>
               )}
+
             </div>
           </div>
         </div>
       )}
 
-      {/* حركة شريط الأخبار من اليسار إلى اليمين */}
+      {/* =========================
+          CSS شريط الأخبار
+          من اليسار إلى اليمين
+          وبطيء
+      ========================== */}
       <style>{`
         .announcement-item {
           position: absolute;
           top: 0;
           left: -100%;
+
           display: flex;
           height: 44px;
           align-items: center;
           gap: 12px;
+
           white-space: nowrap;
           padding: 0 24px;
+
           text-align: right;
-          animation: announcement-slide-left-to-right 18s linear infinite;
+
+          animation-name: announcement-slide-left-to-right;
+          animation-duration: 45s;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+
           will-change: left;
         }
 
@@ -254,6 +281,11 @@ export default function AnnouncementBar() {
           animation-play-state: paused;
         }
 
+        /*
+         * الحركة:
+         * تبدأ من اليسار
+         * وتنتهي عند اليمين
+         */
         @keyframes announcement-slide-left-to-right {
           0% {
             left: -100%;
@@ -264,12 +296,18 @@ export default function AnnouncementBar() {
           }
         }
 
+        /*
+         * الجوال
+         */
         @media (max-width: 640px) {
           .announcement-item {
-            animation-duration: 14s;
+            animation-duration: 35s;
           }
         }
 
+        /*
+         * إذا المستخدم مفعل تقليل الحركة
+         */
         @media (prefers-reduced-motion: reduce) {
           .announcement-item {
             animation: none;

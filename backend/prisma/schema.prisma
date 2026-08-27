@@ -686,9 +686,6 @@ model ExamRequest {
   teacherId  String
   status     ExamRequestStatus @default(PENDING)
   note       String?
-  requestedHizb     Int?
-  requestedJuz      Int?
-  requestedCombined Int?
   reviewedById String?
   reviewedAt DateTime?
   reviewNote String?

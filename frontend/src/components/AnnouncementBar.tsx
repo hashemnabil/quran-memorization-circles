@@ -44,9 +44,12 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
-  // الترتيب: الإعلان الأول المرسل من الـ API يظهر أولاً
+  // التعديل: إظهار الأقدم أولاً عبر إرجاع ترتيب القائمة الأصلي/أو عكسه حسب ما يرجع من الـ API
   const visible = useMemo(
-    () => (data ?? []).filter((a) => !dismissed.includes(a.id)),
+    () =>
+      (data ?? [])
+        .filter((a) => !dismissed.includes(a.id))
+        .reverse(), // يعرض الإعلان الأقدم أولاً
     [data, dismissed],
   );
 
@@ -67,8 +70,8 @@ export default function AnnouncementBar() {
     return null;
   }
 
-  // تم زيادة المدة لـ 20 ثانية لكل إعلان لإبطاء الحركة
-  const durationPerAnnouncement = 20;
+  // التعديل: زيادة وقت الحركة لـ 35 ثانية لكل إعلان لإبطاء السرعة بشكل ملحوظ
+  const durationPerAnnouncement = 35;
   const totalDuration = visible.length * durationPerAnnouncement;
 
   return (
@@ -102,31 +105,41 @@ export default function AnnouncementBar() {
                 } as React.CSSProperties
               }
             >
-              {[...visible, ...visible].map((announcement, idx) => (
-                <div key={`${announcement.id}-${idx}`} className="announcement-item-wrapper">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAnnouncement(announcement)}
-                    className="announcement-item"
+              {[...visible, ...visible].map((announcement, idx) => {
+                // فحص ما إذا كان هذا هو الإعلان الأخير في الدورة قبل أن تتكرر
+                const isLastInCycle = (idx + 1) % visible.length === 0;
+
+                return (
+                  <div
+                    key={`${announcement.id}-${idx}`}
+                    className={`announcement-item-wrapper ${
+                      isLastInCycle ? 'last-in-cycle' : ''
+                    }`}
                   >
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
-                    <span className="shrink-0 text-sm font-bold text-[#51483d]">
-                      {announcement.title}
-                    </span>
-                    {announcement.body && (
-                      <>
-                        <span className="text-[#b2a898]">—</span>
-                        <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
-                          {announcement.body}
-                        </span>
-                      </>
-                    )}
-                    <span className="shrink-0 text-[11px] font-semibold text-[#9b8d79]">
-                      اضغط لعرض التفاصيل
-                    </span>
-                  </button>
-                </div>
-              ))}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAnnouncement(announcement)}
+                      className="announcement-item"
+                    >
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
+                      <span className="shrink-0 text-sm font-bold text-[#51483d]">
+                        {announcement.title}
+                      </span>
+                      {announcement.body && (
+                        <>
+                          <span className="text-[#b2a898]">—</span>
+                          <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
+                            {announcement.body}
+                          </span>
+                        </>
+                      )}
+                      <span className="shrink-0 text-[11px] font-semibold text-[#9b8d79]">
+                        اضغط لعرض التفاصيل
+                      </span>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -218,7 +231,7 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS المعدل للتحريك البطائ والبداية الصحيحة */}
+      {/* CSS المعدل لضمان المسافة والسرعة البطئية */}
       <style>{`
         .announcement-track {
           display: flex;
@@ -238,7 +251,12 @@ export default function AnnouncementBar() {
           height: 44px;
           align-items: center;
           flex-shrink: 0;
-          padding-left: 60px;
+          padding-left: 80px; /* مسافة مريحة بين الإعلانات المتتابعة */
+        }
+
+        /* التعديل: إعطاء مسافة كبيرة بعد الإعلان الأخير ليختفي بالكامل قبل إعادة الإعلان الأول */
+        .announcement-item-wrapper.last-in-cycle {
+          padding-left: 80vw; 
         }
 
         .announcement-item {
@@ -269,7 +287,10 @@ export default function AnnouncementBar() {
 
         @media (max-width: 640px) {
           .announcement-item-wrapper {
-            padding-left: 35px;
+            padding-left: 40px;
+          }
+          .announcement-item-wrapper.last-in-cycle {
+            padding-left: 90vw;
           }
         }
 

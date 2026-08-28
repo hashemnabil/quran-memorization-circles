@@ -511,7 +511,7 @@ function countEvaluations(progress: any, wanted: string[]) {
     .reduce((sum: number, row: any) => sum + row.sessions, 0);
 }
 
-```tsx
+tsx
 function ExamRequestModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
 

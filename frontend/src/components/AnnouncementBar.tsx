@@ -30,7 +30,8 @@ export default function AnnouncementBar() {
   const [selectedAnnouncement, setSelectedAnnouncement] =
     useState<Announcement | null>(null);
 
-  const [paused, setPaused] = useState(false);
+  // مؤشر للإعلان الحالي المعروض
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
     setDismissed(readDismissed(userId));
@@ -44,7 +45,7 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
-  // عكس الترتيب: الأحدث أولاً
+  // الإعلانات المرئية (غير المخفية) وعكس الترتيب
   const visible = useMemo(
     () =>
       (data ?? [])
@@ -55,9 +56,7 @@ export default function AnnouncementBar() {
 
   const dismiss = (id: string) => {
     const next = [...dismissed, id];
-
     setDismissed(next);
-
     try {
       localStorage.setItem(
         dismissedKey(userId),
@@ -68,23 +67,33 @@ export default function AnnouncementBar() {
     }
   };
 
+  // تبديل الإعلانات كل 4 ثواني
+  useEffect(() => {
+    if (visible.length === 0) return;
+
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % visible.length);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [visible.length]);
+
+  // إعادة تعيين المؤشر عند تغير قائمة الإعلانات
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [visible.length]);
+
   if (!visible.length) {
     return null;
   }
 
-  // حساب المدة لكل إعلان
-  const durationPerAnnouncement = 10;
-  const totalDuration = visible.length * durationPerAnnouncement;
+  const currentAnnouncement = visible[currentIndex];
 
   return (
     <>
       <div
         className="announcement-bar overflow-hidden border-b border-[#ded6c8] bg-[#f4efe6]"
         dir="rtl"
-        onMouseEnter={() => setPaused(true)}
-        onMouseLeave={() => setPaused(false)}
-        onTouchStart={() => setPaused(true)}
-        onTouchEnd={() => setPaused(false)}
       >
         <div className="flex h-11 items-center">
           {/* عنوان الإعلانات */}
@@ -92,57 +101,45 @@ export default function AnnouncementBar() {
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5dccd]">
               <IconBell size={15} />
             </span>
-
             <span className="hidden text-xs font-bold sm:inline">
               الإعلانات
             </span>
           </div>
 
-          {/* منطقة الحركة */}
+          {/* منطقة عرض الإعلان المتحرك من اليسار لليمين */}
           <div className="relative h-11 min-w-0 flex-1 overflow-hidden">
-            {/* شريط الإعلانات المتحركة - مستمر */}
             <div
-              className={`announcement-track ${paused ? 'paused' : ''}`}
-              style={
-                {
-                  '--total-duration': `${totalDuration}s`,
-                  '--item-width': `${100 / visible.length}%`,
-                } as React.CSSProperties
-              }
+              key={currentAnnouncement.id}
+              className="announcement-slide"
             >
-              {/* نكرر الإعلانات مرتين للتكرار السلس */}
-              {[...visible, ...visible].map((announcement, idx) => (
-                <div key={`${announcement.id}-${idx}`} className="announcement-item-wrapper">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAnnouncement(announcement)}
-                    className="announcement-item"
-                  >
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
-                    <span className="shrink-0 text-sm font-bold text-[#51483d]">
-                      {announcement.title}
+              <button
+                type="button"
+                onClick={() => setSelectedAnnouncement(currentAnnouncement)}
+                className="announcement-item"
+              >
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
+                <span className="shrink-0 text-sm font-bold text-[#51483d]">
+                  {currentAnnouncement.title}
+                </span>
+                {currentAnnouncement.body && (
+                  <>
+                    <span className="text-[#b2a898]">—</span>
+                    <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
+                      {currentAnnouncement.body}
                     </span>
-                    {announcement.body && (
-                      <>
-                        <span className="text-[#b2a898]">—</span>
-                        <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
-                          {announcement.body}
-                        </span>
-                      </>
-                    )}
-                    <span className="text-[11px] font-semibold text-[#9b8d79]">
-                      اضغط لعرض التفاصيل
-                    </span>
-                  </button>
-                </div>
-              ))}
+                  </>
+                )}
+                <span className="text-[11px] font-semibold text-[#9b8d79]">
+                  اضغط لعرض التفاصيل
+                </span>
+              </button>
             </div>
           </div>
 
-          {/* زر إخفاء الإعلان */}
+          {/* زر إخفاء الإعلان الحالي */}
           <button
             type="button"
-            onClick={() => dismiss(visible[0].id)}
+            onClick={() => dismiss(currentAnnouncement.id)}
             className="z-20 flex h-11 shrink-0 items-center justify-center border-r border-[#ded6c8] bg-[#f4efe6] px-3 text-[#9b9185] transition hover:bg-white hover:text-[#51483d]"
             aria-label="إخفاء الإعلان"
           >
@@ -227,30 +224,14 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS - شريط مستمر متكرر من اليمين إلى اليسار */}
+      {/* CSS - حركة دخول من اليسار إلى اليمين ثم اختفاء */}
       <style>{`
-        .announcement-track {
+        .announcement-slide {
           display: flex;
           height: 44px;
           align-items: center;
-          width: fit-content;
-          direction: ltr;
-          
-          animation: scroll-right-to-left var(--total-duration, 30s) linear infinite;
-          will-change: transform;
-        }
-
-        .announcement-track.paused {
-          animation-play-state: paused;
-        }
-
-        .announcement-item-wrapper {
-          display: flex;
-          height: 44px;
-          align-items: center;
-          flex-shrink: 0;
-          width: 100vw;
-          min-width: 100vw;
+          width: 100%;
+          animation: slideLeftToRight 4s ease-in-out forwards;
         }
 
         .announcement-item {
@@ -266,20 +247,69 @@ export default function AnnouncementBar() {
           border-right: none;
           transition: background-color 0.2s ease;
           cursor: pointer;
+          animation: slideContent 4s ease-in-out forwards;
         }
 
         .announcement-item:hover {
           background-color: rgba(255, 255, 255, 0.7);
         }
 
-        /* الحركة المستمرة من اليمين إلى اليسار */
-        @keyframes scroll-right-to-left {
+        /* حركة العنصر من اليسار إلى اليمين مع اختفاء تدريجي */
+        @keyframes slideLeftToRight {
           0% {
+            transform: translateX(-100%);
+            opacity: 0;
+          }
+          10% {
             transform: translateX(0%);
+            opacity: 1;
+          }
+          85% {
+            transform: translateX(0%);
+            opacity: 1;
           }
           100% {
-            transform: translateX(-50%);
+            transform: translateX(100%);
+            opacity: 0;
           }
+        }
+
+        @keyframes slideContent {
+          0% {
+            opacity: 0;
+          }
+          10% {
+            opacity: 1;
+          }
+          85% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+          }
+        }
+
+        /* مؤشرات للإعلانات (نقاط أسفل الشريط) */
+        .dots-container {
+          display: flex;
+          gap: 6px;
+          padding: 0 12px;
+          align-items: center;
+        }
+
+        .dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #d5cdc0;
+          transition: all 0.3s ease;
+          cursor: pointer;
+        }
+
+        .dot.active {
+          background: #756858;
+          width: 18px;
+          border-radius: 4px;
         }
 
         @media (max-width: 640px) {
@@ -290,9 +320,13 @@ export default function AnnouncementBar() {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .announcement-track {
+          .announcement-slide {
             animation: none;
             transform: translateX(0);
+          }
+          .announcement-item {
+            animation: none;
+            opacity: 1;
           }
         }
       `}</style>

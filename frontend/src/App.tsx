@@ -196,10 +196,12 @@ export default function App() {
           }
         />
 
+        {/* ✅ تم الإصلاح - أضفنا children empty element */}
         <Route
           path="exams/*"
           element={
             <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE']}>
+              <></>
             </RequireRole>
           }
         />

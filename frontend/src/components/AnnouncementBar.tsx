@@ -234,6 +234,7 @@ export default function AnnouncementBar() {
           height: 44px;
           align-items: center;
           width: fit-content;
+          direction: ltr;
           
           animation: scroll-left-to-right var(--total-duration, 30s) linear infinite;
           will-change: transform;
@@ -274,10 +275,10 @@ export default function AnnouncementBar() {
         /* الحركة المستمرة من اليسار إلى اليمين */
         @keyframes scroll-left-to-right {
           0% {
-            transform: translateX(-50%);
+            transform: translateX(0%);
           }
           100% {
-            transform: translateX(0%);
+            transform: translateX(-50%);
           }
         }
 

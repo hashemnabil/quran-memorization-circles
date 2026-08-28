@@ -35,6 +35,10 @@ import {
   IconPause,
   IconPlus,
   IconTrash,
+  IconCheck,
+  IconClock,
+  IconEye,
+  IconX,
 } from '@/components/ui/Icons';
 import {
   ATTENDANCE_COLORS,
@@ -52,7 +56,7 @@ import {
   STUDENT_STATUS_LABELS,
   describeExamSections,
 } from '@/lib/labels';
-import { calcAge, formatDate, formatDateShort, formatParts, timeAgo } from '@/lib/format';
+import { calcAge, formatDate, formatDateShort, formatDateTime, formatParts, timeAgo } from '@/lib/format';
 import type {
   AttendanceRecord,
   Circle,
@@ -64,6 +68,36 @@ import type {
   Student,
   StudentNote,
 } from '@/types';
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+function getStatusColor(status: string): string {
+  const colors: Record<string, string> = {
+    'PENDING': 'bg-amber-100 text-amber-800',
+    'APPROVED': 'bg-emerald-100 text-emerald-800',
+    'REJECTED': 'bg-red-100 text-red-800',
+    'SCHEDULED': 'bg-blue-100 text-blue-800',
+    'COMPLETED': 'bg-slate-100 text-slate-800',
+    'CANCELLED': 'bg-gray-100 text-gray-800',
+    'IN_PROGRESS': 'bg-purple-100 text-purple-800',
+  };
+  return colors[status] || 'bg-slate-100 text-slate-600';
+}
+
+function getStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    'PENDING': 'قيد الانتظار',
+    'APPROVED': 'تمت الموافقة',
+    'REJECTED': 'مرفوض',
+    'SCHEDULED': 'مجدول',
+    'COMPLETED': 'مكتمل',
+    'CANCELLED': 'ملغي',
+    'IN_PROGRESS': 'قيد التنفيذ',
+  };
+  return labels[status] || status;
+}
 
 // ============================================================================
 // MAIN COMPONENT
@@ -133,6 +167,35 @@ export default function StudentDetailsPage() {
     queryKey: ['students', id, 'notes'],
     queryFn: async () => (await api.get<StudentNote[]>(`/students/${id}/notes`)).data,
     enabled: !!id && tab === 'notes',
+  });
+
+  // Exam Requests mutations
+  const approveRequest = useMutation({
+    mutationFn: (requestId: string) => api.patch(`/exams/requests/${requestId}/approve`),
+    onSuccess: () => {
+      toast.success('تمت الموافقة على طلب الاختبار');
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
+
+  const rejectRequest = useMutation({
+    mutationFn: ({ requestId, reason }: { requestId: string; reason: string }) =>
+      api.patch(`/exams/requests/${requestId}/reject`, { reason }),
+    onSuccess: () => {
+      toast.success('تم رفض طلب الاختبار');
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
+
+  const deleteExam = useMutation({
+    mutationFn: (examId: string) => api.delete(`/exams/${examId}`),
+    onSuccess: () => {
+      toast.success('تم حذف الاختبار');
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error) => toast.error(apiError(error)),
   });
 
   const deleteNote = useMutation({
@@ -297,7 +360,17 @@ export default function StudentDetailsPage() {
       {tab === 'overview' && <OverviewTab student={student} progress={progress} />}
       {tab === 'attendance' && <AttendanceTab records={attendance?.data ?? []} summary={student.attendanceSummary} />}
       {tab === 'recitations' && <RecitationsTabComponent records={recitations?.data ?? []} progress={progress} />}
-      {tab === 'exams' && <ExamsTabComponent eligibility={eligibility} exams={exams?.data ?? []} />}
+      {tab === 'exams' && <ExamsTabComponent 
+        studentId={id}
+        student={student}
+        eligibility={eligibility} 
+        exams={exams?.data ?? []} 
+        canManage={canManage}
+        onApprove={approveRequest.mutate}
+        onReject={rejectRequest.mutate}
+        onDelete={deleteExam.mutate}
+        isPending={approveRequest.isPending || rejectRequest.isPending || deleteExam.isPending}
+      />}
       {tab === 'points' && <PointsTab student={student} canManage={canManage} />}
       {tab === 'courses' && <CoursesTab student={student} />}
       {tab === 'preparations' && <PreparationsTab student={student} canManage={canManage} />}
@@ -557,11 +630,63 @@ function RecitationsTabComponent({ records, progress }: { records: Recitation[];
   );
 }
 
-function ExamsTabComponent({ eligibility, exams }: { eligibility?: ExamEligibility; exams: any[] }) {
+// ============================================================================
+// EXAMS TAB (دمج محتوى ExamsPage.tsx هنا)
+// ============================================================================
+
+function ExamsTabComponent({ 
+  studentId,
+  student,
+  eligibility, 
+  exams, 
+  canManage,
+  onApprove,
+  onReject,
+  onDelete,
+  isPending
+}: { 
+  studentId: string;
+  student: Student;
+  eligibility?: ExamEligibility; 
+  exams: any[];
+  canManage: boolean;
+  onApprove: (id: string) => void;
+  onReject: (id: string, reason: string) => void;
+  onDelete: (id: string) => void;
+  isPending: boolean;
+}) {
+  const confirm = useConfirm();
+  const [rejectModal, setRejectModal] = useState<{ id: string; reason: string } | null>(null);
+
+  // Fetch exam requests for this student
+  const { data: requestsData, refetch: refetchRequests } = useQuery({
+    queryKey: ['exams', 'requests', studentId],
+    queryFn: async () => (await api.get('/exams/requests', { params: { studentId } })).data,
+    enabled: !!studentId,
+  });
+
+  // Fetch scheduled exams for this student
+  const { data: scheduledData, refetch: refetchScheduled } = useQuery({
+    queryKey: ['exams', 'scheduled', studentId],
+    queryFn: async () => (await api.get('/exams', { params: { studentId, status: 'SCHEDULED' } })).data,
+    enabled: !!studentId,
+  });
+
+  const requests = requestsData?.data || [];
+  const scheduledExams = scheduledData?.data || [];
+
+  const [examSubTab, setExamSubTab] = useState('history');
+
+  const examTabs = [
+    { key: 'history', label: 'سجل الاختبارات' },
+    { key: 'requests', label: 'طلبات الاختبار' },
+    { key: 'scheduled', label: 'اختبارات مجدولة' },
+  ];
+
   return (
     <div className="space-y-5">
       {eligibility && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <StatCard label="الأحزاب المجتازة" value={eligibility.hizbPassed} tone="purple" />
           <StatCard label="إجمالي الأحزاب" value={eligibility.hizbTotal} tone="slate" />
           <StatCard 
@@ -569,53 +694,217 @@ function ExamsTabComponent({ eligibility, exams }: { eligibility?: ExamEligibili
             value={`${Math.round((eligibility.hizbPassed / eligibility.hizbTotal) * 100)}%`} 
             tone="emerald" 
           />
-          <StatCard label="الاختبارات المتبقية" value={eligibility.remainingExams ?? '—'} tone="amber" />
         </div>
       )}
 
-      <Card title="سجل الاختبارات" padded={false}>
-        {exams.length ? (
-          <div className="table-wrap border-0 shadow-none">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>التاريخ</th>
-                  <th>المدى</th>
-                  <th>الحالة</th>
-                  <th>النتيجة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {exams.map((exam) => (
-                  <tr key={exam.id}>
-                    <td className="numeric">{formatDateShort(exam.scheduledAt)}</td>
-                    <td>{describeExamSections(exam.section, exam.sections)}</td>
-                    <td>
-                      <Badge className={EXAM_STATUS_COLORS[exam.status]}>
-                        {EXAM_STATUS_LABELS[exam.status]}
-                      </Badge>
-                    </td>
-                    <td>
-                      {exam.result === 'PASSED' ? (
-                        <Badge className="bg-emerald-100 text-emerald-800">ناجح</Badge>
-                      ) : exam.result === 'FAILED' ? (
-                        <Badge className="bg-red-100 text-red-800">لم يجتز</Badge>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
+      <Tabs tabs={examTabs} active={examSubTab} onChange={setExamSubTab} />
+
+      {examSubTab === 'history' && (
+        <Card title="سجل الاختبارات" padded={false}>
+          {exams.length ? (
+            <div className="table-wrap border-0 shadow-none">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>التاريخ</th>
+                    <th>المدى</th>
+                    <th>الحالة</th>
+                    <th>النتيجة</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <EmptyState title="لا يوجد سجل اختبارات" icon={<IconAward size={24} />} />
-        )}
-      </Card>
+                </thead>
+                <tbody>
+                  {exams.map((exam) => (
+                    <tr key={exam.id}>
+                      <td className="numeric">{formatDateShort(exam.scheduledAt)}</td>
+                      <td>{describeExamSections(exam.section, exam.sections)}</td>
+                      <td>
+                        <Badge className={getStatusColor(exam.status)}>
+                          {getStatusLabel(exam.status)}
+                        </Badge>
+                      </td>
+                      <td>
+                        {exam.result === 'PASSED' ? (
+                          <Badge className="bg-emerald-100 text-emerald-800">ناجح</Badge>
+                        ) : exam.result === 'FAILED' ? (
+                          <Badge className="bg-red-100 text-red-800">لم يجتز</Badge>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState title="لا يوجد سجل اختبارات" icon={<IconAward size={24} />} />
+          )}
+        </Card>
+      )}
+
+      {examSubTab === 'requests' && (
+        <Card title="طلبات الاختبار" padded={false}>
+          {requests.length ? (
+            <div className="table-wrap border-0 shadow-none">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>المطلوب</th>
+                    <th>المعلم</th>
+                    <th>التاريخ</th>
+                    <th>الحالة</th>
+                    {canManage && <th>إجراء</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {requests.map((request: any) => (
+                    <tr key={request.id}>
+                      <td className="text-sm">{describeExamSections(request.section, request.sections)}</td>
+                      <td className="text-sm text-slate-600">{request.teacher?.fullName || request.teacherName || '—'}</td>
+                      <td className="numeric">{formatDateShort(request.createdAt)}</td>
+                      <td>
+                        <Badge className={getStatusColor(request.status)}>
+                          {getStatusLabel(request.status)}
+                        </Badge>
+                      </td>
+                      {canManage && request.status === 'PENDING' && (
+                        <td>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-emerald-600 hover:bg-emerald-50"
+                              onClick={() => onApprove(request.id)}
+                              loading={isPending}
+                            >
+                              <IconCheck size={16} />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:bg-red-50"
+                              onClick={() => setRejectModal({ id: request.id, reason: '' })}
+                              loading={isPending}
+                            >
+                              <IconX size={16} />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState title="لا توجد طلبات اختبار" icon={<IconClock size={24} />} />
+          )}
+        </Card>
+      )}
+
+      {examSubTab === 'scheduled' && (
+        <Card title="الاختبارات المجدولة" padded={false}>
+          {scheduledExams.length ? (
+            <div className="table-wrap border-0 shadow-none">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>المدى</th>
+                    <th>التاريخ</th>
+                    <th>الممتحن</th>
+                    <th>الحالة</th>
+                    {canManage && <th>إجراء</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduledExams.map((exam: any) => (
+                    <tr key={exam.id}>
+                      <td className="text-sm">{describeExamSections(exam.section, exam.sections)}</td>
+                      <td className="numeric">{formatDateShort(exam.scheduledAt)}</td>
+                      <td className="text-sm text-slate-600">{exam.examiner?.fullName || exam.examinerName || 'غير محدد'}</td>
+                      <td>
+                        <Badge className={getStatusColor(exam.status)}>
+                          {getStatusLabel(exam.status)}
+                        </Badge>
+                      </td>
+                      {canManage && (
+                        <td>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:bg-red-50"
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: 'حذف الاختبار',
+                                message: 'سيتم حذف هذا الاختبار نهائياً. هل أنت متأكد؟',
+                                confirmLabel: 'حذف',
+                                variant: 'danger',
+                              });
+                              if (ok) onDelete(exam.id);
+                            }}
+                            loading={isPending}
+                          >
+                            <IconTrash size={16} />
+                          </Button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState title="لا توجد اختبارات مجدولة" icon={<IconClock size={24} />} />
+          )}
+        </Card>
+      )}
+
+      {rejectModal && (
+        <Modal
+          open
+          onClose={() => setRejectModal(null)}
+          title="رفض طلب الاختبار"
+          size="sm"
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setRejectModal(null)}>
+                إلغاء
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  if (rejectModal.reason.trim()) {
+                    onReject(rejectModal.id, rejectModal.reason);
+                    setRejectModal(null);
+                  } else {
+                    toast.error('يرجى كتابة سبب الرفض');
+                  }
+                }}
+                loading={isPending}
+                disabled={!rejectModal.reason.trim()}
+              >
+                رفض
+              </Button>
+            </>
+          }
+        >
+          <Textarea
+            label="سبب الرفض"
+            required
+            rows={3}
+            value={rejectModal.reason}
+            onChange={(e) => setRejectModal({ ...rejectModal, reason: e.target.value })}
+            placeholder="اذكر سبب رفض طلب الاختبار..."
+          />
+        </Modal>
+      )}
     </div>
   );
 }
+
+// ============================================================================
+// HISTORY TAB
+// ============================================================================
 
 function HistoryTab({ history }: { history: any }) {
   if (!history) return <LoadingState rows={4} />;
@@ -652,8 +941,8 @@ function HistoryTab({ history }: { history: any }) {
                   <p className="text-sm font-semibold text-slate-700">
                     <span className="numeric">{s.durationDays}</span> يوم
                   </p>
-                  <Badge className={REQUEST_STATUS_COLORS[s.status as keyof typeof REQUEST_STATUS_COLORS]}>
-                    {REQUEST_STATUS_LABELS[s.status as keyof typeof REQUEST_STATUS_LABELS]}
+                  <Badge className={getStatusColor(s.status)}>
+                    {getStatusLabel(s.status)}
                   </Badge>
                 </div>
                 <p className="mt-0.5 text-xs text-slate-500">{s.reason}</p>
@@ -705,8 +994,8 @@ function HistoryTab({ history }: { history: any }) {
                     {e.result === 'PASSED' ? 'ناجح' : 'لم يجتز'} <span className="numeric">{e.score}</span>
                   </Badge>
                 ) : (
-                  <Badge className={EXAM_STATUS_COLORS[e.status as keyof typeof EXAM_STATUS_COLORS]}>
-                    {EXAM_STATUS_LABELS[e.status as keyof typeof EXAM_STATUS_LABELS]}
+                  <Badge className={getStatusColor(e.status)}>
+                    {getStatusLabel(e.status)}
                   </Badge>
                 )}
               </li>

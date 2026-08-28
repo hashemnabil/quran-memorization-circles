@@ -254,6 +254,17 @@ function CircleFormModal({ onClose }: { onClose: () => void }) {
       (await api.get<PaginatedResponse<TeacherProfile>>('/teachers', { params: { limit: 100, isActive: true } })).data.data,
   });
 
+  // "المعلم الأساسي" يعرض المعلمين والمشرفين معاً؛ إذا اختير مشرف لا يوجد له
+  // ملف معلم بعد، يُستخدم معرّف حسابه مباشرة والباك-إند يربط له ملف معلم على
+  // نفس الحساب دون إنشاء مستخدم جديد. المشرف الذي له ملف معلم بالفعل يظهر مرة
+  // واحدة فقط (عبر قائمة المعلمين) لتفادي التكرار.
+  const primaryTeacherOptions = [
+    ...(teachers?.map((t) => ({ value: t.id, label: t.user.fullName, userId: t.user.id })) ?? []),
+    ...(supervisors
+      ?.filter((s) => !teachers?.some((t) => t.user.id === s.id))
+      .map((s) => ({ value: s.id, label: `${s.fullName} (مشرف)`, userId: s.id })) ?? []),
+  ];
+
   const create = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.post('/circles', payload),
     onSuccess: () => {
@@ -324,9 +335,9 @@ function CircleFormModal({ onClose }: { onClose: () => void }) {
         </Select>
         <Select label="المعلم الأساسي" value={form.primaryTeacherId} onChange={(e) => set('primaryTeacherId', e.target.value)}>
           <option value="">بدون معلم</option>
-          {teachers?.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.user.fullName}
+          {primaryTeacherOptions.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
             </option>
           ))}
         </Select>

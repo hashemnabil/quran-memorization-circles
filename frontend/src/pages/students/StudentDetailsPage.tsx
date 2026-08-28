@@ -624,7 +624,7 @@ function RecitationsTabComponent({ records, progress }: { records: Recitation[];
                     </td>
                     <td>
                       {/* ✅ استخدم EVALUATION_COLORS و EVALUATION_LABELS مباشرة */}
-                     <Badge className={getStatusColor(s.status || 'PENDING')}>
+                     <Badge className={getStatusColor(.status || 'PENDING')}>
                           {getStatusLabel(s.status || 'PENDING')}    
                       </Badge>
                     </td>

@@ -511,182 +511,181 @@ function countEvaluations(progress: any, wanted: string[]) {
     .reduce((sum: number, row: any) => sum + row.sessions, 0);
 }
 
-function RecitationsTab({ records, progress }: { records: Recitation[]; progress: any }) {
-  return (
-    <div className="space-y-5">
-      {progress && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="عدد الجلسات" value={progress.totalSessions} tone="sky" />
-          <StatCard label="إجمالي الصفحات" value={progress.totalPages} tone="emerald" />
-          {/* التسميع اليومي يُقيَّم بتقدير عام، فيُعرض توزيع التقديرات بدل متوسط درجة. */}
-          <StatCard
-            label="تقديرات ممتاز/جيد جداً"
-            value={countEvaluations(progress, ['EXCELLENT', 'VERY_GOOD'])}
-            tone="primary"
-          />
-          <StatCard
-            label="تقديرات تحتاج متابعة"
-            value={countEvaluations(progress, ['ACCEPTABLE', 'UNSATISFACTORY'])}
-            tone="amber"
-          />
-        </div>
-      )}
+```tsx
+function ExamRequestModal({ student, onClose }: { student: Student; onClose: () => void }) {
+  const queryClient = useQueryClient();
 
-      <Card title="سجل التسميع" padded={false}>
-        {records.length ? (
-          <div className="table-wrap border-0 shadow-none">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>التاريخ</th>
-                  <th>النوع</th>
-                  <th>من</th>
-                  <th>إلى</th>
-                  <th>الصفحات</th>
-                  <th>التقييم</th>
-                  <th>المعلم</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((rec) => (
-                  <tr key={rec.id}>
-                    <td className="numeric">{formatDateShort(rec.date)}</td>
-                    <td>
-                      <Badge className="bg-slate-100 text-slate-600">{RECITATION_TYPE_LABELS[rec.type]}</Badge>
-                    </td>
-                    <td className="text-sm">
-                      {rec.fromSurah} <span className="numeric text-slate-400">({rec.fromAyah})</span>
-                    </td>
-                    <td className="text-sm">
-                      {rec.toSurah} <span className="numeric text-slate-400">({rec.toAyah})</span>
-                    </td>
-                    <td className="numeric">{rec.pagesCount ?? '—'}</td>
-                    <td>
-                      {rec.evaluation ? (
-                        <Badge className={EVALUATION_COLORS[rec.evaluation]}>
-                          {EVALUATION_LABELS[rec.evaluation]}
-                        </Badge>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="text-xs text-slate-500">{rec.teacher?.user.fullName}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+  const [hizb, setHizb] = useState('');
+  const [juz, setJuz] = useState('');
+  const [combined, setCombined] = useState('');
+  const [note, setNote] = useState('');
+
+  const { data: eligibility, isLoading } = useQuery({
+    queryKey: ['exams', 'eligibility', student.id],
+    queryFn: async () =>
+      (await api.get<ExamEligibility>(`/exams/eligibility/${student.id}`)).data,
+  });
+
+  // لازم يعبي واحد على الأقل
+  const hasRequestValue =
+    hizb.trim() !== '' ||
+    juz.trim() !== '' ||
+    combined.trim() !== '';
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.post('/exams/requests', {
+        studentId: student.id,
+
+        // نرسل فقط القيم التي تم إدخالها
+        requestedHizb: hizb.trim() ? Number(hizb) : undefined,
+        requestedJuz: juz.trim() ? Number(juz) : undefined,
+        requestedCombined: combined.trim() ? Number(combined) : undefined,
+
+        // الملاحظة كما هي
+        note: note.trim() || undefined,
+      }),
+
+    onSuccess: () => {
+      toast.success('تم إرسال طلب الاختبار إلى لجنة الاختبارات');
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+      onClose();
+    },
+
+    onError: (error) => toast.error(apiError(error)),
+  });
+
+  const handleNumberChange = (
+    value: string,
+    setter: (value: string) => void,
+    max: number,
+  ) => {
+    // السماح بالأرقام فقط
+    if (!/^\d*$/.test(value)) return;
+
+    // السماح بالمربع فارغ
+    if (value === '') {
+      setter('');
+      return;
+    }
+
+    const number = Number(value);
+
+    // منع الرقم من تجاوز الحد
+    if (number >= 1 && number <= max) {
+      setter(value);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="طلب اختبار"
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            إلغاء
+          </Button>
+
+          <Button
+            onClick={() => mutation.mutate()}
+            loading={mutation.isPending}
+            disabled={!hasRequestValue}
+          >
+            إرسال الطلب
+          </Button>
+        </>
+      }
+    >
+      {isLoading ? (
+        <LoadingState rows={2} />
+      ) : (
+        <>
+          <p className="mb-4 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-500">
+            أدخل المطلوب للاختبار في خانة واحدة على الأقل. يمكنك تعبئة أكثر من
+            خانة إذا كان الطلب يشمل أكثر من نوع.
+          </p>
+
+          <div className="space-y-3">
+            {/* حزب */}
+            <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3">
+              <label className="flex-1 text-sm font-semibold text-slate-700">
+                حزب
+              </label>
+
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={hizb}
+                onChange={(e) =>
+                  handleNumberChange(e.target.value, setHizb, 60)
+                }
+                placeholder="رقم الحزب"
+                className="numeric w-32 rounded-lg border border-slate-200 px-3 py-2 text-center text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+              />
+            </div>
+
+            {/* جزء */}
+            <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3">
+              <label className="flex-1 text-sm font-semibold text-slate-700">
+                جزء
+              </label>
+
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={juz}
+                onChange={(e) =>
+                  handleNumberChange(e.target.value, setJuz, 30)
+                }
+                placeholder="رقم الجزء"
+                className="numeric w-32 rounded-lg border border-slate-200 px-3 py-2 text-center text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+              />
+            </div>
+
+            {/* مجتمعة */}
+            <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3">
+              <label className="flex-1 text-sm font-semibold text-slate-700">
+                مجتمعة
+              </label>
+
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={combined}
+                onChange={(e) =>
+                  handleNumberChange(e.target.value, setCombined, 60)
+                }
+                placeholder="العدد"
+                className="numeric w-32 rounded-lg border border-slate-200 px-3 py-2 text-center text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+              />
+            </div>
           </div>
-        ) : (
-          <EmptyState title="لا توجد سجلات تسميع" icon={<IconBook size={24} />} />
-        )}
-      </Card>
-    </div>
+
+          {!hasRequestValue && (
+            <p className="mt-2 text-xs text-red-500">
+              يجب تعبئة خانة واحدة على الأقل.
+            </p>
+          )}
+
+          <Textarea
+            label="ملاحظة للجنة (اختياري)"
+            className="mt-4"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </>
+      )}
+    </Modal>
   );
 }
+```
 
-/** Human wording for where the student stands, shown under the progress map. */
-function describeNext(eligibility: ExamEligibility) {
-  if (eligibility.isComplete) return 'اكتملت الأحزاب الستون';
-  if (eligibility.pendingSection) return `بانتظار البتّ في طلب «${eligibility.pendingSection.name}»`;
-  if (eligibility.nextSection) return `المقرر التالي: ${eligibility.nextSection.name}`;
-  return 'لا يوجد حزب متاح حالياً';
-}
-
-function ExamsTab({ eligibility, exams }: { eligibility?: ExamEligibility; exams: any[] }) {
-  return (
-    <div className="space-y-5">
-      {eligibility && (
-        <Card
-          title="مسار الاختبارات"
-          subtitle={`تم اجتياز ${eligibility.hizbPassed} من ${eligibility.hizbTotal} حزباً (ما يعادل ${eligibility.juzEquivalent} جزءاً) — ${describeNext(
-            eligibility,
-          )}`}
-        >
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-10">
-            {eligibility.progression.map((section) => (
-              <div
-                key={section.id}
-                title={section.reason ?? (section.eligible ? 'متاح للاختبار' : '')}
-                className={cx(
-                  'rounded-xl border px-2 py-2.5 text-center text-[11px] font-bold transition',
-                  section.isPassed
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                    : section.hasOpenRequest
-                      ? 'border-sky-200 bg-sky-50 text-sky-800'
-                      : section.eligible
-                        ? 'border-gold-300 bg-gold-50 text-gold-800'
-                        : 'border-slate-100 bg-slate-50 text-slate-300',
-                )}
-              >
-                {section.name}
-                {section.score != null && <span className="numeric mt-0.5 block text-[10px]">{section.score}</span>}
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded bg-emerald-400" /> مجتاز
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded bg-sky-400" /> طلب قائم
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded bg-gold-400" /> متاح الآن
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded bg-slate-200" /> مغلق حتى اجتياز ما قبله
-            </span>
-          </div>
-        </Card>
-      )}
-
-      <Card title="سجل الاختبارات" padded={false}>
-        {exams.length ? (
-          <div className="table-wrap border-0 shadow-none">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>المقرر</th>
-                  <th>الموعد</th>
-                  <th>الممتحن</th>
-                  <th>الحالة</th>
-                  <th>الدرجة</th>
-                  <th>النتيجة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {exams.map((exam) => (
-                  <tr key={exam.id}>
-                    <td className="font-semibold text-slate-700">{describeExamSections(exam.section, exam.sections)}</td>
-                    <td className="text-xs text-slate-500">{formatDateTime(exam.scheduledAt)}</td>
-                    <td className="text-xs text-slate-500">{exam.examiner?.fullName ?? '—'}</td>
-                    <td>
-                      <Badge className={EXAM_STATUS_COLORS[exam.status as keyof typeof EXAM_STATUS_COLORS]}>
-                        {EXAM_STATUS_LABELS[exam.status as keyof typeof EXAM_STATUS_LABELS]}
-                      </Badge>
-                    </td>
-                    <td className="numeric font-bold">{exam.score ?? '—'}</td>
-                    <td>
-                      {exam.result ? (
-                        <Badge className={exam.result === 'PASSED' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}>
-                          {exam.result === 'PASSED' ? 'ناجح' : 'لم يجتز'}
-                        </Badge>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <EmptyState title="لا توجد اختبارات" icon={<IconAward size={24} />} />
-        )}
-      </Card>
-    </div>
-  );
-}
 
 function HistoryTab({ history }: { history: any }) {
   if (!history) return <LoadingState rows={4} />;

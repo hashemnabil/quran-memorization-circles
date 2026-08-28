@@ -617,12 +617,22 @@ function RecitationsTabComponent({ records, progress }: { records: Recitation[];
                       {rec.fromSurah} {rec.fromAyah} — {rec.toSurah} {rec.toAyah}
                     </td>
                     <td>
-                      <Badge className={getStatusColor(rec.status || 'PENDING')}>
-                        {getStatusLabel(rec.status || 'PENDING')}
-                      </Badge>
+                      {rec.rating ? (
+                        <Badge className={
+                          rec.rating === 'EXCELLENT' ? 'bg-emerald-100 text-emerald-800' :
+                          rec.rating === 'GOOD' ? 'bg-sky-100 text-sky-800' :
+                          rec.rating === 'FAIR' ? 'bg-amber-100 text-amber-800' :
+                          'bg-red-100 text-red-800'
+                        }>
+                          {rec.rating === 'EXCELLENT' ? 'ممتاز' :
+                           rec.rating === 'GOOD' ? 'جيد' :
+                           rec.rating === 'FAIR' ? 'مقبول' :
+                           'ضعيف'}
+                        </Badge>
+                      ) : '—'}
                     </td>
-                    <td className="numeric text-red-600">{rec.mistakes}</td>
-                    <td className="numeric text-amber-600">{rec.warnings}</td>
+                    <td className="numeric text-red-600">{rec.mistakes ?? 0}</td>
+                    <td className="numeric text-amber-600">{rec.warnings ?? 0}</td>
                   </tr>
                 ))}
               </tbody>

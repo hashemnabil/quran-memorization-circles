@@ -45,7 +45,6 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
-  // الأحدث أولاً
   const visible = useMemo(
     () =>
       (data ?? [])
@@ -73,21 +72,20 @@ export default function AnnouncementBar() {
     return null;
   }
 
-  /*
-   * كل إعلان يأخذ 10 ثواني.
-   */
   const durationPerAnnouncement = 10;
 
+  const totalDuration =
+    visible.length * durationPerAnnouncement;
+
   /*
-   * نكرر الإعلانات مرتين:
+   * نكرر الإعلانات:
    *
-   * 1 - 2 - 3 - 1 - 2 - 3
+   * 1 2 3 1 2 3
    *
-   * حتى تكون الحركة مستمرة بدون فراغ.
+   * وعند انتهاء المجموعة الأولى تكون المجموعة الثانية
+   * موجودة مباشرة، لذلك لا يظهر فراغ.
    */
   const carouselItems = [...visible, ...visible];
-
-  const totalDuration = visible.length * durationPerAnnouncement;
 
   return (
     <>
@@ -100,7 +98,6 @@ export default function AnnouncementBar() {
         onTouchEnd={() => setPaused(false)}
       >
         <div className="flex h-11 items-center">
-          {/* عنوان الإعلانات */}
           <div className="z-20 flex h-11 shrink-0 items-center gap-2 border-l border-[#ded6c8] bg-[#f4efe6] px-4 text-[#6f6252] shadow-[4px_0_10px_rgba(0,0,0,0.04)]">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5dccd]">
               <IconBell size={15} />
@@ -111,11 +108,10 @@ export default function AnnouncementBar() {
             </span>
           </div>
 
-          {/* منطقة الإعلانات */}
           <div className="relative h-11 min-w-0 flex-1 overflow-hidden">
             <div
               className={`announcement-track ${
-                paused ? 'announcement-paused' : ''
+                paused ? 'paused' : ''
               }`}
               style={
                 {
@@ -143,7 +139,9 @@ export default function AnnouncementBar() {
 
                     {announcement.body && (
                       <>
-                        <span className="text-[#b2a898]">—</span>
+                        <span className="text-[#b2a898]">
+                          —
+                        </span>
 
                         <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
                           {announcement.body}
@@ -160,7 +158,6 @@ export default function AnnouncementBar() {
             </div>
           </div>
 
-          {/* زر إخفاء الإعلان الحالي */}
           <button
             type="button"
             onClick={() => dismiss(visible[0].id)}
@@ -172,7 +169,6 @@ export default function AnnouncementBar() {
         </div>
       </div>
 
-      {/* نافذة تفاصيل الإعلان */}
       {selectedAnnouncement && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
@@ -183,7 +179,6 @@ export default function AnnouncementBar() {
             onClick={(event) => event.stopPropagation()}
             dir="rtl"
           >
-            {/* رأس النافذة */}
             <div className="flex items-center justify-between border-b border-[#e8e1d7] bg-[#f4efe6] px-5 py-4">
               <div className="flex items-center gap-3">
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e5dccd] text-[#6f6252]">
@@ -211,7 +206,6 @@ export default function AnnouncementBar() {
               </button>
             </div>
 
-            {/* محتوى الإعلان */}
             <div className="max-h-[60vh] overflow-y-auto px-6 py-6">
               {selectedAnnouncement.body ? (
                 <div className="whitespace-pre-wrap text-sm leading-8 text-[#51483d]">
@@ -224,7 +218,6 @@ export default function AnnouncementBar() {
               )}
             </div>
 
-            {/* أسفل النافذة */}
             <div className="flex items-center justify-between gap-3 border-t border-[#e8e1d7] bg-[#faf8f5] px-5 py-4">
               <button
                 type="button"
@@ -264,52 +257,24 @@ export default function AnnouncementBar() {
       )}
 
       <style>{`
-        /*
-         * ==================================================
-         * شريط الإعلانات
-         * ==================================================
-         *
-         * الحركة المطلوبة:
-         *
-         *     الشمال                         اليمين
-         *       |                              |
-         *       v                              v
-         *
-         *       [ إعلان 1 ]  --->  يخرج
-         *                    [ إعلان 2 ]  --->
-         *                                 [ إعلان 3 ] --->
-         *
-         * ثم:
-         *
-         *       [ إعلان 1 ] ---> ...
-         *
-         * الاتجاه بصرياً من LEFT إلى RIGHT.
-         */
-
         .announcement-track {
           display: flex;
           align-items: center;
           height: 44px;
           width: max-content;
 
-          /*
-           * كل إعلان يحتاج 10 ثواني.
-           */
-          animation: announcement-scroll-right
-            var(--announcement-duration, 10s)
-            linear
-            infinite;
+          animation-name: announcement-scroll;
+          animation-duration: var(--announcement-duration);
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
 
           will-change: transform;
         }
 
-        .announcement-paused {
+        .announcement-track.paused {
           animation-play-state: paused;
         }
 
-        /*
-         * كل إعلان يأخذ عرض منطقة الحركة.
-         */
         .announcement-slide {
           display: flex;
           align-items: center;
@@ -323,7 +288,6 @@ export default function AnnouncementBar() {
           align-items: center;
           width: 100%;
           height: 44px;
-
           gap: 12px;
           padding: 0 24px;
 
@@ -331,7 +295,7 @@ export default function AnnouncementBar() {
           text-align: right;
 
           border: 0;
-          background: #f4efe6;
+          background-color: #f4efe6;
 
           cursor: pointer;
 
@@ -343,26 +307,15 @@ export default function AnnouncementBar() {
         }
 
         /*
-         * ==================================================
-         * الحركة
-         * ==================================================
+         * الحركة من اليسار إلى اليمين.
          *
-         * لأننا نكرر القائمة:
+         * القائمة الفعلية:
          *
-         * 1 - 2 - 3 - 1 - 2 - 3
+         * 1 2 3 1 2 3
          *
-         * نحرك نصف الـ track فقط.
-         *
-         * بهذا الشكل:
-         *
-         * 1 -> 2 -> 3 -> 1
-         *
-         * وعندما تنتهي الأنيميشن تبدأ من البداية،
-         * فيكون الشكل البصري مستمراً.
-         *
-         * translateX موجب = حركة نحو اليمين.
+         * نحرك نصفها فقط.
          */
-        @keyframes announcement-scroll-right {
+        @keyframes announcement-scroll {
           from {
             transform: translateX(-50%);
           }
@@ -379,9 +332,6 @@ export default function AnnouncementBar() {
           }
         }
 
-        /*
-         * احترام إعداد تقليل الحركة في الجهاز.
-         */
         @media (prefers-reduced-motion: reduce) {
           .announcement-track {
             animation: none;

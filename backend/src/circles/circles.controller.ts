@@ -44,14 +44,15 @@ export class CirclesController {
     return this.service.history(user, id);
   }
 
-  @Post()
-  @Roles(Role.ADMIN, Role.SUPERVISOR)
-  @ApiOperation({ summary: 'إنشاء حلقة' })
-  create(@CurrentUser() user: AuthUser, @Body() dto: CreateCircleDto) {
-    if (user.role === Role.SUPERVISOR) {
-      if (!user.teacherId) {
-        throw new ForbiddenException('حساب المشرف غير مرتبط بملف محفظ');
-      }
+ @Post()
+ @Roles(Role.ADMIN, Role.SUPERVISOR)
+ @ApiOperation({ summary: 'إنشاء حلقة' })
+ create(
+  @CurrentUser() user: AuthUser,
+  @Body() dto: CreateCircleDto,
+) {
+  return this.service.create(user, dto);
+}
       // The DB trigger creates the same supervisor as the primary teacher.
       return this.service.create(user, { ...dto, supervisorId: user.id, primaryTeacherId: undefined });
     }

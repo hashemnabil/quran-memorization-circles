@@ -92,7 +92,6 @@ export class CirclesController {
   removeTeacher(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
-    @Param('id') id: string,
     @Param('teacherId') teacherId: string,
   ) {
     return this.service.removeTeacher(user, id, teacherId);

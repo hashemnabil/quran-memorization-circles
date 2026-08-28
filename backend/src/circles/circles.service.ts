@@ -153,7 +153,11 @@ export class CirclesService {
     if (dup) throw new ConflictException('رمز الحلقة مستخدم مسبقاً');
 
     if (dto.supervisorId) await this.assertSupervisor(dto.supervisorId);
-    if (dto.primaryTeacherId) await this.assertTeacherFree(dto.primaryTeacherId);
+    // Accepts either an existing teacher-profile id, or the id of a supervisor
+    // acting as their own circle's teacher (same account, no new user created).
+    const primaryTeacherId = dto.primaryTeacherId
+      ? await this.resolvePrimaryTeacherId(dto.primaryTeacherId)
+      : null;
 
     const circle = await this.prisma.$transaction(async (tx) => {
       const created = await tx.circle.create({
@@ -172,11 +176,11 @@ export class CirclesService {
         },
       });
 
-      if (dto.primaryTeacherId) {
+      if (primaryTeacherId) {
         await tx.circleTeacher.create({
           data: {
             circleId: created.id,
-            teacherId: dto.primaryTeacherId,
+            teacherId: primaryTeacherId,
             role: CircleTeacherRole.PRIMARY,
           },
         });
@@ -511,11 +515,46 @@ export class CirclesService {
     if (!supervisor) throw new BadRequestException('المستخدم المحدد ليس مشرفاً');
   }
 
-  private async assertTeacherFree(teacherId: string) {
+  /**
+   * Resolves the id submitted for "المعلم الأساسي" (primary teacher).
+   *
+   * It may be:
+   *  - an existing teacher-profile id (normal case), or
+   *  - the user id of a supervisor (or admin) chosen to also be the primary
+   *    teacher of their own circle.
+   *
+   * In the second case the same account/login is kept — no new user is ever
+   * created. If that user already has a teaching profile it is reused as-is;
+   * otherwise a teaching profile is created and linked to their *existing*
+   * user record, giving them the same student roster, recitation, review,
+   * evaluation and attendance tools any teacher has, without touching their
+   * SUPERVISOR role or creating a duplicate account.
+   */
+  private async resolvePrimaryTeacherId(rawId: string): Promise<string> {
     const teacher = await this.prisma.teacherProfile.findFirst({
-      where: { id: teacherId, deletedAt: null },
+      where: { id: rawId, deletedAt: null },
     });
-    if (!teacher) throw new BadRequestException('المعلم المحدد غير موجود');
+    if (teacher) return teacher.id;
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: rawId, deletedAt: null, role: { in: [Role.SUPERVISOR, Role.ADMIN] } },
+    });
+    if (!user) throw new BadRequestException('المعلم أو المشرف المحدد غير موجود');
+
+    const existingProfile = await this.prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+    });
+    if (existingProfile) {
+      if (existingProfile.deletedAt) {
+        throw new BadRequestException('ملف التحفيظ الخاص بهذا المستخدم موقوف');
+      }
+      return existingProfile.id;
+    }
+
+    const created = await this.prisma.teacherProfile.create({
+      data: { userId: user.id, employmentType: 'VOLUNTEER', isActive: true },
+    });
+    return created.id;
   }
 
   private async nextCode() {

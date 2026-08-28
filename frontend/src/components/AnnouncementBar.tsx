@@ -68,10 +68,13 @@ export default function AnnouncementBar() {
     return null;
   }
 
+  // حساب مدة الحركة بناءً على عدد الإعلانات
+  const animationDuration = Math.max(45, 15 + visible.length * 15);
+
   return (
     <>
       {/* =========================
-          شريط الإعلانات
+          شريط الإعلانات - نسخة محسّنة
       ========================== */}
       <div
         className="announcement-bar overflow-hidden border-b border-[#ded6c8] bg-[#f4efe6]"
@@ -94,42 +97,56 @@ export default function AnnouncementBar() {
             </span>
           </div>
 
-          {/* منطقة الحركة */}
-          <div className="relative h-11 min-w-0 flex-1 overflow-hidden">
-            {visible.map((announcement) => (
-              <button
-                key={announcement.id}
-                type="button"
-                onClick={() => setSelectedAnnouncement(announcement)}
-                className={`announcement-item ${
-                  paused ? 'is-paused' : ''
-                }`}
-              >
-                {/* نقطة */}
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
+          {/* منطقة الحركة - عرض الإعلانات بشكل أفقي */}
+          <div 
+            className="relative h-11 min-w-0 flex-1 overflow-hidden"
+            style={{
+              '--animation-duration': `${animationDuration}s`,
+            } as React.CSSProperties}
+          >
+            {/* حاوي الإعلانات المتحركة */}
+            <div
+              className={`announcement-carousel ${
+                paused ? 'is-paused' : ''
+              }`}
+              style={{
+                '--scroll-distance': `${100 * visible.length}%`,
+              } as React.CSSProperties}
+            >
+              {/* عرض الإعلانات مرتين لتأثير التكرار السلس */}
+              {[...visible, ...visible].map((announcement, idx) => (
+                <button
+                  key={`${announcement.id}-${idx}`}
+                  type="button"
+                  onClick={() => setSelectedAnnouncement(announcement)}
+                  className="announcement-item"
+                >
+                  {/* نقطة */}
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
 
-                {/* عنوان الإعلان */}
-                <span className="shrink-0 text-sm font-bold text-[#51483d]">
-                  {announcement.title}
-                </span>
+                  {/* عنوان الإعلان */}
+                  <span className="shrink-0 text-sm font-bold text-[#51483d]">
+                    {announcement.title}
+                  </span>
 
-                {/* نص الإعلان */}
-                {announcement.body && (
-                  <>
-                    <span className="text-[#b2a898]">—</span>
+                  {/* نص الإعلان */}
+                  {announcement.body && (
+                    <>
+                      <span className="text-[#b2a898]">—</span>
 
-                    <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
-                      {announcement.body}
-                    </span>
-                  </>
-                )}
+                      <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
+                        {announcement.body}
+                      </span>
+                    </>
+                  )}
 
-                {/* تعليمات */}
-                <span className="whitespace-nowrap text-[11px] font-semibold text-[#9b8d79]">
-                  اضغط لعرض التفاصيل
-                </span>
-              </button>
-            ))}
+                  {/* تعليمات */}
+                  <span className="whitespace-nowrap text-[11px] font-semibold text-[#9b8d79]">
+                    اضغط لعرض التفاصيل
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* زر إخفاء الإعلان */}
@@ -245,73 +262,80 @@ export default function AnnouncementBar() {
       )}
 
       {/* =========================
-          CSS شريط الأخبار
+          CSS شريط الأخبار المحسّن
+          عرض الإعلانات جنب بعضها
           من اليسار إلى اليمين
-          وبطيء
       ========================== */}
       <style>{`
-        .announcement-item {
-          position: absolute;
-          top: 0;
-          left: -100%;
+        .announcement-carousel {
+          display: flex;
+          height: 44px;
+          align-items: center;
+          gap: 0;
+          
+          animation-name: carousel-scroll;
+          animation-duration: var(--animation-duration, 45s);
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+          
+          will-change: transform;
+        }
 
+        .announcement-carousel.is-paused {
+          animation-play-state: paused;
+        }
+
+        .announcement-item {
           display: flex;
           height: 44px;
           align-items: center;
           gap: 12px;
-
+          
           white-space: nowrap;
           padding: 0 24px;
-
+          flex-shrink: 0;
+          
           text-align: right;
+          
+          background-color: #f4efe6;
+          border-right: 1px solid #ede7dd;
+          
+          transition: background-color 0.2s ease;
+        }
 
-          animation-name: announcement-slide-left-to-right;
-          animation-duration: 45s;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
-
-          will-change: left;
+        .announcement-item:last-child {
+          border-right: none;
         }
 
         .announcement-item:hover {
-          background: rgba(255, 255, 255, 0.5);
+          background-color: rgba(255, 255, 255, 0.6);
         }
 
-        .announcement-item.is-paused {
-          animation-play-state: paused;
-        }
-
-        /*
-         * الحركة:
-         * تبدأ من اليسار
-         * وتنتهي عند اليمين
-         */
-        @keyframes announcement-slide-left-to-right {
+        @keyframes carousel-scroll {
           0% {
-            left: -100%;
+            transform: translateX(0);
           }
 
           100% {
-            left: 100%;
+            transform: translateX(calc(-50% - var(--scroll-distance, 0)));
           }
         }
 
-        /*
-         * الجوال
-         */
         @media (max-width: 640px) {
           .announcement-item {
-            animation-duration: 35s;
+            padding: 0 16px;
+            gap: 8px;
+          }
+
+          .announcement-carousel {
+            animation-duration: calc(var(--animation-duration, 45s) * 0.85);
           }
         }
 
-        /*
-         * إذا المستخدم مفعل تقليل الحركة
-         */
         @media (prefers-reduced-motion: reduce) {
-          .announcement-item {
+          .announcement-carousel {
             animation: none;
-            left: 20px;
+            transform: translateX(0);
           }
         }
       `}</style>

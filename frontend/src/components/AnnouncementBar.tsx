@@ -227,7 +227,7 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS - شريط مستمر متكرر من اليمين إلى اليسار */}
+      {/* CSS - شريط مستمر متكرر من اليسار إلى اليمين */}
       <style>{`
         .announcement-track {
           display: flex;
@@ -235,7 +235,7 @@ export default function AnnouncementBar() {
           align-items: center;
           width: fit-content;
           
-          animation: scroll-right-to-left var(--total-duration, 30s) linear infinite;
+          animation: scroll-left-to-right var(--total-duration, 30s) linear infinite;
           will-change: transform;
         }
 
@@ -271,13 +271,13 @@ export default function AnnouncementBar() {
           background-color: rgba(255, 255, 255, 0.7);
         }
 
-        /* الحركة المستمرة من اليمين إلى اليسار */
-        @keyframes scroll-left-toright {
+        /* الحركة المستمرة من اليسار إلى اليمين */
+        @keyframes scroll-left-to-right {
           0% {
-            transform: translateX(0%);
+            transform: translateX(-50%);
           }
           100% {
-            transform: translateX(-50%);
+            transform: translateX(0%);
           }
         }
 

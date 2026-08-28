@@ -68,6 +68,10 @@ export default function AnnouncementBar() {
     return null;
   }
 
+  // حساب مدة الحركة - 10 ثواني لكل إعلان
+  const durationPerAnnouncement = 10;
+  const totalDuration = visible.length * durationPerAnnouncement;
+
   return (
     <>
       <div
@@ -94,6 +98,10 @@ export default function AnnouncementBar() {
           {/* منطقة الحركة */}
           <div 
             className="relative h-11 min-w-0 flex-1 overflow-hidden"
+            style={{
+              '--total-duration': `${totalDuration}s`,
+              '--announcement-count': visible.length,
+            } as React.CSSProperties}
           >
             {/* حاوي الإعلانات المتحركة */}
             <div
@@ -103,35 +111,39 @@ export default function AnnouncementBar() {
             >
               {/* عرض الإعلانات مرتين للتكرار السلس */}
               {[...visible, ...visible].map((announcement, idx) => (
-                <button
+                <div
                   key={`${announcement.id}-${idx}`}
-                  type="button"
-                  onClick={() => setSelectedAnnouncement(announcement)}
-                  className="announcement-carousel-item"
+                  className="announcement-slide"
                 >
-                  {/* نقطة */}
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#9b8d79]" />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAnnouncement(announcement)}
+                    className="announcement-item"
+                  >
+                    {/* نقطة */}
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
 
-                  {/* عنوان الإعلان */}
-                  <span className="text-sm font-bold text-[#51483d]">
-                    {announcement.title}
-                  </span>
+                    {/* عنوان الإعلان */}
+                    <span className="shrink-0 text-sm font-bold text-[#51483d]">
+                      {announcement.title}
+                    </span>
 
-                  {/* نص الإعلان */}
-                  {announcement.body && (
-                    <>
-                      <span className="text-[#b2a898]">—</span>
-                      <span className="max-w-xs overflow-hidden text-ellipsis text-sm text-[#756b60]">
-                        {announcement.body}
-                      </span>
-                    </>
-                  )}
+                    {/* نص الإعلان */}
+                    {announcement.body && (
+                      <>
+                        <span className="text-[#b2a898]">—</span>
+                        <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
+                          {announcement.body}
+                        </span>
+                      </>
+                    )}
 
-                  {/* تعليمات */}
-                  <span className="text-[11px] font-semibold text-[#9b8d79]">
-                    اضغط
-                  </span>
-                </button>
+                    {/* تعليمات */}
+                    <span className="text-[11px] font-semibold text-[#9b8d79]">
+                      اضغط لعرض التفاصيل
+                    </span>
+                  </button>
+                </div>
               ))}
             </div>
           </div>
@@ -239,16 +251,15 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS الحركة الأفقية */}
+      {/* CSS الحركة من اليسار إلى اليمين - إعلان واحد في المرة */}
       <style>{`
         .announcement-carousel {
           display: flex;
           height: 44px;
           align-items: center;
-          gap: 0;
           width: 100%;
           
-          animation: carousel-scroll 60s linear infinite;
+          animation: slide-left-to-right var(--total-duration, 30s) linear infinite;
           will-change: transform;
         }
 
@@ -256,39 +267,51 @@ export default function AnnouncementBar() {
           animation-play-state: paused;
         }
 
-        .announcement-carousel-item {
+        /* كل إعلان في حاوي منفصل */
+        .announcement-slide {
           display: flex;
           height: 44px;
           align-items: center;
-          gap: 12px;
-          padding: 0 24px;
           flex-shrink: 0;
-          min-width: max-content;
+          width: 100%;
+          min-width: 100%;
+        }
+
+        /* الإعلان نفسه */
+        .announcement-item {
+          display: flex;
+          height: 44px;
+          width: 100%;
+          align-items: center;
+          gap: 12px;
+          
+          white-space: nowrap;
+          padding: 0 24px;
+          text-align: right;
           
           background-color: #f4efe6;
-          border-right: 1px solid #ede7dd;
-          text-align: right;
-          white-space: nowrap;
+          border-right: none;
           
           transition: background-color 0.2s ease;
           cursor: pointer;
         }
 
-        .announcement-carousel-item:hover {
+        .announcement-item:hover {
           background-color: rgba(255, 255, 255, 0.7);
         }
 
-        @keyframes carousel-scroll {
+        /* الحركة: واحد يدخل من اليسار ويطلع من اليمين */
+        @keyframes slide-left-to-right {
           0% {
-            transform: translateX(0);
+            transform: translateX(-100%);
           }
           100% {
-            transform: translateX(-50%);
+            transform: translateX(100%);
           }
         }
 
         @media (max-width: 640px) {
-          .announcement-carousel-item {
+          .announcement-item {
             padding: 0 16px;
             gap: 8px;
           }

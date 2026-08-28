@@ -1,5 +1,3 @@
-// src/pages/students/StudentDetailsPage.tsx
-
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -586,10 +584,6 @@ function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summ
   );
 }
 
-// ============================================================================
-// ✅ RecitationsTabComponent - الكود المُصحَّح
-// ============================================================================
-
 function RecitationsTabComponent({ records, progress }: { records: Recitation[]; progress: any }) {
   return (
     <div className="space-y-5">
@@ -623,9 +617,8 @@ function RecitationsTabComponent({ records, progress }: { records: Recitation[];
                       {rec.fromSurah} {rec.fromAyah} — {rec.toSurah} {rec.toAyah}
                     </td>
                     <td>
-                      {/* ✅ استخدم EVALUATION_COLORS و EVALUATION_LABELS مباشرة */}
-                     <Badge className={getStatusColor(.status || 'PENDING')}>
-                          {getStatusLabel(s.status || 'PENDING')}    
+                      <Badge className={getStatusColor(rec.status || 'PENDING')}>
+                        {getStatusLabel(rec.status || 'PENDING')}
                       </Badge>
                     </td>
                     <td className="numeric text-red-600">{rec.mistakes}</td>
@@ -644,7 +637,7 @@ function RecitationsTabComponent({ records, progress }: { records: Recitation[];
 }
 
 // ============================================================================
-// EXAMS TAB (دمج محتوى ExamsPage.tsx هنا)
+// EXAMS TAB
 // ============================================================================
 
 function ExamsTabComponent({ 
@@ -671,14 +664,12 @@ function ExamsTabComponent({
   const confirm = useConfirm();
   const [rejectModal, setRejectModal] = useState<{ id: string; reason: string } | null>(null);
 
-  // Fetch exam requests for this student
   const { data: requestsData, refetch: refetchRequests } = useQuery({
     queryKey: ['exams', 'requests', studentId],
     queryFn: async () => (await api.get('/exams/requests', { params: { studentId } })).data,
     enabled: !!studentId,
   });
 
-  // Fetch scheduled exams for this student
   const { data: scheduledData, refetch: refetchScheduled } = useQuery({
     queryKey: ['exams', 'scheduled', studentId],
     queryFn: async () => (await api.get('/exams', { params: { studentId, status: 'SCHEDULED' } })).data,

@@ -1,3 +1,5 @@
+// src/pages/students/StudentDetailsPage.tsx
+
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -22,8 +24,8 @@ import {
   Tabs,
   Textarea,
   cx,
-  useConfirm,
 } from '@/components/ui';
+import { useConfirm } from '@/components/ui';
 import {
   IconAward,
   IconBook,
@@ -44,19 +46,17 @@ import {
   EVALUATION_LABELS,
   EXAM_STATUS_COLORS,
   EXAM_STATUS_LABELS,
-  RECITATION_TYPE_LABELS,
   REQUEST_STATUS_COLORS,
   REQUEST_STATUS_LABELS,
   STUDENT_STATUS_COLORS,
   STUDENT_STATUS_LABELS,
   describeExamSections,
 } from '@/lib/labels';
-import { calcAge, formatDate, formatDateShort, formatDateTime, formatParts, timeAgo } from '@/lib/format';
+import { calcAge, formatDate, formatDateShort, formatParts, timeAgo } from '@/lib/format';
 import type {
   AttendanceRecord,
   Circle,
   Evaluation,
-  ExamDirection,
   ExamEligibility,
   PaginatedResponse,
   PreparationAssignment,
@@ -64,6 +64,10 @@ import type {
   Student,
   StudentNote,
 } from '@/types';
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
 export default function StudentDetailsPage() {
   const { id = '' } = useParams();
@@ -157,8 +161,6 @@ export default function StudentDetailsPage() {
 
   return (
     <>
-      {/* The picture sits above the header rather than inside it: `PageHeader`
-          takes a title and an action, and the photo is neither. */}
       <div className="mb-4 flex items-center gap-3">
         <StudentPhoto
           studentId={student.id}
@@ -257,8 +259,6 @@ export default function StudentDetailsPage() {
           label="الأجزاء المحفوظة"
           value={formatParts(student.memorizedParts)}
           icon={<IconBook size={22} />}
-          // Exams are sat by the hizb, so the ajza' figure is derived: two
-          // ahzab to a juz'. The hint says where the number came from.
           hint={
             eligibility
               ? `${eligibility.hizbPassed} حزباً مجتازاً من ${eligibility.hizbTotal}`
@@ -296,8 +296,8 @@ export default function StudentDetailsPage() {
 
       {tab === 'overview' && <OverviewTab student={student} progress={progress} />}
       {tab === 'attendance' && <AttendanceTab records={attendance?.data ?? []} summary={student.attendanceSummary} />}
-      {tab === 'recitations' && <RecitationsTab records={recitations?.data ?? []} progress={progress} />}
-      {tab === 'exams' && <ExamsTab eligibility={eligibility} exams={exams?.data ?? []} />}
+      {tab === 'recitations' && <RecitationsTabComponent records={recitations?.data ?? []} progress={progress} />}
+      {tab === 'exams' && <ExamsTabComponent eligibility={eligibility} exams={exams?.data ?? []} />}
       {tab === 'points' && <PointsTab student={student} canManage={canManage} />}
       {tab === 'courses' && <CoursesTab student={student} />}
       {tab === 'preparations' && <PreparationsTab student={student} canManage={canManage} />}
@@ -326,7 +326,6 @@ export default function StudentDetailsPage() {
                       )}
                     </p>
                   </div>
-                  {/* The API allows deletion by the note's author or an admin only. */}
                   {canManage && (note.author.id === user.id || user.role === 'ADMIN') && (
                     <button
                       onClick={async () => {
@@ -362,7 +361,9 @@ export default function StudentDetailsPage() {
   );
 }
 
-// --- tabs -------------------------------------------------------------------
+// ============================================================================
+// TAB COMPONENTS
+// ============================================================================
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -504,14 +505,117 @@ function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summ
   );
 }
 
-/** Sums the sessions carrying any of the given evaluations. */
-function countEvaluations(progress: any, wanted: string[]) {
-  return (progress?.byEvaluation ?? [])
-    .filter((row: any) => wanted.includes(row.evaluation))
-    .reduce((sum: number, row: any) => sum + row.sessions, 0);
+function RecitationsTabComponent({ records, progress }: { records: Recitation[]; progress: any }) {
+  return (
+    <div className="space-y-5">
+      {progress && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="إجمالي الجلسات" value={progress.totalSessions ?? 0} tone="slate" />
+          <StatCard label="صفحات تم تسميعها" value={progress.totalPages ?? 0} tone="sky" />
+          <StatCard label="آيات تم تسميعها" value={progress.totalVerses ?? 0} tone="emerald" />
+          <StatCard label="متوسط الصفحات/جلسة" value={progress.averagePagesPerSession?.toFixed(1) ?? '—'} tone="amber" />
+        </div>
+      )}
+
+      <Card title="سجل التسميع" padded={false}>
+        {records.length ? (
+          <div className="table-wrap border-0 shadow-none">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>التاريخ</th>
+                  <th>المدى</th>
+                  <th>التقييم</th>
+                  <th>الأخطاء</th>
+                  <th>التنبيهات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {records.map((rec) => (
+                  <tr key={rec.id}>
+                    <td className="numeric">{formatDateShort(rec.date)}</td>
+                    <td>
+                      {rec.fromSurah} {rec.fromAyah} — {rec.toSurah} {rec.toAyah}
+                    </td>
+                    <td>
+                      <Badge className={EVALUATION_COLORS[rec.evaluation]}>
+                        {EVALUATION_LABELS[rec.evaluation]}
+                      </Badge>
+                    </td>
+                    <td className="numeric text-red-600">{rec.mistakes}</td>
+                    <td className="numeric text-amber-600">{rec.warnings}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState title="لا توجد جلسات تسميع" icon={<IconBook size={24} />} />
+        )}
+      </Card>
+    </div>
+  );
 }
 
+function ExamsTabComponent({ eligibility, exams }: { eligibility?: ExamEligibility; exams: any[] }) {
+  return (
+    <div className="space-y-5">
+      {eligibility && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="الأحزاب المجتازة" value={eligibility.hizbPassed} tone="purple" />
+          <StatCard label="إجمالي الأحزاب" value={eligibility.hizbTotal} tone="slate" />
+          <StatCard 
+            label="نسبة الإنجاز" 
+            value={`${Math.round((eligibility.hizbPassed / eligibility.hizbTotal) * 100)}%`} 
+            tone="emerald" 
+          />
+          <StatCard label="الاختبارات المتبقية" value={eligibility.remainingExams ?? '—'} tone="amber" />
+        </div>
+      )}
 
+      <Card title="سجل الاختبارات" padded={false}>
+        {exams.length ? (
+          <div className="table-wrap border-0 shadow-none">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>التاريخ</th>
+                  <th>المدى</th>
+                  <th>الحالة</th>
+                  <th>النتيجة</th>
+                </tr>
+              </thead>
+              <tbody>
+                {exams.map((exam) => (
+                  <tr key={exam.id}>
+                    <td className="numeric">{formatDateShort(exam.scheduledAt)}</td>
+                    <td>{describeExamSections(exam.section, exam.sections)}</td>
+                    <td>
+                      <Badge className={EXAM_STATUS_COLORS[exam.status]}>
+                        {EXAM_STATUS_LABELS[exam.status]}
+                      </Badge>
+                    </td>
+                    <td>
+                      {exam.result === 'PASSED' ? (
+                        <Badge className="bg-emerald-100 text-emerald-800">ناجح</Badge>
+                      ) : exam.result === 'FAILED' ? (
+                        <Badge className="bg-red-100 text-red-800">لم يجتز</Badge>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState title="لا يوجد سجل اختبارات" icon={<IconAward size={24} />} />
+        )}
+      </Card>
+    </div>
+  );
+}
 
 function HistoryTab({ history }: { history: any }) {
   if (!history) return <LoadingState rows={4} />;
@@ -616,7 +720,9 @@ function HistoryTab({ history }: { history: any }) {
   );
 }
 
-// --- modals -----------------------------------------------------------------
+// ============================================================================
+// MODAL COMPONENTS
+// ============================================================================
 
 function EvaluationModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -720,11 +826,6 @@ function NoteModal({ studentId, onClose }: { studentId: string; onClose: () => v
   );
 }
 
-/**
- * A transfer request carries the reason and nothing else — the destination is a
- * placement decision that depends on capacity and level, so the administration
- * makes it at approval time.
- */
 function TransferModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [reason, setReason] = useState('');
@@ -777,11 +878,6 @@ function TransferModal({ student, onClose }: { student: Student; onClose: () => 
   );
 }
 
-/**
- * Same shape as the transfer request: state the problem, and let the
- * administration decide what to do about it — move the student to the activity
- * programme, suspend them for a set period, or reject the request outright.
- */
 function SuspendModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [reason, setReason] = useState('');
@@ -834,15 +930,6 @@ function SuspendModal({ student, onClose }: { student: Student; onClose: () => v
   );
 }
 
-/**
- * Exams are requested by the hizb, in sequence, in the student's own direction.
- *
- * The circle chooses the direction once — up from hizb 1, or down from hizb 60 —
- * and from then on the next exam is whatever follows the last hizb passed. One
- * exam may still cover several of them (57, 56 and 55 together), which is why
- * this picks a *run* rather than an arbitrary set: clicking a hizb takes it and
- * everything before it, clicking the last one taken gives it back.
- */
 function ExamRequestModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [hizb, setHizb] = useState('');
@@ -951,9 +1038,6 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
     memorizedParts: student.memorizedParts,
     currentSurah: student.currentSurah ?? '',
     circleId: student.circleId ?? '',
-    // Defensive: a response cached before `noteEntries` existed carries a list
-    // here, and putting one in a textarea is how the "must be a string" error
-    // reached the operator in the first place.
     notes: typeof student.notes === 'string' ? student.notes : '',
   });
 
@@ -965,7 +1049,6 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
 
   const mutation = useMutation({
     mutationFn: () => {
-      // Teachers/supervisors may only send the fields the API allows them to change.
       const payload: Record<string, unknown> = isAdmin
         ? { ...form, circleId: form.circleId || null }
         : {
@@ -992,11 +1075,9 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
 
   const set = (key: string, value: unknown) => {
     setForm((f) => ({ ...f, [key]: value }));
-    // Clear the field's error as soon as the user edits it again.
     setErrors((e) => (e[key] ? { ...e, [key]: '' } : e));
   };
 
-  /** Validates the phone fields before the request goes out. */
   const submit = () => {
     const next: Record<string, string> = {};
     const phoneErr = phoneError(form.phone);
@@ -1061,7 +1142,6 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
           min={0}
           max={30}
           value={form.memorizedParts}
-          // Halves are legitimate: the total is ahzab / 2.
           step="0.5"
           onChange={(e) => set('memorizedParts', Number(e.target.value))}
         />
@@ -1072,13 +1152,10 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
   );
 }
 
-// --- points -----------------------------------------------------------------
+// ============================================================================
+// POINTS TAB
+// ============================================================================
 
-/**
- * The scoring system: one point per recited ayah, minus one per mistake and a
- * quarter per warning, plus a bonus for each surah finished. The breakdown is
- * shown alongside the balance so a parent can see how it was arrived at.
- */
 function PointsTab({ student, canManage }: { student: Student; canManage: boolean }) {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -1222,9 +1299,10 @@ function PointStat({ label, value, tone }: { label: string; value: number; tone:
   );
 }
 
-// --- courses ----------------------------------------------------------------
+// ============================================================================
+// COURSES TAB
+// ============================================================================
 
-/** The student's course track, on the same profile as their circle record. */
 function CoursesTab({ student }: { student: Student }) {
   const courses = student.courses ?? [];
   const current = courses.filter((c) => c.isCurrent);
@@ -1286,9 +1364,10 @@ function CoursesTab({ student }: { student: Student }) {
   );
 }
 
-// --- preparation ------------------------------------------------------------
+// ============================================================================
+// PREPARATIONS TAB
+// ============================================================================
 
-/** "Prepare Al-Baqarah 1-20 for the next session." */
 function PreparationsTab({ student, canManage }: { student: Student; canManage: boolean }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);

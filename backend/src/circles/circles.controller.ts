@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser, Roles } from '../common/decorators';
@@ -50,7 +50,7 @@ export class CirclesController {
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateCircleDto) {
     if (user.role === Role.SUPERVISOR) {
       if (!user.teacherId) {
-        throw new Error('حساب المشرف غير مرتبط بملف محفظ');
+        throw new ForbiddenException('حساب المشرف غير مرتبط بملف محفظ');
       }
       // The DB trigger creates the same supervisor as the primary teacher.
       return this.service.create(user, { ...dto, supervisorId: user.id, primaryTeacherId: undefined });
@@ -91,6 +91,7 @@ export class CirclesController {
   @ApiOperation({ summary: 'إزالة معلم من الحلقة' })
   removeTeacher(
     @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
     @Param('id') id: string,
     @Param('teacherId') teacherId: string,
   ) {

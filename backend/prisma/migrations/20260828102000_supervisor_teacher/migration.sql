@@ -91,6 +91,6 @@ EXECUTE FUNCTION sync_circle_supervisor_as_primary_teacher();
 
 -- Existing supervised circles must follow the same rule immediately.
 UPDATE "circles" c
-SET "updatedAt" = NOW()
+SET "supervisorId" = c."supervisorId"
 WHERE c."supervisorId" IS NOT NULL
   AND c."deletedAt" IS NULL;

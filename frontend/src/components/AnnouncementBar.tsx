@@ -228,7 +228,7 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS المعدل للفاصل */}
+      {/* CSS التحديث: تكبير مسافة التكرار */}
       <style>{`
         .announcement-track {
           display: flex;
@@ -248,12 +248,12 @@ export default function AnnouncementBar() {
           height: 44px;
           align-items: center;
           flex-shrink: 0;
-          padding-left: 60px; /* مسافة الإعلانات العادية */
+          padding-left: 60px;
         }
 
-        /* المسافة الفاصلة بين تكرار الدورات (يمكنك تعديل الـ 150px إذا رغبت بتصغيرها أكثر) */
+        /* تم التكبير إلى 300px ليعطي مساحة أكبر قبل تكرار الإعلان الأول */
         .announcement-item-wrapper.last-in-cycle {
-          padding-left: 150px; 
+          padding-left: 300px; 
         }
 
         .announcement-item {
@@ -287,7 +287,7 @@ export default function AnnouncementBar() {
             padding-left: 40px;
           }
           .announcement-item-wrapper.last-in-cycle {
-            padding-left: 100px;
+            padding-left: 200px;
           }
         }
 

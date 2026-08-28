@@ -200,7 +200,6 @@ export default function App() {
           path="exams/*"
           element={
             <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE']}>
-              <ExamsPage />
             </RequireRole>
           }
         />

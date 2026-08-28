@@ -44,8 +44,12 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
+  // جلب الإعلانات غير المخفية، ثم عكس الترتيب ليظهر الأحدث أولاً
   const visible = useMemo(
-    () => (data ?? []).filter((a) => !dismissed.includes(a.id)),
+    () =>
+      (data ?? [])
+        .filter((a) => !dismissed.includes(a.id))
+        .reverse(), // عكس الترتيب: الأحدث أولاً
     [data, dismissed],
   );
 
@@ -83,7 +87,6 @@ export default function AnnouncementBar() {
         onTouchEnd={() => setPaused(false)}
       >
         <div className="flex h-11 items-center">
-
           {/* عنوان الإعلانات */}
           <div className="z-20 flex h-11 shrink-0 items-center gap-2 border-l border-[#ded6c8] bg-[#f4efe6] px-4 text-[#6f6252] shadow-[4px_0_10px_rgba(0,0,0,0.04)]">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5dccd]">
@@ -109,7 +112,7 @@ export default function AnnouncementBar() {
                 paused ? 'paused' : ''
               }`}
             >
-              {/* عرض الإعلانات مرتين للتكرار السلس */}
+              {/* عرض الإعلانات مرتين للتكرار السلس، مع الحفاظ على الترتيب المعكوس */}
               {[...visible, ...visible].map((announcement, idx) => (
                 <div
                   key={`${announcement.id}-${idx}`}
@@ -251,7 +254,7 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS الحركة من اليسار إلى اليمين - إعلان واحد في المرة */}
+      {/* CSS الحركة من اليسار إلى اليمين - إعلان واحد في المرة، مع ظهور الأحدث أولاً */}
       <style>{`
         .announcement-carousel {
           display: flex;
@@ -300,13 +303,13 @@ export default function AnnouncementBar() {
           background-color: rgba(255, 255, 255, 0.7);
         }
 
-        /* الحركة: واحد يدخل من اليسار ويطلع من اليمين */
+        /* الحركة: من اليسار إلى اليمين */
         @keyframes slide-left-to-right {
           0% {
             transform: translateX(-100%);
           }
           100% {
-            transform: translateX(100%);
+            transform: translateX(0%);
           }
         }
 

@@ -586,6 +586,10 @@ function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summ
   );
 }
 
+// ============================================================================
+// ✅ RecitationsTabComponent - الكود المُصحَّح
+// ============================================================================
+
 function RecitationsTabComponent({ records, progress }: { records: Recitation[]; progress: any }) {
   return (
     <div className="space-y-5">
@@ -619,10 +623,10 @@ function RecitationsTabComponent({ records, progress }: { records: Recitation[];
                       {rec.fromSurah} {rec.fromAyah} — {rec.toSurah} {rec.toAyah}
                     </td>
                     <td>
-                     // ✅ الكود الصحيح
-                        <Badge className={getStatusColor(s.status || 'PENDING')}>
-                          {getStatusLabel(s.status || 'PENDING')}
-                          </Badge>
+                      {/* ✅ استخدم EVALUATION_COLORS و EVALUATION_LABELS مباشرة */}
+                      <Badge className={EVALUATION_COLORS[rec.evaluation]}>
+                        {EVALUATION_LABELS[rec.evaluation]}
+                      </Badge>
                     </td>
                     <td className="numeric text-red-600">{rec.mistakes}</td>
                     <td className="numeric text-amber-600">{rec.warnings}</td>

@@ -1,3 +1,5 @@
+DATABASE_URL="postgresql://neondb_owner:YOUR_NEW_PASSWORD@ep-misty-dream-ax6if5el-pooler.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+
 CLOUDINARY_CLOUD_NAME=zlxbskq4
 CLOUDINARY_API_KEY=738578484566787
-CLOUDINARY_API_SECRET=9tnTemnfHlha4JYi-iZtIPsS1_c
+CLOUDINARY_API_SECRET=YOUR_CLOUDINARY_SECRET

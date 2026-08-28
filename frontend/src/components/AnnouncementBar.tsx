@@ -44,7 +44,7 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
-  // عكس الترتيب: الأحدث أولاً
+  // الأحدث أولاً
   const visible = useMemo(
     () =>
       (data ?? [])
@@ -55,9 +55,7 @@ export default function AnnouncementBar() {
 
   const dismiss = (id: string) => {
     const next = [...dismissed, id];
-
     setDismissed(next);
-
     try {
       localStorage.setItem(
         dismissedKey(userId),
@@ -72,7 +70,7 @@ export default function AnnouncementBar() {
     return null;
   }
 
-  // حساب المدة لكل إعلان
+  // كل إعلان 10 ثواني
   const durationPerAnnouncement = 10;
   const totalDuration = visible.length * durationPerAnnouncement;
 
@@ -92,27 +90,29 @@ export default function AnnouncementBar() {
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5dccd]">
               <IconBell size={15} />
             </span>
-
             <span className="hidden text-xs font-bold sm:inline">
               الإعلانات
             </span>
           </div>
 
           {/* منطقة الحركة */}
-          <div className="relative h-11 min-w-0 flex-1 overflow-hidden">
-            {/* شريط الإعلانات المتحركة - مستمر */}
+          <div 
+            className="relative h-11 min-w-0 flex-1 overflow-hidden"
+            style={{
+              '--total-duration': `${totalDuration}s`,
+            } as React.CSSProperties}
+          >
             <div
-              className={`announcement-track ${paused ? 'paused' : ''}`}
-              style={
-                {
-                  '--total-duration': `${totalDuration}s`,
-                  '--item-width': `${100 / visible.length}%`,
-                } as React.CSSProperties
-              }
+              className={`announcement-carousel ${
+                paused ? 'paused' : ''
+              }`}
             >
-              {/* نكرر الإعلانات مرتين للتكرار السلس */}
-              {[...visible, ...visible].map((announcement, idx) => (
-                <div key={`${announcement.id}-${idx}`} className="announcement-item-wrapper">
+              {/* كل إعلان يأخذ عرض كامل */}
+              {visible.map((announcement) => (
+                <div
+                  key={announcement.id}
+                  className="announcement-slide"
+                >
                   <button
                     type="button"
                     onClick={() => setSelectedAnnouncement(announcement)}
@@ -227,29 +227,28 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS - شريط مستمر متكرر */}
       <style>{`
-        .announcement-track {
+        .announcement-carousel {
           display: flex;
           height: 44px;
           align-items: center;
-          width: fit-content;
+          width: ${visible.length * 100}%;
           
-          animation: scroll-left-to-right var(--total-duration, 30s) linear infinite;
+          animation: slide-left-to-right var(--total-duration, 30s) linear infinite;
           will-change: transform;
         }
 
-        .announcement-track.paused {
+        .announcement-carousel.paused {
           animation-play-state: paused;
         }
 
-        .announcement-item-wrapper {
+        .announcement-slide {
           display: flex;
           height: 44px;
           align-items: center;
           flex-shrink: 0;
-          width: 100vw;
-          min-width: 100vw;
+          width: ${100 / visible.length}%;
+          min-width: ${100 / visible.length}%;
         }
 
         .announcement-item {
@@ -271,13 +270,12 @@ export default function AnnouncementBar() {
           background-color: rgba(255, 255, 255, 0.7);
         }
 
-        /* الحركة المستمرة من اليسار إلى اليمين */
-        @keyframes scroll-left-to-right {
+        @keyframes slide-left-to-right {
           0% {
-            transform: translateX(0%);
+            transform: translateX(0);
           }
           100% {
-            transform: translateX(-50%);
+            transform: translateX(-${100 - (100 / visible.length)}%);
           }
         }
 
@@ -289,7 +287,7 @@ export default function AnnouncementBar() {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .announcement-track {
+          .announcement-carousel {
             animation: none;
             transform: translateX(0);
           }

@@ -45,13 +45,11 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
-  /*
-   * الأحدث أولاً
-   */
+  // الأحدث أولاً
   const visible = useMemo(
     () =>
       (data ?? [])
-        .filter((a) => !dismissed.includes(a.id))
+        .filter((announcement) => !dismissed.includes(announcement.id))
         .reverse(),
     [data, dismissed],
   );
@@ -76,21 +74,20 @@ export default function AnnouncementBar() {
   }
 
   /*
-   * مدة كل إعلان
+   * كل إعلان يأخذ 10 ثواني.
    */
   const durationPerAnnouncement = 10;
 
   /*
-   * إجمالي مدة الدورة كاملة
+   * نكرر الإعلانات مرتين:
+   *
+   * 1 - 2 - 3 - 1 - 2 - 3
+   *
+   * حتى تكون الحركة مستمرة بدون فراغ.
    */
-  const totalDuration =
-    visible.length * durationPerAnnouncement;
+  const carouselItems = [...visible, ...visible];
 
-  /*
-   * نكرر أول إعلان في النهاية حتى تكون العودة
-   * من آخر إعلان إلى الأول سلسة.
-   */
-  const slides = [...visible, visible[0]];
+  const totalDuration = visible.length * durationPerAnnouncement;
 
   return (
     <>
@@ -114,20 +111,19 @@ export default function AnnouncementBar() {
             </span>
           </div>
 
-          {/* منطقة الحركة */}
+          {/* منطقة الإعلانات */}
           <div className="relative h-11 min-w-0 flex-1 overflow-hidden">
             <div
-              className={`announcement-carousel ${
-                paused ? 'paused' : ''
+              className={`announcement-track ${
+                paused ? 'announcement-paused' : ''
               }`}
               style={
                 {
-                  '--slide-count': slides.length,
-                  '--total-duration': `${totalDuration}s`,
+                  '--announcement-duration': `${totalDuration}s`,
                 } as React.CSSProperties
               }
             >
-              {slides.map((announcement, index) => (
+              {carouselItems.map((announcement, index) => (
                 <div
                   key={`${announcement.id}-${index}`}
                   className="announcement-slide"
@@ -147,9 +143,7 @@ export default function AnnouncementBar() {
 
                     {announcement.body && (
                       <>
-                        <span className="text-[#b2a898]">
-                          —
-                        </span>
+                        <span className="text-[#b2a898]">—</span>
 
                         <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
                           {announcement.body}
@@ -166,7 +160,7 @@ export default function AnnouncementBar() {
             </div>
           </div>
 
-          {/* زر إخفاء الإعلان */}
+          {/* زر إخفاء الإعلان الحالي */}
           <button
             type="button"
             onClick={() => dismiss(visible[0].id)}
@@ -186,10 +180,10 @@ export default function AnnouncementBar() {
         >
           <div
             className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
             dir="rtl"
           >
-            {/* Header */}
+            {/* رأس النافذة */}
             <div className="flex items-center justify-between border-b border-[#e8e1d7] bg-[#f4efe6] px-5 py-4">
               <div className="flex items-center gap-3">
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e5dccd] text-[#6f6252]">
@@ -217,7 +211,7 @@ export default function AnnouncementBar() {
               </button>
             </div>
 
-            {/* Body */}
+            {/* محتوى الإعلان */}
             <div className="max-h-[60vh] overflow-y-auto px-6 py-6">
               {selectedAnnouncement.body ? (
                 <div className="whitespace-pre-wrap text-sm leading-8 text-[#51483d]">
@@ -230,7 +224,7 @@ export default function AnnouncementBar() {
               )}
             </div>
 
-            {/* Footer */}
+            {/* أسفل النافذة */}
             <div className="flex items-center justify-between gap-3 border-t border-[#e8e1d7] bg-[#faf8f5] px-5 py-4">
               <button
                 type="button"
@@ -271,124 +265,109 @@ export default function AnnouncementBar() {
 
       <style>{`
         /*
-         * ==========================================
-         * Announcement Carousel
-         * ==========================================
+         * ==================================================
+         * شريط الإعلانات
+         * ==================================================
          *
-         * اتجاه الحركة:
+         * الحركة المطلوبة:
          *
-         * LEFT  ---------------------------->  RIGHT
+         *     الشمال                         اليمين
+         *       |                              |
+         *       v                              v
          *
-         * إعلان 1
-         * إعلان 2
-         * إعلان 3
-         * إعلان 1
-         * إعلان 2
-         * إعلان 3
+         *       [ إعلان 1 ]  --->  يخرج
+         *                    [ إعلان 2 ]  --->
+         *                                 [ إعلان 3 ] --->
          *
-         * كل إعلان يأخذ 10 ثواني.
+         * ثم:
+         *
+         *       [ إعلان 1 ] ---> ...
+         *
+         * الاتجاه بصرياً من LEFT إلى RIGHT.
          */
 
-        .announcement-carousel {
+        .announcement-track {
           display: flex;
-          height: 44px;
           align-items: center;
+          height: 44px;
+          width: max-content;
 
           /*
-           * مهم:
-           * كل slide بعرض منطقة الإعلانات.
+           * كل إعلان يحتاج 10 ثواني.
            */
-          width: calc(
-            (var(--slide-count) * 100%)
-          );
-
-          animation:
-            announcement-slide-right
-            var(--total-duration, 10s)
+          animation: announcement-scroll-right
+            var(--announcement-duration, 10s)
             linear
             infinite;
 
           will-change: transform;
         }
 
-        .announcement-carousel.paused {
+        .announcement-paused {
           animation-play-state: paused;
         }
 
+        /*
+         * كل إعلان يأخذ عرض منطقة الحركة.
+         */
         .announcement-slide {
           display: flex;
-          height: 44px;
           align-items: center;
-
-          /*
-           * كل إعلان = عرض منطقة الحركة بالكامل
-           */
-          flex: 0 0 calc(
-            100% / var(--slide-count)
-          );
-
-          width: calc(
-            100% / var(--slide-count)
-          );
-
-          min-width: calc(
-            100% / var(--slide-count)
-          );
+          flex: 0 0 100%;
+          width: 100%;
+          height: 44px;
         }
 
         .announcement-item {
           display: flex;
-          height: 44px;
-          width: 100%;
           align-items: center;
+          width: 100%;
+          height: 44px;
+
           gap: 12px;
-
-          white-space: nowrap;
-
           padding: 0 24px;
 
+          white-space: nowrap;
           text-align: right;
 
-          background-color: #f4efe6;
-
           border: 0;
-
-          transition:
-            background-color 0.2s ease;
+          background: #f4efe6;
 
           cursor: pointer;
+
+          transition: background-color 0.2s ease;
         }
 
         .announcement-item:hover {
-          background-color: rgba(
-            255,
-            255,
-            255,
-            0.7
-          );
+          background-color: rgba(255, 255, 255, 0.7);
         }
 
         /*
-         * الحركة من الشمال إلى اليمين
+         * ==================================================
+         * الحركة
+         * ==================================================
          *
-         * بما أن الصفحة RTL، نستخدم translateX
-         * بعناية حتى يكون الاتجاه بصرياً:
+         * لأننا نكرر القائمة:
          *
-         * LEFT -> RIGHT
+         * 1 - 2 - 3 - 1 - 2 - 3
+         *
+         * نحرك نصف الـ track فقط.
+         *
+         * بهذا الشكل:
+         *
+         * 1 -> 2 -> 3 -> 1
+         *
+         * وعندما تنتهي الأنيميشن تبدأ من البداية،
+         * فيكون الشكل البصري مستمراً.
+         *
+         * translateX موجب = حركة نحو اليمين.
          */
-        @keyframes announcement-slide-right {
-          /*
-           * الإعلان الأول يبدأ خارج الشاشة
-           * من الجهة اليسرى.
-           */
-          0% {
-            transform: translateX(-100%);
+        @keyframes announcement-scroll-right {
+          from {
+            transform: translateX(-50%);
           }
 
-          /*
-           * يتحرك حتى يصل إلى النهاية اليمنى.
-           */
-          100% {
+          to {
             transform: translateX(0);
           }
         }
@@ -400,8 +379,11 @@ export default function AnnouncementBar() {
           }
         }
 
+        /*
+         * احترام إعداد تقليل الحركة في الجهاز.
+         */
         @media (prefers-reduced-motion: reduce) {
-          .announcement-carousel {
+          .announcement-track {
             animation: none;
             transform: translateX(0);
           }

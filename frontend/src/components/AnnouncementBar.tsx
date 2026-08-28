@@ -44,20 +44,15 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
-  // التعديل: إزالة ()reverse. الآن يظهر الإعلان الأول في المصفوفة أولاً.
+  // الترتيب: الإعلان الأول المرسل من الـ API يظهر أولاً
   const visible = useMemo(
-    () =>
-      (data ?? [])
-        .filter((a) => !dismissed.includes(a.id)),
-    // .reverse(), // تم إزالة هذا السطر ليعود الترتيب الأصلي (الأقدم/الأول أولاً)
+    () => (data ?? []).filter((a) => !dismissed.includes(a.id)),
     [data, dismissed],
   );
 
   const dismiss = (id: string) => {
     const next = [...dismissed, id];
-
     setDismissed(next);
-
     try {
       localStorage.setItem(
         dismissedKey(userId),
@@ -72,8 +67,8 @@ export default function AnnouncementBar() {
     return null;
   }
 
-  // حساب المدة لكل إعلان
-  const durationPerAnnouncement = 10;
+  // تم زيادة المدة لـ 20 ثانية لكل إعلان لإبطاء الحركة
+  const durationPerAnnouncement = 20;
   const totalDuration = visible.length * durationPerAnnouncement;
 
   return (
@@ -92,7 +87,6 @@ export default function AnnouncementBar() {
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5dccd]">
               <IconBell size={15} />
             </span>
-
             <span className="hidden text-xs font-bold sm:inline">
               الإعلانات
             </span>
@@ -100,7 +94,6 @@ export default function AnnouncementBar() {
 
           {/* منطقة الحركة */}
           <div className="relative h-11 min-w-0 flex-1 overflow-hidden">
-            {/* شريط الإعلانات المتحركة - مستمر */}
             <div
               className={`announcement-track ${paused ? 'paused' : ''}`}
               style={
@@ -109,7 +102,6 @@ export default function AnnouncementBar() {
                 } as React.CSSProperties
               }
             >
-              {/* التعديل: الحركة الآن RTL. تكرار المصفوفة يضمن التتابع الدائري. */}
               {[...visible, ...visible].map((announcement, idx) => (
                 <div key={`${announcement.id}-${idx}`} className="announcement-item-wrapper">
                   <button
@@ -150,7 +142,7 @@ export default function AnnouncementBar() {
         </div>
       </div>
 
-      {/* نافذة تفاصيل الإعلان (لم تتغير) */}
+      {/* نافذة تفاصيل الإعلان */}
       {selectedAnnouncement && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
@@ -226,16 +218,14 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* التعديل: CSS للحركة من اليمين إلى اليسار (RTL) */}
+      {/* CSS المعدل للتحريك البطائ والبداية الصحيحة */}
       <style>{`
         .announcement-track {
           display: flex;
           height: 44px;
           align-items: center;
-          width: max-content; /* هام: السماح للمحتوى بتحديد العرض */
-          
-          /* التعديل: استخدام الحركة الجديدة RTL */
-          animation: scroll-right-to-left var(--total-duration, 30s) linear infinite;
+          width: max-content;
+          animation: scroll-right-to-left var(--total-duration, 40s) linear infinite;
           will-change: transform;
         }
 
@@ -248,8 +238,7 @@ export default function AnnouncementBar() {
           height: 44px;
           align-items: center;
           flex-shrink: 0;
-          /* التعديل: إزالة width: 100vw للسماح بالتتابع خلف بعض */
-          padding-left: 50px; /* مسافة بين الإعلانات المتتابعة */
+          padding-left: 60px;
         }
 
         .announcement-item {
@@ -258,7 +247,7 @@ export default function AnnouncementBar() {
           align-items: center;
           gap: 12px;
           white-space: nowrap;
-          padding: 0; /* تم نقل البادينغ للـ wrapper */
+          padding: 0;
           text-align: right;
           background-color: transparent;
           transition: opacity 0.2s ease;
@@ -269,24 +258,18 @@ export default function AnnouncementBar() {
           opacity: 0.8;
         }
 
-        /* التعديل: الحركة الجديدة من اليمين إلى اليسار (RTL Loop) */
-        /* بما أن dir="rtl" على الحاوية الأبوية، فإن التموضع الافتراضي هو اليمين */
-        /* نحرك المسار بمقدار نصف عرضه (حجم المصفوفة الأصلية) إلى اليسار */
         @keyframes scroll-right-to-left {
           0% {
             transform: translateX(0);
           }
           100% {
-            transform: translateX(50%); /* في حالة RTL، التحريك لليسار يكون بقيمة موجبة */
+            transform: translateX(50%);
           }
         }
 
         @media (max-width: 640px) {
-          .announcement-item {
-            gap: 8px;
-          }
           .announcement-item-wrapper {
-            padding-left: 30px;
+            padding-left: 35px;
           }
         }
 

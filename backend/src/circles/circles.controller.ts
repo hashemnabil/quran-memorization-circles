@@ -52,11 +52,8 @@ export class CirclesController {
       if (!user.teacherId) {
         throw new Error('حساب المشرف غير مرتبط بملف محفظ');
       }
-      return this.service.create(user, {
-        ...dto,
-        supervisorId: user.id,
-        primaryTeacherId: user.teacherId,
-      });
+      // The DB trigger creates the same supervisor as the primary teacher.
+      return this.service.create(user, { ...dto, supervisorId: user.id, primaryTeacherId: undefined });
     }
     return this.service.create(user, dto);
   }

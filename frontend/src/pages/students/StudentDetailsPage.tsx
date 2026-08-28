@@ -50,8 +50,6 @@ import {
   EVALUATION_LABELS,
   EXAM_STATUS_COLORS,
   EXAM_STATUS_LABELS,
-  REQUEST_STATUS_COLORS,
-  REQUEST_STATUS_LABELS,
   STUDENT_STATUS_COLORS,
   STUDENT_STATUS_LABELS,
   describeExamSections,
@@ -70,7 +68,7 @@ import type {
 } from '@/types';
 
 // ============================================================================
-// Helper Functions
+// Helper Functions - ضعها هنا بعد الاستيرادات
 // ============================================================================
 
 function getStatusColor(status: string): string {
@@ -82,6 +80,10 @@ function getStatusColor(status: string): string {
     'COMPLETED': 'bg-slate-100 text-slate-800',
     'CANCELLED': 'bg-gray-100 text-gray-800',
     'IN_PROGRESS': 'bg-purple-100 text-purple-800',
+    'ACTIVE': 'bg-emerald-100 text-emerald-800',
+    'INACTIVE': 'bg-gray-100 text-gray-800',
+    'SUSPENDED': 'bg-red-100 text-red-800',
+    'ACTIVITY': 'bg-amber-100 text-amber-800',
   };
   return colors[status] || 'bg-slate-100 text-slate-600';
 }
@@ -95,6 +97,10 @@ function getStatusLabel(status: string): string {
     'COMPLETED': 'مكتمل',
     'CANCELLED': 'ملغي',
     'IN_PROGRESS': 'قيد التنفيذ',
+    'ACTIVE': 'نشط',
+    'INACTIVE': 'غير نشط',
+    'SUSPENDED': 'موقوف',
+    'ACTIVITY': 'نشاط',
   };
   return labels[status] || status;
 }
@@ -360,17 +366,19 @@ export default function StudentDetailsPage() {
       {tab === 'overview' && <OverviewTab student={student} progress={progress} />}
       {tab === 'attendance' && <AttendanceTab records={attendance?.data ?? []} summary={student.attendanceSummary} />}
       {tab === 'recitations' && <RecitationsTabComponent records={recitations?.data ?? []} progress={progress} />}
-      {tab === 'exams' && <ExamsTabComponent 
-        studentId={id}
-        student={student}
-        eligibility={eligibility} 
-        exams={exams?.data ?? []} 
-        canManage={canManage}
-        onApprove={approveRequest.mutate}
-        onReject={rejectRequest.mutate}
-        onDelete={deleteExam.mutate}
-        isPending={approveRequest.isPending || rejectRequest.isPending || deleteExam.isPending}
-      />}
+      {tab === 'exams' && (
+        <ExamsTabComponent 
+          studentId={id}
+          student={student}
+          eligibility={eligibility} 
+          exams={exams?.data ?? []} 
+          canManage={canManage}
+          onApprove={approveRequest.mutate}
+          onReject={(requestId, reason) => rejectRequest.mutate({ requestId, reason })}
+          onDelete={deleteExam.mutate}
+          isPending={approveRequest.isPending || rejectRequest.isPending || deleteExam.isPending}
+        />
+      )}
       {tab === 'points' && <PointsTab student={student} canManage={canManage} />}
       {tab === 'courses' && <CoursesTab student={student} />}
       {tab === 'preparations' && <PreparationsTab student={student} canManage={canManage} />}
@@ -941,8 +949,8 @@ function HistoryTab({ history }: { history: any }) {
                   <p className="text-sm font-semibold text-slate-700">
                     <span className="numeric">{s.durationDays}</span> يوم
                   </p>
-                  <Badge className={getStatusColor(s.status)}>
-                    {getStatusLabel(s.status)}
+                  <Badge className={getStatusColor(s.status || 'PENDING')}>
+                    {getStatusLabel(s.status || 'PENDING')}
                   </Badge>
                 </div>
                 <p className="mt-0.5 text-xs text-slate-500">{s.reason}</p>
@@ -994,8 +1002,8 @@ function HistoryTab({ history }: { history: any }) {
                     {e.result === 'PASSED' ? 'ناجح' : 'لم يجتز'} <span className="numeric">{e.score}</span>
                   </Badge>
                 ) : (
-                  <Badge className={getStatusColor(e.status)}>
-                    {getStatusLabel(e.status)}
+                  <Badge className={getStatusColor(e.status || 'PENDING')}>
+                    {getStatusLabel(e.status || 'PENDING')}
                   </Badge>
                 )}
               </li>

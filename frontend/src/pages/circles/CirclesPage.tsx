@@ -23,7 +23,7 @@ import {
   cx,
   useConfirm,
 } from '@/components/ui';
-import { IconCircleGroup, IconPlus, IconTrash, IconUsers } from '@/components/ui/Icons';
+import { IconCircleGroup, IconPlus, IconTrash } from '@/components/ui/Icons';
 import { DAY_LABELS, WEEK_DAYS } from '@/lib/labels';
 import { formatTime } from '@/lib/format';
 import type { Circle, PaginatedResponse, TeacherProfile, UserRecord } from '@/types';
@@ -39,6 +39,7 @@ export default function CirclesPage() {
   const [showForm, setShowForm] = useState(false);
 
   const debouncedSearch = useDebounce(search);
+  const canCreate = user.role === 'ADMIN' || user.role === 'SUPERVISOR';
   const isAdmin = user.role === 'ADMIN';
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -80,7 +81,7 @@ export default function CirclesPage() {
         title="الحلقات"
         subtitle="إدارة حلقات التحفيظ والمعلمين المسندين إليها"
         action={
-          isAdmin && (
+          canCreate && (
             <Button icon={<IconPlus size={17} />} onClick={() => setShowForm(true)}>
               إنشاء حلقة
             </Button>
@@ -226,6 +227,8 @@ export default function CirclesPage() {
 }
 
 function CircleFormModal({ onClose }: { onClose: () => void }) {
+  const user = useAuthStore((s) => s.user)!;
+  const isAdmin = user.role === 'ADMIN';
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
     name: '',
@@ -244,12 +247,14 @@ function CircleFormModal({ onClose }: { onClose: () => void }) {
 
   const { data: supervisors } = useQuery({
     queryKey: ['users', { role: 'SUPERVISOR' }],
+    enabled: isAdmin,
     queryFn: async () =>
       (await api.get<PaginatedResponse<UserRecord>>('/users', { params: { role: 'SUPERVISOR', limit: 100 } })).data.data,
   });
 
   const { data: teachers } = useQuery({
     queryKey: ['teachers', { limit: 100 }],
+    enabled: isAdmin,
     queryFn: async () =>
       (await api.get<PaginatedResponse<TeacherProfile>>('/teachers', { params: { limit: 100, isActive: true } })).data.data,
   });
@@ -271,8 +276,14 @@ function CircleFormModal({ onClose }: { onClose: () => void }) {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
-    const payload = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== '' && v !== null));
-    create.mutate({ ...payload, scheduleDays: days });
+    const base = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== '' && v !== null));
+    if (isAdmin) {
+      create.mutate({ ...base, scheduleDays: days });
+    } else {
+      // Backend derives supervisor + primary teacher from the logged-in supervisor.
+      const { supervisorId: _supervisorId, primaryTeacherId: _primaryTeacherId, ...selfCircle } = base;
+      create.mutate({ ...selfCircle, scheduleDays: days });
+    }
   };
 
   const set = (key: string, value: unknown) => setForm((f) => ({ ...f, [key]: value }));
@@ -283,7 +294,7 @@ function CircleFormModal({ onClose }: { onClose: () => void }) {
     <Modal
       open
       onClose={onClose}
-      title="إنشاء حلقة جديدة"
+      title={isAdmin ? 'إنشاء حلقة جديدة' : 'إنشاء حلقتي الجديدة'}
       size="lg"
       footer={
         <>
@@ -314,22 +325,32 @@ function CircleFormModal({ onClose }: { onClose: () => void }) {
         <Input label="وقت البداية" type="time" value={form.startTime} onChange={(e) => set('startTime', e.target.value)} />
         <Input label="وقت النهاية" type="time" value={form.endTime} onChange={(e) => set('endTime', e.target.value)} />
 
-        <Select label="المشرف" value={form.supervisorId} onChange={(e) => set('supervisorId', e.target.value)}>
-          <option value="">بدون مشرف</option>
-          {supervisors?.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.fullName}
-            </option>
-          ))}
-        </Select>
-        <Select label="المعلم الأساسي" value={form.primaryTeacherId} onChange={(e) => set('primaryTeacherId', e.target.value)}>
-          <option value="">بدون معلم</option>
-          {teachers?.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.user.fullName}
-            </option>
-          ))}
-        </Select>
+        {isAdmin && (
+          <>
+            <Select label="المشرف" value={form.supervisorId} onChange={(e) => set('supervisorId', e.target.value)}>
+              <option value="">بدون مشرف</option>
+              {supervisors?.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.fullName}
+                </option>
+              ))}
+            </Select>
+            <Select label="المعلم الأساسي" value={form.primaryTeacherId} onChange={(e) => set('primaryTeacherId', e.target.value)}>
+              <option value="">بدون معلم</option>
+              {teachers?.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.user.fullName}
+                </option>
+              ))}
+            </Select>
+          </>
+        )}
+
+        {!isAdmin && (
+          <div className="sm:col-span-2 rounded-xl bg-primary-50 px-4 py-3 text-sm text-primary-800">
+            ستكون أنت المشرف والمحفظ الأساسي لهذه الحلقة، وسيعمل طلابها وتسميعهم ومراجعاتهم وتقييماتهم ضمن نفس السجل.
+          </div>
+        )}
 
         <div className="sm:col-span-2">
           <span className="label">أيام الحلقة</span>

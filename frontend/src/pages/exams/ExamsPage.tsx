@@ -287,7 +287,7 @@ function ManualRequestSummary({ request }: { request: ExamRequest }) {
     </div>
   );
 }
-
+
   const queryClient = useQueryClient();
   const [scheduledAt, setScheduledAt] = useState(() => {
     const d = new Date();

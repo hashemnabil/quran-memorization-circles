@@ -604,7 +604,6 @@ function RecitationsTabComponent({ records, progress }: { records: Recitation[];
                 <tr>
                   <th>التاريخ</th>
                   <th>المدى</th>
-                  <th>التقييم</th>
                   <th>الأخطاء</th>
                   <th>التنبيهات</th>
                 </tr>
@@ -615,21 +614,6 @@ function RecitationsTabComponent({ records, progress }: { records: Recitation[];
                     <td className="numeric">{formatDateShort(rec.date)}</td>
                     <td>
                       {rec.fromSurah} {rec.fromAyah} — {rec.toSurah} {rec.toAyah}
-                    </td>
-                    <td>
-                      {rec.rating ? (
-                        <Badge className={
-                          rec.rating === 'EXCELLENT' ? 'bg-emerald-100 text-emerald-800' :
-                          rec.rating === 'GOOD' ? 'bg-sky-100 text-sky-800' :
-                          rec.rating === 'FAIR' ? 'bg-amber-100 text-amber-800' :
-                          'bg-red-100 text-red-800'
-                        }>
-                          {rec.rating === 'EXCELLENT' ? 'ممتاز' :
-                           rec.rating === 'GOOD' ? 'جيد' :
-                           rec.rating === 'FAIR' ? 'مقبول' :
-                           'ضعيف'}
-                        </Badge>
-                      ) : '—'}
                     </td>
                     <td className="numeric text-red-600">{rec.mistakes ?? 0}</td>
                     <td className="numeric text-amber-600">{rec.warnings ?? 0}</td>

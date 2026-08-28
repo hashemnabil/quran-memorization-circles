@@ -44,7 +44,6 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
-  // إظهار الإعلان الأقدم أولاً
   const visible = useMemo(
     () =>
       (data ?? [])
@@ -70,7 +69,6 @@ export default function AnnouncementBar() {
     return null;
   }
 
-  // 35 ثانية لكل إعلان لسرعة بطيئة ومريحة
   const durationPerAnnouncement = 35;
   const totalDuration = visible.length * durationPerAnnouncement;
 
@@ -230,7 +228,7 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS التحديث: ضبط مسافة الفاصل لنصف شريط الإعلانات */}
+      {/* CSS المعدل للفاصل */}
       <style>{`
         .announcement-track {
           display: flex;
@@ -250,19 +248,12 @@ export default function AnnouncementBar() {
           height: 44px;
           align-items: center;
           flex-shrink: 0;
-          padding-left: 80px;
+          padding-left: 60px; /* مسافة الإعلانات العادية */
         }
 
-        /* التعديل: تتبع مسافة الفاصل 50% من شريط الإعلانات المتاح بالضبط */
+        /* المسافة الفاصلة بين تكرار الدورات (يمكنك تعديل الـ 150px إذا رغبت بتصغيرها أكثر) */
         .announcement-item-wrapper.last-in-cycle {
-          padding-left: calc(50cqw); 
-        }
-
-        /* fallback للأجهزة التي لا تدعم container query width */
-        @supports not (padding-left: 50cqw) {
-          .announcement-item-wrapper.last-in-cycle {
-            padding-left: 50vw;
-          }
+          padding-left: 150px; 
         }
 
         .announcement-item {
@@ -294,6 +285,9 @@ export default function AnnouncementBar() {
         @media (max-width: 640px) {
           .announcement-item-wrapper {
             padding-left: 40px;
+          }
+          .announcement-item-wrapper.last-in-cycle {
+            padding-left: 100px;
           }
         }
 

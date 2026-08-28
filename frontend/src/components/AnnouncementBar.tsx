@@ -44,7 +44,6 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
-  // عكس الترتيب: الأحدث أولاً
   const visible = useMemo(
     () =>
       (data ?? [])
@@ -55,9 +54,7 @@ export default function AnnouncementBar() {
 
   const dismiss = (id: string) => {
     const next = [...dismissed, id];
-
     setDismissed(next);
-
     try {
       localStorage.setItem(
         dismissedKey(userId),
@@ -72,8 +69,8 @@ export default function AnnouncementBar() {
     return null;
   }
 
-  // حساب المدة لكل إعلان
-  const durationPerAnnouncement = 10;
+  // مدة الحركة الإجمالية تتناسب مع عدد العناصر
+  const durationPerAnnouncement = 12;
   const totalDuration = visible.length * durationPerAnnouncement;
 
   return (
@@ -92,7 +89,6 @@ export default function AnnouncementBar() {
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5dccd]">
               <IconBell size={15} />
             </span>
-
             <span className="hidden text-xs font-bold sm:inline">
               الإعلانات
             </span>
@@ -100,17 +96,15 @@ export default function AnnouncementBar() {
 
           {/* منطقة الحركة */}
           <div className="relative h-11 min-w-0 flex-1 overflow-hidden">
-            {/* شريط الإعلانات المتحركة - مستمر */}
             <div
               className={`announcement-track ${paused ? 'paused' : ''}`}
               style={
                 {
                   '--total-duration': `${totalDuration}s`,
-                  '--item-width': `${100 / visible.length}%`,
                 } as React.CSSProperties
               }
             >
-              {/* نكرر الإعلانات مرتين للتكرار السلس */}
+              {/* تكرار القائمة مرتين لضمان التتابع اللانهائي الخالي من الفراغات */}
               {[...visible, ...visible].map((announcement, idx) => (
                 <div key={`${announcement.id}-${idx}`} className="announcement-item-wrapper">
                   <button
@@ -125,12 +119,12 @@ export default function AnnouncementBar() {
                     {announcement.body && (
                       <>
                         <span className="text-[#b2a898]">—</span>
-                        <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
+                        <span className="max-w-[400px] overflow-hidden text-ellipsis text-sm text-[#756b60]">
                           {announcement.body}
                         </span>
                       </>
                     )}
-                    <span className="text-[11px] font-semibold text-[#9b8d79]">
+                    <span className="shrink-0 text-[11px] font-semibold text-[#9b8d79]">
                       اضغط لعرض التفاصيل
                     </span>
                   </button>
@@ -227,15 +221,14 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS - شريط مستمر متكرر من اليسار إلى اليمين */}
+      {/* CSS المعدل للتحريك من اليسار إلى اليمين بالتتابع */}
       <style>{`
         .announcement-track {
           display: flex;
           height: 44px;
           align-items: center;
-          width: fit-content;
+          width: max-content;
           direction: ltr;
-          
           animation: scroll-left-to-right var(--total-duration, 30s) linear infinite;
           will-change: transform;
         }
@@ -249,21 +242,17 @@ export default function AnnouncementBar() {
           height: 44px;
           align-items: center;
           flex-shrink: 0;
-          width: 100vw;
-          min-width: 100vw;
         }
 
         .announcement-item {
           display: flex;
           height: 44px;
-          width: 100%;
           align-items: center;
           gap: 12px;
           white-space: nowrap;
-          padding: 0 24px;
+          padding: 0 32px;
           text-align: right;
           background-color: #f4efe6;
-          border-right: none;
           transition: background-color 0.2s ease;
           cursor: pointer;
         }
@@ -272,19 +261,18 @@ export default function AnnouncementBar() {
           background-color: rgba(255, 255, 255, 0.7);
         }
 
-        /* الحركة المستمرة من اليسار إلى اليمين */
         @keyframes scroll-left-to-right {
           0% {
-            transform: translateX(0%);
+            transform: translateX(-50%);
           }
           100% {
-            transform: translateX(-50%);
+            transform: translateX(0%);
           }
         }
 
         @media (max-width: 640px) {
           .announcement-item {
-            padding: 0 16px;
+            padding: 0 20px;
             gap: 8px;
           }
         }

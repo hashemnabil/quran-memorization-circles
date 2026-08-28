@@ -107,7 +107,7 @@ export default function AnnouncementBar() {
                 paused ? 'paused' : ''
               }`}
             >
-              {/* كل إعلان يأخذ عرض كامل */}
+              {/* عرض الإعلانات */}
               {visible.map((announcement) => (
                 <div
                   key={announcement.id}
@@ -270,6 +270,7 @@ export default function AnnouncementBar() {
           background-color: rgba(255, 255, 255, 0.7);
         }
 
+        /* ✅ من اليسار لليمين - كل إعلان يمر ثم يليه التالي */
         @keyframes slide-left-to-right {
           0% {
             transform: translateX(0);

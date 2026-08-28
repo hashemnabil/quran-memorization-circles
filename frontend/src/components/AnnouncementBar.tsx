@@ -1,4 +1,3 @@
-```tsx
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -45,10 +44,11 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
+  // عكس الترتيب: الأحدث أولاً
   const visible = useMemo(
     () =>
       (data ?? [])
-        .filter((announcement) => !dismissed.includes(announcement.id))
+        .filter((a) => !dismissed.includes(a.id))
         .reverse(),
     [data, dismissed],
   );
@@ -72,20 +72,9 @@ export default function AnnouncementBar() {
     return null;
   }
 
+  // حساب المدة لكل إعلان
   const durationPerAnnouncement = 10;
-
-  const totalDuration =
-    visible.length * durationPerAnnouncement;
-
-  /*
-   * نكرر الإعلانات:
-   *
-   * 1 2 3 1 2 3
-   *
-   * وعند انتهاء المجموعة الأولى تكون المجموعة الثانية
-   * موجودة مباشرة، لذلك لا يظهر فراغ.
-   */
-  const carouselItems = [...visible, ...visible];
+  const totalDuration = visible.length * durationPerAnnouncement;
 
   return (
     <>
@@ -98,6 +87,7 @@ export default function AnnouncementBar() {
         onTouchEnd={() => setPaused(false)}
       >
         <div className="flex h-11 items-center">
+          {/* عنوان الإعلانات */}
           <div className="z-20 flex h-11 shrink-0 items-center gap-2 border-l border-[#ded6c8] bg-[#f4efe6] px-4 text-[#6f6252] shadow-[4px_0_10px_rgba(0,0,0,0.04)]">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5dccd]">
               <IconBell size={15} />
@@ -108,47 +98,38 @@ export default function AnnouncementBar() {
             </span>
           </div>
 
+          {/* منطقة الحركة */}
           <div className="relative h-11 min-w-0 flex-1 overflow-hidden">
+            {/* شريط الإعلانات المتحركة - مستمر */}
             <div
-              className={`announcement-track ${
-                paused ? 'paused' : ''
-              }`}
+              className={`announcement-track ${paused ? 'paused' : ''}`}
               style={
                 {
-                  '--announcement-duration': `${totalDuration}s`,
+                  '--total-duration': `${totalDuration}s`,
+                  '--item-width': `${100 / visible.length}%`,
                 } as React.CSSProperties
               }
             >
-              {carouselItems.map((announcement, index) => (
-                <div
-                  key={`${announcement.id}-${index}`}
-                  className="announcement-slide"
-                >
+              {/* نكرر الإعلانات مرتين للتكرار السلس */}
+              {[...visible, ...visible].map((announcement, idx) => (
+                <div key={`${announcement.id}-${idx}`} className="announcement-item-wrapper">
                   <button
                     type="button"
-                    onClick={() =>
-                      setSelectedAnnouncement(announcement)
-                    }
+                    onClick={() => setSelectedAnnouncement(announcement)}
                     className="announcement-item"
                   >
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
-
                     <span className="shrink-0 text-sm font-bold text-[#51483d]">
                       {announcement.title}
                     </span>
-
                     {announcement.body && (
                       <>
-                        <span className="text-[#b2a898]">
-                          —
-                        </span>
-
+                        <span className="text-[#b2a898]">—</span>
                         <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
                           {announcement.body}
                         </span>
                       </>
                     )}
-
                     <span className="text-[11px] font-semibold text-[#9b8d79]">
                       اضغط لعرض التفاصيل
                     </span>
@@ -158,6 +139,7 @@ export default function AnnouncementBar() {
             </div>
           </div>
 
+          {/* زر إخفاء الإعلان */}
           <button
             type="button"
             onClick={() => dismiss(visible[0].id)}
@@ -169,6 +151,7 @@ export default function AnnouncementBar() {
         </div>
       </div>
 
+      {/* نافذة تفاصيل الإعلان */}
       {selectedAnnouncement && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
@@ -176,7 +159,7 @@ export default function AnnouncementBar() {
         >
           <div
             className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
             dir="rtl"
           >
             <div className="flex items-center justify-between border-b border-[#e8e1d7] bg-[#f4efe6] px-5 py-4">
@@ -184,18 +167,13 @@ export default function AnnouncementBar() {
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e5dccd] text-[#6f6252]">
                   <IconBell size={18} />
                 </span>
-
                 <div>
-                  <p className="text-xs font-semibold text-[#9b8d79]">
-                    إعلان
-                  </p>
-
+                  <p className="text-xs font-semibold text-[#9b8d79]">إعلان</p>
                   <h2 className="text-lg font-bold text-[#403a34]">
                     {selectedAnnouncement.title}
                   </h2>
                 </div>
               </div>
-
               <button
                 type="button"
                 onClick={() => setSelectedAnnouncement(null)}
@@ -226,21 +204,14 @@ export default function AnnouncementBar() {
               >
                 إغلاق
               </button>
-
               {selectedAnnouncement.link && (
                 <button
                   type="button"
                   onClick={() => {
                     const link = selectedAnnouncement.link;
-
                     if (!link) return;
-
                     if (isExternalLink(link)) {
-                      window.open(
-                        link,
-                        '_blank',
-                        'noopener,noreferrer',
-                      );
+                      window.open(link, '_blank', 'noopener,noreferrer');
                     } else {
                       window.location.href = link;
                     }
@@ -256,18 +227,15 @@ export default function AnnouncementBar() {
         </div>
       )}
 
+      {/* CSS - شريط مستمر متكرر */}
       <style>{`
         .announcement-track {
           display: flex;
-          align-items: center;
           height: 44px;
-          width: max-content;
-
-          animation-name: announcement-scroll;
-          animation-duration: var(--announcement-duration);
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
-
+          align-items: center;
+          width: fit-content;
+          
+          animation: scroll-left-to-right var(--total-duration, 30s) linear infinite;
           will-change: transform;
         }
 
@@ -275,53 +243,41 @@ export default function AnnouncementBar() {
           animation-play-state: paused;
         }
 
-        .announcement-slide {
+        .announcement-item-wrapper {
           display: flex;
-          align-items: center;
-          flex: 0 0 100%;
-          width: 100%;
           height: 44px;
+          align-items: center;
+          flex-shrink: 0;
+          width: 100vw;
+          min-width: 100vw;
         }
 
         .announcement-item {
           display: flex;
-          align-items: center;
-          width: 100%;
           height: 44px;
+          width: 100%;
+          align-items: center;
           gap: 12px;
-          padding: 0 24px;
-
           white-space: nowrap;
+          padding: 0 24px;
           text-align: right;
-
-          border: 0;
           background-color: #f4efe6;
-
-          cursor: pointer;
-
+          border-right: none;
           transition: background-color 0.2s ease;
+          cursor: pointer;
         }
 
         .announcement-item:hover {
           background-color: rgba(255, 255, 255, 0.7);
         }
 
-        /*
-         * الحركة من اليسار إلى اليمين.
-         *
-         * القائمة الفعلية:
-         *
-         * 1 2 3 1 2 3
-         *
-         * نحرك نصفها فقط.
-         */
-        @keyframes announcement-scroll {
-          from {
-            transform: translateX(-50%);
+        /* الحركة المستمرة من اليسار إلى اليمين */
+        @keyframes scroll-left-to-right {
+          0% {
+            transform: translateX(0%);
           }
-
-          to {
-            transform: translateX(0);
+          100% {
+            transform: translateX(-50%);
           }
         }
 
@@ -342,4 +298,3 @@ export default function AnnouncementBar() {
     </>
   );
 }
-```

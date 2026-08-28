@@ -44,12 +44,12 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
-  // جلب الإعلانات غير المخفية، ثم عكس الترتيب ليظهر الأحدث أولاً
+  // عكس الترتيب: الأحدث أولاً
   const visible = useMemo(
     () =>
       (data ?? [])
         .filter((a) => !dismissed.includes(a.id))
-        .reverse(), // عكس الترتيب: الأحدث أولاً
+        .reverse(),
     [data, dismissed],
   );
 
@@ -72,7 +72,7 @@ export default function AnnouncementBar() {
     return null;
   }
 
-  // حساب مدة الحركة - 10 ثواني لكل إعلان
+  // 10 ثواني لكل إعلان
   const durationPerAnnouncement = 10;
   const totalDuration = visible.length * durationPerAnnouncement;
 
@@ -112,7 +112,7 @@ export default function AnnouncementBar() {
                 paused ? 'paused' : ''
               }`}
             >
-              {/* عرض الإعلانات مرتين للتكرار السلس، مع الحفاظ على الترتيب المعكوس */}
+              {/* عرض الإعلانات مرتين للتكرار السلس */}
               {[...visible, ...visible].map((announcement, idx) => (
                 <div
                   key={`${announcement.id}-${idx}`}
@@ -254,7 +254,7 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS الحركة من اليسار إلى اليمين - إعلان واحد في المرة، مع ظهور الأحدث أولاً */}
+      {/* CSS - الحركة من اليسار إلى اليمين، إعلان واحد في المرة */}
       <style>{`
         .announcement-carousel {
           display: flex;

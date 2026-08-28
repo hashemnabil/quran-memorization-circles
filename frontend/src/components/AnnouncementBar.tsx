@@ -44,12 +44,12 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
-  // التعديل: إظهار الأقدم أولاً عبر إرجاع ترتيب القائمة الأصلي/أو عكسه حسب ما يرجع من الـ API
+  // إظهار الإعلان الأقدم أولاً
   const visible = useMemo(
     () =>
       (data ?? [])
         .filter((a) => !dismissed.includes(a.id))
-        .reverse(), // يعرض الإعلان الأقدم أولاً
+        .reverse(),
     [data, dismissed],
   );
 
@@ -70,7 +70,7 @@ export default function AnnouncementBar() {
     return null;
   }
 
-  // التعديل: زيادة وقت الحركة لـ 35 ثانية لكل إعلان لإبطاء السرعة بشكل ملحوظ
+  // 35 ثانية لكل إعلان لسرعة بطيئة ومريحة
   const durationPerAnnouncement = 35;
   const totalDuration = visible.length * durationPerAnnouncement;
 
@@ -106,7 +106,6 @@ export default function AnnouncementBar() {
               }
             >
               {[...visible, ...visible].map((announcement, idx) => {
-                // فحص ما إذا كان هذا هو الإعلان الأخير في الدورة قبل أن تتكرر
                 const isLastInCycle = (idx + 1) % visible.length === 0;
 
                 return (
@@ -231,7 +230,7 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS المعدل لضمان المسافة والسرعة البطئية */}
+      {/* CSS التحديث: ضبط مسافة الفاصل لنصف شريط الإعلانات */}
       <style>{`
         .announcement-track {
           display: flex;
@@ -251,12 +250,19 @@ export default function AnnouncementBar() {
           height: 44px;
           align-items: center;
           flex-shrink: 0;
-          padding-left: 80px; /* مسافة مريحة بين الإعلانات المتتابعة */
+          padding-left: 80px;
         }
 
-        /* التعديل: إعطاء مسافة كبيرة بعد الإعلان الأخير ليختفي بالكامل قبل إعادة الإعلان الأول */
+        /* التعديل: تتبع مسافة الفاصل 50% من شريط الإعلانات المتاح بالضبط */
         .announcement-item-wrapper.last-in-cycle {
-          padding-left: 80vw; 
+          padding-left: calc(50cqw); 
+        }
+
+        /* fallback للأجهزة التي لا تدعم container query width */
+        @supports not (padding-left: 50cqw) {
+          .announcement-item-wrapper.last-in-cycle {
+            padding-left: 50vw;
+          }
         }
 
         .announcement-item {
@@ -288,9 +294,6 @@ export default function AnnouncementBar() {
         @media (max-width: 640px) {
           .announcement-item-wrapper {
             padding-left: 40px;
-          }
-          .announcement-item-wrapper.last-in-cycle {
-            padding-left: 90vw;
           }
         }
 

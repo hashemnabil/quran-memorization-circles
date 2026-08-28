@@ -27,14 +27,7 @@ const TEACHER_LINK_SELECT = {
     select: {
       id: true,
       isActive: true,
-      user: {
-        select: {
-          id: true,
-          fullName: true,
-          phone: true,
-          avatarUrl: true,
-        },
-      },
+      user: { select: { id: true, fullName: true, phone: true, avatarUrl: true } },
     },
   },
 } satisfies Prisma.CircleTeacherSelect;
@@ -53,51 +46,18 @@ export class CirclesService {
 
     const where: Prisma.CircleWhereInput = {
       deletedAt: null,
-
-      ...(allowed !== null
-        ? { id: { in: allowed } }
-        : {}),
-
-      ...(query.isActive !== undefined
-        ? { isActive: query.isActive }
-        : {}),
-
-      ...(query.supervisorId
-        ? { supervisorId: query.supervisorId }
-        : {}),
-
+      ...(allowed !== null ? { id: { in: allowed } } : {}),
+      ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
+      ...(query.supervisorId ? { supervisorId: query.supervisorId } : {}),
       ...(query.teacherId
-        ? {
-            teachers: {
-              some: {
-                teacherId: query.teacherId,
-                endedAt: null,
-              },
-            },
-          }
+        ? { teachers: { some: { teacherId: query.teacherId, endedAt: null } } }
         : {}),
-
       ...(query.search
         ? {
             OR: [
-              {
-                name: {
-                  contains: query.search,
-                  mode: 'insensitive',
-                },
-              },
-              {
-                code: {
-                  contains: query.search,
-                  mode: 'insensitive',
-                },
-              },
-              {
-                location: {
-                  contains: query.search,
-                  mode: 'insensitive',
-                },
-              },
+              { name: { contains: query.search, mode: 'insensitive' } },
+              { code: { contains: query.search, mode: 'insensitive' } },
+              { location: { contains: query.search, mode: 'insensitive' } },
             ],
           }
         : {}),
@@ -106,93 +66,36 @@ export class CirclesService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.circle.findMany({
         where,
-
         include: {
-          supervisor: {
-            select: {
-              id: true,
-              fullName: true,
-              phone: true,
-            },
-          },
-
-          teachers: {
-            where: {
-              endedAt: null,
-            },
-            select: TEACHER_LINK_SELECT,
-          },
-
-          _count: {
-            select: {
-              students: {
-                where: {
-                  deletedAt: null,
-                },
-              },
-            },
-          },
+          supervisor: { select: { id: true, fullName: true, phone: true } },
+          teachers: { where: { endedAt: null }, select: TEACHER_LINK_SELECT },
+          _count: { select: { students: { where: { deletedAt: null } } } },
         },
-
         orderBy:
-          query.sortBy === 'name'
-            ? {
-                name: query.sortOrder,
-              }
-            : {
-                createdAt: query.sortOrder || 'desc',
-              },
-
+          query.sortBy === 'name' ? { name: query.sortOrder } : { createdAt: query.sortOrder || 'desc' },
         skip: query.skip,
         take: query.take,
       }),
-
-      this.prisma.circle.count({
-        where,
-      }),
+      this.prisma.circle.count({ where }),
     ]);
 
-    const data = rows.map((circle) => this.shape(circle));
-
-    return paginate(
-      data,
-      total,
-      query.page,
-      query.limit,
-    );
+    const data = rows.map((c) => this.shape(c));
+    return paginate(data, total, query.page, query.limit);
   }
 
   async findOne(user: AuthUser, id: string) {
     await this.acl.assertCircleAccess(user, id);
 
     const circle = await this.prisma.circle.findFirst({
-      where: {
-        id,
-        deletedAt: null,
-      },
-
+      where: { id, deletedAt: null },
       include: {
-        supervisor: {
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-            email: true,
-          },
-        },
-
+        supervisor: { select: { id: true, fullName: true, phone: true, email: true } },
         teachers: {
-          where: {
-            endedAt: null,
-          },
+          where: { endedAt: null },
           select: TEACHER_LINK_SELECT,
         },
-
         students: {
-          where: {
-            deletedAt: null,
-          },
-
+          where: { deletedAt: null },
           select: {
             id: true,
             code: true,
@@ -202,191 +105,88 @@ export class CirclesService {
             memorizedParts: true,
             guardianPhone: true,
           },
-
-          orderBy: {
-            fullName: 'asc',
-          },
+          orderBy: { fullName: 'asc' },
         },
       },
     });
+    if (!circle) throw new NotFoundException('الحلقة غير موجودة');
 
-    if (!circle) {
-      throw new NotFoundException('الحلقة غير موجودة');
-    }
-
-    const [
-      attendanceToday,
-      recitationsThisWeek,
-    ] = await Promise.all([
+    const [attendanceToday, recitationsThisWeek] = await Promise.all([
       this.prisma.attendance.groupBy({
         by: ['status'],
-
-        where: {
-          circleId: id,
-          date: this.today(),
-        },
-
-        _count: {
-          _all: true,
-        },
+        where: { circleId: id, date: this.today() },
+        _count: { _all: true },
       }),
-
       this.prisma.recitation.count({
-        where: {
-          circleId: id,
-          date: {
-            gte: this.daysAgo(7),
-          },
-          deletedAt: null,
-        },
+        where: { circleId: id, date: { gte: this.daysAgo(7) }, deletedAt: null },
       }),
     ]);
 
     return {
       ...this.shape(circle),
-
       stats: {
-        attendanceToday: attendanceToday.map((a) => ({
-          status: a.status,
-          count: a._count._all,
-        })),
-
+        attendanceToday: attendanceToday.map((a) => ({ status: a.status, count: a._count._all })),
         recitationsThisWeek,
-
-        activeStudents: circle.students.filter(
-          (student) => student.status === 'ACTIVE',
-        ).length,
-
-        suspendedStudents: circle.students.filter(
-          (student) => student.status === 'SUSPENDED',
-        ).length,
+        activeStudents: circle.students.filter((s) => s.status === 'ACTIVE').length,
+        suspendedStudents: circle.students.filter((s) => s.status === 'SUSPENDED').length,
       },
     };
   }
 
-  /**
-   * الحلقات التي يستطيع المشرف أو المحفظ الوصول إليها.
-   */
+  /** Circles the teacher / supervisor can pick from in dropdowns. */
   async options(user: AuthUser) {
     const allowed = await this.acl.accessibleCircleIds(user);
-
     return this.prisma.circle.findMany({
       where: {
         deletedAt: null,
         isActive: true,
-
-        ...(allowed !== null
-          ? {
-              id: {
-                in: allowed,
-              },
-            }
-          : {}),
+        ...(allowed !== null ? { id: { in: allowed } } : {}),
       },
-
-      select: {
-        id: true,
-        name: true,
-        code: true,
-      },
-
-      orderBy: {
-        name: 'asc',
-      },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
     });
   }
 
-  /**
-   * إنشاء حلقة.
-   *
-   * إذا كان المنشئ مشرفاً:
-   * - يصبح هو مشرف الحلقة.
-   * - يصبح هو المحفظ الأساسي.
-   *
-   * وبالتالي نفس الشخص يدير الحلقة كمشرف ومحفظ.
-   */
   async create(actor: AuthUser, dto: CreateCircleDto) {
-    const code =
-      dto.code?.trim() ||
-      (await this.nextCode());
+    const code = dto.code?.trim() || (await this.nextCode());
+    const dup = await this.prisma.circle.findUnique({ where: { code } });
+    if (dup) throw new ConflictException('رمز الحلقة مستخدم مسبقاً');
 
-    const dup = await this.prisma.circle.findUnique({
-      where: {
-        code,
-      },
-    });
+    if (dto.supervisorId) await this.assertSupervisor(dto.supervisorId);
+    // Accepts either an existing teacher-profile id, or the id of a supervisor
+    // acting as their own circle's teacher (same account, no new user created).
+    const primaryTeacherId = dto.primaryTeacherId
+      ? await this.resolvePrimaryTeacherId(dto.primaryTeacherId)
+      : null;
 
-    if (dup) {
-      throw new ConflictException(
-        'رمز الحلقة مستخدم مسبقاً',
-      );
-    }
+    const circle = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.circle.create({
+        data: {
+          name: dto.name,
+          code,
+          description: dto.description,
+          location: dto.location,
+          level: dto.level,
+          capacity: dto.capacity ?? 25,
+          scheduleDays: dto.scheduleDays ?? [],
+          startTime: dto.startTime,
+          endTime: dto.endTime,
+          supervisorId: dto.supervisorId || null,
+          isActive: dto.isActive ?? true,
+        },
+      });
 
-    let supervisorId = dto.supervisorId;
-    let primaryTeacherId = dto.primaryTeacherId;
-
-    /*
-     * المشرف الذي ينشئ الحلقة:
-     * يصبح مشرفاً ومحفظاً أساسياً لنفس الحلقة.
-     */
-    if (actor.role === Role.SUPERVISOR) {
-      if (!actor.teacherId) {
-        throw new BadRequestException(
-          'حساب المشرف غير مرتبط بملف محفظ',
-        );
-      }
-
-      supervisorId = actor.id;
-      primaryTeacherId = actor.teacherId;
-    }
-
-    if (supervisorId) {
-      await this.assertSupervisor(supervisorId);
-    }
-
-    if (primaryTeacherId) {
-      await this.assertTeacherFree(primaryTeacherId);
-    }
-
-    const circle = await this.prisma.$transaction(
-      async (tx) => {
-        const created = await tx.circle.create({
+      if (primaryTeacherId) {
+        await tx.circleTeacher.create({
           data: {
-            name: dto.name,
-            code,
-            description: dto.description,
-            location: dto.location,
-            level: dto.level,
-            capacity: dto.capacity ?? 25,
-            scheduleDays: dto.scheduleDays ?? [],
-            startTime: dto.startTime,
-            endTime: dto.endTime,
-
-            supervisorId: supervisorId || null,
-
-            isActive: dto.isActive ?? true,
+            circleId: created.id,
+            teacherId: primaryTeacherId,
+            role: CircleTeacherRole.PRIMARY,
           },
         });
-
-        /*
-         * ربط المحفظ الأساسي.
-         *
-         * إذا كان المنشئ مشرفاً:
-         * teacherId = ملف المحفظ الخاص بالمشرف نفسه.
-         */
-        if (primaryTeacherId) {
-          await tx.circleTeacher.create({
-            data: {
-              circleId: created.id,
-              teacherId: primaryTeacherId,
-              role: CircleTeacherRole.PRIMARY,
-            },
-          });
-        }
-
-        return created;
-      },
-    );
+      }
+      return created;
+    });
 
     await this.activity.log({
       userId: actor.id,
@@ -396,123 +196,56 @@ export class CirclesService {
       entityId: circle.id,
     });
 
-    if (supervisorId) {
+    if (dto.supervisorId) {
       await this.notifications.notify({
-        userId: supervisorId,
+        userId: dto.supervisorId,
         type: NotificationType.SYSTEM,
-        title: 'تم إسنادك كمشرف ومحفظ',
-        body: `تم تعيينك مشرفاً ومحفظاً أساسياً على حلقة "${circle.name}"`,
+        title: 'تم إسنادك كمشرف على حلقة',
+        body: `تم تعيينك مشرفاً على حلقة "${circle.name}"`,
         link: `/circles/${circle.id}`,
       });
     }
 
-    return this.findOne(
-      actor,
-      circle.id,
-    );
+    return this.findOne(actor, circle.id);
   }
 
-  async update(
-    actor: AuthUser,
-    id: string,
-    dto: UpdateCircleDto,
-  ) {
-    const circle = await this.prisma.circle.findFirst({
-      where: {
-        id,
-        deletedAt: null,
+  async update(actor: AuthUser, id: string, dto: UpdateCircleDto) {
+    const circle = await this.prisma.circle.findFirst({ where: { id, deletedAt: null } });
+    if (!circle) throw new NotFoundException('الحلقة غير موجودة');
+
+    // Supervisors may adjust their own circles' schedule but not reassign supervision.
+    if (actor.role === Role.SUPERVISOR) {
+      await this.acl.assertCircleWriteAccess(actor, id);
+      if (dto.supervisorId !== undefined || dto.primaryTeacherId !== undefined) {
+        throw new BadRequestException('تعيين المشرف أو المعلم الأساسي من صلاحيات الإدارة');
+      }
+    }
+
+    if (dto.code && dto.code !== circle.code) {
+      const dup = await this.prisma.circle.findUnique({ where: { code: dto.code } });
+      if (dup) throw new ConflictException('رمز الحلقة مستخدم مسبقاً');
+    }
+    if (dto.supervisorId) await this.assertSupervisor(dto.supervisorId);
+
+    const updated = await this.prisma.circle.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        code: dto.code,
+        description: dto.description,
+        location: dto.location,
+        level: dto.level,
+        capacity: dto.capacity,
+        scheduleDays: dto.scheduleDays,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        isActive: dto.isActive,
+        ...(dto.supervisorId !== undefined ? { supervisorId: dto.supervisorId || null } : {}),
       },
     });
 
-    if (!circle) {
-      throw new NotFoundException(
-        'الحلقة غير موجودة',
-      );
-    }
-
-    /*
-     * المشرف يستطيع تعديل بيانات حلقته،
-     * لكنه لا يغيّر المشرف أو المحفظ الأساسي.
-     */
-    if (actor.role === Role.SUPERVISOR) {
-      await this.acl.assertCircleWriteAccess(
-        actor,
-        id,
-      );
-
-      if (
-        dto.supervisorId !== undefined ||
-        dto.primaryTeacherId !== undefined
-      ) {
-        throw new BadRequestException(
-          'تعيين المشرف أو المعلم الأساسي من صلاحيات الإدارة',
-        );
-      }
-    }
-
-    if (
-      dto.code &&
-      dto.code !== circle.code
-    ) {
-      const dup =
-        await this.prisma.circle.findUnique({
-          where: {
-            code: dto.code,
-          },
-        });
-
-      if (dup) {
-        throw new ConflictException(
-          'رمز الحلقة مستخدم مسبقاً',
-        );
-      }
-    }
-
-    if (dto.supervisorId) {
-      await this.assertSupervisor(
-        dto.supervisorId,
-      );
-    }
-
-    const updated =
-      await this.prisma.circle.update({
-        where: {
-          id,
-        },
-
-        data: {
-          name: dto.name,
-          code: dto.code,
-          description: dto.description,
-          location: dto.location,
-          level: dto.level,
-          capacity: dto.capacity,
-          scheduleDays: dto.scheduleDays,
-          startTime: dto.startTime,
-          endTime: dto.endTime,
-          isActive: dto.isActive,
-
-          ...(dto.supervisorId !== undefined
-            ? {
-                supervisorId:
-                  dto.supervisorId || null,
-              }
-            : {}),
-        },
-      });
-
-    if (
-      dto.primaryTeacherId !== undefined &&
-      dto.primaryTeacherId
-    ) {
-      await this.setPrimaryTeacher(
-        actor,
-        id,
-        {
-          teacherId:
-            dto.primaryTeacherId,
-        },
-      );
+    if (dto.primaryTeacherId !== undefined && dto.primaryTeacherId) {
+      await this.setPrimaryTeacher(actor, id, { teacherId: dto.primaryTeacherId });
     }
 
     await this.activity.log({
@@ -523,146 +256,25 @@ export class CirclesService {
       entityId: id,
     });
 
-    return this.findOne(
-      actor,
-      id,
-    );
+    return this.findOne(actor, id);
   }
 
-  /**
-   * تعيين مشرف للحلقة.
-   *
-   * المشرف يصبح أيضاً المحفظ الأساسي لنفس الحلقة.
-   */
-  async setSupervisor(
-    actor: AuthUser,
-    id: string,
-    dto: SetSupervisorDto,
-  ) {
-    const circle =
-      await this.prisma.circle.findFirst({
-        where: {
-          id,
-          deletedAt: null,
-        },
-      });
+  async setSupervisor(actor: AuthUser, id: string, dto: SetSupervisorDto) {
+    const circle = await this.prisma.circle.findFirst({ where: { id, deletedAt: null } });
+    if (!circle) throw new NotFoundException('الحلقة غير موجودة');
+    if (dto.supervisorId) await this.assertSupervisor(dto.supervisorId);
 
-    if (!circle) {
-      throw new NotFoundException(
-        'الحلقة غير موجودة',
-      );
-    }
-
-    if (dto.supervisorId) {
-      await this.assertSupervisor(
-        dto.supervisorId,
-      );
-    }
-
-    await this.prisma.$transaction(
-      async (tx) => {
-        /*
-         * تغيير المشرف.
-         */
-        await tx.circle.update({
-          where: {
-            id,
-          },
-
-          data: {
-            supervisorId:
-              dto.supervisorId || null,
-          },
-        });
-
-        /*
-         * إذا تم تعيين مشرف:
-         * يصبح هو المحفظ الأساسي.
-         */
-        if (dto.supervisorId) {
-          const supervisor =
-            await tx.user.findFirst({
-              where: {
-                id: dto.supervisorId,
-                deletedAt: null,
-              },
-
-              include: {
-                teacherProfile: true,
-              },
-            });
-
-          if (
-            !supervisor ||
-            !supervisor.teacherProfile
-          ) {
-            throw new BadRequestException(
-              'المشرف المحدد غير مرتبط بملف محفظ',
-            );
-          }
-
-          const teacherId =
-            supervisor.teacherProfile.id;
-
-          /*
-           * إنهاء المحفظ الأساسي السابق.
-           * لا نحذف السجل، فقط ننهي الإسناد
-           * حتى يبقى التاريخ محفوظاً.
-           */
-          await tx.circleTeacher.updateMany({
-            where: {
-              circleId: id,
-              role: CircleTeacherRole.PRIMARY,
-              endedAt: null,
-            },
-
-            data: {
-              endedAt: new Date(),
-              note:
-                'استبدال المحفظ الأساسي بالمشرف',
-            },
-          });
-
-          /*
-           * إذا كان المشرف موجوداً كمساعد،
-           * ننهي إسناده القديم.
-           */
-          await tx.circleTeacher.updateMany({
-            where: {
-              circleId: id,
-              teacherId,
-              endedAt: null,
-            },
-
-            data: {
-              endedAt: new Date(),
-              note:
-                'ترقية المشرف إلى محفظ أساسي',
-            },
-          });
-
-          /*
-           * إضافة المشرف كمحفظ أساسي.
-           */
-          await tx.circleTeacher.create({
-            data: {
-              circleId: id,
-              teacherId,
-              role: CircleTeacherRole.PRIMARY,
-              note:
-                'المشرف محفظ أساسي للحلقة',
-            },
-          });
-        }
-      },
-    );
+    await this.prisma.circle.update({
+      where: { id },
+      data: { supervisorId: dto.supervisorId || null },
+    });
 
     if (dto.supervisorId) {
       await this.notifications.notify({
         userId: dto.supervisorId,
         type: NotificationType.SYSTEM,
-        title: 'تم إسنادك كمشرف ومحفظ',
-        body: `تم تعيينك مشرفاً ومحفظاً أساسياً على حلقة "${circle.name}"`,
+        title: 'تم إسنادك كمشرف على حلقة',
+        body: `تم تعيينك مشرفاً على حلقة "${circle.name}"`,
         link: `/circles/${id}`,
       });
     }
@@ -670,116 +282,47 @@ export class CirclesService {
     await this.activity.log({
       userId: actor.id,
       action: 'CIRCLE_SET_SUPERVISOR',
-
       summary: dto.supervisorId
-        ? `تعيين مشرف ومحفظ لحلقة ${circle.name}`
+        ? `تعيين مشرف لحلقة ${circle.name}`
         : `إزالة مشرف حلقة ${circle.name}`,
-
       entityType: 'Circle',
       entityId: id,
     });
 
-    return this.findOne(
-      actor,
-      id,
-    );
+    return this.findOne(actor, id);
   }
 
-  /**
-   * تعيين معلم أساسي للحلقة.
-   */
-  async setPrimaryTeacher(
-    actor: AuthUser,
-    circleId: string,
-    dto: AssignTeacherDto,
-  ) {
-    const circle =
-      await this.prisma.circle.findFirst({
-        where: {
-          id: circleId,
-          deletedAt: null,
+  /** Makes a teacher the primary teacher, demoting the previous one to "ended". */
+  async setPrimaryTeacher(actor: AuthUser, circleId: string, dto: AssignTeacherDto) {
+    const circle = await this.prisma.circle.findFirst({ where: { id: circleId, deletedAt: null } });
+    if (!circle) throw new NotFoundException('الحلقة غير موجودة');
+
+    const teacher = await this.prisma.teacherProfile.findFirst({
+      where: { id: dto.teacherId, deletedAt: null },
+      include: { user: { select: { id: true, fullName: true } } },
+    });
+    if (!teacher) throw new NotFoundException('المعلم غير موجود');
+
+    await this.prisma.$transaction(async (tx) => {
+      // End the current primary assignment (history is kept).
+      await tx.circleTeacher.updateMany({
+        where: { circleId, role: CircleTeacherRole.PRIMARY, endedAt: null },
+        data: { endedAt: new Date(), note: 'تغيير المعلم الأساسي' },
+      });
+      // If this teacher was already an assistant here, close that link first.
+      await tx.circleTeacher.updateMany({
+        where: { circleId, teacherId: dto.teacherId, endedAt: null },
+        data: { endedAt: new Date(), note: 'ترقية إلى معلم أساسي' },
+      });
+      await tx.circleTeacher.create({
+        data: {
+          circleId,
+          teacherId: dto.teacherId,
+          role: CircleTeacherRole.PRIMARY,
+          note: dto.note,
         },
       });
-
-    if (!circle) {
-      throw new NotFoundException(
-        'الحلقة غير موجودة',
-      );
-    }
-
-    const teacher =
-      await this.prisma.teacherProfile.findFirst({
-        where: {
-          id: dto.teacherId,
-          deletedAt: null,
-        },
-
-        include: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-            },
-          },
-        },
-      });
-
-    if (!teacher) {
-      throw new NotFoundException(
-        'المعلم غير موجود',
-      );
-    }
-
-    await this.prisma.$transaction(
-      async (tx) => {
-        /*
-         * إنهاء المحفظ الأساسي الحالي.
-         */
-        await tx.circleTeacher.updateMany({
-          where: {
-            circleId,
-            role: CircleTeacherRole.PRIMARY,
-            endedAt: null,
-          },
-
-          data: {
-            endedAt: new Date(),
-            note:
-              'تغيير المعلم الأساسي',
-          },
-        });
-
-        /*
-         * إذا كان المعلم الجديد مساعداً،
-         * ننهي إسناده القديم.
-         */
-        await tx.circleTeacher.updateMany({
-          where: {
-            circleId,
-            teacherId: dto.teacherId,
-            endedAt: null,
-          },
-
-          data: {
-            endedAt: new Date(),
-            note:
-              'ترقية إلى معلم أساسي',
-          },
-        });
-
-        /*
-         * إنشاء الإسناد الجديد.
-         */
-        await tx.circleTeacher.create({
-          data: {
-            circleId,
-            teacherId: dto.teacherId,
-            role: CircleTeacherRole.PRIMARY,
-            note: dto.note,
-          },
-        });
-      },
-    );
+    });
 
     await this.notifications.notify({
       userId: teacher.user.id,
@@ -791,86 +334,31 @@ export class CirclesService {
 
     await this.activity.log({
       userId: actor.id,
-      action:
-        'CIRCLE_SET_PRIMARY_TEACHER',
-
+      action: 'CIRCLE_SET_PRIMARY_TEACHER',
       summary: `تعيين ${teacher.user.fullName} معلماً أساسياً لحلقة ${circle.name}`,
-
       entityType: 'Circle',
       entityId: circleId,
     });
 
-    return this.findOne(
-      actor,
-      circleId,
-    );
+    return this.findOne(actor, circleId);
   }
 
-  async addAssistant(
-    actor: AuthUser,
-    circleId: string,
-    dto: AssignTeacherDto,
-  ) {
-    const circle =
-      await this.prisma.circle.findFirst({
-        where: {
-          id: circleId,
-          deletedAt: null,
-        },
-      });
+  async addAssistant(actor: AuthUser, circleId: string, dto: AssignTeacherDto) {
+    const circle = await this.prisma.circle.findFirst({ where: { id: circleId, deletedAt: null } });
+    if (!circle) throw new NotFoundException('الحلقة غير موجودة');
+    // A supervisor may only staff the circles they actually supervise.
+    await this.acl.assertCircleWriteAccess(actor, circleId);
 
-    if (!circle) {
-      throw new NotFoundException(
-        'الحلقة غير موجودة',
-      );
-    }
+    const teacher = await this.prisma.teacherProfile.findFirst({
+      where: { id: dto.teacherId, deletedAt: null },
+      include: { user: { select: { id: true, fullName: true } } },
+    });
+    if (!teacher) throw new NotFoundException('المعلم غير موجود');
 
-    /*
-     * المشرف لا يستطيع إضافة معلمين
-     * إلا للحلقات التي يشرف عليها.
-     */
-    await this.acl.assertCircleWriteAccess(
-      actor,
-      circleId,
-    );
-
-    const teacher =
-      await this.prisma.teacherProfile.findFirst({
-        where: {
-          id: dto.teacherId,
-          deletedAt: null,
-        },
-
-        include: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-            },
-          },
-        },
-      });
-
-    if (!teacher) {
-      throw new NotFoundException(
-        'المعلم غير موجود',
-      );
-    }
-
-    const existing =
-      await this.prisma.circleTeacher.findFirst({
-        where: {
-          circleId,
-          teacherId: dto.teacherId,
-          endedAt: null,
-        },
-      });
-
-    if (existing) {
-      throw new ConflictException(
-        'المعلم مسند لهذه الحلقة بالفعل',
-      );
-    }
+    const existing = await this.prisma.circleTeacher.findFirst({
+      where: { circleId, teacherId: dto.teacherId, endedAt: null },
+    });
+    if (existing) throw new ConflictException('المعلم مسند لهذه الحلقة بالفعل');
 
     await this.prisma.circleTeacher.create({
       data: {
@@ -891,74 +379,30 @@ export class CirclesService {
 
     await this.activity.log({
       userId: actor.id,
-      action:
-        'CIRCLE_ADD_ASSISTANT',
-
+      action: 'CIRCLE_ADD_ASSISTANT',
       summary: `إضافة ${teacher.user.fullName} معلماً مساعداً في حلقة ${circle.name}`,
-
       entityType: 'Circle',
       entityId: circleId,
     });
 
-    return this.findOne(
-      actor,
-      circleId,
-    );
+    return this.findOne(actor, circleId);
   }
 
-  async removeTeacher(
-    actor: AuthUser,
-    circleId: string,
-    teacherId: string,
-  ) {
-    await this.acl.assertCircleWriteAccess(
-      actor,
-      circleId,
-    );
+  async removeTeacher(actor: AuthUser, circleId: string, teacherId: string) {
+    await this.acl.assertCircleWriteAccess(actor, circleId);
 
-    const link =
-      await this.prisma.circleTeacher.findFirst({
-        where: {
-          circleId,
-          teacherId,
-          endedAt: null,
-        },
-
-        include: {
-          circle: {
-            select: {
-              name: true,
-            },
-          },
-
-          teacher: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  fullName: true,
-                },
-              },
-            },
-          },
-        },
-      });
-
-    if (!link) {
-      throw new NotFoundException(
-        'المعلم غير مسند لهذه الحلقة',
-      );
-    }
+    const link = await this.prisma.circleTeacher.findFirst({
+      where: { circleId, teacherId, endedAt: null },
+      include: {
+        circle: { select: { name: true } },
+        teacher: { include: { user: { select: { id: true, fullName: true } } } },
+      },
+    });
+    if (!link) throw new NotFoundException('المعلم غير مسند لهذه الحلقة');
 
     await this.prisma.circleTeacher.update({
-      where: {
-        id: link.id,
-      },
-
-      data: {
-        endedAt: new Date(),
-        note: 'إزالة من الحلقة',
-      },
+      where: { id: link.id },
+      data: { endedAt: new Date(), note: 'إزالة من الحلقة' },
     });
 
     await this.notifications.notify({
@@ -971,162 +415,66 @@ export class CirclesService {
 
     await this.activity.log({
       userId: actor.id,
-      action:
-        'CIRCLE_REMOVE_TEACHER',
-
+      action: 'CIRCLE_REMOVE_TEACHER',
       summary: `إزالة ${link.teacher.user.fullName} من حلقة ${link.circle.name}`,
-
       entityType: 'Circle',
       entityId: circleId,
     });
 
-    return this.findOne(
-      actor,
-      circleId,
-    );
+    return this.findOne(actor, circleId);
   }
 
-  /**
-   * سجل حركة المعلمين والطلاب.
-   */
-  async history(
-    user: AuthUser,
-    circleId: string,
-  ) {
-    await this.acl.assertCircleAccess(
-      user,
-      circleId,
-    );
+  /** Full assignment history of a circle (teachers in / out, students in / out). */
+  async history(user: AuthUser, circleId: string) {
+    await this.acl.assertCircleAccess(user, circleId);
 
-    const [
-      teachers,
-      students,
-    ] = await Promise.all([
+    const [teachers, students] = await Promise.all([
       this.prisma.circleTeacher.findMany({
-        where: {
-          circleId,
-        },
-
+        where: { circleId },
         select: {
           id: true,
           role: true,
           startedAt: true,
           endedAt: true,
           note: true,
-
-          teacher: {
-            select: {
-              id: true,
-
-              user: {
-                select: {
-                  fullName: true,
-                },
-              },
-            },
-          },
+          teacher: { select: { id: true, user: { select: { fullName: true } } } },
         },
-
-        orderBy: {
-          startedAt: 'desc',
-        },
+        orderBy: { startedAt: 'desc' },
       }),
-
       this.prisma.circleMembership.findMany({
-        where: {
-          circleId,
-        },
-
+        where: { circleId },
         select: {
           id: true,
           startedAt: true,
           endedAt: true,
           reason: true,
-
-          student: {
-            select: {
-              id: true,
-              fullName: true,
-              code: true,
-            },
-          },
+          student: { select: { id: true, fullName: true, code: true } },
         },
-
-        orderBy: {
-          startedAt: 'desc',
-        },
-
+        orderBy: { startedAt: 'desc' },
         take: 100,
       }),
     ]);
 
-    return {
-      teachers,
-      students,
-    };
+    return { teachers, students };
   }
 
-  async remove(
-    actor: AuthUser,
-    id: string,
-  ) {
-    const circle =
-      await this.prisma.circle.findFirst({
-        where: {
-          id,
-          deletedAt: null,
-        },
-
-        include: {
-          _count: {
-            select: {
-              students: {
-                where: {
-                  deletedAt: null,
-                },
-              },
-            },
-          },
-        },
-      });
-
-    if (!circle) {
-      throw new NotFoundException(
-        'الحلقة غير موجودة',
-      );
-    }
-
+  async remove(actor: AuthUser, id: string) {
+    const circle = await this.prisma.circle.findFirst({
+      where: { id, deletedAt: null },
+      include: { _count: { select: { students: { where: { deletedAt: null } } } } },
+    });
+    if (!circle) throw new NotFoundException('الحلقة غير موجودة');
     if (circle._count.students > 0) {
-      throw new BadRequestException(
-        'لا يمكن حذف الحلقة لوجود طلاب مسجلين بها، يرجى نقلهم أولاً',
-      );
+      throw new BadRequestException('لا يمكن حذف الحلقة لوجود طلاب مسجلين بها، يرجى نقلهم أولاً');
     }
 
     const now = new Date();
-
     await this.prisma.$transaction([
       this.prisma.circleTeacher.updateMany({
-        where: {
-          circleId: id,
-          endedAt: null,
-        },
-
-        data: {
-          endedAt: now,
-          note: 'حذف الحلقة',
-        },
+        where: { circleId: id, endedAt: null },
+        data: { endedAt: now, note: 'حذف الحلقة' },
       }),
-
-      this.prisma.circle.update({
-        where: {
-          id,
-        },
-
-        data: {
-          deletedAt: now,
-          isActive: false,
-        },
-      }),
+      this.prisma.circle.update({ where: { id }, data: { deletedAt: now, isActive: false } }),
     ]);
 
     await this.activity.log({
@@ -1137,154 +485,99 @@ export class CirclesService {
       entityId: id,
     });
 
-    return {
-      message: 'تم حذف الحلقة',
-    };
+    return { message: 'تم حذف الحلقة' };
   }
 
-  // -------------------------------------------------------------------------
-  // Helpers
   // -------------------------------------------------------------------------
 
   private shape(circle: any) {
     const links = circle.teachers || [];
-
-    const primary =
-      links.find(
-        (teacher: any) =>
-          teacher.role ===
-          CircleTeacherRole.PRIMARY,
-      ) || null;
-
-    const assistants =
-      links.filter(
-        (teacher: any) =>
-          teacher.role ===
-          CircleTeacherRole.ASSISTANT,
-      );
-
+    const primary = links.find((t: any) => t.role === CircleTeacherRole.PRIMARY) || null;
+    const assistants = links.filter((t: any) => t.role === CircleTeacherRole.ASSISTANT);
     return {
       ...circle,
-
       primaryTeacher: primary
-        ? {
-            linkId: primary.id,
-            ...primary.teacher,
-            startedAt: primary.startedAt,
-          }
+        ? { linkId: primary.id, ...primary.teacher, startedAt: primary.startedAt }
         : null,
-
-      assistantTeachers:
-        assistants.map(
-          (assistant: any) => ({
-            linkId: assistant.id,
-            ...assistant.teacher,
-            startedAt: assistant.startedAt,
-          }),
-        ),
-
-      studentsCount:
-        circle._count?.students ??
-        circle.students?.length ??
-        0,
+      assistantTeachers: assistants.map((a: any) => ({
+        linkId: a.id,
+        ...a.teacher,
+        startedAt: a.startedAt,
+      })),
+      studentsCount: circle._count?.students ?? circle.students?.length ?? 0,
     };
   }
 
-  private async assertSupervisor(
-    userId: string,
-  ) {
-    const supervisor =
-      await this.prisma.user.findFirst({
-        where: {
-          id: userId,
-          deletedAt: null,
-
-          role: {
-            in: [
-              Role.SUPERVISOR,
-              Role.ADMIN,
-            ],
-          },
-        },
-      });
-
-    if (!supervisor) {
-      throw new BadRequestException(
-        'المستخدم المحدد ليس مشرفاً',
-      );
-    }
+  private async assertSupervisor(userId: string) {
+    const supervisor = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null, role: { in: [Role.SUPERVISOR, Role.ADMIN] } },
+    });
+    if (!supervisor) throw new BadRequestException('المستخدم المحدد ليس مشرفاً');
   }
 
-  private async assertTeacherFree(
-    teacherId: string,
-  ) {
-    const teacher =
-      await this.prisma.teacherProfile.findFirst({
-        where: {
-          id: teacherId,
-          deletedAt: null,
-        },
-      });
+  /**
+   * Resolves the id submitted for "المعلم الأساسي" (primary teacher).
+   *
+   * It may be:
+   *  - an existing teacher-profile id (normal case), or
+   *  - the user id of a supervisor (or admin) chosen to also be the primary
+   *    teacher of their own circle.
+   *
+   * In the second case the same account/login is kept — no new user is ever
+   * created. If that user already has a teaching profile it is reused as-is;
+   * otherwise a teaching profile is created and linked to their *existing*
+   * user record, giving them the same student roster, recitation, review,
+   * evaluation and attendance tools any teacher has, without touching their
+   * SUPERVISOR role or creating a duplicate account.
+   */
+  private async resolvePrimaryTeacherId(rawId: string): Promise<string> {
+    const teacher = await this.prisma.teacherProfile.findFirst({
+      where: { id: rawId, deletedAt: null },
+    });
+    if (teacher) return teacher.id;
 
-    if (!teacher) {
-      throw new BadRequestException(
-        'المعلم المحدد غير موجود',
-      );
+    const user = await this.prisma.user.findFirst({
+      where: { id: rawId, deletedAt: null, role: { in: [Role.SUPERVISOR, Role.ADMIN] } },
+    });
+    if (!user) throw new BadRequestException('المعلم أو المشرف المحدد غير موجود');
+
+    const existingProfile = await this.prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+    });
+    if (existingProfile) {
+      if (existingProfile.deletedAt) {
+        throw new BadRequestException('ملف التحفيظ الخاص بهذا المستخدم موقوف');
+      }
+      return existingProfile.id;
     }
+
+    const created = await this.prisma.teacherProfile.create({
+      data: { userId: user.id, employmentType: 'VOLUNTEER', isActive: true },
+    });
+    return created.id;
   }
 
   private async nextCode() {
-    const count =
-      await this.prisma.circle.count();
-
+    const count = await this.prisma.circle.count();
     let n = count + 1;
-
     // Guard against gaps created by previously used codes.
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const code =
-        `C-${String(n).padStart(3, '0')}`;
-
-      const exists =
-        await this.prisma.circle.findUnique({
-          where: {
-            code,
-          },
-        });
-
-      if (!exists) {
-        return code;
-      }
-
+      const code = `C-${String(n).padStart(3, '0')}`;
+      const exists = await this.prisma.circle.findUnique({ where: { code } });
+      if (!exists) return code;
       n += 1;
     }
   }
 
   private today() {
     const d = new Date();
-
-    return new Date(
-      Date.UTC(
-        d.getFullYear(),
-        d.getMonth(),
-        d.getDate(),
-      ),
-    );
+    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   }
 
   private daysAgo(n: number) {
     const d = new Date();
-
-    d.setDate(
-      d.getDate() - n,
-    );
-
-    return new Date(
-      Date.UTC(
-        d.getFullYear(),
-        d.getMonth(),
-        d.getDate(),
-      ),
-    );
+    d.setDate(d.getDate() - n);
+    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   }
 }

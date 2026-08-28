@@ -45,9 +45,19 @@ export class CirclesController {
   }
 
   @Post()
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   @ApiOperation({ summary: 'إنشاء حلقة' })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateCircleDto) {
+    if (user.role === Role.SUPERVISOR) {
+      if (!user.teacherId) {
+        throw new Error('حساب المشرف غير مرتبط بملف محفظ');
+      }
+      return this.service.create(user, {
+        ...dto,
+        supervisorId: user.id,
+        primaryTeacherId: user.teacherId,
+      });
+    }
     return this.service.create(user, dto);
   }
 

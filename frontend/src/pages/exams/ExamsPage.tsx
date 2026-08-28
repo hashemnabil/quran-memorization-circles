@@ -19,9 +19,8 @@ import {
   StatCard,
   Tabs,
   Textarea,
-  cx,
 } from '@/components/ui';
-import { useConfirm } from '@/components/ui/Modal/ConfirmContext';
+import { useConfirm } from '@/components/ui';
 import {
   IconCheck,
   IconClock,
@@ -34,11 +33,10 @@ import {
 import {
   EXAM_STATUS_COLORS,
   EXAM_STATUS_LABELS,
-  EXAM_TYPE_LABELS,
   describeExamSections,
 } from '@/lib/labels';
-import { formatDate, formatDateShort, formatDateTime, timeAgo } from '@/lib/format';
-import type { Exam, ExamDirection, ExamEligibility, ExamRequest, PaginatedResponse } from '@/types';
+import { formatDateShort, formatDateTime } from '@/lib/format';
+import type { Exam, ExamRequest, PaginatedResponse } from '@/types';
 
 // ============================================================================
 // MAIN PAGE
@@ -51,28 +49,28 @@ export default function ExamsPage() {
 
   const [tab, setTab] = useState('requests');
   const [modal, setModal] = useState<'create' | 'edit' | 'view' | null>(null);
-  const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
+  const [selectedExam, setSelectedExam] = useState<any | null>(null);
 
   const canManage = ['ADMIN', 'SUPERVISOR', 'EXAMINER'].includes(user.role);
 
   // Fetch exam requests
   const { data: requests, isLoading: requestsLoading, isError: requestsError, refetch: refetchRequests } = useQuery({
     queryKey: ['exams', 'requests'],
-    queryFn: async () => (await api.get<PaginatedResponse<ExamRequest>>('/exams/requests')).data,
+    queryFn: async () => (await api.get<PaginatedResponse<any>>('/exams/requests')).data,
     enabled: tab === 'requests',
   });
 
   // Fetch scheduled exams
   const { data: exams, isLoading: examsLoading, isError: examsError, refetch: refetchExams } = useQuery({
     queryKey: ['exams', 'scheduled'],
-    queryFn: async () => (await api.get<PaginatedResponse<Exam>>('/exams', { params: { status: 'SCHEDULED' } })).data,
+    queryFn: async () => (await api.get<PaginatedResponse<any>>('/exams', { params: { status: 'SCHEDULED' } })).data,
     enabled: tab === 'scheduled',
   });
 
   // Fetch exam history
   const { data: history, isLoading: historyLoading, isError: historyError, refetch: refetchHistory } = useQuery({
     queryKey: ['exams', 'history'],
-    queryFn: async () => (await api.get<PaginatedResponse<Exam>>('/exams', { params: { status: 'COMPLETED' } })).data,
+    queryFn: async () => (await api.get<PaginatedResponse<any>>('/exams', { params: { status: 'COMPLETED' } })).data,
     enabled: tab === 'history',
   });
 
@@ -203,7 +201,7 @@ function RequestsTab({
   isPending,
   canManage,
 }: {
-  data?: PaginatedResponse<ExamRequest>;
+  data?: PaginatedResponse<any>;
   loading: boolean;
   error: boolean;
   onRetry: () => void;
@@ -239,19 +237,19 @@ function RequestsTab({
               </tr>
             </thead>
             <tbody>
-              {requests.map((request) => (
+              {requests.map((request: any) => (
                 <tr key={request.id}>
                   <td>
-                    <Link to={`/students/${request.studentId}`} className="font-semibold hover:text-primary-700">
-                      {request.studentName}
+                    <Link to={`/students/${request.student?.id || request.studentId}`} className="font-semibold hover:text-primary-700">
+                      {request.student?.fullName || request.studentName || 'غير معروف'}
                     </Link>
                   </td>
                   <td className="text-sm">{describeExamSections(request.section, request.sections)}</td>
-                  <td className="text-sm text-slate-600">{request.teacherName}</td>
+                  <td className="text-sm text-slate-600">{request.teacher?.fullName || request.teacherName || '—'}</td>
                   <td className="numeric">{formatDateShort(request.createdAt)}</td>
                   <td>
-                    <Badge className={EXAM_STATUS_COLORS[request.status]}>
-                      {EXAM_STATUS_LABELS[request.status]}
+                    <Badge className={EXAM_STATUS_COLORS[request.status] || 'bg-slate-100 text-slate-600'}>
+                      {EXAM_STATUS_LABELS[request.status] || request.status}
                     </Badge>
                   </td>
                   {canManage && request.status === 'PENDING' && (
@@ -343,13 +341,13 @@ function ScheduledTab({
   canManage,
   isPending,
 }: {
-  data?: PaginatedResponse<Exam>;
+  data?: PaginatedResponse<any>;
   loading: boolean;
   error: boolean;
   onRetry: () => void;
   onDelete: (id: string) => void;
-  onView: (exam: Exam) => void;
-  onEdit: (exam: Exam) => void;
+  onView: (exam: any) => void;
+  onEdit: (exam: any) => void;
   canManage: boolean;
   isPending: boolean;
 }) {
@@ -373,25 +371,25 @@ function ScheduledTab({
               <th>الطالب</th>
               <th>المدى</th>
               <th>التاريخ</th>
-              <th>اللجنة</th>
+              <th>الممتحن</th>
               <th>الحالة</th>
               <th>إجراء</th>
             </tr>
           </thead>
           <tbody>
-            {exams.map((exam) => (
+            {exams.map((exam: any) => (
               <tr key={exam.id}>
                 <td>
-                  <Link to={`/students/${exam.studentId}`} className="font-semibold hover:text-primary-700">
-                    {exam.studentName}
+                  <Link to={`/students/${exam.student?.id || exam.studentId}`} className="font-semibold hover:text-primary-700">
+                    {exam.student?.fullName || exam.studentName || 'غير معروف'}
                   </Link>
                 </td>
                 <td className="text-sm">{describeExamSections(exam.section, exam.sections)}</td>
                 <td className="numeric">{formatDateShort(exam.scheduledAt)}</td>
-                <td className="text-sm text-slate-600">{exam.examinerName || 'غير محدد'}</td>
+                <td className="text-sm text-slate-600">{exam.examiner?.fullName || exam.examinerName || 'غير محدد'}</td>
                 <td>
-                  <Badge className={EXAM_STATUS_COLORS[exam.status]}>
-                    {EXAM_STATUS_LABELS[exam.status]}
+                  <Badge className={EXAM_STATUS_COLORS[exam.status] || 'bg-slate-100 text-slate-600'}>
+                    {EXAM_STATUS_LABELS[exam.status] || exam.status}
                   </Badge>
                 </td>
                 <td>
@@ -445,11 +443,11 @@ function HistoryTab({
   onRetry,
   onView,
 }: {
-  data?: PaginatedResponse<Exam>;
+  data?: PaginatedResponse<any>;
   loading: boolean;
   error: boolean;
   onRetry: () => void;
-  onView: (exam: Exam) => void;
+  onView: (exam: any) => void;
 }) {
   if (loading) return <LoadingState rows={5} />;
   if (error || !data) return <ErrorState message="تعذر تحميل سجل الاختبارات" onRetry={onRetry} />;
@@ -475,11 +473,11 @@ function HistoryTab({
             </tr>
           </thead>
           <tbody>
-            {exams.map((exam) => (
+            {exams.map((exam: any) => (
               <tr key={exam.id}>
                 <td>
-                  <Link to={`/students/${exam.studentId}`} className="font-semibold hover:text-primary-700">
-                    {exam.studentName}
+                  <Link to={`/students/${exam.student?.id || exam.studentId}`} className="font-semibold hover:text-primary-700">
+                    {exam.student?.fullName || exam.studentName || 'غير معروف'}
                   </Link>
                 </td>
                 <td className="text-sm">{describeExamSections(exam.section, exam.sections)}</td>
@@ -579,7 +577,7 @@ function CreateExamModal({ onClose }: { onClose: () => void }) {
           label="الطالب"
           required
           value={form.studentId}
-          onChange={(e) => set('studentId', e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => set('studentId', e.target.value)}
         >
           <option value="">اختر الطالب</option>
           {(students ?? []).map((s) => (
@@ -589,24 +587,25 @@ function CreateExamModal({ onClose }: { onClose: () => void }) {
           ))}
         </Select>
 
-        <Input
-          label="المدى (مثال: 1-5)"
-          required
+        <input
+          type="text"
+          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+          placeholder="المدى (مثال: 1-5)"
           value={form.section}
           onChange={(e) => set('section', e.target.value)}
-          placeholder="مثال: 1-5"
         />
 
-        <Input
-          label="الأجزاء (اختياري)"
+        <input
+          type="text"
+          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+          placeholder="الأجزاء (اختياري)"
           value={form.sections}
           onChange={(e) => set('sections', e.target.value)}
-          placeholder="مثال: 1,2,3"
         />
 
-        <Input
-          label="تاريخ الاختبار"
+        <input
           type="datetime-local"
+          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           required
           value={form.scheduledAt}
           onChange={(e) => set('scheduledAt', e.target.value)}
@@ -615,7 +614,7 @@ function CreateExamModal({ onClose }: { onClose: () => void }) {
         <Select
           label="الممتحن"
           value={form.examinerId}
-          onChange={(e) => set('examinerId', e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => set('examinerId', e.target.value)}
         >
           <option value="">اختر الممتحن</option>
           {(examiners ?? []).map((e) => (
@@ -635,13 +634,13 @@ function CreateExamModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function EditExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
+function EditExamModal({ exam, onClose }: { exam: any; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
-    section: exam.section,
+    section: exam.section || '',
     sections: exam.sections || '',
-    scheduledAt: exam.scheduledAt.slice(0, 16),
-    examinerId: exam.examinerId || '',
+    scheduledAt: exam.scheduledAt ? exam.scheduledAt.slice(0, 16) : '',
+    examinerId: exam.examiner?.id || exam.examinerId || '',
     notes: exam.notes || '',
     result: exam.result || '',
     score: exam.score ?? '',
@@ -696,22 +695,26 @@ function EditExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
       )}
 
       <div className="space-y-4">
-        <Input
-          label="المدى (مثال: 1-5)"
+        <input
+          type="text"
+          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+          placeholder="المدى (مثال: 1-5)"
           required
           value={form.section}
           onChange={(e) => set('section', e.target.value)}
         />
 
-        <Input
-          label="الأجزاء (اختياري)"
+        <input
+          type="text"
+          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+          placeholder="الأجزاء (اختياري)"
           value={form.sections}
           onChange={(e) => set('sections', e.target.value)}
         />
 
-        <Input
-          label="تاريخ الاختبار"
+        <input
           type="datetime-local"
+          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           required
           value={form.scheduledAt}
           onChange={(e) => set('scheduledAt', e.target.value)}
@@ -720,7 +723,7 @@ function EditExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
         <Select
           label="الممتحن"
           value={form.examinerId}
-          onChange={(e) => set('examinerId', e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => set('examinerId', e.target.value)}
         >
           <option value="">اختر الممتحن</option>
           {(examiners ?? []).map((e) => (
@@ -733,7 +736,7 @@ function EditExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
         <Select
           label="النتيجة"
           value={form.result}
-          onChange={(e) => set('result', e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => set('result', e.target.value)}
         >
           <option value="">غير محدد</option>
           <option value="PASSED">ناجح</option>
@@ -741,11 +744,12 @@ function EditExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
         </Select>
 
         {form.result && (
-          <Input
-            label="الدرجة"
+          <input
             type="number"
+            className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
             min={0}
             max={100}
+            placeholder="الدرجة"
             value={form.score}
             onChange={(e) => set('score', e.target.value ? Number(e.target.value) : '')}
           />
@@ -761,7 +765,7 @@ function EditExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
   );
 }
 
-function ViewExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
+function ViewExamModal({ exam, onClose }: { exam: any; onClose: () => void }) {
   return (
     <Modal
       open
@@ -778,7 +782,7 @@ function ViewExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-xs text-slate-400">الطالب</p>
-            <p className="font-semibold">{exam.studentName}</p>
+            <p className="font-semibold">{exam.student?.fullName || exam.studentName || 'غير معروف'}</p>
           </div>
           <div>
             <p className="text-xs text-slate-400">المدى</p>
@@ -790,13 +794,13 @@ function ViewExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
           </div>
           <div>
             <p className="text-xs text-slate-400">الحالة</p>
-            <Badge className={EXAM_STATUS_COLORS[exam.status]}>
-              {EXAM_STATUS_LABELS[exam.status]}
+            <Badge className={EXAM_STATUS_COLORS[exam.status] || 'bg-slate-100 text-slate-600'}>
+              {EXAM_STATUS_LABELS[exam.status] || exam.status}
             </Badge>
           </div>
           <div>
             <p className="text-xs text-slate-400">الممتحن</p>
-            <p className="font-semibold">{exam.examinerName || 'غير محدد'}</p>
+            <p className="font-semibold">{exam.examiner?.fullName || exam.examinerName || 'غير محدد'}</p>
           </div>
           {exam.result && (
             <>
@@ -821,12 +825,6 @@ function ViewExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
           <div>
             <p className="text-xs text-slate-400">ملاحظات</p>
             <p className="text-sm text-slate-700">{exam.notes}</p>
-          </div>
-        )}
-        {exam.resultComments && (
-          <div>
-            <p className="text-xs text-slate-400">تعليقات النتيجة</p>
-            <p className="text-sm text-slate-700">{exam.resultComments}</p>
           </div>
         )}
       </div>

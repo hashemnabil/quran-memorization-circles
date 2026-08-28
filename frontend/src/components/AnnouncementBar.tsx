@@ -1,3 +1,4 @@
+```tsx
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -44,7 +45,9 @@ export default function AnnouncementBar() {
     refetchInterval: 5 * 60 * 1000,
   });
 
-  // الأحدث أولاً
+  /*
+   * الأحدث أولاً
+   */
   const visible = useMemo(
     () =>
       (data ?? [])
@@ -55,7 +58,9 @@ export default function AnnouncementBar() {
 
   const dismiss = (id: string) => {
     const next = [...dismissed, id];
+
     setDismissed(next);
+
     try {
       localStorage.setItem(
         dismissedKey(userId),
@@ -70,9 +75,22 @@ export default function AnnouncementBar() {
     return null;
   }
 
-  // كل إعلان 10 ثواني
+  /*
+   * مدة كل إعلان
+   */
   const durationPerAnnouncement = 10;
-  const totalDuration = visible.length * durationPerAnnouncement;
+
+  /*
+   * إجمالي مدة الدورة كاملة
+   */
+  const totalDuration =
+    visible.length * durationPerAnnouncement;
+
+  /*
+   * نكرر أول إعلان في النهاية حتى تكون العودة
+   * من آخر إعلان إلى الأول سلسة.
+   */
+  const slides = [...visible, visible[0]];
 
   return (
     <>
@@ -90,46 +108,55 @@ export default function AnnouncementBar() {
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5dccd]">
               <IconBell size={15} />
             </span>
+
             <span className="hidden text-xs font-bold sm:inline">
               الإعلانات
             </span>
           </div>
 
           {/* منطقة الحركة */}
-          <div 
-            className="relative h-11 min-w-0 flex-1 overflow-hidden"
-            style={{
-              '--total-duration': `${totalDuration}s`,
-            } as React.CSSProperties}
-          >
+          <div className="relative h-11 min-w-0 flex-1 overflow-hidden">
             <div
               className={`announcement-carousel ${
                 paused ? 'paused' : ''
               }`}
+              style={
+                {
+                  '--slide-count': slides.length,
+                  '--total-duration': `${totalDuration}s`,
+                } as React.CSSProperties
+              }
             >
-              {/* عرض الإعلانات */}
-              {visible.map((announcement) => (
+              {slides.map((announcement, index) => (
                 <div
-                  key={announcement.id}
+                  key={`${announcement.id}-${index}`}
                   className="announcement-slide"
                 >
                   <button
                     type="button"
-                    onClick={() => setSelectedAnnouncement(announcement)}
+                    onClick={() =>
+                      setSelectedAnnouncement(announcement)
+                    }
                     className="announcement-item"
                   >
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
+
                     <span className="shrink-0 text-sm font-bold text-[#51483d]">
                       {announcement.title}
                     </span>
+
                     {announcement.body && (
                       <>
-                        <span className="text-[#b2a898]">—</span>
+                        <span className="text-[#b2a898]">
+                          —
+                        </span>
+
                         <span className="max-w-[70vw] overflow-hidden text-ellipsis text-sm text-[#756b60]">
                           {announcement.body}
                         </span>
                       </>
                     )}
+
                     <span className="text-[11px] font-semibold text-[#9b8d79]">
                       اضغط لعرض التفاصيل
                     </span>
@@ -162,18 +189,24 @@ export default function AnnouncementBar() {
             onClick={(e) => e.stopPropagation()}
             dir="rtl"
           >
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-[#e8e1d7] bg-[#f4efe6] px-5 py-4">
               <div className="flex items-center gap-3">
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e5dccd] text-[#6f6252]">
                   <IconBell size={18} />
                 </span>
+
                 <div>
-                  <p className="text-xs font-semibold text-[#9b8d79]">إعلان</p>
+                  <p className="text-xs font-semibold text-[#9b8d79]">
+                    إعلان
+                  </p>
+
                   <h2 className="text-lg font-bold text-[#403a34]">
                     {selectedAnnouncement.title}
                   </h2>
                 </div>
               </div>
+
               <button
                 type="button"
                 onClick={() => setSelectedAnnouncement(null)}
@@ -184,6 +217,7 @@ export default function AnnouncementBar() {
               </button>
             </div>
 
+            {/* Body */}
             <div className="max-h-[60vh] overflow-y-auto px-6 py-6">
               {selectedAnnouncement.body ? (
                 <div className="whitespace-pre-wrap text-sm leading-8 text-[#51483d]">
@@ -196,6 +230,7 @@ export default function AnnouncementBar() {
               )}
             </div>
 
+            {/* Footer */}
             <div className="flex items-center justify-between gap-3 border-t border-[#e8e1d7] bg-[#faf8f5] px-5 py-4">
               <button
                 type="button"
@@ -204,14 +239,21 @@ export default function AnnouncementBar() {
               >
                 إغلاق
               </button>
+
               {selectedAnnouncement.link && (
                 <button
                   type="button"
                   onClick={() => {
                     const link = selectedAnnouncement.link;
+
                     if (!link) return;
+
                     if (isExternalLink(link)) {
-                      window.open(link, '_blank', 'noopener,noreferrer');
+                      window.open(
+                        link,
+                        '_blank',
+                        'noopener,noreferrer',
+                      );
                     } else {
                       window.location.href = link;
                     }
@@ -228,13 +270,44 @@ export default function AnnouncementBar() {
       )}
 
       <style>{`
+        /*
+         * ==========================================
+         * Announcement Carousel
+         * ==========================================
+         *
+         * اتجاه الحركة:
+         *
+         * LEFT  ---------------------------->  RIGHT
+         *
+         * إعلان 1
+         * إعلان 2
+         * إعلان 3
+         * إعلان 1
+         * إعلان 2
+         * إعلان 3
+         *
+         * كل إعلان يأخذ 10 ثواني.
+         */
+
         .announcement-carousel {
           display: flex;
           height: 44px;
           align-items: center;
-          width: ${visible.length * 100}%;
-          
-          animation: slide-left-to-right var(--total-duration, 30s) linear infinite;
+
+          /*
+           * مهم:
+           * كل slide بعرض منطقة الإعلانات.
+           */
+          width: calc(
+            (var(--slide-count) * 100%)
+          );
+
+          animation:
+            announcement-slide-right
+            var(--total-duration, 10s)
+            linear
+            infinite;
+
           will-change: transform;
         }
 
@@ -246,9 +319,21 @@ export default function AnnouncementBar() {
           display: flex;
           height: 44px;
           align-items: center;
-          flex-shrink: 0;
-          width: ${100 / visible.length}%;
-          min-width: ${100 / visible.length}%;
+
+          /*
+           * كل إعلان = عرض منطقة الحركة بالكامل
+           */
+          flex: 0 0 calc(
+            100% / var(--slide-count)
+          );
+
+          width: calc(
+            100% / var(--slide-count)
+          );
+
+          min-width: calc(
+            100% / var(--slide-count)
+          );
         }
 
         .announcement-item {
@@ -257,26 +342,54 @@ export default function AnnouncementBar() {
           width: 100%;
           align-items: center;
           gap: 12px;
+
           white-space: nowrap;
+
           padding: 0 24px;
+
           text-align: right;
+
           background-color: #f4efe6;
-          border-right: none;
-          transition: background-color 0.2s ease;
+
+          border: 0;
+
+          transition:
+            background-color 0.2s ease;
+
           cursor: pointer;
         }
 
         .announcement-item:hover {
-          background-color: rgba(255, 255, 255, 0.7);
+          background-color: rgba(
+            255,
+            255,
+            255,
+            0.7
+          );
         }
 
-        /* ✅ من اليسار لليمين - كل إعلان يمر ثم يليه التالي */
-        @keyframes slide-left-to-right {
+        /*
+         * الحركة من الشمال إلى اليمين
+         *
+         * بما أن الصفحة RTL، نستخدم translateX
+         * بعناية حتى يكون الاتجاه بصرياً:
+         *
+         * LEFT -> RIGHT
+         */
+        @keyframes announcement-slide-right {
+          /*
+           * الإعلان الأول يبدأ خارج الشاشة
+           * من الجهة اليسرى.
+           */
           0% {
-            transform: translateX(0);
+            transform: translateX(-100%);
           }
+
+          /*
+           * يتحرك حتى يصل إلى النهاية اليمنى.
+           */
           100% {
-            transform: translateX(-${100 - (100 / visible.length)}%);
+            transform: translateX(0);
           }
         }
 
@@ -297,3 +410,4 @@ export default function AnnouncementBar() {
     </>
   );
 }
+```

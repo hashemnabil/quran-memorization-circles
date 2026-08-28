@@ -72,7 +72,7 @@ export default function AnnouncementBar() {
     return null;
   }
 
-  // كل إعلان يأخذ 10 ثواني للعبور
+  // 10 ثواني لكل إعلان
   const durationPerAnnouncement = 10;
   const totalDuration = visible.length * durationPerAnnouncement;
 
@@ -106,13 +106,13 @@ export default function AnnouncementBar() {
               '--announcement-count': visible.length,
             } as React.CSSProperties}
           >
-            {/* حاوي الإعلانات المتحركة - شريط مستمر */}
+            {/* حاوي الإعلانات المتحركة */}
             <div
               className={`announcement-carousel ${
                 paused ? 'paused' : ''
               }`}
             >
-              {/* نكرر الإعلانات مرتين لضمان التكرار السلس */}
+              {/* عرض الإعلانات مرتين للتكرار السلس */}
               {[...visible, ...visible].map((announcement, idx) => (
                 <div
                   key={`${announcement.id}-${idx}`}
@@ -123,10 +123,15 @@ export default function AnnouncementBar() {
                     onClick={() => setSelectedAnnouncement(announcement)}
                     className="announcement-item"
                   >
+                    {/* نقطة */}
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9b8d79]" />
+
+                    {/* عنوان الإعلان */}
                     <span className="shrink-0 text-sm font-bold text-[#51483d]">
                       {announcement.title}
                     </span>
+
+                    {/* نص الإعلان */}
                     {announcement.body && (
                       <>
                         <span className="text-[#b2a898]">—</span>
@@ -135,6 +140,8 @@ export default function AnnouncementBar() {
                         </span>
                       </>
                     )}
+
+                    {/* تعليمات */}
                     <span className="text-[11px] font-semibold text-[#9b8d79]">
                       اضغط لعرض التفاصيل
                     </span>
@@ -167,18 +174,24 @@ export default function AnnouncementBar() {
             onClick={(e) => e.stopPropagation()}
             dir="rtl"
           >
+            {/* رأس النافذة */}
             <div className="flex items-center justify-between border-b border-[#e8e1d7] bg-[#f4efe6] px-5 py-4">
               <div className="flex items-center gap-3">
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e5dccd] text-[#6f6252]">
                   <IconBell size={18} />
                 </span>
+
                 <div>
-                  <p className="text-xs font-semibold text-[#9b8d79]">إعلان</p>
+                  <p className="text-xs font-semibold text-[#9b8d79]">
+                    إعلان
+                  </p>
+
                   <h2 className="text-lg font-bold text-[#403a34]">
                     {selectedAnnouncement.title}
                   </h2>
                 </div>
               </div>
+
               <button
                 type="button"
                 onClick={() => setSelectedAnnouncement(null)}
@@ -189,6 +202,7 @@ export default function AnnouncementBar() {
               </button>
             </div>
 
+            {/* محتوى الإعلان */}
             <div className="max-h-[60vh] overflow-y-auto px-6 py-6">
               {selectedAnnouncement.body ? (
                 <div className="whitespace-pre-wrap text-sm leading-8 text-[#51483d]">
@@ -201,6 +215,7 @@ export default function AnnouncementBar() {
               )}
             </div>
 
+            {/* أسفل النافذة */}
             <div className="flex items-center justify-between gap-3 border-t border-[#e8e1d7] bg-[#faf8f5] px-5 py-4">
               <button
                 type="button"
@@ -209,14 +224,21 @@ export default function AnnouncementBar() {
               >
                 إغلاق
               </button>
+
               {selectedAnnouncement.link && (
                 <button
                   type="button"
                   onClick={() => {
                     const link = selectedAnnouncement.link;
+
                     if (!link) return;
+
                     if (isExternalLink(link)) {
-                      window.open(link, '_blank', 'noopener,noreferrer');
+                      window.open(
+                        link,
+                        '_blank',
+                        'noopener,noreferrer',
+                      );
                     } else {
                       window.location.href = link;
                     }
@@ -232,16 +254,15 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS - شريط مستمر من اليسار إلى اليمين */}
+      {/* CSS - الحركة من اليسار إلى اليمين، إعلان واحد في المرة */}
       <style>{`
         .announcement-carousel {
           display: flex;
           height: 44px;
           align-items: center;
-          width: fit-content;
+          width: 100%;
           
-          /* نحرك الحاوية بأكملها من اليسار إلى اليمين */
-          animation: scroll-left-to-right var(--total-duration, 30s) linear infinite;
+          animation: slide-left-to-right var(--total-duration, 30s) linear infinite;
           will-change: transform;
         }
 
@@ -249,6 +270,7 @@ export default function AnnouncementBar() {
           animation-play-state: paused;
         }
 
+        /* كل إعلان في حاوي منفصل */
         .announcement-slide {
           display: flex;
           height: 44px;
@@ -258,17 +280,21 @@ export default function AnnouncementBar() {
           min-width: 100%;
         }
 
+        /* الإعلان نفسه */
         .announcement-item {
           display: flex;
           height: 44px;
           width: 100%;
           align-items: center;
           gap: 12px;
+          
           white-space: nowrap;
           padding: 0 24px;
           text-align: right;
+          
           background-color: #f4efe6;
           border-right: none;
+          
           transition: background-color 0.2s ease;
           cursor: pointer;
         }
@@ -277,14 +303,13 @@ export default function AnnouncementBar() {
           background-color: rgba(255, 255, 255, 0.7);
         }
 
-        /* الحركة: شريط مستمر من اليسار إلى اليمين */
-        @keyframes scroll-left-to-right {
+        /* ✅ الحركة الصحيحة: من اليسار إلى اليمين، يقطع المسافة كاملة */
+        @keyframes slide-left-to-right {
           0% {
-            transform: translateX(0%);
+            transform: translateX(-100%);
           }
           100% {
-            /* نحرك الحاوية بحيث تمر جميع الإعلانات */
-            transform: translateX(-50%);
+            transform: translateX(100%);
           }
         }
 

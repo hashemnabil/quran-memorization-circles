@@ -69,8 +69,8 @@ export default function AnnouncementBar() {
     return null;
   }
 
-  // مدة الحركة الإجمالية تتناسب مع عدد العناصر
-  const durationPerAnnouncement = 12;
+  // حساب وقت الحركة بناءً على عدد الإعلانات
+  const durationPerAnnouncement = 10;
   const totalDuration = visible.length * durationPerAnnouncement;
 
   return (
@@ -104,7 +104,7 @@ export default function AnnouncementBar() {
                 } as React.CSSProperties
               }
             >
-              {/* تكرار القائمة مرتين لضمان التتابع اللانهائي الخالي من الفراغات */}
+              {/* تكرار مصفوفة الإعلانات مرتين لضمان حلقة تكرار لانهائية بدون فراغ */}
               {[...visible, ...visible].map((announcement, idx) => (
                 <div key={`${announcement.id}-${idx}`} className="announcement-item-wrapper">
                   <button
@@ -119,7 +119,7 @@ export default function AnnouncementBar() {
                     {announcement.body && (
                       <>
                         <span className="text-[#b2a898]">—</span>
-                        <span className="max-w-[400px] overflow-hidden text-ellipsis text-sm text-[#756b60]">
+                        <span className="max-w-[350px] overflow-hidden text-ellipsis text-sm text-[#756b60]">
                           {announcement.body}
                         </span>
                       </>
@@ -221,15 +221,15 @@ export default function AnnouncementBar() {
         </div>
       )}
 
-      {/* CSS المعدل للتحريك من اليسار إلى اليمين بالتتابع */}
+      {/* التنسيق المعدل للحركة الصحيحة */}
       <style>{`
         .announcement-track {
           display: flex;
           height: 44px;
           align-items: center;
           width: max-content;
-          direction: ltr;
-          animation: scroll-left-to-right var(--total-duration, 30s) linear infinite;
+          direction: rtl;
+          animation: move-left-to-right var(--total-duration, 20s) linear infinite;
           will-change: transform;
         }
 
@@ -250,7 +250,7 @@ export default function AnnouncementBar() {
           align-items: center;
           gap: 12px;
           white-space: nowrap;
-          padding: 0 32px;
+          padding: 0 40px;
           text-align: right;
           background-color: #f4efe6;
           transition: background-color 0.2s ease;
@@ -261,9 +261,10 @@ export default function AnnouncementBar() {
           background-color: rgba(255, 255, 255, 0.7);
         }
 
-        @keyframes scroll-left-to-right {
+        /* تحريك نصف المسار بالضبط من اليسار إلى اليمين */
+        @keyframes move-left-to-right {
           0% {
-            transform: translateX(-50%);
+            transform: translateX(50%);
           }
           100% {
             transform: translateX(0%);
@@ -272,7 +273,7 @@ export default function AnnouncementBar() {
 
         @media (max-width: 640px) {
           .announcement-item {
-            padding: 0 20px;
+            padding: 0 24px;
             gap: 8px;
           }
         }

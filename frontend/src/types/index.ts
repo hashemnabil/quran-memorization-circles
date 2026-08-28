@@ -431,6 +431,9 @@ export interface ExamEligibility {
 export interface ExamRequest {
   id: string;
   status: ExamRequestStatus;
+  requestedHizb?: number | null;
+  requestedJuz?: number | null;
+  requestedCombined?: number | null;
   note?: string | null;
   reviewNote?: string | null;
   createdAt: string;

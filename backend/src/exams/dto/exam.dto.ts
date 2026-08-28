@@ -30,15 +30,36 @@ export class CreateExamRequestDto {
   @IsUUID('4', { message: 'معرّف الطالب غير صالح' })
   studentId: string;
 
-  @ApiProperty({
-    type: [String],
-    description: 'المقررات المطلوب اختبار الطالب فيها (جزء أو أكثر، حزب أو أكثر)',
-  })
+  @ApiPropertyOptional({ type: [String], description: 'للتوافق مع الطلبات القديمة' })
+  @IsOptional()
   @IsArray()
-  @ArrayNotEmpty({ message: 'يجب اختيار مقرر واحد على الأقل' })
-  @ArrayMaxSize(30, { message: 'لا يمكن اختيار أكثر من 30 مقرراً في اختبار واحد' })
+  @ArrayMaxSize(30)
   @IsUUID('4', { each: true, message: 'أحد معرّفات المقررات غير صالح' })
-  sectionIds: string[];
+  sectionIds?: string[];
+
+  @ApiPropertyOptional({ description: 'رقم الحزب المطلوب، اختياري' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'رقم الحزب غير صالح' })
+  @Min(1)
+  @Max(60)
+  requestedHizb?: number;
+
+  @ApiPropertyOptional({ description: 'رقم الجزء المطلوب، اختياري' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'رقم الجزء غير صالح' })
+  @Min(1)
+  @Max(30)
+  requestedJuz?: number;
+
+  @ApiPropertyOptional({ description: 'رقم المجتمعة، اختياري' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'رقم المجتمعة غير صالح' })
+  @Min(1)
+  @Max(60)
+  requestedCombined?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

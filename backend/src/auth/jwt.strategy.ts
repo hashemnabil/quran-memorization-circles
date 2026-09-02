@@ -39,7 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         role: true,
         isActive: true,
         teacher: { select: { id: true, isActive: true, deletedAt: true } },
-        parent: { select: { id: true, deletedAt: true } },
+        student: { select: { id: true, deletedAt: true } },
       },
     });
 
@@ -53,7 +53,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       fullName: user.fullName,
       role: user.role,
       teacherId: user.teacher && !user.teacher.deletedAt ? user.teacher.id : null,
-      parentId: user.parent && !user.parent.deletedAt ? user.parent.id : null,
+      studentId: user.student && !user.student.deletedAt ? user.student.id : null,
     };
   }
 }

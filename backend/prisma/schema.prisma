@@ -9,11 +9,8 @@ generator client {
 datasource db {
   provider = "postgresql"
   /// Runtime queries. On a hosted database this is the *pooled* endpoint.
+  /// On a plain local PostgreSQL both variables simply hold the same URL.
   url      = env("DATABASE_URL")
-  /// Migrations and introspection. Prisma Migrate needs a real session
-  /// (advisory locks, DDL) which a transaction pooler such as PgBouncer cannot
-  /// give it, so it gets the *direct* endpoint instead. On a plain local
-  /// PostgreSQL both variables simply hold the same URL.
   directUrl = env("DIRECT_URL")
 }
 
@@ -26,7 +23,7 @@ enum Role {
   SUPERVISOR
   TEACHER
   EXAM_COMMITTEE
-  PARENT
+  STUDENT
   SUPPORT
 }
 
@@ -204,7 +201,7 @@ model User {
   deletedAt    DateTime?
 
   teacher  TeacherProfile?
-  parent   ParentProfile?
+  student  Student?
 
   refreshTokens        RefreshToken[]
   supervisedCircles    Circle[]              @relation("CircleSupervisor")
@@ -289,24 +286,6 @@ model TeacherProfile {
   @@map("teacher_profiles")
 }
 
-model ParentProfile {
-  id         String    @id @default(uuid())
-  userId     String    @unique
-  nationalId String?   @unique
-  phone      String?
-  altPhone   String?
-  address    String?
-  occupation String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  deletedAt  DateTime?
-
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  students Student[]
-
-  @@map("parent_profiles")
-}
-
 // ---------------------------------------------------------------------------
 // Circles
 // ---------------------------------------------------------------------------
@@ -378,7 +357,7 @@ model Student {
   fatherNationalId String?
   address          String?
   phone            String?
-  parentId         String?
+  userId           String?       @unique
   guardianName     String?
   guardianPhone    String?
   guardianRelation String?
@@ -404,8 +383,8 @@ model Student {
   updatedAt        DateTime      @updatedAt
   deletedAt        DateTime?
 
-  parentProfile ParentProfile? @relation(fields: [parentId], references: [id], onDelete: SetNull)
-  circle        Circle?        @relation(fields: [circleId], references: [id], onDelete: SetNull)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  circle  Circle? @relation(fields: [circleId], references: [id], onDelete: SetNull)
 
   attendance   Attendance[]
   recitations  Recitation[]
@@ -423,9 +402,9 @@ model Student {
   surahCompletions  SurahCompletion[]
 
   @@index([circleId])
-  @@index([parentId])
   @@index([status])
   @@index([fullName])
+  @@index([userId])
   @@map("students")
 }
 
@@ -747,356 +726,3 @@ model Exam {
 // ---------------------------------------------------------------------------
 // Technical support
 // ---------------------------------------------------------------------------
-
-model SupportTicket {
-  id          String         @id @default(uuid())
-  number      Int            @unique @default(autoincrement())
-  subject     String
-  category    String?
-  description String
-  status      TicketStatus   @default(OPEN)
-  priority    TicketPriority @default(NORMAL)
-  /// Null for tickets raised from the login page by someone who cannot sign in.
-  createdById String?
-  /// Contact details for those unauthenticated tickets — otherwise there would
-  /// be no way to reply to a user who is locked out.
-  contactName  String?
-  contactPhone String?
-  contactEmail String?
-  assignedToId String?
-  resolvedAt  DateTime?
-  closedAt    DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  deletedAt   DateTime?
-
-  createdBy  User?           @relation("TicketCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  assignedTo User?           @relation("TicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  messages   TicketMessage[]
-
-  @@index([status])
-  @@index([createdById])
-  @@index([assignedToId])
-  @@map("support_tickets")
-}
-
-model TicketMessage {
-  id         String   @id @default(uuid())
-  ticketId   String
-  senderId   String
-  body       String
-  isInternal Boolean  @default(false)
-  createdAt  DateTime @default(now())
-
-  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  sender User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
-
-  @@index([ticketId, createdAt])
-  @@map("ticket_messages")
-}
-
-// ---------------------------------------------------------------------------
-// Notifications
-// ---------------------------------------------------------------------------
-
-model Notification {
-  id        String           @id @default(uuid())
-  userId    String
-  type      NotificationType
-  title     String
-  body      String?
-  link      String?
-  data      Json?
-  isRead    Boolean          @default(false)
-  readAt    DateTime?
-  createdAt DateTime         @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, isRead])
-  @@index([userId, createdAt])
-  @@map("notifications")
-}
-
-// ---------------------------------------------------------------------------
-// Chat
-// ---------------------------------------------------------------------------
-
-model Conversation {
-  id          String           @id @default(uuid())
-  type        ConversationType @default(DIRECT)
-  title       String?
-  description String?
-  avatarUrl   String?
-  createdById String?
-  lastMessageAt DateTime?
-  /// Group is archived: history stays readable but no new messages are accepted.
-  isClosed    Boolean          @default(false)
-  /// Only group admins may post; everyone else has read-only access.
-  adminOnly   Boolean          @default(false)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-
-  createdBy User?                @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  members   ConversationMember[]
-  messages  Message[]
-
-  @@index([lastMessageAt])
-  @@map("conversations")
-}
-
-model ConversationMember {
-  id             String    @id @default(uuid())
-  conversationId String
-  userId         String
-  isAdmin        Boolean   @default(false)
-  lastReadAt     DateTime?
-  joinedAt       DateTime  @default(now())
-  leftAt         DateTime?
-
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([conversationId, userId])
-  @@index([userId])
-  @@map("conversation_members")
-}
-
-model Message {
-  id             String    @id @default(uuid())
-  conversationId String
-  senderId       String
-  body           String
-  attachmentUrl  String?
-  /// Set the first time the sender edits the message, so the UI can mark it.
-  editedAt       DateTime?
-  createdAt      DateTime  @default(now())
-  deletedAt      DateTime?
-
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
-
-  @@index([conversationId, createdAt])
-  @@map("messages")
-}
-
-// ---------------------------------------------------------------------------
-// Settings & activity
-// ---------------------------------------------------------------------------
-
-model SchoolSettings {
-  id           String   @id @default("default")
-  name         String   @default("حلقات تحفيظ القرآن الكريم")
-  mosqueName   String?
-  logoUrl      String?
-  phone        String?
-  email        String?
-  address      String?
-  about        String?
-  facebook     String?
-  twitter      String?
-  instagram    String?
-  youtube      String?
-  telegram     String?
-  whatsapp     String?
-  website      String?
-  academicYear String?
-  updatedAt    DateTime @updatedAt
-
-  @@map("school_settings")
-}
-
-model ActivityLog {
-  id         String   @id @default(uuid())
-  userId     String?
-  action     String
-  entityType String?
-  entityId   String?
-  summary    String
-  metadata   Json?
-  createdAt  DateTime @default(now())
-
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([createdAt])
-  @@index([userId])
-  @@map("activity_logs")
-}
-
-// ---------------------------------------------------------------------------
-// Educational courses
-//
-// A completely separate track from the memorization circles: its own circles
-// ("course circles"), its own enrolments and its own attendance register. A
-// student may be enrolled in courses, in a circle, in both, or in neither
-// (the activity programme) — they are always the same Student record, which is
-// what makes the unified student profile possible.
-// ---------------------------------------------------------------------------
-
-model Course {
-  id           String     @id @default(uuid())
-  name         String
-  code         String     @unique
-  type         CourseType
-  description  String?
-  /// Free-text lecturer name, kept for courses given by someone who has no
-  /// account in the system; `instructorId` is used when they do.
-  instructorName String?
-  instructorId String?
-  location     String?
-  startDate    DateTime?  @db.Date
-  endDate      DateTime?  @db.Date
-  scheduleDays String[]   @default([])
-  startTime    String?
-  endTime      String?
-  capacity     Int        @default(30)
-  isActive     Boolean    @default(true)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  deletedAt    DateTime?
-
-  instructor  User?              @relation("CourseInstructor", fields: [instructorId], references: [id], onDelete: SetNull)
-  enrollments CourseEnrollment[]
-  attendance  CourseAttendance[]
-
-  @@index([type])
-  @@index([isActive])
-  @@index([instructorId])
-  @@map("courses")
-}
-
-model CourseEnrollment {
-  id         String    @id @default(uuid())
-  courseId   String
-  studentId  String
-  enrolledAt DateTime  @default(now())
-  /// Set when the student leaves the course; keeps the history of past courses.
-  endedAt    DateTime?
-  note       String?
-
-  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-
-  @@unique([courseId, studentId])
-  @@index([studentId, endedAt])
-  @@map("course_enrollments")
-}
-
-/// Independent of `attendance` — a course register never mixes with a circle one.
-model CourseAttendance {
-  id           String           @id @default(uuid())
-  courseId     String
-  studentId    String
-  date         DateTime         @db.Date
-  status       AttendanceStatus
-  note         String?
-  recordedById String
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-
-  course     Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  student    Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  recordedBy User    @relation("CourseAttendanceRecorder", fields: [recordedById], references: [id], onDelete: Cascade)
-
-  @@unique([courseId, studentId, date])
-  @@index([courseId, date])
-  @@index([studentId, date])
-  @@map("course_attendance")
-}
-
-// ---------------------------------------------------------------------------
-// Staff
-// ---------------------------------------------------------------------------
-
-/// Attendance for the educational and administrative staff, mirroring the
-/// student register but keyed on the user account rather than a student.
-model StaffAttendance {
-  id           String           @id @default(uuid())
-  userId       String
-  date         DateTime         @db.Date
-  status       AttendanceStatus
-  note         String?
-  recordedById String
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-
-  user       User @relation("StaffAttendanceSubject", fields: [userId], references: [id], onDelete: Cascade)
-  recordedBy User @relation("StaffAttendanceRecorder", fields: [recordedById], references: [id], onDelete: Cascade)
-
-  @@unique([userId, date])
-  @@index([date])
-  @@index([userId, date])
-  @@map("staff_attendance")
-}
-
-// ---------------------------------------------------------------------------
-// Preparation assignments & points
-// ---------------------------------------------------------------------------
-
-/// "Prepare Al-Baqarah 1-20 for the next session." Visible to the student's
-/// guardian, who is notified when it is created.
-model PreparationAssignment {
-  id        String    @id @default(uuid())
-  studentId String
-  teacherId String
-  fromSurah String
-  fromAyah  Int
-  toSurah   String
-  toAyah    Int
-  note      String?
-  dueDate   DateTime? @db.Date
-  completedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  student Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  teacher TeacherProfile @relation("PreparationTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
-
-  @@index([studentId, createdAt])
-  @@index([teacherId, createdAt])
-  @@map("preparation_assignments")
-}
-
-/// Bonus points awarded when a student finishes memorizing a whole surah.
-model SurahCompletion {
-  id           String   @id @default(uuid())
-  studentId    String
-  surah        String
-  points       Float    @default(0)
-  note         String?
-  completedAt  DateTime @default(now())
-  recordedById String
-
-  student    Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  recordedBy User    @relation("SurahCompletionRecorder", fields: [recordedById], references: [id], onDelete: Cascade)
-
-  @@unique([studentId, surah])
-  @@index([studentId, completedAt])
-  @@map("surah_completions")
-}
-
-// ---------------------------------------------------------------------------
-// Announcements
-// ---------------------------------------------------------------------------
-
-/// Published by the administration only. `audience` empty means "everyone";
-/// otherwise the announcement is shown to the listed roles.
-model Announcement {
-  id          String    @id @default(uuid())
-  title       String
-  body        String?
-  /// In-app path the announcement bar links to, e.g. "/courses".
-  link        String?
-  audience    Role[]    @default([])
-  isActive    Boolean   @default(true)
-  publishedAt DateTime  @default(now())
-  expiresAt   DateTime?
-  createdById String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  createdBy User? @relation("AnnouncementAuthor", fields: [createdById], references: [id], onDelete: SetNull)
-
-  @@index([isActive, publishedAt])
-  @@map("announcements")
-}

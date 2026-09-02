@@ -18,7 +18,7 @@ import { isReservedUsername } from '../common/validators/username';
 import { AccessControlService } from '../common/services/access-control.service';
 import { UploadsService } from '../uploads/uploads.service';
 
-/** Everyone who works at the school, as opposed to parents. */
+/** Everyone who works at the school, as opposed to students. */
 export const STAFF_ROLES: Role[] = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.EXAM_COMMITTEE, Role.SUPPORT];
 
 const USER_SELECT = {
@@ -56,7 +56,7 @@ export class UsersService {
       deletedAt: null,
       ...(query.role ? { role: query.role } : {}),
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
-      // Name, e-mail, phone, or the national id held on the teacher/parent profile.
+      // Name, e-mail, phone, or the national id held on the teacher/student profile.
       ...(query.search
         ? {
             OR: [
@@ -65,7 +65,7 @@ export class UsersService {
               { email: { contains: query.search, mode: 'insensitive' } },
               { phone: { contains: query.search } },
               { teacher: { nationalId: { contains: query.search } } },
-              { parent: { nationalId: { contains: query.search } } },
+              { student: { nationalId: { contains: query.search } } },
             ],
           }
         : {}),
@@ -98,7 +98,7 @@ export class UsersService {
       select: {
         ...USER_SELECT,
         teacher: true,
-        parent: { include: { students: { where: { deletedAt: null }, select: { id: true, fullName: true } } } },
+        student: true,
         supervisedCircles: {
           where: { deletedAt: null },
           select: { id: true, name: true, code: true, isActive: true },
@@ -119,6 +119,11 @@ export class UsersService {
       if (emailTaken) throw new ConflictException('البريد الإلكتروني مستخدم مسبقاً');
     }
 
+    // Generate a student code if creating a student account.
+    const genStudentCode = () => `ST-${String(Date.now()).slice(-8)}-${Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, '0')}`;
+
     const user = await this.prisma.user.create({
       data: {
         username: dto.username,
@@ -131,9 +136,12 @@ export class UsersService {
         specialization: dto.specialization || null,
         avatarUrl: dto.avatarUrl || null,
         isActive: dto.isActive ?? true,
-        // Teachers and parents need a profile row to be attachable to circles / children.
+        // Teachers need a profile row to be attachable to circles.
         ...(dto.role === Role.TEACHER ? { teacher: { create: {} } } : {}),
-        ...(dto.role === Role.PARENT ? { parent: { create: { phone: dto.phone || null } } } : {}),
+        // Students get a student row linked to the user so their account maps to their profile.
+        ...(dto.role === Role.STUDENT
+          ? { student: { create: { code: genStudentCode(), fullName: dto.fullName } } }
+          : {}),
       },
       select: USER_SELECT,
     });
@@ -176,10 +184,11 @@ export class UsersService {
           update: { deletedAt: null },
         });
       }
-      if (dto.role === Role.PARENT) {
-        await this.prisma.parentProfile.upsert({
+      if (dto.role === Role.STUDENT) {
+        const code = genStudentCode();
+        await this.prisma.student.upsert({
           where: { userId: id },
-          create: { userId: id },
+          create: { userId: id, code, fullName: dto.fullName },
           update: { deletedAt: null },
         });
       }
@@ -215,6 +224,12 @@ export class UsersService {
     });
 
     return user;
+
+    function genStudentCode() {
+      return `ST-${String(Date.now()).slice(-8)}-${Math.floor(Math.random() * 1000)
+        .toString()
+        .padStart(3, '0')}`;
+    }
   }
 
   async resetPassword(actor: AuthUser, id: string, dto: ResetPasswordDto) {
@@ -286,7 +301,7 @@ export class UsersService {
         data: { deletedAt: now, isActive: false },
       }),
       this.prisma.teacherProfile.updateMany({ where: { userId: id }, data: { deletedAt: now, isActive: false } }),
-      this.prisma.parentProfile.updateMany({ where: { userId: id }, data: { deletedAt: now } }),
+      this.prisma.student.updateMany({ where: { userId: id }, data: { deletedAt: now } }),
       this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: now } }),
     ]);
 
@@ -455,10 +470,7 @@ export class UsersService {
           where: { userId: { in: targetIds } },
           data: { deletedAt: now, isActive: false },
         }),
-        this.prisma.parentProfile.updateMany({
-          where: { userId: { in: targetIds } },
-          data: { deletedAt: now },
-        }),
+        this.prisma.student.updateMany({ where: { userId: { in: targetIds } }, data: { deletedAt: now } }),
         this.prisma.refreshToken.updateMany({
           where: { userId: { in: targetIds }, revokedAt: null },
           data: { revokedAt: now },

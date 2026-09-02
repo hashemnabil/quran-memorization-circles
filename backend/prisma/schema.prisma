@@ -358,6 +358,7 @@ model Student {
   address          String?
   phone            String?
   userId           String?       @unique
+  parentUserId     String?
   guardianName     String?
   guardianPhone    String?
   guardianRelation String?
@@ -384,6 +385,7 @@ model Student {
   deletedAt        DateTime?
 
   user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent  User?   @relation("StudentParent", fields: [parentUserId], references: [id], onDelete: SetNull)
   circle  Circle? @relation(fields: [circleId], references: [id], onDelete: SetNull)
 
   attendance   Attendance[]
@@ -405,6 +407,7 @@ model Student {
   @@index([status])
   @@index([fullName])
   @@index([userId])
+  @@index([parentUserId])
   @@map("students")
 }
 
@@ -522,207 +525,4 @@ model Recitation {
 
 // ---------------------------------------------------------------------------
 // Transfers / swaps (students, teachers, assistants)
-// ---------------------------------------------------------------------------
-
-model TransferRequest {
-  id           String        @id @default(uuid())
-  kind         TransferKind
-  status       RequestStatus @default(PENDING)
-  reason       String?
-  requestedById String
-  decidedById  String?
-  decidedAt    DateTime?
-  decisionNote String?
-  effectiveAt  DateTime?
-
-  // student transfer
-  studentId String?
-
-  // teacher transfer / swap / assistant changes
-  teacherAId String?
-  teacherBId String?
-
-  fromCircleId String?
-  toCircleId   String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  student     Student? @relation("TransferStudent", fields: [studentId], references: [id], onDelete: Cascade)
-  fromCircle  Circle?  @relation("TransferFromCircle", fields: [fromCircleId], references: [id], onDelete: SetNull)
-  toCircle    Circle?  @relation("TransferToCircle", fields: [toCircleId], references: [id], onDelete: SetNull)
-  requestedBy User     @relation("TransferRequester", fields: [requestedById], references: [id], onDelete: Cascade)
-  decidedBy   User?    @relation("TransferDecider", fields: [decidedById], references: [id], onDelete: SetNull)
-
-  @@index([status, kind])
-  @@index([studentId])
-  @@index([requestedById])
-  @@index([createdAt])
-  @@map("transfer_requests")
-}
-
-// ---------------------------------------------------------------------------
-// Suspension
-// ---------------------------------------------------------------------------
-
-/// The requester supplies a reason and nothing else. The administration reviews
-/// it and picks the outcome: move to the activity programme, suspend for a set
-/// number of days, or reject. Everything below `status` is therefore nullable
-/// until a decision is actually made.
-model SuspensionRequest {
-  id            String        @id @default(uuid())
-  studentId     String
-  reason        String
-  /// Chosen by the administration on approval, not by the requester.
-  action        SuspensionAction?
-  durationDays  Int?
-  startDate     DateTime?     @db.Date
-  endDate       DateTime?     @db.Date
-  status        RequestStatus @default(PENDING)
-  requestedById String
-  decidedById   String?
-  decidedAt     DateTime?
-  decisionNote  String?
-  /// Set when the student is brought back before / at the end of the suspension.
-  returnedAt    DateTime?
-  returnedNote  String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-
-  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  requestedBy User    @relation("SuspensionRequester", fields: [requestedById], references: [id], onDelete: Cascade)
-  decidedBy   User?   @relation("SuspensionDecider", fields: [decidedById], references: [id], onDelete: SetNull)
-
-  @@index([studentId])
-  @@index([status])
-  @@index([endDate])
-  @@map("suspension_requests")
-}
-
-// ---------------------------------------------------------------------------
-// Examinations
-// ---------------------------------------------------------------------------
-
-/// An ordered milestone in the memorization programme (e.g. Juz' 30, Juz' 29 ...).
-/// `order` defines the required progression: a student may only be examined in a
-/// section once every *required* section with a lower order has been passed.
-model ExamSection {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  code        String   @unique
-  order       Int      @unique
-  kind        ExamSectionKind @default(JUZ)
-  isRequired  Boolean  @default(true)
-  pagesCount  Int?
-  minScore    Int      @default(60)
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-
-  examRequests ExamRequest[]
-  exams        Exam[]
-  onRequests   ExamRequestSection[]
-  onExams      ExamSectionOnExam[]
-
-  @@index([order])
-  @@index([kind])
-  @@map("exam_sections")
-}
-
-/// An exam may cover several juz'/ahzab at once. `ExamRequest.sectionId` stays
-/// as the lowest-ordered section of the set — it drives the progression rules
-/// and keeps every existing query working — while this table holds the full list.
-model ExamRequestSection {
-  id        String @id @default(uuid())
-  requestId String
-  sectionId String
-
-  request ExamRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  section ExamSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-
-  @@unique([requestId, sectionId])
-  @@index([sectionId])
-  @@map("exam_request_sections")
-}
-
-model ExamSectionOnExam {
-  id        String @id @default(uuid())
-  examId    String
-  sectionId String
-
-  exam    Exam        @relation(fields: [examId], references: [id], onDelete: Cascade)
-  section ExamSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-
-  @@unique([examId, sectionId])
-  @@index([sectionId])
-  @@map("exam_sections_on_exams")
-}
-
-model ExamRequest {
-  id         String            @id @default(uuid())
-  studentId  String
-  sectionId  String
-  teacherId  String
-  status     ExamRequestStatus @default(PENDING)
-  note       String?
-  requestedHizb     Int?
-  requestedJuz      Int?
-  requestedCombined Int?
-  reviewedById String?
-  reviewedAt DateTime?
-  reviewNote String?
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-
-  student    Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  section    ExamSection    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  teacher    TeacherProfile @relation("ExamRequestTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
-  reviewedBy User?          @relation("ExamRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  exam       Exam?
-  sections   ExamRequestSection[]
-
-  @@index([status, createdAt])
-  @@index([studentId])
-  @@map("exam_requests")
-}
-
-model Exam {
-  id          String      @id @default(uuid())
-  requestId   String?     @unique
-  studentId   String
-  sectionId   String
-  examinerId  String?
-  scheduledAt DateTime
-  location    String?
-  status      ExamStatus  @default(SCHEDULED)
-  /// Grade out of 100; compared against the section's `minScore` to decide the result.
-  score       Int?
-  /// Derived from `score` by the school's grading scale — never chosen by hand.
-  /// Stored rather than computed on read so an official result cannot change
-  /// retroactively if the scale is ever adjusted.
-  evaluation  Evaluation?
-  /// Optional — the examiner may record a score and notes without counting mistakes.
-  mistakes    Int?
-  result      ExamResult?
-  notes       String?
-  gradedById  String?
-  gradedAt    DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  request  ExamRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
-  student  Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  section  ExamSection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  examiner User?        @relation("ExamExaminer", fields: [examinerId], references: [id], onDelete: SetNull)
-  gradedBy User?        @relation("ExamGrader", fields: [gradedById], references: [id], onDelete: SetNull)
-  sections ExamSectionOnExam[]
-
-  @@index([studentId, status])
-  @@index([scheduledAt])
-  @@index([status])
-  @@map("exams")
-}
-
-// ---------------------------------------------------------------------------
-// Technical support
 // ---------------------------------------------------------------------------

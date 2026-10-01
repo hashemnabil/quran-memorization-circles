@@ -100,6 +100,28 @@ export class RegistryService {
     return { total, completed, incomplete: total - completed, latest: latest.map((u) => this.present(u)) };
   }
 
+  async adminGet(id: string) {
+    const user = await this.prisma.registryUser.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('المستخدم غير موجود.');
+    return this.present(user);
+  }
+
+  async adminUpdate(id: string, dto: UpdateRegistryUserDto) {
+    const user = await this.prisma.registryUser.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('المستخدم غير موجود.');
+    const data: Record<string, unknown> = {};
+    if (dto.fullName !== undefined) data.fullName = dto.fullName.trim() || null;
+    if (dto.phone !== undefined) data.phone = dto.phone.trim() || null;
+    if (dto.email !== undefined) data.email = dto.email.trim().toLowerCase() || null;
+    if (dto.dateOfBirth !== undefined) data.dateOfBirth = dto.dateOfBirth ? new Date(dto.dateOfBirth) : null;
+    if (dto.gender !== undefined) data.gender = dto.gender as Gender;
+    if (dto.city !== undefined) data.city = dto.city.trim() || null;
+    if (dto.address !== undefined) data.address = dto.address.trim() || null;
+    if (dto.notes !== undefined) data.notes = dto.notes.trim() || null;
+    data.completed = Boolean(data.fullName ?? user.fullName);
+    return this.present(await this.prisma.registryUser.update({ where: { id }, data }));
+  }
+
   async setActive(id: string, isActive: boolean) {
     const user = await this.prisma.registryUser.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('المستخدم غير موجود.');

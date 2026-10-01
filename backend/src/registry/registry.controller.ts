@@ -3,7 +3,6 @@ import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagg
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Role } from '@prisma/client';
 import { Response } from 'express';
-import * as XLSX from 'xlsx';
 import { Public, Roles } from '../common/decorators';
 import { RegistryService } from './registry.service';
 import { QueryRegistryUsersDto, RegistryAccessDto, UpdateRegistryUserDto } from './dto/registry.dto';

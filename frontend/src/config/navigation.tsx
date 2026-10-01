@@ -74,6 +74,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: <IconUsers size={19} />,
         roles: ['ADMIN'],
       },
+    { label: 'سجل المستخدمين', to: '/registry-admin', icon: <span>▣</span>, roles: ['ADMIN'] },
       { to: '/parents', label: 'أولياء الأمور', icon: <IconUser size={19} />, roles: ['ADMIN'] },
     ],
   },

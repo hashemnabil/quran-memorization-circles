@@ -1176,6 +1176,18 @@ async function main() {
     ],
   });
 
+  // --- public identity registry -------------------------------------------
+  console.log('› سجلات الهوية العامة');
+  await prisma.registryUser.createMany({
+    data: [
+      { nationalId: '123456789', fullName: 'مستخدم تجريبي أول', completed: false },
+      { nationalId: '987654321', fullName: 'مستخدم تجريبي ثان', completed: false },
+      { nationalId: '555555555' },
+      { nationalId: '111222333' },
+    ],
+    skipDuplicates: true,
+  });
+
   // --- activity log --------------------------------------------------------
   await prisma.activityLog.createMany({
     data: [

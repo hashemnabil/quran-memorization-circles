@@ -34,6 +34,9 @@ import AnnouncementsPage from '@/pages/announcements/AnnouncementsPage';
 import SettingsPage from '@/pages/SettingsPage';
 import ProfilePage from '@/pages/ProfilePage';
 import { ForbiddenPage, NotFoundPage } from '@/pages/ErrorPages';
+import RegistryLoginPage from '@/pages/RegistryLoginPage';
+import RegistryDataPage from '@/pages/RegistryDataPage';
+import RegistryAdminPage from '@/pages/RegistryAdminPage';
 
 export default function App() {
   const loadSession = useAuthStore((s) => s.loadSession);
@@ -47,6 +50,8 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/register" element={<RegistryLoginPage />} />
+      <Route path="/register/data" element={<RegistryDataPage />} />
       <Route
         path="/login"
         element={

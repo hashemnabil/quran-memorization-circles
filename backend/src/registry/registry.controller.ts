@@ -41,6 +41,16 @@ export class RegistryController {
   @ApiBearerAuth()
   users(@Query() query: QueryRegistryUsersDto) { return this.service.list(query); }
 
+  @Get('admin/users/:id')
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  adminGet(@Param('id') id: string) { return this.service.adminGet(id); }
+
+  @Patch('admin/users/:id')
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  adminUpdate(@Param('id') id: string, @Body() dto: UpdateRegistryUserDto) { return this.service.adminUpdate(id, dto); }
+
   @Patch('admin/users/:id/active')
   @Roles(Role.ADMIN)
   @ApiBearerAuth()

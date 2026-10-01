@@ -1100,3 +1100,30 @@ model Announcement {
   @@index([isActive, publishedAt])
   @@map("announcements")
 }
+
+
+// ---------------------------------------------------------------------------
+// Public identity registry: users authenticate only with a pre-approved ID.
+// The short-lived signed token identifies the record server-side; the ID is
+// never accepted as an authorization parameter for subsequent reads/writes.
+// ---------------------------------------------------------------------------
+model RegistryUser {
+  id            String   @id @default(uuid())
+  nationalId    String   @unique
+  fullName      String?
+  phone         String?
+  email         String?
+  dateOfBirth   DateTime?
+  gender        Gender?
+  city          String?
+  address       String?
+  notes         String?
+  completed     Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([fullName])
+  @@index([completed, isActive])
+  @@map("registry_users")
+}

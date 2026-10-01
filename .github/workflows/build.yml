@@ -17,6 +17,6 @@ jobs:
             frontend/package-lock.json
       - run: npm install --prefix backend
       - run: npm install --prefix frontend
-      - run: npx prisma generate --schema backend/prisma/schema.prisma
+      - run: backend/node_modules/.bin/prisma generate --schema backend/prisma/schema.prisma
       - run: npm --prefix backend run build
       - run: npm --prefix frontend run build

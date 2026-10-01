@@ -113,6 +113,28 @@ export class RegistryService {
     return { success: true };
   }
 
+  async exportExcel(completed?: string) {
+    const where = completed === 'true' ? { completed: true, isActive: true } : completed === 'false' ? { completed: false, isActive: true } : { isActive: true };
+    const users = await this.prisma.registryUser.findMany({ where, orderBy: { nationalId: 'asc' } });
+    const rows = users.map((u) => ({
+      'رقم الهوية': u.nationalId, 'الاسم': u.fullName || '', 'الهاتف': u.phone || '', 'البريد': u.email || '',
+      'تاريخ الميلاد': u.dateOfBirth ? new Date(u.dateOfBirth).toISOString().slice(0, 10) : '',
+      'الجنس': u.gender || '', 'المدينة': u.city || '', 'العنوان': u.address || '', 'الملاحظات': u.notes || '',
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'المستخدمون');
+    ws['!cols'] = [18, 28, 18, 30, 16, 12, 18, 40, 50].map((wch) => ({ wch }));
+    return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+  }
+
+  templateExcel() {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet([{ national_id: '123456789' }]);
+    XLSX.utils.book_append_sheet(wb, ws, 'national_ids');
+    return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+  }
+
   async importExcel(buffer: Buffer) {
     let rows: unknown[] = [];
     try {

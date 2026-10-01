@@ -4,7 +4,7 @@ import { Gender } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import * as XLSX from 'xlsx';
 import { PrismaService } from '../prisma/prisma.service';
-import { UpdateRegistryUserDto } from './dto/registry.dto';
+import { QueryRegistryUsersDto, UpdateRegistryUserDto } from './dto/registry.dto';
 
 type RegistryToken = { sub: string; kind: 'registry-user' };
 

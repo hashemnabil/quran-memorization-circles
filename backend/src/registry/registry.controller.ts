@@ -1,7 +1,9 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, UploadedFile, UseInterceptors, BadRequestException, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Role } from '@prisma/client';
+import { Response } from 'express';
+import * as XLSX from 'xlsx';
 import { Public, Roles } from '../common/decorators';
 import { RegistryService } from './registry.service';
 import { QueryRegistryUsersDto, RegistryAccessDto, UpdateRegistryUserDto } from './dto/registry.dto';
@@ -65,27 +67,18 @@ export class RegistryController {
   @Get('admin/export')
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
-  async export(@Query('completed') completed?: string) {
-    const where = completed === 'true' ? { completed: true, isActive: true } : completed === 'false' ? { completed: false, isActive: true } : { isActive: true };
-    const users = await this.service['prisma'].registryUser.findMany({ where, orderBy: { nationalId: 'asc' } });
-    const rows = users.map((u: any) => ({
-      'رقم الهوية': u.nationalId, 'الاسم': u.fullName || '', 'الهاتف': u.phone || '', 'البريد': u.email || '',
-      'تاريخ الميلاد': u.dateOfBirth ? new Date(u.dateOfBirth).toISOString().slice(0,10) : '', 'الجنس': u.gender || '',
-      'المدينة': u.city || '', 'العنوان': u.address || '', 'الملاحظات': u.notes || '',
-    }));
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, 'المستخدمون');
-    return new (require('stream').PassThrough)();
+  async export(@Query('completed') completed: string | undefined, @Res() res: Response) {
+    const buffer = await this.service.exportExcel(completed);
+    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': 'attachment; filename="registry-users.xlsx"', 'Content-Length': buffer.length });
+    res.send(buffer);
   }
 
   @Get('admin/template')
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
-  template() {
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet([{ national_id: '123456789' }]);
-    XLSX.utils.book_append_sheet(wb, ws, 'national_ids');
-    return { file: Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })).toString('base64') };
+  async template(@Res() res: Response) {
+    const buffer = this.service.templateExcel();
+    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': 'attachment; filename="national-id-template.xlsx"', 'Content-Length': buffer.length });
+    res.send(buffer);
   }
 }

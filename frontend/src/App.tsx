@@ -16,6 +16,7 @@ import TeacherDetailsPage from '@/pages/teachers/TeacherDetailsPage';
 import ParentsPage from '@/pages/parents/ParentsPage';
 import AttendancePage from '@/pages/attendance/AttendancePage';
 import RecitationsPage from '@/pages/recitations/RecitationsPage';
+import ExamsPage from '@/pages/exams/ExamsPage';
 import TransfersPage from '@/pages/transfers/TransfersPage';
 import SuspensionsPage from '@/pages/suspensions/SuspensionsPage';
 import ParentChildrenPage from '@/pages/parent/ParentChildrenPage';
@@ -201,12 +202,11 @@ export default function App() {
           }
         />
 
-        {/* ✅ تم الإصلاح - أضفنا children empty element */}
         <Route
           path="exams/*"
           element={
             <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE']}>
-              <></>
+              <ExamsPage />
             </RequireRole>
           }
         />

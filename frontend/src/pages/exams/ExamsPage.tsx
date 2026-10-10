@@ -1,190 +1,118 @@
-// src/pages/exams/ExamsPage.tsx
-
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
   Badge,
   Button,
   Card,
   EmptyState,
   ErrorState,
+  Input,
   LoadingState,
   Modal,
   PageHeader,
+  Pagination,
   Select,
   StatCard,
   Tabs,
   Textarea,
+  useConfirm,
 } from '@/components/ui';
-import { useConfirm } from '@/components/ui';
+import { IconAward, IconCalendar, IconCheck, IconClock, IconPlus, IconX } from '@/components/ui/Icons';
 import {
-  IconCheck,
-  IconClock,
-  IconEdit,
-  IconEye,
-  IconPlus,
-  IconTrash,
-  IconX,
-} from '@/components/ui/Icons';
-import {
+  EVALUATION_COLORS,
+  EVALUATION_LABELS,
   EXAM_REQUEST_STATUS_COLORS,
   EXAM_REQUEST_STATUS_LABELS,
   EXAM_STATUS_COLORS,
   EXAM_STATUS_LABELS,
   describeExamSections,
+  scoreEvaluation,
 } from '@/lib/labels';
-import { formatDateShort, formatDateTime } from '@/lib/format';
-import type { Exam, ExamRequest, ExamRequestStatus, ExamStatus, PaginatedResponse } from '@/types';
+import { formatDateShort, formatDateTime, toInputDateTime } from '@/lib/format';
+import type { Exam, ExamRequest, PaginatedResponse, Student } from '@/types';
+
+interface ExamStats {
+  pendingRequests: number;
+  scheduled: number;
+  completed: number;
+  passed: number;
+  failed: number;
+  passRate: number;
+}
+
+interface Examiner {
+  id: string;
+  fullName: string;
+}
+
+/** What the request asks for — manual values first, otherwise the sections. */
+function describeRequest(r: ExamRequest): string {
+  const parts: string[] = [];
+  if (r.requestedHizb != null) parts.push(`حزب ${r.requestedHizb}`);
+  if (r.requestedJuz != null) parts.push(`جزء ${r.requestedJuz}`);
+  if (r.requestedCombined != null) parts.push(`مجتمعة ${r.requestedCombined}`);
+  if (parts.length) return parts.join(' + ');
+  return describeExamSections(r.section, r.sections);
+}
 
 // ============================================================================
-// MAIN PAGE
+// PAGE
 // ============================================================================
 
 export default function ExamsPage() {
   const user = useAuthStore((s) => s.user)!;
-  const queryClient = useQueryClient();
-  const confirm = useConfirm();
+  const canManage = user.role === 'ADMIN' || user.role === 'EXAM_COMMITTEE';
+  const canRequest = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(user.role);
 
-  const [tab, setTab] = useState('requests');
-  const [modal, setModal] = useState<'create' | 'edit' | 'view' | null>(null);
-  const [selectedExam, setSelectedExam] = useState<any | null>(null);
+  const [tab, setTab] = useState<'requests' | 'scheduled' | 'history'>('requests');
+  const [creating, setCreating] = useState(false);
 
-  const canManage = ['ADMIN', 'EXAM_COMMITTEE'].includes(user.role);
-
-  // Fetch exam requests
-  const { data: requests, isLoading: requestsLoading, isError: requestsError, refetch: refetchRequests } = useQuery({
-    queryKey: ['exams', 'requests'],
-    queryFn: async () => (await api.get<PaginatedResponse<any>>('/exams/requests')).data,
-    enabled: tab === 'requests',
+  const stats = useQuery({
+    queryKey: ['exams', 'stats'],
+    queryFn: async () => (await api.get<ExamStats>('/exams/stats')).data,
   });
-
-  // Fetch scheduled exams
-  const { data: exams, isLoading: examsLoading, isError: examsError, refetch: refetchExams } = useQuery({
-    queryKey: ['exams', 'scheduled'],
-    queryFn: async () => (await api.get<PaginatedResponse<any>>('/exams', { params: { status: 'SCHEDULED' } })).data,
-    enabled: tab === 'scheduled',
-  });
-
-  // Fetch exam history
-  const { data: history, isLoading: historyLoading, isError: historyError, refetch: refetchHistory } = useQuery({
-    queryKey: ['exams', 'history'],
-    queryFn: async () => (await api.get<PaginatedResponse<any>>('/exams', { params: { status: 'COMPLETED' } })).data,
-    enabled: tab === 'history',
-  });
-
-  // Approve exam request
-  const approveRequest = useMutation({
-    mutationFn: (requestId: string) => api.patch(`/exams/requests/${requestId}/approve`),
-    onSuccess: () => {
-      toast.success('تمت الموافقة على طلب الاختبار');
-      queryClient.invalidateQueries({ queryKey: ['exams'] });
-      refetchRequests();
-    },
-    onError: (error) => toast.error(apiError(error)),
-  });
-
-  // Reject exam request
-  const rejectRequest = useMutation({
-    mutationFn: ({ requestId, reason }: { requestId: string; reason: string }) =>
-      api.patch(`/exams/requests/${requestId}/reject`, { reason }),
-    onSuccess: () => {
-      toast.success('تم رفض طلب الاختبار');
-      queryClient.invalidateQueries({ queryKey: ['exams'] });
-      refetchRequests();
-    },
-    onError: (error) => toast.error(apiError(error)),
-  });
-
-  // Delete exam
-  const deleteExam = useMutation({
-    mutationFn: (examId: string) => api.delete(`/exams/${examId}`),
-    onSuccess: () => {
-      toast.success('تم حذف الاختبار');
-      queryClient.invalidateQueries({ queryKey: ['exams'] });
-      refetchExams();
-    },
-    onError: (error) => toast.error(apiError(error)),
-  });
-
-  const tabs = [
-    { key: 'requests', label: 'طلبات الاختبار' },
-    { key: 'scheduled', label: 'الاختبارات المجدولة' },
-    { key: 'history', label: 'سجل الاختبارات' },
-  ];
 
   return (
     <>
       <PageHeader
         title="الاختبارات"
-        subtitle="إدارة اختبارات الطلاب"
+        subtitle={canManage ? 'جدولة الاختبارات ورصد نتائج الطلاب' : 'متابعة طلبات اختبار الطلاب ونتائجهم'}
         action={
-          canManage && (
-            <Button size="sm" icon={<IconPlus size={15} />} onClick={() => setModal('create')}>
-              اختبار جديد
+          canRequest && (
+            <Button icon={<IconPlus size={16} />} onClick={() => setCreating(true)}>
+              طلب اختبار
             </Button>
           )
         }
       />
 
-      <Tabs tabs={tabs} active={tab} onChange={setTab} />
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="طلبات بالانتظار" value={stats.data?.pendingRequests ?? 0} icon={<IconClock size={20} />} tone="amber" />
+        <StatCard label="اختبارات مجدولة" value={stats.data?.scheduled ?? 0} icon={<IconCalendar size={20} />} tone="sky" />
+        <StatCard label="اختبارات مكتملة" value={stats.data?.completed ?? 0} icon={<IconCheck size={20} />} tone="primary" />
+        <StatCard label="نسبة النجاح" value={`${stats.data?.passRate ?? 0}%`} icon={<IconAward size={20} />} tone="emerald" />
+      </div>
 
-      {tab === 'requests' && (
-        <RequestsTab
-          data={requests}
-          loading={requestsLoading}
-          error={requestsError}
-          onRetry={refetchRequests}
-          onApprove={(id) => approveRequest.mutate(id)}
-          onReject={(id, reason) => rejectRequest.mutate({ requestId: id, reason })}
-          isPending={approveRequest.isPending || rejectRequest.isPending}
-          canManage={canManage}
-        />
-      )}
+      <Tabs
+        tabs={[
+          { key: 'requests', label: 'طلبات الاختبار', badge: stats.data?.pendingRequests },
+          { key: 'scheduled', label: 'الاختبارات المجدولة', badge: stats.data?.scheduled },
+          { key: 'history', label: 'سجل الاختبارات' },
+        ]}
+        active={tab}
+        onChange={(key) => setTab(key as typeof tab)}
+      />
 
-      {tab === 'scheduled' && (
-        <ScheduledTab
-          data={exams}
-          loading={examsLoading}
-          error={examsError}
-          onRetry={refetchExams}
-          onDelete={(id) => deleteExam.mutate(id)}
-          onView={(exam) => {
-            setSelectedExam(exam);
-            setModal('view');
-          }}
-          onEdit={(exam) => {
-            setSelectedExam(exam);
-            setModal('edit');
-          }}
-          canManage={canManage}
-          isPending={deleteExam.isPending}
-        />
-      )}
+      {tab === 'requests' && <RequestsTab canManage={canManage} />}
+      {tab === 'scheduled' && <ExamsTab mode="scheduled" canManage={canManage} />}
+      {tab === 'history' && <ExamsTab mode="history" canManage={canManage} />}
 
-      {tab === 'history' && (
-        <HistoryTab
-          data={history}
-          loading={historyLoading}
-          error={historyError}
-          onRetry={refetchHistory}
-          onView={(exam) => {
-            setSelectedExam(exam);
-            setModal('view');
-          }}
-        />
-      )}
-
-      {modal === 'create' && <CreateExamModal onClose={() => setModal(null)} />}
-      {modal === 'edit' && selectedExam && (
-        <EditExamModal exam={selectedExam} onClose={() => { setModal(null); setSelectedExam(null); }} />
-      )}
-      {modal === 'view' && selectedExam && (
-        <ViewExamModal exam={selectedExam} onClose={() => { setModal(null); setSelectedExam(null); }} />
-      )}
+      {creating && <CreateRequestModal onClose={() => setCreating(false)} />}
     </>
   );
 }
@@ -193,316 +121,314 @@ export default function ExamsPage() {
 // REQUESTS TAB
 // ============================================================================
 
-function RequestsTab({
-  data,
-  loading,
-  error,
-  onRetry,
-  onApprove,
-  onReject,
-  isPending,
-  canManage,
-}: {
-  data?: PaginatedResponse<any>;
-  loading: boolean;
-  error: boolean;
-  onRetry: () => void;
-  onApprove: (id: string) => void;
-  onReject: (id: string, reason: string) => void;
-  isPending: boolean;
-  canManage: boolean;
-}) {
-  const [rejectModal, setRejectModal] = useState<{ id: string; reason: string } | null>(null);
+function RequestsTab({ canManage }: { canManage: boolean }) {
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
+  const [status, setStatus] = useState('PENDING');
+  const [page, setPage] = useState(1);
+  const [scheduling, setScheduling] = useState<ExamRequest | null>(null);
+  const [rejecting, setRejecting] = useState<ExamRequest | null>(null);
 
-  if (loading) return <LoadingState rows={5} />;
-  if (error || !data) return <ErrorState message="تعذر تحميل طلبات الاختبار" onRetry={onRetry} />;
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['exams', 'requests', { status, page }],
+    queryFn: async () =>
+      (
+        await api.get<PaginatedResponse<ExamRequest>>('/exams/requests', {
+          params: { page, limit: 20, status: status || undefined },
+        })
+      ).data,
+  });
 
-  const requests = data.data;
+  const cancel = useMutation({
+    mutationFn: (id: string) => api.patch(`/exams/requests/${id}/cancel`),
+    onSuccess: () => {
+      toast.success('تم إلغاء الطلب');
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
 
-  if (requests.length === 0) {
-    return <EmptyState title="لا توجد طلبات اختبار" icon={<IconClock size={24} />} />;
-  }
+  const onCancel = async (r: ExamRequest) => {
+    const ok = await confirm({
+      title: 'إلغاء طلب الاختبار',
+      message: `هل تريد إلغاء طلب اختبار ${r.student.fullName}؟`,
+      confirmLabel: 'إلغاء الطلب',
+    });
+    if (ok) cancel.mutate(r.id);
+  };
 
   return (
     <>
-      <Card title="طلبات الاختبار" subtitle="الطلبات المقدمة من المعلمين" padded={false}>
-        <div className="table-wrap border-0 shadow-none">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>الطالب</th>
-                <th>المطلوب</th>
-                <th>المعلم</th>
-                <th>التاريخ</th>
-                <th>الحالة</th>
-                {canManage && <th>إجراء</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((request: any) => (
-                <tr key={request.id}>
-                  <td>
-                    <Link to={`/students/${request.student?.id || request.studentId}`} className="font-semibold hover:text-primary-700">
-                      {request.student?.fullName || request.studentName || 'غير معروف'}
-                    </Link>
-                  </td>
-                  <td className="text-sm">{describeExamSections(request.section, request.sections)}</td>
-                  <td className="text-sm text-slate-600">{request.teacher?.fullName || request.teacherName || '—'}</td>
-                  <td className="numeric">{formatDateShort(request.createdAt)}</td>
-                  <td>
-                    <Badge className={EXAM_REQUEST_STATUS_COLORS[request.status as ExamRequestStatus] || 'bg-slate-100 text-slate-600'}>
-                      {EXAM_REQUEST_STATUS_LABELS[request.status as ExamRequestStatus] || request.status}
-                    </Badge>
-                  </td>
-                  {canManage && request.status === 'PENDING' && (
-                    <td>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-emerald-600 hover:bg-emerald-50"
-                          onClick={() => onApprove(request.id)}
-                          loading={isPending}
-                        >
-                          <IconCheck size={16} />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-red-600 hover:bg-red-50"
-                          onClick={() => setRejectModal({ id: request.id, reason: '' })}
-                          loading={isPending}
-                        >
-                          <IconX size={16} />
-                        </Button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <Card className="mb-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Select
+            label="الحالة"
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">كل الحالات</option>
+            {Object.entries(EXAM_REQUEST_STATUS_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </Select>
         </div>
       </Card>
 
-      {rejectModal && (
-        <Modal
-          open
-          onClose={() => setRejectModal(null)}
-          title="رفض طلب الاختبار"
-          size="sm"
-          footer={
-            <>
-              <Button variant="secondary" onClick={() => setRejectModal(null)}>
-                إلغاء
-              </Button>
-              <Button
-                variant="danger"
-                onClick={() => {
-                  if (rejectModal.reason.trim()) {
-                    onReject(rejectModal.id, rejectModal.reason);
-                    setRejectModal(null);
-                  } else {
-                    toast.error('يرجى كتابة سبب الرفض');
-                  }
-                }}
-                loading={isPending}
-                disabled={!rejectModal.reason.trim()}
-              >
-                رفض
-              </Button>
-            </>
-          }
-        >
-          <Textarea
-            label="سبب الرفض"
-            required
-            rows={3}
-            value={rejectModal.reason}
-            onChange={(e) => setRejectModal({ ...rejectModal, reason: e.target.value })}
-            placeholder="اذكر سبب رفض طلب الاختبار..."
+      <Card padded={false}>
+        {isLoading ? (
+          <LoadingState />
+        ) : isError ? (
+          <ErrorState message="تعذر تحميل طلبات الاختبار" onRetry={() => refetch()} />
+        ) : !data?.data.length ? (
+          <EmptyState
+            title="لا توجد طلبات اختبار"
+            message="لا توجد طلبات مطابقة للتصفية المحددة."
+            icon={<IconAward size={24} />}
           />
-        </Modal>
-      )}
+        ) : (
+          <>
+            <div className="table-wrap border-0 shadow-none">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>الطالب</th>
+                    <th>المطلوب</th>
+                    <th>المعلم</th>
+                    <th>تاريخ الطلب</th>
+                    <th>الحالة</th>
+                    <th className="text-center">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.data.map((r) => (
+                    <tr key={r.id}>
+                      <td>
+                        <Link to={`/students/${r.student.id}`} className="font-bold text-slate-800 hover:text-primary-700">
+                          {r.student.fullName}
+                        </Link>
+                        <span className="block text-[11px] text-slate-400">{r.student.circle?.name ?? '—'}</span>
+                      </td>
+                      <td className="text-sm">
+                        {describeRequest(r)}
+                        {r.note && <span className="block text-[11px] text-slate-400">{r.note}</span>}
+                      </td>
+                      <td className="text-sm text-slate-600">{r.teacher?.user.fullName ?? '—'}</td>
+                      <td className="numeric text-sm text-slate-500">{formatDateShort(r.createdAt)}</td>
+                      <td>
+                        <Badge className={EXAM_REQUEST_STATUS_COLORS[r.status]}>{EXAM_REQUEST_STATUS_LABELS[r.status]}</Badge>
+                        {r.status === 'REJECTED' && r.reviewNote && (
+                          <span className="block text-[11px] text-slate-400">{r.reviewNote}</span>
+                        )}
+                      </td>
+                      <td>
+                        {r.status === 'PENDING' ? (
+                          <div className="flex justify-center gap-1.5">
+                            {canManage && (
+                              <>
+                                <Button size="sm" variant="success" icon={<IconCalendar size={14} />} onClick={() => setScheduling(r)}>
+                                  جدولة
+                                </Button>
+                                <Button size="sm" variant="danger" icon={<IconX size={14} />} onClick={() => setRejecting(r)}>
+                                  رفض
+                                </Button>
+                              </>
+                            )}
+                            {!canManage && (
+                              <Button size="sm" variant="secondary" onClick={() => onCancel(r)}>
+                                إلغاء الطلب
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="block text-center text-slate-300">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={page} totalPages={data.meta.totalPages} total={data.meta.total} onChange={setPage} />
+          </>
+        )}
+      </Card>
+
+      {scheduling && <ScheduleModal request={scheduling} onClose={() => setScheduling(null)} />}
+      {rejecting && <RejectModal request={rejecting} onClose={() => setRejecting(null)} />}
     </>
   );
 }
 
 // ============================================================================
-// SCHEDULED TAB
+// EXAMS TAB (scheduled + history)
 // ============================================================================
 
-function ScheduledTab({
-  data,
-  loading,
-  error,
-  onRetry,
-  onDelete,
-  onView,
-  onEdit,
-  canManage,
-  isPending,
-}: {
-  data?: PaginatedResponse<any>;
-  loading: boolean;
-  error: boolean;
-  onRetry: () => void;
-  onDelete: (id: string) => void;
-  onView: (exam: any) => void;
-  onEdit: (exam: any) => void;
-  canManage: boolean;
-  isPending: boolean;
-}) {
+function ExamsTab({ mode, canManage }: { mode: 'scheduled' | 'history'; canManage: boolean }) {
+  const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const [historyStatus, setHistoryStatus] = useState('COMPLETED');
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search);
+  const [page, setPage] = useState(1);
+  const [grading, setGrading] = useState<Exam | null>(null);
+  const [editing, setEditing] = useState<Exam | null>(null);
 
-  if (loading) return <LoadingState rows={5} />;
-  if (error || !data) return <ErrorState message="تعذر تحميل الاختبارات المجدولة" onRetry={onRetry} />;
+  const status = mode === 'scheduled' ? 'SCHEDULED' : historyStatus;
 
-  const exams = data.data;
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['exams', 'list', { status, page, search: debouncedSearch }],
+    queryFn: async () =>
+      (
+        await api.get<PaginatedResponse<Exam>>('/exams', {
+          params: { page, limit: 20, status: status || undefined, search: debouncedSearch || undefined },
+        })
+      ).data,
+  });
 
-  if (exams.length === 0) {
-    return <EmptyState title="لا توجد اختبارات مجدولة" icon={<IconClock size={24} />} />;
-  }
+  const absent = useMutation({
+    mutationFn: (id: string) => api.patch(`/exams/${id}/absent`),
+    onSuccess: () => {
+      toast.success('تم تسجيل الغياب');
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
 
-  return (
-    <Card title="الاختبارات المجدولة" padded={false}>
-      <div className="table-wrap border-0 shadow-none">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>الطالب</th>
-              <th>المدى</th>
-              <th>التاريخ</th>
-              <th>الممتحن</th>
-              <th>الحالة</th>
-              <th>إجراء</th>
-            </tr>
-          </thead>
-          <tbody>
-            {exams.map((exam: any) => (
-              <tr key={exam.id}>
-                <td>
-                  <Link to={`/students/${exam.student?.id || exam.studentId}`} className="font-semibold hover:text-primary-700">
-                    {exam.student?.fullName || exam.studentName || 'غير معروف'}
-                  </Link>
-                </td>
-                <td className="text-sm">{describeExamSections(exam.section, exam.sections)}</td>
-                <td className="numeric">{formatDateShort(exam.scheduledAt)}</td>
-                <td className="text-sm text-slate-600">{exam.examiner?.fullName || exam.examinerName || 'غير محدد'}</td>
-                <td>
-                  <Badge className={EXAM_STATUS_COLORS[exam.status as ExamStatus] || 'bg-slate-100 text-slate-600'}>
-                    {EXAM_STATUS_LABELS[exam.status as ExamStatus] || exam.status}
-                  </Badge>
-                </td>
-                <td>
-                  <div className="flex items-center gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => onView(exam)}>
-                      <IconEye size={16} />
-                    </Button>
-                    {canManage && (
-                      <>
-                        <Button size="sm" variant="ghost" onClick={() => onEdit(exam)}>
-                          <IconEdit size={16} />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-red-600 hover:bg-red-50"
-                          onClick={async () => {
-                            const ok = await confirm({
-                              title: 'حذف الاختبار',
-                              message: 'سيتم حذف هذا الاختبار نهائياً. هل أنت متأكد؟',
-                              confirmLabel: 'حذف',
-                              variant: 'danger',
-                            });
-                            if (ok) onDelete(exam.id);
-                          }}
-                          loading={isPending}
-                        >
-                          <IconTrash size={16} />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-}
-
-// ============================================================================
-// HISTORY TAB
-// ============================================================================
-
-function HistoryTab({
-  data,
-  loading,
-  error,
-  onRetry,
-  onView,
-}: {
-  data?: PaginatedResponse<any>;
-  loading: boolean;
-  error: boolean;
-  onRetry: () => void;
-  onView: (exam: any) => void;
-}) {
-  if (loading) return <LoadingState rows={5} />;
-  if (error || !data) return <ErrorState message="تعذر تحميل سجل الاختبارات" onRetry={onRetry} />;
-
-  const exams = data.data;
-
-  if (exams.length === 0) {
-    return <EmptyState title="لا توجد اختبارات سابقة" icon={<IconClock size={24} />} />;
-  }
+  const onAbsent = async (exam: Exam) => {
+    const ok = await confirm({
+      title: 'تسجيل غياب',
+      message: `تسجيل غياب ${exam.student.fullName} عن الاختبار؟`,
+      confirmLabel: 'تسجيل الغياب',
+    });
+    if (ok) absent.mutate(exam.id);
+  };
 
   return (
-    <Card title="سجل الاختبارات" padded={false}>
-      <div className="table-wrap border-0 shadow-none">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>الطالب</th>
-              <th>المدى</th>
-              <th>التاريخ</th>
-              <th>النتيجة</th>
-              <th>الدرجة</th>
-              <th>إجراء</th>
-            </tr>
-          </thead>
-          <tbody>
-            {exams.map((exam: any) => (
-              <tr key={exam.id}>
-                <td>
-                  <Link to={`/students/${exam.student?.id || exam.studentId}`} className="font-semibold hover:text-primary-700">
-                    {exam.student?.fullName || exam.studentName || 'غير معروف'}
-                  </Link>
-                </td>
-                <td className="text-sm">{describeExamSections(exam.section, exam.sections)}</td>
-                <td className="numeric">{formatDateShort(exam.scheduledAt)}</td>
-                <td>
-                  <Badge
-                    className={exam.result === 'PASSED' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}
-                  >
-                    {exam.result === 'PASSED' ? 'ناجح' : 'لم يجتز'}
-                  </Badge>
-                </td>
-                <td className="numeric">{exam.score ?? '—'}</td>
-                <td>
-                  <Button size="sm" variant="ghost" onClick={() => onView(exam)}>
-                    <IconEye size={16} />
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+    <>
+      <Card className="mb-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Input
+            label="بحث"
+            placeholder="اسم الطالب أو رقمه"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+          />
+          {mode === 'history' && (
+            <Select
+              label="الحالة"
+              value={historyStatus}
+              onChange={(e) => {
+                setHistoryStatus(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="COMPLETED">مكتمل</option>
+              <option value="ABSENT">غائب</option>
+              <option value="CANCELLED">ملغى</option>
+            </Select>
+          )}
+        </div>
+      </Card>
+
+      <Card padded={false}>
+        {isLoading ? (
+          <LoadingState />
+        ) : isError ? (
+          <ErrorState message="تعذر تحميل الاختبارات" onRetry={() => refetch()} />
+        ) : !data?.data.length ? (
+          <EmptyState
+            title={mode === 'scheduled' ? 'لا توجد اختبارات مجدولة' : 'لا توجد اختبارات في السجل'}
+            message="لا توجد اختبارات مطابقة للتصفية المحددة."
+            icon={<IconAward size={24} />}
+          />
+        ) : (
+          <>
+            <div className="table-wrap border-0 shadow-none">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>الطالب</th>
+                    <th>المقرر</th>
+                    <th>الموعد</th>
+                    <th>الممتحن</th>
+                    <th>{mode === 'scheduled' ? 'المكان' : 'النتيجة'}</th>
+                    <th>الحالة</th>
+                    {mode === 'scheduled' && canManage && <th className="text-center">إجراءات</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.data.map((exam) => (
+                    <tr key={exam.id}>
+                      <td>
+                        <Link to={`/students/${exam.student.id}`} className="font-bold text-slate-800 hover:text-primary-700">
+                          {exam.student.fullName}
+                        </Link>
+                        <span className="block text-[11px] text-slate-400">{exam.student.circle?.name ?? '—'}</span>
+                      </td>
+                      <td className="text-sm">{describeExamSections(exam.section, exam.sections)}</td>
+                      <td className="numeric text-sm text-slate-600">{formatDateTime(exam.scheduledAt)}</td>
+                      <td className="text-sm text-slate-600">{exam.examiner?.fullName ?? '—'}</td>
+                      <td className="text-sm">
+                        {mode === 'scheduled' ? (
+                          exam.location || '—'
+                        ) : exam.score != null ? (
+                          <>
+                            <span className="numeric font-bold">{exam.score}</span>
+                            <span className="text-slate-400"> / 100</span>
+                            {exam.evaluation && (
+                              <Badge className={`ms-2 ${EVALUATION_COLORS[exam.evaluation]}`}>
+                                {EVALUATION_LABELS[exam.evaluation]}
+                              </Badge>
+                            )}
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>
+                        <Badge className={EXAM_STATUS_COLORS[exam.status]}>{EXAM_STATUS_LABELS[exam.status]}</Badge>
+                        {exam.result && (
+                          <span className={`block text-[11px] font-bold ${exam.result === 'PASSED' ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {exam.result === 'PASSED' ? 'ناجح' : 'راسب'}
+                          </span>
+                        )}
+                      </td>
+                      {mode === 'scheduled' && canManage && (
+                        <td>
+                          <div className="flex justify-center gap-1.5">
+                            <Button size="sm" variant="success" icon={<IconCheck size={14} />} onClick={() => setGrading(exam)}>
+                              رصد النتيجة
+                            </Button>
+                            <Button size="sm" variant="secondary" onClick={() => setEditing(exam)}>
+                              تعديل
+                            </Button>
+                            <Button size="sm" variant="danger" onClick={() => onAbsent(exam)}>
+                              غياب
+                            </Button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={page} totalPages={data.meta.totalPages} total={data.meta.total} onChange={setPage} />
+          </>
+        )}
+      </Card>
+
+      {grading && <ResultModal exam={grading} onClose={() => setGrading(null)} />}
+      {editing && <EditExamModal exam={editing} onClose={() => setEditing(null)} />}
+    </>
   );
 }
 
@@ -510,325 +436,313 @@ function HistoryTab({
 // MODALS
 // ============================================================================
 
-function CreateExamModal({ onClose }: { onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState({
-    studentId: '',
-    section: '',
-    sections: '',
-    scheduledAt: '',
-    examinerId: '',
-    notes: '',
+function useExaminers() {
+  return useQuery({
+    queryKey: ['exams', 'examiners'],
+    queryFn: async () => (await api.get<Examiner[]>('/exams/examiners')).data,
   });
-  const [error, setError] = useState('');
-
-  const { data: students } = useQuery({
-    queryKey: ['students', 'options'],
-    queryFn: async () => (await api.get<{ id: string; fullName: string; code: string }[]>('/students/options')).data,
-  });
-
-  const { data: examiners } = useQuery({
-    queryKey: ['users', 'examiners'],
-    queryFn: async () => (await api.get<{ id: string; fullName: string }[]>('/users/examiners')).data,
-  });
-
-  const mutation = useMutation({
-    mutationFn: () => api.post('/exams', form),
-    onSuccess: () => {
-      toast.success('تم إنشاء الاختبار');
-      queryClient.invalidateQueries({ queryKey: ['exams'] });
-      onClose();
-    },
-    onError: (err) => setError(apiError(err)),
-  });
-
-  const set = (key: string, value: unknown) => {
-    setForm((f) => ({ ...f, [key]: value }));
-    setError('');
-  };
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="إنشاء اختبار جديد"
-      size="md"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            إلغاء
-          </Button>
-          <Button
-            onClick={() => mutation.mutate()}
-            loading={mutation.isPending}
-            disabled={!form.studentId || !form.section || !form.scheduledAt}
-          >
-            إنشاء الاختبار
-          </Button>
-        </>
-      }
-    >
-      {error && (
-        <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs text-red-700">
-          {error}
-        </div>
-      )}
-
-      <div className="space-y-4">
-        <Select
-          label="الطالب"
-          required
-          value={form.studentId}
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => set('studentId', e.target.value)}
-        >
-          <option value="">اختر الطالب</option>
-          {(students ?? []).map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.fullName} ({s.code})
-            </option>
-          ))}
-        </Select>
-
-        <input
-          type="text"
-          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-          placeholder="المدى (مثال: 1-5)"
-          value={form.section}
-          onChange={(e) => set('section', e.target.value)}
-        />
-
-        <input
-          type="text"
-          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-          placeholder="الأجزاء (اختياري)"
-          value={form.sections}
-          onChange={(e) => set('sections', e.target.value)}
-        />
-
-        <input
-          type="datetime-local"
-          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-          required
-          value={form.scheduledAt}
-          onChange={(e) => set('scheduledAt', e.target.value)}
-        />
-
-        <Select
-          label="الممتحن"
-          value={form.examinerId}
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => set('examinerId', e.target.value)}
-        >
-          <option value="">اختر الممتحن</option>
-          {(examiners ?? []).map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.fullName}
-            </option>
-          ))}
-        </Select>
-
-        <Textarea
-          label="ملاحظات"
-          value={form.notes}
-          onChange={(e) => set('notes', e.target.value)}
-        />
-      </div>
-    </Modal>
-  );
 }
 
-function EditExamModal({ exam, onClose }: { exam: any; onClose: () => void }) {
+function ScheduleModal({ request, onClose }: { request: ExamRequest; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({
-    section: exam.section || '',
-    sections: exam.sections || '',
-    scheduledAt: exam.scheduledAt ? exam.scheduledAt.slice(0, 16) : '',
-    examinerId: exam.examiner?.id || exam.examinerId || '',
-    notes: exam.notes || '',
-    result: exam.result || '',
-    score: exam.score ?? '',
-  });
-  const [error, setError] = useState('');
-
-  const { data: examiners } = useQuery({
-    queryKey: ['users', 'examiners'],
-    queryFn: async () => (await api.get<{ id: string; fullName: string }[]>('/users/examiners')).data,
-  });
+  const examiners = useExaminers();
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [examinerId, setExaminerId] = useState('');
+  const [location, setLocation] = useState('');
+  const [notes, setNotes] = useState('');
 
   const mutation = useMutation({
-    mutationFn: () => api.patch(`/exams/${exam.id}`, form),
+    mutationFn: () =>
+      api.post(`/exams/requests/${request.id}/schedule`, {
+        scheduledAt: new Date(scheduledAt).toISOString(),
+        examinerId: examinerId || undefined,
+        location: location || undefined,
+        notes: notes || undefined,
+      }),
     onSuccess: () => {
-      toast.success('تم تحديث الاختبار');
+      toast.success('تمت جدولة الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
       onClose();
     },
-    onError: (err) => setError(apiError(err)),
+    onError: (error) => toast.error(apiError(error)),
   });
-
-  const set = (key: string, value: unknown) => {
-    setForm((f) => ({ ...f, [key]: value }));
-    setError('');
-  };
 
   return (
     <Modal
       open
       onClose={onClose}
-      title="تعديل الاختبار"
-      size="md"
+      title={`جدولة اختبار ${request.student.fullName}`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
-          <Button
-            onClick={() => mutation.mutate()}
-            loading={mutation.isPending}
-            disabled={!form.section || !form.scheduledAt}
-          >
-            حفظ التعديلات
+          <Button loading={mutation.isPending} disabled={!scheduledAt} onClick={() => mutation.mutate()}>
+            جدولة
           </Button>
         </>
       }
     >
-      {error && (
-        <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs text-red-700">
-          {error}
-        </div>
-      )}
-
-      <div className="space-y-4">
-        <input
-          type="text"
-          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-          placeholder="المدى (مثال: 1-5)"
-          required
-          value={form.section}
-          onChange={(e) => set('section', e.target.value)}
-        />
-
-        <input
-          type="text"
-          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-          placeholder="الأجزاء (اختياري)"
-          value={form.sections}
-          onChange={(e) => set('sections', e.target.value)}
-        />
-
-        <input
-          type="datetime-local"
-          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-          required
-          value={form.scheduledAt}
-          onChange={(e) => set('scheduledAt', e.target.value)}
-        />
-
-        <Select
-          label="الممتحن"
-          value={form.examinerId}
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => set('examinerId', e.target.value)}
-        >
-          <option value="">اختر الممتحن</option>
-          {(examiners ?? []).map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.fullName}
-            </option>
-          ))}
-        </Select>
-
-        <Select
-          label="النتيجة"
-          value={form.result}
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => set('result', e.target.value)}
-        >
+      <div className="space-y-3">
+        <p className="text-sm text-slate-500">المطلوب: {describeRequest(request)}</p>
+        <Input label="موعد الاختبار" type="datetime-local" required value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+        <Select label="الممتحن" value={examinerId} onChange={(e) => setExaminerId(e.target.value)}>
           <option value="">غير محدد</option>
-          <option value="PASSED">ناجح</option>
-          <option value="FAILED">لم يجتز</option>
+          {examiners.data?.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.fullName}
+            </option>
+          ))}
         </Select>
-
-        {form.result && (
-          <input
-            type="number"
-            className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-            min={0}
-            max={100}
-            placeholder="الدرجة"
-            value={form.score}
-            onChange={(e) => set('score', e.target.value ? Number(e.target.value) : '')}
-          />
-        )}
-
-        <Textarea
-          label="ملاحظات"
-          value={form.notes}
-          onChange={(e) => set('notes', e.target.value)}
-        />
+        <Input label="المكان" placeholder="قاعة الاختبارات" value={location} onChange={(e) => setLocation(e.target.value)} />
+        <Textarea label="ملاحظات" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </div>
     </Modal>
   );
 }
 
-function ViewExamModal({ exam, onClose }: { exam: any; onClose: () => void }) {
+function RejectModal({ request, onClose }: { request: ExamRequest; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [reviewNote, setReviewNote] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: () => api.patch(`/exams/requests/${request.id}/reject`, { reviewNote: reviewNote || undefined }),
+    onSuccess: () => {
+      toast.success('تم رفض الطلب');
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+      onClose();
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
+
   return (
     <Modal
       open
       onClose={onClose}
-      title="تفاصيل الاختبار"
-      size="md"
+      title={`رفض طلب اختبار ${request.student.fullName}`}
+      size="sm"
       footer={
-        <Button variant="secondary" onClick={onClose}>
-          إغلاق
-        </Button>
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            إلغاء
+          </Button>
+          <Button variant="danger" loading={mutation.isPending} onClick={() => mutation.mutate()}>
+            رفض الطلب
+          </Button>
+        </>
       }
     >
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs text-slate-400">الطالب</p>
-            <p className="font-semibold">{exam.student?.fullName || exam.studentName || 'غير معروف'}</p>
+      <Textarea label="سبب الرفض" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} />
+    </Modal>
+  );
+}
+
+function ResultModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [score, setScore] = useState('');
+  const [mistakes, setMistakes] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const numeric = score === '' ? null : Number(score);
+  const valid = numeric !== null && Number.isInteger(numeric) && numeric >= 0 && numeric <= 100;
+  const preview = valid ? scoreEvaluation(numeric) : null;
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.patch(`/exams/${exam.id}/result`, {
+        score: numeric,
+        mistakes: mistakes === '' ? undefined : Number(mistakes),
+        notes: notes || undefined,
+      }),
+    onSuccess: () => {
+      toast.success('تم رصد النتيجة');
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+      onClose();
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`نتيجة ${exam.student.fullName}`}
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            إلغاء
+          </Button>
+          <Button loading={mutation.isPending} disabled={!valid} onClick={() => mutation.mutate()}>
+            حفظ النتيجة
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <Input
+          label="الدرجة من 100"
+          type="number"
+          min={0}
+          max={100}
+          required
+          value={score}
+          onChange={(e) => setScore(e.target.value)}
+        />
+        {preview && (
+          <p className="text-sm">
+            التقدير: <Badge className={EVALUATION_COLORS[preview]}>{EVALUATION_LABELS[preview]}</Badge>
+          </p>
+        )}
+        <Input label="عدد الأخطاء (اختياري)" type="number" min={0} value={mistakes} onChange={(e) => setMistakes(e.target.value)} />
+        <Textarea label="ملاحظات" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
+    </Modal>
+  );
+}
+
+function EditExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const examiners = useExaminers();
+  const [scheduledAt, setScheduledAt] = useState(toInputDateTime(exam.scheduledAt));
+  const [examinerId, setExaminerId] = useState(exam.examiner?.id ?? '');
+  const [location, setLocation] = useState(exam.location ?? '');
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.patch(`/exams/${exam.id}`, {
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+        examinerId: examinerId || undefined,
+        location: location || undefined,
+      }),
+    onSuccess: () => {
+      toast.success('تم تعديل الاختبار');
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+      onClose();
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`تعديل اختبار ${exam.student.fullName}`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            إلغاء
+          </Button>
+          <Button loading={mutation.isPending} disabled={!scheduledAt} onClick={() => mutation.mutate()}>
+            حفظ
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <Input label="موعد الاختبار" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+        <Select label="الممتحن" value={examinerId} onChange={(e) => setExaminerId(e.target.value)}>
+          <option value="">غير محدد</option>
+          {examiners.data?.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.fullName}
+            </option>
+          ))}
+        </Select>
+        <Input label="المكان" value={location} onChange={(e) => setLocation(e.target.value)} />
+      </div>
+    </Modal>
+  );
+}
+
+function CreateRequestModal({ onClose }: { onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
+  const debounced = useDebounce(search);
+  const [student, setStudent] = useState<Student | null>(null);
+  const [hizb, setHizb] = useState('');
+  const [juz, setJuz] = useState('');
+  const [combined, setCombined] = useState('');
+  const [note, setNote] = useState('');
+
+  const students = useQuery({
+    queryKey: ['exams', 'student-search', debounced],
+    enabled: !student && debounced.trim().length > 0,
+    queryFn: async () =>
+      (await api.get<PaginatedResponse<Student>>('/students', { params: { search: debounced, limit: 8 } })).data,
+  });
+
+  const hasValue = hizb !== '' || juz !== '' || combined !== '';
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.post('/exams/requests', {
+        studentId: student!.id,
+        requestedHizb: hizb === '' ? undefined : Number(hizb),
+        requestedJuz: juz === '' ? undefined : Number(juz),
+        requestedCombined: combined === '' ? undefined : Number(combined),
+        note: note || undefined,
+      }),
+    onSuccess: () => {
+      toast.success('تم تقديم طلب الاختبار');
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+      onClose();
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="طلب اختبار جديد"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            إلغاء
+          </Button>
+          <Button loading={mutation.isPending} disabled={!student || !hasValue} onClick={() => mutation.mutate()}>
+            تقديم الطلب
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        {student ? (
+          <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
+            <span className="text-sm font-bold text-slate-800">
+              {student.fullName} <span className="numeric text-xs font-normal text-slate-400">{student.code}</span>
+            </span>
+            <button className="text-xs text-primary-700" onClick={() => setStudent(null)}>
+              تغيير
+            </button>
           </div>
+        ) : (
           <div>
-            <p className="text-xs text-slate-400">المدى</p>
-            <p className="font-semibold">{describeExamSections(exam.section, exam.sections)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-400">التاريخ</p>
-            <p className="font-semibold">{formatDateTime(exam.scheduledAt)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-400">الحالة</p>
-            <Badge className={EXAM_STATUS_COLORS[exam.status as ExamStatus] || 'bg-slate-100 text-slate-600'}>
-              {EXAM_STATUS_LABELS[exam.status as ExamStatus] || exam.status}
-            </Badge>
-          </div>
-          <div>
-            <p className="text-xs text-slate-400">الممتحن</p>
-            <p className="font-semibold">{exam.examiner?.fullName || exam.examinerName || 'غير محدد'}</p>
-          </div>
-          {exam.result && (
-            <>
-              <div>
-                <p className="text-xs text-slate-400">النتيجة</p>
-                <Badge
-                  className={
-                    exam.result === 'PASSED' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                  }
-                >
-                  {exam.result === 'PASSED' ? 'ناجح' : 'لم يجتز'}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-xs text-slate-400">الدرجة</p>
-                <p className="font-semibold">{exam.score ?? '—'}</p>
-              </div>
-            </>
-          )}
-        </div>
-        {exam.notes && (
-          <div>
-            <p className="text-xs text-slate-400">ملاحظات</p>
-            <p className="text-sm text-slate-700">{exam.notes}</p>
+            <Input label="الطالب" required placeholder="ابحث باسم الطالب أو رقمه" value={search} onChange={(e) => setSearch(e.target.value)} />
+            {students.data?.data.length ? (
+              <ul className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-100">
+                {students.data.data.map((s) => (
+                  <li key={s.id}>
+                    <button className="w-full px-3 py-2 text-start text-sm hover:bg-slate-50" onClick={() => setStudent(s)}>
+                      {s.fullName} <span className="numeric text-xs text-slate-400">{s.code}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              debounced.trim() && !students.isLoading && <p className="mt-2 text-xs text-slate-400">لا توجد نتائج</p>
+            )}
           </div>
         )}
+
+        <div className="grid grid-cols-3 gap-3">
+          <Input label="الحزب" type="number" min={1} max={60} value={hizb} onChange={(e) => setHizb(e.target.value)} />
+          <Input label="الجزء" type="number" min={1} max={30} value={juz} onChange={(e) => setJuz(e.target.value)} />
+          <Input label="المجتمعة" type="number" min={1} max={60} value={combined} onChange={(e) => setCombined(e.target.value)} />
+        </div>
+        <p className="text-xs text-slate-400">أدخل حزباً أو جزءاً أو مجتمعة واحدة على الأقل.</p>
+        <Textarea label="ملاحظات" value={note} onChange={(e) => setNote(e.target.value)} />
       </div>
     </Modal>
   );

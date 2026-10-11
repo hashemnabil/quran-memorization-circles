@@ -7,6 +7,7 @@ import { RedirectIfAuthenticated, RequireAuth, RequireRole } from '@/components/
 
 import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
+import StudentPortalPage from '@/pages/StudentPortalPage';
 import ReportsPage from '@/pages/ReportsPage';
 import CirclesPage from '@/pages/circles/CirclesPage';
 import CircleDetailsPage from '@/pages/circles/CircleDetailsPage';
@@ -70,7 +71,8 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<DashboardPage />} />
+        <Route index element={useAuthStore.getState().user?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
+        <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
 
         {/* The exam committee works from the exam queue only, so the circle

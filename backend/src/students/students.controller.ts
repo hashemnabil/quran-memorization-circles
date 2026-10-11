@@ -72,7 +72,7 @@ export class StudentsController {
   }
 
   @Post('credentials-export')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   @ApiOperation({ summary: 'تصدير بيانات دخول الطلاب المنشأة للتو إلى Excel' })
   async exportCredentials(
     @Body() body: { credentials?: { fullName: string; code?: string; username: string; temporaryPassword: string }[] },

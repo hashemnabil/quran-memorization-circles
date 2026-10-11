@@ -810,45 +810,14 @@ export class ExamsService {
     const student = await this.acl.assertStudentWriteAccess(actor, dto.studentId);
     this.validateStudentStatus(student);
 
-    const hasManual = [dto.requestedHizb, dto.requestedJuz, dto.requestedCombined].some(
-      (value) => value != null,
-    );
-    if (hasManual) {
-      throw new BadRequestException('يرجى اختيار الأحزاب والأجزاء من قائمة التسلسل، لضمان تطبيق ترتيب الاختبارات');
+    const sectionIds = [...new Set(dto.sectionIds ?? [])];
+    if (sectionIds.length === 0) {
+      throw new BadRequestException('يجب تحديد حزب أو جزء أو مجتمعة واحد على الأقل من القائمة');
     }
 
-    let sections: any[];
-    let label: string;
-
-    if (hasManual) {
-      const activeSections = await this.prisma.examSection.findMany({
-        where: { isActive: true, kind: 'HIZB' },
-        orderBy: { order: 'asc' },
-      });
-
-      if (!activeSections.length) {
-        throw new BadRequestException('لا توجد أحزاب اختبار مفعلة حالياً');
-      }
-
-      const anchorOrder = dto.requestedHizb
-        ?? (dto.requestedJuz ? (dto.requestedJuz - 1) * 2 + 1 : activeSections[0].order);
-      const primary = activeSections.find((section) => section.order === anchorOrder) ?? activeSections[0];
-      sections = [primary];
-
-      const parts: string[] = [];
-      if (dto.requestedHizb != null) parts.push(`حزب ${dto.requestedHizb}`);
-      if (dto.requestedJuz != null) parts.push(`جزء ${dto.requestedJuz}`);
-      if (dto.requestedCombined != null) parts.push(`مجتمعة ${dto.requestedCombined}`);
-      label = parts.join(' + ');
-    } else {
-      const sectionIds = [...new Set(dto.sectionIds ?? [])];
-      if (sectionIds.length === 0) {
-        throw new BadRequestException('يجب تحديد حزب أو جزء أو مجتمعة واحد على الأقل');
-      }
-      sections = await this.fetchActiveSections(sectionIds);
-      await this.validateAllSectionsEligibility(dto.studentId, sections);
-      label = this.sectionsLabel(sections);
-    }
+    const sections = await this.fetchActiveSections(sectionIds);
+    await this.validateAllSectionsEligibility(dto.studentId, sections);
+    const label = this.sectionsLabel(sections);
 
     const primary = sections[0];
     const teacherId = await this.resolveTeacherId(actor, student.circleId);
@@ -859,11 +828,8 @@ export class ExamsService {
         sectionId: primary.id,
         teacherId,
         note: dto.note,
-        requestedHizb: dto.requestedHizb,
-        requestedJuz: dto.requestedJuz,
-        requestedCombined: dto.requestedCombined,
         sections: {
-          create: hasManual ? [] : sections.map((section) => ({ sectionId: section.id })),
+          create: sections.map((section) => ({ sectionId: section.id })),
         },
       },
       include: REQUEST_INCLUDE,

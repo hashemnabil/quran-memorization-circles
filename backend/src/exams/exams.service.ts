@@ -669,11 +669,14 @@ export class ExamsService {
       },
     });
 
-    const manualPassed = await this.prisma.examMilestoneRecord.findFirst({
-      where: { studentId, sectionId, status: 'COMPLETED', OR: [{ result: ExamResult.PASSED }, { result: null }] },
-      select: { id: true },
+    const manualRecord = await this.prisma.examMilestoneRecord.findUnique({
+      where: { studentId_sectionId: { studentId, sectionId } },
+      select: { status: true, result: true },
     });
-    if (alreadyPassed || manualPassed) {
+    const effectivelyPassed = manualRecord
+      ? manualRecord.status === 'COMPLETED' && manualRecord.result !== ExamResult.FAILED
+      : Boolean(alreadyPassed);
+    if (effectivelyPassed) {
       throw new ConflictException(`الطالب اجتاز "${section.name}" مسبقاً`);
     }
 

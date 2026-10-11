@@ -43,6 +43,7 @@ import RegistryAdminPage from '@/pages/RegistryAdminPage';
 
 export default function App() {
   const loadSession = useAuthStore((s) => s.loadSession);
+  const currentUser = useAuthStore((s) => s.user);
 
   useEffect(() => {
     void loadSession();
@@ -71,7 +72,7 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={useAuthStore.getState().user?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
+        <Route index element={currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
 

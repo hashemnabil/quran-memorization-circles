@@ -21,7 +21,7 @@ export class ReportsService {
 
   async getReport(user: AuthUser, type: ReportType, q: Record<string, string>) {
     if (!['attendance','recitations','exams','student','circles'].includes(type)) throw new BadRequestException('نوع التقرير غير معروف');
-    if (user.role !== Role.ADMIN && ![Role.SUPERVISOR, Role.TEACHER].includes(user.role)) {
+    if (user.role !== Role.ADMIN && user.role !== Role.SUPERVISOR && user.role !== Role.TEACHER) {
       throw new BadRequestException('لا تملك صلاحية عرض التقارير');
     }
     const from = DATE(q.from), to = DATE(q.to);
@@ -63,7 +63,7 @@ export class ReportsService {
     }
     if (type === 'student') {
       if (!q.studentId) throw new BadRequestException('اختر الطالب أولاً لعرض ملفه الشامل');
-      const student = await this.prisma.student.findFirst({ where: { id:q.studentId, ...studentScope, deletedAt:null }, include:{ circle:{select:{name:true}}, attendance:{orderBy:{date:'desc'},include:{circle:{select:{name:true}}},take:10000}, recitations:{where:{deletedAt:null},orderBy:{date:'desc'},include:{circle:{select:{name:true}},teacher:{include:{user:{select:{fullName:true}}}}},take:10000}, exams:{orderBy:{scheduledAt:'desc'},include:{section:{select:{name:true}},examiner:{select:{fullName:true}}},take:10000} } });
+      const student = await this.prisma.student.findFirst({ where: { id:q.studentId, ...studentScope, deletedAt:null }, include:{ circle:{select:{name:true}}, attendance:{where:allowed===null?{}:{circleId:{in:allowed}},orderBy:{date:'desc'},include:{circle:{select:{name:true}}},take:10000}, recitations:{where:{deletedAt:null,...(allowed===null?{}:{circleId:{in:allowed}})},orderBy:{date:'desc'},include:{circle:{select:{name:true}},teacher:{include:{user:{select:{fullName:true}}}}},take:10000}, exams:{orderBy:{scheduledAt:'desc'},include:{section:{select:{name:true}},examiner:{select:{fullName:true}}},take:10000} } });
       if (!student) throw new BadRequestException('الطالب غير موجود أو لا تملك صلاحية الوصول إليه');
       return { type, student:{id:student.id,code:student.code,fullName:student.fullName,gender:student.gender,status:student.status,circle:student.circle?.name??'',enrollmentDate:student.enrollmentDate,phone:student.phone??'',guardianName:student.guardianName??'',guardianPhone:student.guardianPhone??'',memorizedParts:student.memorizedParts,totalPoints:student.totalPoints}, attendance:student.attendance.map(a=>({date:a.date,circle:a.circle.name,status:arabicAttendance[a.status]??a.status,note:a.note??''})), recitations:student.recitations.map(r=>({date:r.date,circle:r.circle.name,teacher:r.teacher.user.fullName,type:r.type,from:`${r.fromSurah}:${r.fromAyah}`,to:`${r.toSurah}:${r.toAyah}`,pages:r.pagesCount??0,verses:r.versesCount??0,points:r.points,evaluation:r.evaluation??''})), exams:student.exams.map(e=>({date:e.scheduledAt,section:e.section.name,examiner:e.examiner?.fullName??'',status:e.status,score:e.score??'',result:e.result??'',evaluation:e.evaluation??''})), stats:{attendance:student.attendance.length,recitations:student.recitations.length,exams:student.exams.length,points:student.totalPoints} };
     }

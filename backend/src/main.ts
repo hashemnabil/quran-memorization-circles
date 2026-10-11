@@ -13,6 +13,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
     logger: ['log', 'error', 'warn'],
   });
   const config = app.get(ConfigService);

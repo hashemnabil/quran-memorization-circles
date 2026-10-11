@@ -449,7 +449,6 @@ function StudentFormModal({
     birthDate: '',
     nationalId: '',
     fatherNationalId: '',
-    phone: '',
     guardianName: '',
     guardianPhone: '',
     guardianRelation: 'الأب',

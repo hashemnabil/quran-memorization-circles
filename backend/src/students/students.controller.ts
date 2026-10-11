@@ -36,6 +36,54 @@ export class StudentsController {
     return this.service.getMyProfile(user);
   }
 
+  @Get('accounts/export')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'تصدير بيانات حسابات الطلاب إلى Excel' })
+  async exportStudentAccounts(@Res() response: Response) {
+    const rows = await this.service.listAccounts();
+    const worksheet = XLSX.utils.json_to_sheet(rows.map((r) => ({
+      'اسم الطالب': r.fullName,
+      'رقم الهوية': r.nationalId ?? '',
+      'رقم الجوال': r.phone ?? '',
+      'اسم المستخدم': r.username,
+      'حالة الحساب': r.isActive ? 'نشط' : 'موقوف',
+      'كلمة المرور المؤقتة': r.mustChangePassword ? 'مطلوب تغييرها عند أول دخول (لا تُخزّن كنص)' : '',
+    })));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'حسابات الطلاب');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .setHeader('Content-Disposition', 'attachment; filename="student-accounts.xlsx"')
+      .setHeader('Cache-Control', 'no-store').send(buffer);
+  }
+
+  @Get('accounts')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'حسابات الطلاب المرتبطة بملفاتهم' })
+  listAccounts() { return this.service.listAccounts(); }
+
+  @Post(':id/account')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'إنشاء حساب دخول لطالب مسجل مسبقاً' })
+  createAccount(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.createAccountForStudent(user, id);
+  }
+
+  @Post(':id/account/reset-password')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'إعادة تعيين كلمة مرور حساب الطالب' })
+  resetAccountPassword(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.resetStudentAccountPassword(user, id);
+  }
+
+  @Patch(':id/account/active')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'تفعيل أو إيقاف حساب الطالب' })
+  setAccountActive(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { isActive: boolean }) {
+    return this.service.setStudentAccountActive(user, id, body.isActive === true);
+  }
+
+
   @Get(':id')
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   @ApiOperation({ summary: 'ملف الطالب الموحّد' })
@@ -99,53 +147,6 @@ export class StudentsController {
       .send(buffer);
   }
 
-
-  @Get('accounts/export')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'تصدير بيانات حسابات الطلاب إلى Excel' })
-  async exportStudentAccounts(@Res() response: Response) {
-    const rows = await this.service.listAccounts();
-    const worksheet = XLSX.utils.json_to_sheet(rows.map((r) => ({
-      'اسم الطالب': r.fullName,
-      'رقم الهوية': r.nationalId ?? '',
-      'رقم الجوال': r.phone ?? '',
-      'اسم المستخدم': r.username,
-      'حالة الحساب': r.isActive ? 'نشط' : 'موقوف',
-      'كلمة المرور المؤقتة': r.mustChangePassword ? 'مطلوب تغييرها عند أول دخول (لا تُخزّن كنص)' : '',
-    })));
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'حسابات الطلاب');
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-      .setHeader('Content-Disposition', 'attachment; filename="student-accounts.xlsx"')
-      .setHeader('Cache-Control', 'no-store').send(buffer);
-  }
-
-  @Get('accounts')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'حسابات الطلاب المرتبطة بملفاتهم' })
-  listAccounts() { return this.service.listAccounts(); }
-
-  @Post(':id/account')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'إنشاء حساب دخول لطالب مسجل مسبقاً' })
-  createAccount(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.service.createAccountForStudent(user, id);
-  }
-
-  @Post(':id/account/reset-password')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'إعادة تعيين كلمة مرور حساب الطالب' })
-  resetAccountPassword(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.service.resetStudentAccountPassword(user, id);
-  }
-
-  @Patch(':id/account/active')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'تفعيل أو إيقاف حساب الطالب' })
-  setAccountActive(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { isActive: boolean }) {
-    return this.service.setStudentAccountActive(user, id, body.isActive === true);
-  }
 
   // A teacher may register a student straight into their own circle; the
   // service pins the circle so the role cannot be used to reach another one.

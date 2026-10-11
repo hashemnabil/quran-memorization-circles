@@ -485,6 +485,11 @@ export class StudentsService {
         where: { nationalId: dto.nationalId, deletedAt: null },
       });
       if (dup) throw new ConflictException('رقم الهوية مسجل مسبقاً لطالب آخر');
+      const usernameTaken = await this.prisma.user.findFirst({
+        where: { username: dto.nationalId.toLowerCase(), deletedAt: null },
+        select: { id: true },
+      });
+      if (usernameTaken) throw new ConflictException('رقم الهوية مستخدم كاسم دخول لحساب آخر');
     }
     const code = dto.code?.trim() || (await this.nextCode());
 

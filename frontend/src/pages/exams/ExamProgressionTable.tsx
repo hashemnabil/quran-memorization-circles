@@ -7,7 +7,7 @@ import { formatDateShort } from '@/lib/format';
 import type { Exam, ExamEligibility } from '@/types';
 
 type ExamRow = Exam & { scheduledAt: string; examiner?: { fullName: string } | null; gradedBy?: { fullName: string } | null };
-type MilestoneRecord = { id: string; sectionId: string; status: 'NOT_REQUESTED' | 'REQUESTED' | 'SCHEDULED' | 'COMPLETED'; score: number | null; examDate: string | null; examinerName: string | null; section: { id: string; code: string; name: string; order: number } };
+type MilestoneRecord = { id: string; sectionId: string; status: 'NOT_REQUESTED' | 'REQUESTED' | 'SCHEDULED' | 'COMPLETED'; score: number | null; requestedAt: string | null; examDate: string | null; examinerName: string | null; section: { id: string; code: string; name: string; order: number } };
 type ExamRequestRow = { status: 'PENDING' | 'SCHEDULED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED'; sectionId: string; section: { id: string; code: string }; sections?: { section: { id: string; code: string } }[] };
 
 function sequence() {
@@ -34,7 +34,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft] = useState<{ status: string; score: string; examDate: string; examinerName: string }>({ status: 'NOT_REQUESTED', score: '', examDate: '', examinerName: '' });
+  const [draft, setDraft] = useState<{ status: string; score: string; requestedAt: string; examDate: string; examinerName: string }>({ status: 'NOT_REQUESTED', score: '', requestedAt: '', examDate: '', examinerName: '' });
   const recordsQuery = useQuery({
     queryKey: ['exams', 'milestones', studentId],
     enabled: !!studentId,
@@ -51,6 +51,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
     mutationFn: async (sectionId: string) => (await api.patch(`/exams/milestones/${studentId}/${sectionId}`, {
       status: draft.status,
       score: draft.score === '' ? null : Number(draft.score),
+      requestedAt: draft.requestedAt || null,
       examDate: draft.examDate || null,
       examinerName: draft.examinerName || null,
     })).data,
@@ -104,7 +105,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
                 <td className="font-medium">{row.label}</td>
                 <td><Badge className={row.passed ? 'bg-emerald-100 text-emerald-800' : row.pending ? 'bg-blue-100 text-blue-800' : row.unlocked ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'}>{status}</Badge></td>
                 <td className="numeric">{score == null ? '—' : score}</td>
-                <td className="numeric">{record?.examDate ? formatDateShort(record.examDate) : row.related?.scheduledAt ? formatDateShort(row.related.scheduledAt) : '—'}</td>
+                <td className="numeric">{record?.examDate ? formatDateShort(record.examDate) : row.related?.scheduledAt ? formatDateShort(row.related.scheduledAt) : record?.requestedAt ? formatDateShort(record.requestedAt) : '—'}</td>
                 <td>{record?.examinerName || row.related?.examiner?.fullName || row.related?.gradedBy?.fullName || '—'}</td>
                 {canEditMilestones && <td>
                   {editing === row.key ? (
@@ -113,11 +114,12 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
                         <option value="NOT_REQUESTED">لم يُطلب اختبار</option><option value="REQUESTED">طُلب اختبار</option><option value="SCHEDULED">محدد / قيد الاختبار</option><option value="COMPLETED">تم الاختبار</option>
                       </select>
                       <input className="form-input w-full" type="number" min="0" max="100" placeholder="العلامة / 100" value={draft.score} onChange={(e) => setDraft({ ...draft, score: e.target.value })} />
-                      <input className="form-input w-full" type="date" value={draft.examDate} onChange={(e) => setDraft({ ...draft, examDate: e.target.value })} />
+                      <input className="form-input w-full" type="date" aria-label="تاريخ الطلب" title="تاريخ الطلب" value={draft.requestedAt} onChange={(e) => setDraft({ ...draft, requestedAt: e.target.value })} />
+                      <input className="form-input w-full" type="date" aria-label="تاريخ الاختبار" title="تاريخ الاختبار" value={draft.examDate} onChange={(e) => setDraft({ ...draft, examDate: e.target.value })} />
                       <input className="form-input w-full" placeholder="اسم الممتحن" value={draft.examinerName} onChange={(e) => setDraft({ ...draft, examinerName: e.target.value })} />
                       <div className="flex gap-1"><button className="btn btn-primary btn-sm" disabled={saveRecord.isPending} onClick={() => saveRecord.mutate(row.section?.id || record?.sectionId || '')}>حفظ</button><button className="btn btn-secondary btn-sm" onClick={() => setEditing(null)}>إلغاء</button></div>
                     </div>
-                  ) : <button className="btn btn-secondary btn-sm" onClick={() => { setEditing(row.key); setDraft({ status: record?.status ?? (row.pending ? 'SCHEDULED' : row.passed ? 'COMPLETED' : 'NOT_REQUESTED'), score: score == null ? '' : String(score), examDate: (record?.examDate ?? row.related?.scheduledAt ?? '').slice(0, 10), examinerName: record?.examinerName ?? row.related?.examiner?.fullName ?? '' }); }}>تعديل</button>}
+                  ) : <button className="btn btn-secondary btn-sm" onClick={() => { setEditing(row.key); setDraft({ status: record?.status ?? (row.pending ? 'SCHEDULED' : row.passed ? 'COMPLETED' : 'NOT_REQUESTED'), score: score == null ? '' : String(score), requestedAt: (record?.requestedAt ?? '').slice(0, 10), examDate: (record?.examDate ?? row.related?.scheduledAt ?? '').slice(0, 10), examinerName: record?.examinerName ?? row.related?.examiner?.fullName ?? '' }); }}>تعديل</button>}
                 </td>}
               </tr>;
             })}

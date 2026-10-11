@@ -36,6 +36,7 @@ import {
   ReviewExamRequestDto,
   ScheduleExamDto,
   UpdateExamDto,
+  UpdateExamMilestoneDto,
 } from './dto/exam.dto';
 
 // ============================================================================
@@ -374,6 +375,46 @@ export class ExamsService {
    * 2. ألا يكون الطالب قد اجتازه مسبقاً.
    * 3. ألا يكون عليه طلب اختبار قائم.
    */
+  async milestoneRecords(user: AuthUser, studentId: string) {
+    await this.acl.assertStudentAccess(user, studentId);
+    return this.prisma.examMilestoneRecord.findMany({
+      where: { studentId },
+      include: { section: { select: { id: true, name: true, code: true, order: true, kind: true, minScore: true } } },
+      orderBy: { section: { order: 'asc' } },
+    });
+  }
+
+  async updateMilestoneRecord(actor: AuthUser, studentId: string, sectionId: string, dto: UpdateExamMilestoneDto) {
+    if (actor.role !== Role.ADMIN) {
+      throw new ForbiddenException('تعديل السجل اليدوي للمقررات متاح للإدارة فقط');
+    }
+    const student = await this.prisma.student.findFirst({ where: { id: studentId, deletedAt: null }, select: { id: true } });
+    if (!student) throw new NotFoundException('الطالب غير موجود');
+    const section = await this.prisma.examSection.findFirst({ where: { id: sectionId, isActive: true }, select: { id: true } });
+    if (!section) throw new NotFoundException('مقرر الاختبار غير موجود');
+    const saved = await this.prisma.examMilestoneRecord.upsert({
+      where: { studentId_sectionId: { studentId, sectionId } },
+      create: {
+        studentId, sectionId, status: dto.status, score: dto.score ?? null,
+        examDate: dto.examDate ? this.parseDate(dto.examDate) : null,
+        examinerName: dto.examinerName ?? null, note: dto.note ?? null, updatedById: actor.id,
+      },
+      update: {
+        status: dto.status, score: dto.score ?? null,
+        examDate: dto.examDate ? this.parseDate(dto.examDate) : null,
+        examinerName: dto.examinerName ?? null, note: dto.note ?? null, updatedById: actor.id,
+      },
+      include: { section: true },
+    });
+    this.clearCache();
+    await this.activity.log({
+      userId: actor.id, action: 'EXAM_MILESTONE_OVERRIDE',
+      summary: `تعديل سجل اختبار ${saved.section.name} للطالب ${studentId}: ${dto.status}`,
+      entityType: 'ExamMilestoneRecord', entityId: saved.id,
+    });
+    return saved;
+  }
+
   async eligibility(user: AuthUser, studentId: string): Promise<EligibilityResult> {
     await this.acl.assertStudentAccess(user, studentId);
 
@@ -447,6 +488,12 @@ export class ExamsService {
     this.logger.log(`📊 عدد الطلبات المفتوحة: ${openWork.length}`);
 
     // ✅ تأكد من أن passedIds تحتوي على المعرفات الصحيحة فقط
+    const manualCompleted = await this.prisma.examMilestoneRecord.findMany({
+      where: { studentId, status: 'COMPLETED' },
+      select: { sectionId: true, score: true },
+    });
+    const manualCompletedIds = new Set(manualCompleted.map((record) => record.sectionId));
+
     const passedIds = new Set(
       passed.flatMap((p) => {
         const ids = [p.sectionId];
@@ -456,6 +503,7 @@ export class ExamsService {
         return ids;
       }),
     );
+    manualCompletedIds.forEach((id) => passedIds.add(id));
 
     // ✅ تأكد من أن openIds تحتوي على المعرفات الصحيحة فقط
     const openIds = new Set(
@@ -503,6 +551,7 @@ export class ExamsService {
         eligible,
         reason,
         score:
+          manualCompleted.find((record) => record.sectionId === section.id)?.score ??
           passed.find(
             (p) =>
               p.sectionId === section.id ||

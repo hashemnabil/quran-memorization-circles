@@ -659,7 +659,11 @@ export class ExamsService {
       },
     });
 
-    if (alreadyPassed) {
+    const manualPassed = await this.prisma.examMilestoneRecord.findFirst({
+      where: { studentId, sectionId, status: 'COMPLETED' },
+      select: { id: true },
+    });
+    if (alreadyPassed || manualPassed) {
       throw new ConflictException(`الطالب اجتاز "${section.name}" مسبقاً`);
     }
 
@@ -685,6 +689,11 @@ export class ExamsService {
       const passedEarlierIds = new Set(passedEarlier.flatMap((exam) =>
         [exam.sectionId, ...exam.sections.map((entry) => entry.sectionId)].filter(Boolean) as string[],
       ));
+      const manuallyPassedEarlier = await this.prisma.examMilestoneRecord.findMany({
+        where: { studentId, sectionId: { in: earlierRequired.map((item) => item.id) }, status: 'COMPLETED' },
+        select: { sectionId: true },
+      });
+      manuallyPassedEarlier.forEach((record) => passedEarlierIds.add(record.sectionId));
       const missing = earlierRequired.find((item) => !passedEarlierIds.has(item.id));
       if (missing) {
         throw new ConflictException(`لا يمكن طلب اختبار هذا المقرر قبل اجتياز ${missing.name}`);

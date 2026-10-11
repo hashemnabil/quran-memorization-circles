@@ -507,7 +507,14 @@ export class ExamsService {
         return ids;
       }),
     );
-    manualCompletedIds.forEach((id) => passedIds.add(id));
+    for (const record of manualRecords) {
+      if (record.status === 'COMPLETED' && record.result !== ExamResult.FAILED) {
+        passedIds.add(record.sectionId);
+      } else {
+        // An explicit administrative record is authoritative over a grouped exam's overall result.
+        passedIds.delete(record.sectionId);
+      }
+    }
 
     // ✅ تأكد من أن openIds تحتوي على المعرفات الصحيحة فقط
     const openIds = new Set(
@@ -1297,12 +1304,17 @@ export class ExamsService {
         ])
         .filter((id: string) => activeIds.has(id)),
     );
-    const manualCompleted = await tx.examMilestoneRecord.findMany({
-      where: { studentId, status: 'COMPLETED', OR: [{ result: ExamResult.PASSED }, { result: null }] },
-      select: { sectionId: true },
+    const manualRecords = await tx.examMilestoneRecord.findMany({
+      where: { studentId },
+      select: { sectionId: true, status: true, result: true },
     });
-    manualCompleted.forEach((record: any) => {
-      if (activeIds.has(record.sectionId)) passedSections.add(record.sectionId);
+    manualRecords.forEach((record: any) => {
+      if (!activeIds.has(record.sectionId)) return;
+      if (record.status === 'COMPLETED' && record.result !== ExamResult.FAILED) {
+        passedSections.add(record.sectionId);
+      } else {
+        passedSections.delete(record.sectionId);
+      }
     });
 
     await tx.student.update({

@@ -406,6 +406,7 @@ export class ExamsService {
       },
       include: { section: true },
     });
+    await this.updateStudentMemorization(this.prisma, studentId);
     this.clearCache();
     await this.activity.log({
       userId: actor.id, action: 'EXAM_MILESTONE_OVERRIDE',

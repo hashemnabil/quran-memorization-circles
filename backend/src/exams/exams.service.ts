@@ -1380,36 +1380,81 @@ export class ExamsService {
 
     this.validateExamForResult(exam);
 
-    const passed = dto.score >= exam.section.minScore;
-    const evaluation = evaluationFromScore(dto.score);
+    const examSections = exam.sections.length
+      ? exam.sections.map((entry) => entry.section)
+      : [exam.section];
+    if (examSections.length > 1) {
+      if (!dto.sectionScores || dto.sectionScores.length !== examSections.length) {
+        throw new BadRequestException('يجب إدخال علامة مستقلة لكل حزب وجزء في الاختبار المجمع');
+      }
+      const submittedIds = new Set(dto.sectionScores.map((entry) => entry.sectionId));
+      if (examSections.some((section) => !submittedIds.has(section.id))) {
+        throw new BadRequestException('يجب إدخال علامة لكل مقرر في هذا الاختبار دون تكرار أو حذف');
+      }
+    }
+
+    const scoreBySection = new Map((dto.sectionScores ?? []).map((entry) => [entry.sectionId, entry.score]));
+    const sectionScores = examSections.map((section) => ({
+      section,
+      score: scoreBySection.get(section.id) ?? dto.score,
+    }));
+    const overallScore = sectionScores.length > 1
+      ? Math.round(sectionScores.reduce((sum, entry) => sum + entry.score, 0) / sectionScores.length)
+      : dto.score;
+    const resultDto = { ...dto, score: overallScore };
+    const passed = overallScore >= exam.section.minScore;
+    const evaluation = evaluationFromScore(overallScore);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await this.updateExamResult(
         tx,
         id,
-        dto,
+        resultDto,
         passed,
         evaluation,
         actor,
       );
 
+      for (const entry of sectionScores) {
+        const sectionPassed = entry.score >= entry.section.minScore;
+        await tx.examMilestoneRecord.upsert({
+          where: { studentId_sectionId: { studentId: exam.studentId, sectionId: entry.section.id } },
+          create: {
+            studentId: exam.studentId,
+            sectionId: entry.section.id,
+            status: 'COMPLETED',
+            result: sectionPassed ? ExamResult.PASSED : ExamResult.FAILED,
+            score: entry.score,
+            examDate: exam.scheduledAt,
+            examinerName: exam.examiner?.fullName ?? null,
+            updatedById: actor.id,
+          },
+          update: {
+            status: 'COMPLETED',
+            result: sectionPassed ? ExamResult.PASSED : ExamResult.FAILED,
+            score: entry.score,
+            examDate: exam.scheduledAt,
+            examinerName: exam.examiner?.fullName ?? null,
+            updatedById: actor.id,
+          },
+        });
+      }
+
       if (exam.requestId) {
         await this.updateRequestStatus(tx, exam.requestId);
       }
 
-      if (passed) {
-        await this.updateStudentMemorization(tx, exam.studentId);
-      }
+      await this.updateStudentMemorization(tx, exam.studentId);
 
       return result;
     });
 
-    await this.sendResultNotifications(exam, updated, passed, dto.score);
+    await this.sendResultNotifications(exam, updated, passed, overallScore);
 
     await this.activity.log({
       userId: actor.id,
       action: 'EXAM_RESULT',
-      summary: `رصد نتيجة اختبار ${exam.student.fullName} في ${this.examLabel(exam)}: ${dto.score} (${EVALUATION_LABELS[evaluation]})`,
+      summary: `رصد نتيجة اختبار ${exam.student.fullName} في ${this.examLabel(exam)}: ${overallScore} (${EVALUATION_LABELS[evaluation]})`,
       entityType: 'Exam',
       entityId: id,
     });

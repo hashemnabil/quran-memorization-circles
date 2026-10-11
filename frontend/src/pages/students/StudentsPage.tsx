@@ -474,7 +474,7 @@ function StudentFormModal({
           URL.revokeObjectURL(url);
           toast.success('تم تسجيل الطالب وتنزيل ملف بيانات الدخول');
         } catch {
-          toast.error('تم إنشاء الحساب، لكن تعذر تنزيل ملف Excel. راجع مسؤول النظام لإعادة تعيين كلمة المرور.');
+          toast.error('تعذر تنزيل Excel. بيانات الدخول المؤقتة — المستخدم: ' + credentials.username + '، كلمة المرور: ' + credentials.temporaryPassword);
         }
       } else {
         toast.success('تم تسجيل الطالب بنجاح');

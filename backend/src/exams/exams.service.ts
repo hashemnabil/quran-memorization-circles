@@ -1270,10 +1270,11 @@ export class ExamsService {
 
     const active = await tx.examSection.findMany({
       where: { isActive: true },
-      select: { id: true },
+      select: { id: true, kind: true },
     });
 
     const activeIds = new Set(active.map((x: any) => x.id));
+    const activeHizbIds = new Set(active.filter((x: any) => x.kind === 'HIZB').map((x: any) => x.id));
 
     const passedSections = new Set(
       passedExams
@@ -1289,7 +1290,7 @@ export class ExamsService {
       data: {
         memorizedParts: Math.min(
           30,
-          exactJuzFromHizb(passedSections.size),
+          exactJuzFromHizb([...passedSections].filter((id) => activeHizbIds.has(id)).length),
         ),
       },
     });

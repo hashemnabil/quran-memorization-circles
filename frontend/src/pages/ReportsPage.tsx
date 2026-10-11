@@ -40,7 +40,7 @@ export default function ReportsPage() {
  const [evaluation,setEvaluation]=useState('');
  const [refresh,setRefresh]=useState(0);
  const {data:circles=[]}=useQuery({queryKey:['reports','circles-options'],queryFn:async()=> (await api.get<any[]>('/circles/options')).data});
- const {data:courseResponse}=useQuery({queryKey:['reports','courses-options'],queryFn:async()=> (await api.get<any>('/courses',{params:{limit:500}})).data});
+ const {data:courseResponse}=useQuery({queryKey:['reports','courses-options'],queryFn:async()=> (await api.get<any>('/courses',{params:{limit:200}})).data});
  const courses=(courseResponse?.data??courseResponse??[]) as any[];
  const {data:students}=useQuery({queryKey:['reports','students'],queryFn:async()=> (await api.get<any>('/students',{params:{limit:100}})).data});
  const {data:teachers}=useQuery({queryKey:['reports','teachers'],queryFn:async()=> (await api.get<any>('/teachers',{params:{limit:100}})).data,enabled:user?.role==='ADMIN'||user?.role==='SUPERVISOR'});

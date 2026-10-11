@@ -253,6 +253,15 @@ export default function App() {
         <Route path="support/:id" element={<SupportTicketPage />} />
 
         <Route
+          path="registry-admin"
+          element={
+            <RequireRole roles={['ADMIN']}>
+              <RegistryAdminPage />
+            </RequireRole>
+          }
+        />
+
+        <Route
           path="users"
           element={
             <RequireRole roles={['ADMIN']}>

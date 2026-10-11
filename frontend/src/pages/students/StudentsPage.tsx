@@ -534,16 +534,10 @@ function StudentFormModal({
           className="sm:col-span-2"
         />
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
-        <Input label="رقم الهوية" required={form.createAccount} value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
-        <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700 sm:col-span-2">
-          <input
-            type="checkbox"
-            checked={form.createAccount}
-            onChange={(e) => set('createAccount', e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-          />
-          إنشاء حساب دخول للطالب
-          <span className="font-normal text-slate-500">— عند التحديد يُنشأ اسم المستخدم وكلمة مرور مؤقتة تلقائياً</span>
+        <Input label={form.createAccount ? 'رقم الهوية (سيُستخدم اسمًا للمستخدم)' : 'رقم الهوية (اختياري)'} required={form.createAccount} value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
+        <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <input type="checkbox" checked={form.createAccount} onChange={(e) => set('createAccount', e.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-400" />
+          <span><span className="block text-sm font-bold text-slate-800">إنشاء حساب دخول للطالب</span><span className="mt-1 block text-xs leading-5 text-slate-500">فعّل الخيار لإنشاء اسم مستخدم وكلمة مرور مؤقتة تلقائيًا. إذا تركته بدون تحديد، سيتم تسجيل بيانات الطالب فقط ويمكن إنشاء حساب له لاحقًا.</span></span>
         </label>
         <Input label="العنوان" value={form.address} onChange={(e) => set('address', e.target.value)} />
 

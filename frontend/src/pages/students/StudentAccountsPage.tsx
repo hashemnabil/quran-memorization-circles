@@ -6,7 +6,7 @@ import { Button, Card, PageHeader, SearchInput, LoadingState, ErrorState } from 
 
 type Account = { id:string; fullName:string; nationalId:string|null; phone:string|null; username:string; isActive:boolean; mustChangePassword:boolean };
 type Student = { id:string; fullName:string; nationalId?:string|null };
-type Creds = { fullName:string; username:string; temporaryPassword:string };
+type Creds = { studentId?:string; fullName:string; username:string; temporaryPassword:string };
 export default function StudentAccountsPage() {
  const qc=useQueryClient(); const [search,setSearch]=useState(''); const [studentId,setStudentId]=useState(''); const [creds,setCreds]=useState<Creds|null>(null);
  const q=useQuery({queryKey:['student-accounts'],queryFn:async()=>(await api.get<Account[]>('/students/accounts')).data});

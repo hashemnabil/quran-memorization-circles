@@ -51,7 +51,7 @@ export function ExamProgressionTable({ eligibility, exams, loading }: {
           <thead><tr><th>التسلسل</th><th>الحالة</th><th>العلامة</th><th>تاريخ الاختبار</th><th>الممتحن</th></tr></thead>
           <tbody>
             {rows.map((row) => {
-              const score = row.related?.score;
+              const score = row.section?.score ?? row.related?.score;
               const status = row.passed ? 'تم الاختبار' : row.pending ? 'محدد / قيد الاختبار' : row.unlocked ? 'لم يُطلب اختبار' : 'مقفل بالتسلسل';
               return <tr key={row.key}>
                 <td className="font-medium">{row.label}</td>

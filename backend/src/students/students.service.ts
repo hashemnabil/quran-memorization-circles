@@ -6,6 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Evaluation, Prisma, Role, StudentStatus } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { ActivityService } from '../common/services/activity.service';
@@ -26,9 +28,6 @@ import {
 
 /** Fields a teacher is allowed to change on a student record. */
 const TEACHER_EDITABLE_FIELDS = [
-  'guardianPhone',
-  'guardianName',
-  'guardianRelation',
   'phone',
   'address',
   'notes',
@@ -52,8 +51,6 @@ const LIST_SELECT = {
   currentSurah: true,
   currentPage: true,
   photoUrl: true,
-  guardianName: true,
-  guardianPhone: true,
   enrollmentDate: true,
   createdAt: true,
   circle: {
@@ -68,9 +65,6 @@ const LIST_SELECT = {
       },
     },
   },
-  parentProfile: {
-    select: { id: true, phone: true, user: { select: { id: true, fullName: true } } },
-  },
 } satisfies Prisma.StudentSelect;
 
 @Injectable()
@@ -81,6 +75,36 @@ export class StudentsService {
     private readonly activity: ActivityService,
     private readonly uploads: UploadsService,
   ) {}
+
+  /** Student self-service: resolve identity from the authenticated account, never from a client-supplied id. */
+  async getMyProfile(user: AuthUser) {
+    if (user.role !== Role.STUDENT) {
+      throw new ForbiddenException('هذه الصفحة مخصصة لحساب الطالب');
+    }
+    const student = await this.prisma.student.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!student) throw new NotFoundException('ملف الطالب غير مرتبط بهذا الحساب');
+    const profile = await this.findOne(user, student.id);
+    // Do not expose guardian identities or guardian contact details to the student session.
+    const { parentProfile: _parentProfile, parentName: _parentName, parentPhone: _parentPhone,
+      guardianName: _guardianName, guardianPhone: _guardianPhone, parentId: _parentId,
+      fatherNationalId: _fatherNationalId, ...safeProfile } = profile as any;
+    return safeProfile;
+  }
+
+  async getMyHistory(user: AuthUser) {
+    if (user.role !== Role.STUDENT) {
+      throw new ForbiddenException('هذه الصفحة مخصصة لحساب الطالب');
+    }
+    const student = await this.prisma.student.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!student) throw new NotFoundException('ملف الطالب غير مرتبط بهذا الحساب');
+    return this.history(user, student.id);
+  }
 
   async findAll(user: AuthUser, query: QueryStudentsDto) {
     const scope = await this.acl.studentScope(user);
@@ -148,14 +172,12 @@ export class StudentsService {
       where: { id, deletedAt: null },
       select: {
         ...LIST_SELECT,
-        fatherNationalId: true,
         address: true,
         phone: true,
         notes: true,
         evaluationNote: true,
         evaluatedAt: true,
         updatedAt: true,
-        parentId: true,
         circleId: true,
       },
     });
@@ -454,36 +476,40 @@ export class StudentsService {
       await this.acl.assertCircleAccess(actor, dto.circleId);
       await this.assertCircleHasRoom(dto.circleId);
     }
+    if (!dto.nationalId?.trim()) {
+      throw new BadRequestException('رقم هوية الطالب مطلوب لإنشاء حساب الدخول');
+    }
+    dto.nationalId = dto.nationalId.trim();
     if (dto.nationalId) {
       const dup = await this.prisma.student.findFirst({
         where: { nationalId: dto.nationalId, deletedAt: null },
       });
       if (dup) throw new ConflictException('رقم الهوية مسجل مسبقاً لطالب آخر');
-    }
-    if (dto.parentId) {
-      const parent = await this.prisma.parentProfile.findFirst({
-        where: { id: dto.parentId, deletedAt: null },
+      const usernameTaken = await this.prisma.user.findFirst({
+        where: { username: dto.nationalId.toLowerCase(), deletedAt: null },
+        select: { id: true },
       });
-      if (!parent) throw new BadRequestException('ولي الأمر المحدد غير موجود');
+      if (usernameTaken) throw new ConflictException('رقم الهوية مستخدم كاسم دخول لحساب آخر');
     }
-
     const code = dto.code?.trim() || (await this.nextCode());
 
+    const temporaryPassword = randomBytes(9).toString('base64url');
+    const passwordHash = await bcrypt.hash(temporaryPassword, 12);
     const student = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { username: dto.nationalId!.toLowerCase(), passwordHash, fullName: dto.fullName, role: Role.STUDENT, isActive: true, mustChangePassword: true },
+      });
       const created = await tx.student.create({
         data: {
           code,
           fullName: dto.fullName,
           birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
           gender: dto.gender,
-          nationalId: dto.nationalId || null,
+          nationalId: dto.nationalId!,
+          userId: user.id,
           fatherNationalId: dto.fatherNationalId || null,
           address: dto.address,
           phone: dto.phone,
-          parentId: dto.parentId || null,
-          guardianName: dto.guardianName,
-          guardianPhone: dto.guardianPhone,
-          guardianRelation: dto.guardianRelation,
           // A student registered straight into the activity programme joins no
           // circle, whatever the form sent.
           circleId: this.circleForStatus(dto.status, dto.circleId),
@@ -512,7 +538,9 @@ export class StudentsService {
       entityId: student.id,
     });
 
-    return this.findOne(actor, student.id);
+    const profile = await this.findOne(actor, student.id);
+    // Shown once to the administrator; only the password hash is persisted.
+    return { ...profile, accountCredentials: { username: dto.nationalId, temporaryPassword } };
   }
 
   /**
@@ -738,7 +766,7 @@ export class StudentsService {
   async history(user: AuthUser, id: string) {
     await this.acl.assertStudentAccess(user, id);
 
-    const [memberships, suspensions, evaluations, exams] = await Promise.all([
+    const [memberships, suspensions, evaluations, exams, attendance, recitations] = await Promise.all([
       this.prisma.circleMembership.findMany({
         where: { studentId: id },
         include: { circle: { select: { id: true, name: true, code: true } } },
@@ -766,9 +794,19 @@ export class StudentsService {
         },
         orderBy: { scheduledAt: 'desc' },
       }),
+      this.prisma.attendance.findMany({
+        where: { studentId: id },
+        orderBy: { date: 'desc' },
+        take: 100,
+      }),
+      this.prisma.recitation.findMany({
+        where: { studentId: id, deletedAt: null },
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        take: 100,
+      }),
     ]);
 
-    return { memberships, suspensions, evaluations, exams };
+    return { memberships, suspensions, evaluations, exams, attendance, recitations };
   }
 
   async remove(actor: AuthUser, id: string) {
@@ -808,8 +846,6 @@ export class StudentsService {
       teacherName: primary?.teacher?.user?.fullName ?? null,
       teacherId: primary?.teacher?.id ?? null,
       supervisorName: student.circle?.supervisor?.fullName ?? null,
-      parentName: student.parentProfile?.user?.fullName ?? student.guardianName ?? null,
-      parentPhone: student.parentProfile?.phone ?? student.guardianPhone ?? null,
     };
   }
 

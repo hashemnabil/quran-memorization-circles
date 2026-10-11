@@ -152,7 +152,7 @@ export default function UsersPage() {
             }}
           >
             <option value="">كل الأدوار</option>
-            {Object.entries(ROLE_LABELS).map(([key, label]) => (
+            {Object.entries(ROLE_LABELS).filter(([key]) => key !== 'PARENT' && key !== 'STUDENT').map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
               </option>

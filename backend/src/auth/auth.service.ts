@@ -69,6 +69,9 @@ export class AuthService {
     if (!user.isActive) {
       throw new UnauthorizedException('تم إيقاف هذا الحساب، يرجى مراجعة الإدارة');
     }
+    if (user.role === 'PARENT') {
+      throw new UnauthorizedException('تم إيقاف بوابة ولي الأمر؛ يرجى استخدام حساب الطالب');
+    }
 
     const tokens = await this.issueTokens(user, userAgent);
 
@@ -103,6 +106,13 @@ export class AuthService {
     }
     if (!stored.user || stored.user.deletedAt || !stored.user.isActive) {
       throw new UnauthorizedException('الحساب غير متاح');
+    }
+    if (stored.user.role === 'PARENT') {
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: stored.user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('تم إيقاف بوابة ولي الأمر؛ يرجى استخدام حساب الطالب');
     }
 
     // Rotate: the presented token is burned and a fresh pair is issued.
@@ -218,7 +228,7 @@ export class AuthService {
     const rounds = parseInt(this.config.get('BCRYPT_ROUNDS') || '10', 10);
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash: await bcrypt.hash(dto.newPassword, rounds) },
+      data: { passwordHash: await bcrypt.hash(dto.newPassword, rounds), mustChangePassword: false },
     });
 
     // Force every other session to re-authenticate with the new password.
@@ -248,6 +258,7 @@ export class AuthService {
       avatarUrl: user.avatarUrl ?? null,
       phone: user.phone ?? null,
       isActive: user.isActive,
+      mustChangePassword: user.mustChangePassword ?? false,
       teacherId: user.teacher?.id ?? null,
       parentId: user.parent?.id ?? null,
     };

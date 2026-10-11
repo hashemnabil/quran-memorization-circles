@@ -7,6 +7,7 @@ import { RedirectIfAuthenticated, RequireAuth, RequireRole } from '@/components/
 
 import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
+import StudentPortalPage from '@/pages/StudentPortalPage';
 import ReportsPage from '@/pages/ReportsPage';
 import CirclesPage from '@/pages/circles/CirclesPage';
 import CircleDetailsPage from '@/pages/circles/CircleDetailsPage';
@@ -14,14 +15,11 @@ import StudentsPage from '@/pages/students/StudentsPage';
 import StudentDetailsPage from '@/pages/students/StudentDetailsPage';
 import TeachersPage from '@/pages/teachers/TeachersPage';
 import TeacherDetailsPage from '@/pages/teachers/TeacherDetailsPage';
-import ParentsPage from '@/pages/parents/ParentsPage';
 import AttendancePage from '@/pages/attendance/AttendancePage';
 import RecitationsPage from '@/pages/recitations/RecitationsPage';
 import ExamsPage from '@/pages/exams/ExamsPage';
 import TransfersPage from '@/pages/transfers/TransfersPage';
 import SuspensionsPage from '@/pages/suspensions/SuspensionsPage';
-import ParentChildrenPage from '@/pages/parent/ParentChildrenPage';
-import ParentChildDetailsPage from '@/pages/parent/ParentChildDetailsPage';
 import ChatPage from '@/pages/chat/ChatPage';
 import NotificationsPage from '@/pages/NotificationsPage';
 import SupportPage from '@/pages/support/SupportPage';
@@ -42,6 +40,7 @@ import RegistryAdminPage from '@/pages/RegistryAdminPage';
 
 export default function App() {
   const loadSession = useAuthStore((s) => s.loadSession);
+  const currentUser = useAuthStore((s) => s.user);
 
   useEffect(() => {
     void loadSession();
@@ -70,7 +69,8 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<DashboardPage />} />
+        <Route index element={currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
+        <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
 
         {/* The exam committee works from the exam queue only, so the circle
@@ -131,15 +131,6 @@ export default function App() {
           element={
             <RequireRole roles={['ADMIN']}>
               <SupervisorsPage />
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="parents"
-          element={
-            <RequireRole roles={['ADMIN']}>
-              <ParentsPage />
             </RequireRole>
           }
         />
@@ -225,23 +216,6 @@ export default function App() {
           element={
             <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
               <SuspensionsPage />
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="parent/children"
-          element={
-            <RequireRole roles={['PARENT']}>
-              <ParentChildrenPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="parent/children/:id"
-          element={
-            <RequireRole roles={['PARENT']}>
-              <ParentChildDetailsPage />
             </RequireRole>
           }
         />

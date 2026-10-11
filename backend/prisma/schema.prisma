@@ -27,6 +27,7 @@ enum Role {
   TEACHER
   EXAM_COMMITTEE
   PARENT
+  STUDENT
   SUPPORT
 }
 
@@ -196,6 +197,7 @@ model User {
   jobTitle       String?
   specialization String?
   isActive     Boolean   @default(true)
+  mustChangePassword Boolean @default(false)
   /// Set when the management creates the account or resets the password, so the
   /// first login lands on the profile page until a personal password is chosen.
   lastLoginAt  DateTime?
@@ -205,6 +207,7 @@ model User {
 
   teacher  TeacherProfile?
   parent   ParentProfile?
+  studentProfile Student?
 
   refreshTokens        RefreshToken[]
   supervisedCircles    Circle[]              @relation("CircleSupervisor")
@@ -382,6 +385,7 @@ model Student {
   guardianName     String?
   guardianPhone    String?
   guardianRelation String?
+  userId           String?        @unique
   circleId         String?
   enrollmentDate   DateTime      @default(now())
   status           StudentStatus @default(ACTIVE)
@@ -405,6 +409,7 @@ model Student {
   deletedAt        DateTime?
 
   parentProfile ParentProfile? @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  user          User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   circle        Circle?        @relation(fields: [circleId], references: [id], onDelete: SetNull)
 
   attendance   Attendance[]

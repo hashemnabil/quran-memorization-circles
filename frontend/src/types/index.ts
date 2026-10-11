@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'SUPERVISOR' | 'TEACHER' | 'EXAM_COMMITTEE' | 'PARENT' | 'SUPPORT';
+export type Role = 'ADMIN' | 'SUPERVISOR' | 'TEACHER' | 'EXAM_COMMITTEE' | 'PARENT' | 'STUDENT' | 'SUPPORT';
 
 export type Evaluation = 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'ACCEPTABLE' | 'UNSATISFACTORY';
 /** ACTIVITY = مُحوَّل إلى برنامج النشاط (خارج الحلقات، وما زال في السجل) */
@@ -47,6 +47,7 @@ export interface AuthUser {
   specialization?: string | null;
   avatarUrl?: string | null;
   isActive: boolean;
+  mustChangePassword?: boolean;
   teacherId?: string | null;
   parentId?: string | null;
   phone?: string | null;

@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import { Response } from 'express';
+import * as XLSX from 'xlsx';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser, Roles } from '../common/decorators';
@@ -27,11 +29,25 @@ export class StudentsController {
     return this.service.findAll(user, query);
   }
 
+  @Get('me')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'ملف الطالب الحالي وسجلاته الخاصة' })
+  getMyProfile(@CurrentUser() user: AuthUser) {
+    return this.service.getMyProfile(user);
+  }
+
   @Get(':id')
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   @ApiOperation({ summary: 'ملف الطالب الموحّد' })
   findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.findOne(user, id);
+  }
+
+  @Get('me/history')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'سجل الحضور والتسميع والاختبارات للطالب الحالي' })
+  getMyHistory(@CurrentUser() user: AuthUser) {
+    return this.service.getMyHistory(user);
   }
 
   @Get(':id/history')
@@ -53,6 +69,34 @@ export class StudentsController {
   @ApiOperation({ summary: 'ملاحظات الطالب' })
   notes(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.listNotes(user, id);
+  }
+
+  @Post('credentials-export')
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
+  @ApiOperation({ summary: 'تصدير بيانات دخول الطلاب المنشأة للتو إلى Excel' })
+  async exportCredentials(
+    @Body() body: { credentials?: { fullName: string; code?: string; username: string; temporaryPassword: string }[] },
+    @Res() response: Response,
+  ) {
+    const rows = body?.credentials ?? [];
+    if (!rows.length || rows.length > 500 || rows.some((r) => !r.fullName || !r.username || !r.temporaryPassword)) {
+      response.status(400).json({ message: 'بيانات التصدير غير مكتملة أو تتجاوز الحد المسموح' });
+      return;
+    }
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rows.map((r) => ({
+      'اسم الطالب': r.fullName,
+      'رقم الطالب': r.code ?? '',
+      'اسم المستخدم (رقم الهوية)': r.username,
+      'كلمة المرور المؤقتة': r.temporaryPassword,
+    })));
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'بيانات دخول الطلاب');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    response
+      .setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .setHeader('Content-Disposition', 'attachment; filename="student-login-credentials.xlsx"')
+      .setHeader('Cache-Control', 'no-store')
+      .send(buffer);
   }
 
   // A teacher may register a student straight into their own circle; the

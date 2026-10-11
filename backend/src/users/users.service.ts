@@ -110,6 +110,9 @@ export class UsersService {
   }
 
   async create(actor: AuthUser, dto: CreateUserDto) {
+    if (dto.role === Role.PARENT || dto.role === Role.STUDENT) {
+      throw new BadRequestException('حسابات الطلاب تُنشأ تلقائياً من ملف الطالب، وحسابات ولي الأمر متوقفة');
+    }
     await this.assertUsernameFree(dto.username);
     if (dto.email) {
       const emailTaken = await this.prisma.user.findFirst({
@@ -133,7 +136,6 @@ export class UsersService {
         isActive: dto.isActive ?? true,
         // Teachers and parents need a profile row to be attachable to circles / children.
         ...(dto.role === Role.TEACHER ? { teacher: { create: {} } } : {}),
-        ...(dto.role === Role.PARENT ? { parent: { create: { phone: dto.phone || null } } } : {}),
       },
       select: USER_SELECT,
     });
@@ -164,6 +166,9 @@ export class UsersService {
       if (taken) throw new ConflictException('البريد الإلكتروني مستخدم مسبقاً');
     }
 
+    if (dto.role === Role.PARENT || dto.role === Role.STUDENT) {
+      throw new BadRequestException('لا يمكن إنشاء أو تحويل الحسابات إلى دور طالب أو ولي أمر من إدارة المستخدمين');
+    }
     if (dto.role && dto.role !== current.role) {
       if (current.role === Role.ADMIN) {
         await this.assertNotLastAdmin(id);
@@ -171,13 +176,6 @@ export class UsersService {
       // Make sure the profile matching the new role exists.
       if (dto.role === Role.TEACHER) {
         await this.prisma.teacherProfile.upsert({
-          where: { userId: id },
-          create: { userId: id },
-          update: { deletedAt: null },
-        });
-      }
-      if (dto.role === Role.PARENT) {
-        await this.prisma.parentProfile.upsert({
           where: { userId: id },
           create: { userId: id },
           update: { deletedAt: null },
@@ -526,6 +524,7 @@ export class UsersService {
       TEACHER: 'معلم',
       EXAM_COMMITTEE: 'لجنة اختبارات',
       PARENT: 'ولي أمر',
+      STUDENT: 'طالب',
       SUPPORT: 'دعم فني',
     };
     return labels[role];

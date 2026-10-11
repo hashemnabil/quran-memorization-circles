@@ -13,6 +13,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  ValidateNested,
   Max,
   MaxLength,
   Min,
@@ -135,6 +136,19 @@ export class ScheduleExamDto {
   notes?: string;
 }
 
+export class RecordSectionScoreDto {
+  @ApiProperty()
+  @IsUUID('4')
+  sectionId: string;
+
+  @ApiProperty({ minimum: 0, maximum: 100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  score: number;
+}
+
 export class RecordResultDto {
   @ApiProperty({ minimum: 0, maximum: 100, description: 'الدرجة من 100 — وهي ما يحدد النجاح' })
   @Type(() => Number)
@@ -153,6 +167,14 @@ export class RecordResultDto {
   @Min(0)
   @Max(500)
   mistakes?: number;
+
+  @ApiPropertyOptional({ type: [RecordSectionScoreDto], description: 'علامة مستقلة لكل حزب/جزء في الاختبار الجماعي' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => RecordSectionScoreDto)
+  sectionScores?: RecordSectionScoreDto[];
 
   @ApiPropertyOptional({ description: 'ملاحظات عامة للممتحن' })
   @IsOptional()

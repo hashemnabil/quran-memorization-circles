@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
-import { useAuthStore } from '@/store/auth';
 import { Badge, Card, EmptyState, LoadingState } from '@/components/ui';
 import { formatDateShort } from '@/lib/format';
 import type { Exam, ExamEligibility } from '@/types';

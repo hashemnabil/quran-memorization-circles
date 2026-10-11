@@ -448,6 +448,7 @@ function StudentFormModal({
     fullName: '',
     birthDate: '',
     nationalId: '',
+    createAccount: false,
     address: '',
     circleId: '',
     memorizedParts: 0,
@@ -489,7 +490,7 @@ function StudentFormModal({
   const submit = () => {
     const nextErrors: Record<string, string> = {};
     if (!form.fullName.trim()) nextErrors.fullName = 'اسم الطالب مطلوب';
-    if (!form.nationalId.trim()) nextErrors.nationalId = 'رقم هوية الطالب مطلوب لإنشاء حساب الدخول';
+    if (form.createAccount && !form.nationalId.trim()) nextErrors.nationalId = 'رقم الهوية مطلوب لإنشاء حساب الطالب';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
@@ -533,7 +534,11 @@ function StudentFormModal({
           className="sm:col-span-2"
         />
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
-        <Input label="رقم الهوية (اسم المستخدم)" required value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
+        <Input label={form.createAccount ? 'رقم الهوية (سيُستخدم اسمًا للمستخدم)' : 'رقم الهوية (اختياري)'} required={form.createAccount} value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
+        <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <input type="checkbox" checked={form.createAccount} onChange={(e) => set('createAccount', e.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-400" />
+          <span><span className="block text-sm font-bold text-slate-800">إنشاء حساب دخول للطالب</span><span className="mt-1 block text-xs leading-5 text-slate-500">فعّل الخيار لإنشاء اسم مستخدم وكلمة مرور مؤقتة تلقائيًا. إذا تركته بدون تحديد، سيتم تسجيل بيانات الطالب فقط ويمكن إنشاء حساب له لاحقًا.</span></span>
+        </label>
         <Input label="العنوان" value={form.address} onChange={(e) => set('address', e.target.value)} />
 
         <Select label="الحلقة" value={form.circleId} onChange={(e) => set('circleId', e.target.value)}>

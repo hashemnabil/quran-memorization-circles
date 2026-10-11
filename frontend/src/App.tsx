@@ -15,14 +15,11 @@ import StudentsPage from '@/pages/students/StudentsPage';
 import StudentDetailsPage from '@/pages/students/StudentDetailsPage';
 import TeachersPage from '@/pages/teachers/TeachersPage';
 import TeacherDetailsPage from '@/pages/teachers/TeacherDetailsPage';
-import ParentsPage from '@/pages/parents/ParentsPage';
 import AttendancePage from '@/pages/attendance/AttendancePage';
 import RecitationsPage from '@/pages/recitations/RecitationsPage';
 import ExamsPage from '@/pages/exams/ExamsPage';
 import TransfersPage from '@/pages/transfers/TransfersPage';
 import SuspensionsPage from '@/pages/suspensions/SuspensionsPage';
-import ParentChildrenPage from '@/pages/parent/ParentChildrenPage';
-import ParentChildDetailsPage from '@/pages/parent/ParentChildDetailsPage';
 import ChatPage from '@/pages/chat/ChatPage';
 import NotificationsPage from '@/pages/NotificationsPage';
 import SupportPage from '@/pages/support/SupportPage';
@@ -139,15 +136,6 @@ export default function App() {
         />
 
         <Route
-          path="parents"
-          element={
-            <RequireRole roles={['ADMIN']}>
-              <ParentsPage />
-            </RequireRole>
-          }
-        />
-
-        <Route
           path="courses"
           element={
             <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
@@ -228,23 +216,6 @@ export default function App() {
           element={
             <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
               <SuspensionsPage />
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="parent/children"
-          element={
-            <RequireRole roles={['PARENT']}>
-              <ParentChildrenPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="parent/children/:id"
-          element={
-            <RequireRole roles={['PARENT']}>
-              <ParentChildDetailsPage />
             </RequireRole>
           }
         />

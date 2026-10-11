@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
+import JSZip from 'jszip';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -12,6 +13,38 @@ async function mergePdfDataUrls(items: any[]) {
  const merged = await PDFDocument.create();
  for (const item of items) { const encoded = item.url.split(',')[1]; if (!encoded) throw new Error('ملف PDF غير صالح'); const raw = atob(encoded); const bytes = Uint8Array.from(raw, (ch: string) => ch.charCodeAt(0)); const source = await PDFDocument.load(bytes); const pages = await merged.copyPages(source, source.getPageIndices()); pages.forEach((page: any) => merged.addPage(page)); }
  const bytes = await merged.save(); const url = URL.createObjectURL(new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: 'application/pdf' })); const a = document.createElement('a'); a.href = url; a.download = 'ملفات-الطلاب-' + new Date().toISOString().slice(0,10) + '.pdf'; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+
+function xmlEscape(value: unknown) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[ch]!));
+}
+
+async function downloadMonthlyExcel(rows: any[], from: string, to: string) {
+  const headers = ['رقم الطالب','اسم الطالب','الحلقة','الأجزاء المحفوظة','السورة الحالية','أيام الحضور','غياب بدون عذر','غياب بعذر','سجلات الحضور','جلسات التسميع','الصفحات','النقاط','الأخطاء','التنبيهات','التقييم العام','ملاحظات التقييم'];
+  const matrix = [headers, ...rows.map(s => [
+    s.code, s.fullName, s.circleName, s.memorizedParts, s.currentSurah,
+    s.attendance?.present ?? 0, s.attendance?.absent ?? 0, s.attendance?.excused ?? 0, s.attendance?.recorded ?? 0,
+    s.recitations?.sessions ?? 0, s.recitations?.pages ?? 0, s.recitations?.points ?? 0,
+    s.recitations?.mistakes ?? 0, s.recitations?.warnings ?? 0, s.evaluation, s.evaluationNote
+  ])];
+  const colName = (n: number) => { let out=''; while(n>0){const r=(n-1)%26;out=String.fromCharCode(65+r)+out;n=Math.floor((n-1)/26);}return out; };
+  const sheetRows = matrix.map((row,ri) => '<row r="'+(ri+1)+'">'+row.map((v,ci) => {
+    const ref=colName(ci+1)+(ri+1);
+    if (typeof v === 'number' && Number.isFinite(v)) return '<c r="'+ref+'" t="n"><v>'+v+'</v></c>';
+    return '<c r="'+ref+'" t="inlineStr"><is><t xml:space="preserve">'+xmlEscape(v)+'</t></is></c>';
+  }).join('')+'</row>').join('');
+  const widths = [16,28,24,16,20,15,16,14,15,16,12,12,12,12,18,32].map((w,i)=>'<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>').join('');
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
+  zip.file('_rels/.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+  zip.file('xl/workbook.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="التقرير الشهري" sheetId="1" r:id="rId1"/></sheets></workbook>');
+  zip.file('xl/_rels/workbook.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
+  zip.file('xl/worksheets/sheet1.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols>'+widths+'</cols><sheetData>'+sheetRows+'</sheetData><autoFilter ref="A1:'+colName(headers.length)+matrix.length+'"/></worksheet>');
+  const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='تقرير-الطلاب-'+from+'-إلى-'+to+'.xlsx';document.body.appendChild(a);a.click();a.remove();
+  window.setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
 
 function escapeCertificateText(value: unknown) {
@@ -169,7 +202,14 @@ export default function CertificatesAdminPage() {
   },onSuccess:async(urls)=>{const printWindow=printWindowRef.current;printWindowRef.current=null;try{await mergePdfDataUrls(urls);if(printWindow&&!printWindow.closed)printWindow.close();toast.success('تم إصدار '+urls.length+' شهادة وتنزيلها في ملف PDF واحد، وحُفظت النسخ الفردية بحسابات الطلاب.');}catch{if(printWindow&&!printWindow.closed)printWindow.close();toast.error('تم حفظ السجلات، لكن تعذر تجهيز ملف PDF الجماعي.');}setSelectedStudentIds([]);await refresh();},onError:e=>{if(printWindowRef.current&&!printWindowRef.current.closed)printWindowRef.current.close();printWindowRef.current=null;toast.error(e instanceof Error?e.message:apiError(e));}});
 
   return <div className="space-y-6" dir="rtl">
-    <PageHeader title="الشهادات والتقارير" subtitle="إدارة قوالب الشهادات ومراجعة طلبات الطلاب." />
+    <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+      <div><h1 className="text-xl font-bold text-slate-900">الشهادات والتقارير</h1><p className="mt-1 text-sm text-slate-500">إدارة القوالب والشهادات وتقارير الطلاب.</p></div>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="w-36"><Input label="تصدير من" type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)} required /></div>
+        <div className="w-36"><Input label="تصدير إلى" type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)} required /></div>
+        <Button type="button" disabled={!reportFrom||!reportTo||reportFrom>reportTo||reportData.isLoading||reportData.isError||!reportData.data?.length} onClick={async()=>{try{await downloadMonthlyExcel(reportData.data??[],reportFrom,reportTo);toast.success('تم تصدير بيانات '+(reportData.data?.length??0)+' طالب إلى Excel');}catch{toast.error('تعذر إنشاء ملف Excel؛ أعد المحاولة.');}}}>تصدير Excel</Button>
+      </div>
+    </div>
 
     <Card title="إصدار شهادة للطباعة">
       <p className="mb-4 text-sm text-slate-600">اختر نوع الشهادة والطلاب، ثم أصدرها. من نافذة الطباعة اختر «حفظ بتنسيق PDF» أو اطبع مباشرة.</p>

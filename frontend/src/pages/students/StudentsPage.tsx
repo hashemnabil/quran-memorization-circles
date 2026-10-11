@@ -527,7 +527,6 @@ function StudentFormModal({
         />
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
         <Input label={form.createAccount ? 'رقم الهوية (سيُستخدم اسمًا للمستخدم)' : 'رقم الهوية (اختياري)'} required={form.createAccount} value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
-        <Input label="رقم جوال الطالب" value={form.phone} onChange={(e) => set('phone', e.target.value)} dir="ltr" />
         <Input label="اسم ولي الأمر" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />
         <Input label="رقم هوية الأب" value={form.fatherNationalId} onChange={(e) => set('fatherNationalId', e.target.value)} dir="ltr" />
         <Input label="رقم جوال ولي الأمر" value={form.guardianPhone} onChange={(e) => set('guardianPhone', e.target.value)} dir="ltr" />

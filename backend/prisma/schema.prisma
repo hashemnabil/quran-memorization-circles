@@ -235,6 +235,7 @@ model User {
   coursesInstructed       Course[]               @relation("CourseInstructor")
   courseAttendanceTaken   CourseAttendance[]     @relation("CourseAttendanceRecorder")
   announcements           Announcement[]         @relation("AnnouncementAuthor")
+  mediaActivities          MediaActivity[]
   surahCompletions        SurahCompletion[]      @relation("SurahCompletionRecorder")
   certificateTemplates    CertificateTemplate[]
   issuedCertificates      CertificateRecord[]   @relation("CertificateIssuer")
@@ -1228,4 +1229,33 @@ model StudentFileRequest {
   @@index([studentId, createdAt])
   @@index([status, kind])
   @@map("student_file_requests")
+}
+
+
+// ---------------------------------------------------------------------------
+// Media team activity log
+// ---------------------------------------------------------------------------
+enum MediaActivityType {
+  REPORT_FILLING
+  PHOTOGRAPHY
+  PUBLISHING
+  EDITING
+  DESIGN
+}
+
+model MediaActivity {
+  id           String            @id @default(uuid())
+  type         MediaActivityType
+  title        String
+  description  String
+  activityDate DateTime          @db.Date
+  workUrl      String?
+  createdById  String
+  createdAt    DateTime          @default(now())
+
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([activityDate])
+  @@index([type, activityDate])
+  @@map("media_activities")
 }

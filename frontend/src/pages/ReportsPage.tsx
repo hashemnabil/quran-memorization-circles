@@ -39,7 +39,7 @@ export default function ReportsPage() {
  const exportReport=async()=>{
   let url: string | undefined;
   try {
-   const response=await api.get('/reports/export',{params:{...params,_refresh:undefined},responseType:'blob'});
+   const response=await api.get('/reports/export',{params:{...params,_refresh:undefined},responseType:'blob',timeout:120000});
    if (!(response.data instanceof Blob) || response.data.size === 0) throw new Error('الملف المستلم فارغ أو غير صالح');
    url=URL.createObjectURL(response.data);
    const a=document.createElement('a');
@@ -53,7 +53,25 @@ export default function ReportsPage() {
   } catch(error) {
    if(url) URL.revokeObjectURL(url);
    console.error('Excel export failed:',error);
-   window.alert('تعذّر تصدير ملف Excel. قد تكون الجلسة انتهت أو حدث خطأ بالخادم؛ حدّث الصفحة وحاول مرة أخرى.');
+   let message='تعذّر تصدير ملف Excel. حاول مرة أخرى.';
+   const err=error as {response?:{status?:number;data?:unknown};code?:string;message?:string};
+   if(err.code==='ECONNABORTED') {
+    message='استغرق تجهيز ملف Excel وقتًا أطول من المتوقع. جرّب تقريرًا بفلاتر أضيق.';
+   } else if(err.response?.data instanceof Blob) {
+    try {
+     const body=await err.response.data.text();
+     const parsed=JSON.parse(body) as {message?:string|string[]};
+     if(parsed.message) message=Array.isArray(parsed.message)?parsed.message.join('، '):parsed.message;
+     else if(err.response.status===401) message='انتهت جلسة الدخول. سجّل الدخول مجددًا ثم حاول التصدير.';
+     else if(err.response.status===403) message='ليس لديك صلاحية لتصدير هذا التقرير.';
+     else message=`فشل التصدير (رمز الخطأ ${err.response.status??'غير معروف'}).`;
+    } catch {
+     message=`فشل التصدير من الخادم (رمز الخطأ ${err.response.status??'غير معروف'}).`;
+    }
+   } else if(!err.response) {
+    message='تعذّر الاتصال بالخادم. تحقق من الاتصال وحاول مرة أخرى.';
+   }
+   window.alert(message);
   }
  };
  return <div dir="rtl" className="space-y-6">

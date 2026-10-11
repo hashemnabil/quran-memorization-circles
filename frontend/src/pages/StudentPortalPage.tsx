@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Card, ErrorState, LoadingState, PageHeader, ProgressBar, StatCard } from '@/components/ui';
-import { IconAward, IconBook, IconClipboard, IconGraduation } from '@/components/ui/Icons';
+import { IconAward, IconBook, IconClipboard } from '@/components/ui/Icons';
 import { formatDateShort, formatParts } from '@/lib/format';
 
 export default function StudentPortalPage() {

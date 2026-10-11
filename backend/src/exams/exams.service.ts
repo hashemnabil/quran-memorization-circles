@@ -704,6 +704,14 @@ export class ExamsService {
       }
     }
 
+    const manualOpen = await this.prisma.examMilestoneRecord.findFirst({
+      where: { studentId, sectionId, status: { in: ['REQUESTED', 'SCHEDULED'] } },
+      select: { id: true },
+    });
+    if (manualOpen) {
+      throw new ConflictException('يوجد طلب اختبار قائم لهذا المقرر');
+    }
+
     const open = await this.prisma.examRequest.findFirst({
       where: {
         studentId,

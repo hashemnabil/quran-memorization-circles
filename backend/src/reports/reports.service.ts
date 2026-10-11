@@ -6,9 +6,9 @@ import { AccessControlService } from '../common/services/access-control.service'
 import { AuthUser } from '../common/decorators';
 
 export type ReportType = 'attendance' | 'recitations' | 'exams' | 'student' | 'circles' | 'students';
-const DATE = {s?: string) => {
-  if {!s) return undefined;
-  const d = new Date{s);
+const DATE = (s?: string) => {
+  if (!s) return undefined;
+  const d = new Date(s);
   if (Number.isNaN(d.getTime())) throw new BadRequestException('صيغة التاريخ غير صحيحة');
   return d;
 };

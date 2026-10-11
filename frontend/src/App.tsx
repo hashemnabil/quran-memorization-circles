@@ -7,6 +7,7 @@ import { RedirectIfAuthenticated, RequireAuth, RequireRole } from '@/components/
 
 import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
+import ReportsPage from '@/pages/ReportsPage';
 import CirclesPage from '@/pages/circles/CirclesPage';
 import CircleDetailsPage from '@/pages/circles/CircleDetailsPage';
 import StudentsPage from '@/pages/students/StudentsPage';
@@ -70,6 +71,7 @@ export default function App() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
 
         {/* The exam committee works from the exam queue only, so the circle
             management pages are closed to it (spec item 7). */}

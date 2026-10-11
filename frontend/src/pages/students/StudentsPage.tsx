@@ -327,6 +327,12 @@ export default function StudentsPage() {
                             <span className="numeric block text-[11px] text-slate-400">
                               {student.code} • {calcAge(student.birthDate)}
                             </span>
+                            <span className="numeric block text-[11px] text-slate-500" dir="ltr">
+                              الهوية: {student.nationalId ?? '—'}
+                            </span>
+                            <span className="block text-[11px] text-slate-500">
+                              الميلاد: {student.birthDate ? formatDateShort(student.birthDate) : '—'}
+                            </span>
                           </div>
                         </div>
                       </td>

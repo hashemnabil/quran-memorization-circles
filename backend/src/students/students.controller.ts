@@ -100,6 +100,27 @@ export class StudentsController {
   }
 
 
+  @Get('accounts/export')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'تصدير بيانات حسابات الطلاب إلى Excel' })
+  async exportStudentAccounts(@Res() response: Response) {
+    const rows = await this.service.listAccounts();
+    const worksheet = XLSX.utils.json_to_sheet(rows.map((r) => ({
+      'اسم الطالب': r.fullName,
+      'رقم الهوية': r.nationalId ?? '',
+      'رقم الجوال': r.phone ?? '',
+      'اسم المستخدم': r.username,
+      'حالة الحساب': r.isActive ? 'نشط' : 'موقوف',
+      'كلمة المرور المؤقتة': r.mustChangePassword ? 'مطلوب تغييرها عند أول دخول (لا تُخزّن كنص)' : '',
+    })));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'حسابات الطلاب');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .setHeader('Content-Disposition', 'attachment; filename="student-accounts.xlsx"')
+      .setHeader('Cache-Control', 'no-store').send(buffer);
+  }
+
   @Get('accounts')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'حسابات الطلاب المرتبطة بملفاتهم' })

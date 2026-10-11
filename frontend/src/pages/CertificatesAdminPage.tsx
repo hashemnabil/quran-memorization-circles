@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -34,6 +34,7 @@ export default function CertificatesAdminPage() {
   const [issueDate,setIssueDate]=useState(new Date().toISOString().slice(0,10));
   const [selectedStudentIds,setSelectedStudentIds]=useState<string[]>([]);
   const [selectedTemplateId,setSelectedTemplateId]=useState('');
+  const printWindowRef = useRef<Window | null>(null);
   const templates=useQuery({queryKey:['certificates','templates'],queryFn:async()=>(await api.get<any[]>('/certificates/templates')).data});
   const requests=useQuery({queryKey:['certificates','requests'],queryFn:async()=>(await api.get<any[]>('/certificates/requests')).data});
   const students=useQuery({queryKey:['certificates','students'],queryFn:async()=>{const r=await api.get<any>('/students',{params:{page:1,limit:100}});return (r.data?.data ?? []) as Array<{id:string;fullName:string;code?:string}>;}});
@@ -52,14 +53,14 @@ export default function CertificatesAdminPage() {
       urls.push({url,name:student.fullName});
     }
     return urls;
-  },onSuccess:async(urls)=>{toast.success('تم إصدار '+urls.length+' شهادة. ستُفتح نافذة الطباعة الآن.');window.open(urls[0].url,'_blank');setSelectedStudentIds([]);await refresh();},onError:e=>toast.error(e instanceof Error?e.message:apiError(e))});
+  },onSuccess:async(urls)=>{toast.success('تم إصدار '+urls.length+' شهادة. ستُفتح نافذة الطباعة الآن.');try{const response=await fetch(urls[0].url);const html=await response.text();const blob=new Blob([html],{type:'text/html;charset=utf-8'});const blobUrl=URL.createObjectURL(blob);if(printWindowRef.current&&!printWindowRef.current.closed){printWindowRef.current.location.href=blobUrl;}else{const link=document.createElement('a');link.href=blobUrl;link.target='_blank';link.rel='noopener';link.click();}setTimeout(()=>URL.revokeObjectURL(blobUrl),60000);}catch{toast.error('تعذر فتح الطباعة. اسمح بالنوافذ المنبثقة وحاول مجددًا.');}setSelectedStudentIds([]);await refresh();},onError:e=>toast.error(e instanceof Error?e.message:apiError(e))});
 
   return <div className="space-y-6" dir="rtl">
     <PageHeader title="الشهادات والتقارير" subtitle="إدارة قوالب الشهادات ومراجعة طلبات الطلاب." />
 
     <Card title="إصدار شهادة للطباعة">
       <p className="mb-4 text-sm text-slate-600">اختر نوع الشهادة والطلاب، ثم أصدرها. من نافذة الطباعة اختر «حفظ بتنسيق PDF» أو اطبع مباشرة.</p>
-      <form className="grid gap-4 md:grid-cols-2" onSubmit={e=>{e.preventDefault();issue.mutate();}}>
+      <form className="grid gap-4 md:grid-cols-2" onSubmit={e=>{e.preventDefault();printWindowRef.current=window.open('about:blank','_blank');if(!printWindowRef.current){toast.error('اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة.');return;}printWindowRef.current.document.write('<!doctype html><html lang="ar"><meta charset="utf-8"><body style="font-family:Arial;padding:2rem;direction:rtl">جارٍ تجهيز الشهادة للطباعة…</body></html>');printWindowRef.current.document.close();issue.mutate();}}>
         <label className="grid gap-1 text-sm font-medium">قالب محفوظ<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={selectedTemplateId} onChange={e=>{setSelectedTemplateId(e.target.value);const t=templates.data?.find((x:any)=>x.id===e.target.value);if(t)setIssueKind(t.kind);}}><option value="">التصميم الافتراضي</option>{(templates.data??[]).map((t:any)=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
         <label className="grid gap-1 text-sm font-medium">نوع الشهادة<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={issueKind} onChange={e=>setIssueKind(e.target.value)}>{Object.entries(kinds).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
         <Input label="عنوان الشهادة" value={issueTitle} onChange={e=>setIssueTitle(e.target.value)} required />

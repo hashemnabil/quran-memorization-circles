@@ -44,7 +44,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/', label: 'لوحة التحكم', icon: <IconDashboard size={19} />, roles: ALL },
       { to: '/circles', label: 'الحلقات', icon: <IconCircleGroup size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/students', label: 'الطلاب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/courses', label: 'الدورات', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
     ],
   },

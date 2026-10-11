@@ -56,6 +56,7 @@ async function buildPrintableCertificate(studentName: string, title: string, kin
   draw('kind', 'وذلك تقديرًا لـ ' + (kindLabels[kind] || kind), 50, 63, '24px Tahoma, Arial, sans-serif');
   draw('title', title, 50, 70, '19px Tahoma, Arial, sans-serif');
   draw('date', 'تاريخ الإصدار: ' + date, 50, 78, '19px Tahoma, Arial, sans-serif');
+  for (const item of (layout?.customTexts ?? [])) { if (item && typeof item.text === 'string' && item.text.trim()) { ctx.fillStyle = item.color || '#173d32'; ctx.font = (item.bold ? 'bold ' : '') + Math.max(8, Math.min(72, Number(item.fontSize) || 18)) + 'px Tahoma, Arial, sans-serif'; ctx.fillText(item.text, canvas.width * Math.min(95, Math.max(5, Number(item.x) || 50)) / 100, canvas.height * Math.min(95, Math.max(5, Number(item.y) || 50)) / 100, canvas.width * 0.9); } }
   const png = await pdf.embedPng(await new Promise<Uint8Array>((resolve, reject) => canvas.toBlob(async blob => {
     if (!blob) { reject(new Error('تعذر تجهيز صورة النص')); return; }
     resolve(new Uint8Array(await blob.arrayBuffer()));
@@ -108,6 +109,7 @@ async function buildMonthlyReportPdf(student: any, from: string, to: string, tem
     ctx.font = font;
     ctx.fillText(text, canvas.width * px / 100, canvas.height * py / 100, canvas.width * 0.9);
   }
+  for (const item of (layout?.reportCustomTexts ?? [])) { if (item && typeof item.text === 'string' && item.text.trim()) { ctx.fillStyle = item.color || '#173d32'; ctx.font = (item.bold ? 'bold ' : '') + Math.max(8, Math.min(72, Number(item.fontSize) || 18)) + 'px Tahoma, Arial, sans-serif'; ctx.fillText(item.text, canvas.width * Math.min(95, Math.max(5, Number(item.x) || 50)) / 100, canvas.height * Math.min(95, Math.max(5, Number(item.y) || 50)) / 100, canvas.width * 0.9); } }
   const png = await pdf.embedPng(await new Promise<Uint8Array>((resolve, reject) => canvas.toBlob(async blob => {
     if (!blob) { reject(new Error('تعذر تجهيز التقرير')); return; }
     resolve(new Uint8Array(await blob.arrayBuffer()));
@@ -127,6 +129,12 @@ export default function CertificatesAdminPage() {
   const [sourceType,setSourceType]=useState('BUILDER');
   const [fileUrl,setFileUrl]=useState('');
   const [design,setDesign]=useState(JSON.stringify({orientation:'landscape',positions:{heading:{x:50,y:35},intro:{x:50,y:44},studentName:{x:50,y:53},kind:{x:50,y:63},title:{x:50,y:70},date:{x:50,y:78}},reportPositions:{heading:{x:50,y:22},student:{x:50,y:32},circle:{x:50,y:39},period:{x:50,y:46},attendance:{x:50,y:55},recitations:{x:50,y:63},scores:{x:50,y:70},evaluation:{x:50,y:78},notes:{x:50,y:85}}},null,2));
+  const [customTextValue,setCustomTextValue]=useState('');
+  const [customTextX,setCustomTextX]=useState(50);
+  const [customTextY,setCustomTextY]=useState(50);
+  const [customTextSize,setCustomTextSize]=useState(20);
+  const [customTextTarget,setCustomTextTarget]=useState('certificate');
+  const addCustomText=()=>{try{const next=JSON.parse(design);const key=customTextTarget==='certificate'?'customTexts':'reportCustomTexts';next[key]=[...(next[key]||[]),{text:customTextValue,x:customTextX,y:customTextY,fontSize:customTextSize,bold:false,color:'#173d32'}];setDesign(JSON.stringify(next,null,2));setCustomTextValue('');toast.success('أُضيف النص للتصميم؛ احفظ القالب لحفظ التعديل.');}catch{toast.error('إعدادات التصميم غير صالحة؛ أصلح JSON أولًا.');}};
   const [decisionNotes,setDecisionNotes]=useState<Record<string,string>>({});
   const [fileUrls,setFileUrls]=useState<Record<string,string>>({});
   const [issueKind,setIssueKind]=useState('JUZ_COMPLETION');
@@ -185,6 +193,19 @@ export default function CertificatesAdminPage() {
         <label className="grid gap-1 text-sm font-medium">طريقة القالب<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={sourceType} onChange={e=>setSourceType(e.target.value)}><option value="BUILDER">تصميم داخل الموقع (إعدادات أولية)</option><option value="UPLOAD">قالب مرفوع</option></select></label>
         <label className="grid gap-1 text-sm font-medium">رفع قالب PDF من الجهاز<input type="file" accept="application/pdf,.pdf" className="rounded-lg border border-slate-300 bg-white p-2.5" onChange={e=>{const file=e.target.files?.[0];if(!file)return;if(file.type!=='application/pdf'){toast.error('اختر ملف PDF فقط');return;}if(file.size>5*1024*1024){toast.error('حجم القالب يجب ألا يتجاوز 5 ميغابايت');return;}const reader=new FileReader();reader.onload=()=>setFileUrl(String(reader.result||''));reader.readAsDataURL(file);}} />{fileUrl.startsWith('data:application/pdf;base64,')&&<a className="text-primary-700 underline" href={fileUrl} target="_blank" rel="noreferrer">معاينة قالب PDF المرفوع</a>}</label>
         <div className="md:col-span-2 rounded-xl border border-slate-200 p-4"><p className="font-semibold">أماكن النص على الشهادة</p><p className="mb-3 text-sm text-slate-500">حدد موضع كل عنصر كنسبة مئوية من عرض وارتفاع الصفحة. 50 يعني المنتصف؛ غيّر X لليمين أو اليسار وY للأعلى أو الأسفل. القالب الأصلي يبقى خلف النص.</p><div className="grid gap-3 sm:grid-cols-2">{[{key:"heading",label:"العنوان الرئيسي"},{key:"intro",label:"عبارة تُمنح هذه الشهادة"},{key:"studentName",label:"اسم الطالب"},{key:"kind",label:"نوع الإنجاز"},{key:"title",label:"عنوان الشهادة"},{key:"date",label:"التاريخ"}].map(field=>{const parsed=(()=>{try{return JSON.parse(design)}catch{return {}}})();const pos=parsed.positions?.[field.key]||{};return <div key={field.key} className="rounded-lg bg-slate-50 p-3"><p className="mb-2 text-sm font-semibold">{field.label}</p><div className="grid grid-cols-2 gap-2"><label className="text-xs">X — أفقي<input type="number" min="5" max="95" className="mt-1 w-full rounded border p-2" value={pos.x??50} onChange={e=>{const next=JSON.parse(design);next.positions=next.positions||{};next.positions[field.key]={...(next.positions[field.key]||{}),x:Number(e.target.value)};setDesign(JSON.stringify(next,null,2));}} /></label><label className="text-xs">Y — عمودي<input type="number" min="5" max="95" className="mt-1 w-full rounded border p-2" value={pos.y??50} onChange={e=>{const next=JSON.parse(design);next.positions=next.positions||{};next.positions[field.key]={...(next.positions[field.key]||{}),y:Number(e.target.value)};setDesign(JSON.stringify(next,null,2));}} /></label></div></div>})}</div><details className="mt-3"><summary className="cursor-pointer text-sm underline">إعدادات متقدمة (JSON)</summary><textarea className="mt-2 min-h-24 w-full rounded-lg border border-slate-300 p-3 font-mono text-sm" value={design} onChange={e=>setDesign(e.target.value)} /></details></div>
+
+        <div className="md:col-span-2 rounded-xl border p-4 space-y-3">
+          <p className="font-semibold">إضافة نص مخصص للقالب</p>
+          <p className="text-sm text-slate-500">اكتب أي عبارة إضافية وحدد موضعها وحجمها، سواء للشهادة أو للتقرير. تظهر عند إصدار الملفات بعد حفظ القالب.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input label="النص الإضافي" value={customTextValue} onChange={e=>setCustomTextValue(e.target.value)} placeholder="مثال: ختم المؤسسة أو عبارة تهنئة" />
+            <label className="grid gap-1 text-sm font-medium">يظهر في<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={customTextTarget} onChange={e=>setCustomTextTarget(e.target.value)}><option value="certificate">الشهادة</option><option value="report">التقرير الشهري</option></select></label>
+            <Input label="الموضع الأفقي X (5–95%)" type="number" value={String(customTextX)} onChange={e=>setCustomTextX(Number(e.target.value))} />
+            <Input label="الموضع العمودي Y (5–95%)" type="number" value={String(customTextY)} onChange={e=>setCustomTextY(Number(e.target.value))} />
+            <Input label="حجم الخط" type="number" value={String(customTextSize)} onChange={e=>setCustomTextSize(Number(e.target.value))} />
+          </div>
+          <Button type="button" variant="secondary" disabled={!customTextValue.trim()} onClick={addCustomText}>إضافة النص للتصميم</Button>
+        </div>
         <div><Button type="submit" disabled={create.isPending}>{create.isPending?'جارٍ الحفظ...':'حفظ القالب'}</Button></div>
       </form>
     </Card>

@@ -43,6 +43,13 @@ export class StudentsController {
     return this.service.findOne(user, id);
   }
 
+  @Get('me/history')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'سجل الحضور والتسميع والاختبارات للطالب الحالي' })
+  getMyHistory(@CurrentUser() user: AuthUser) {
+    return this.service.getMyHistory(user);
+  }
+
   @Get(':id/history')
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   @ApiOperation({ summary: 'السجل الكامل للطالب' })

@@ -549,6 +549,60 @@ export class StudentsService {
       : profile;
   }
 
+
+  async listAccounts() {
+    const students = await this.prisma.student.findMany({
+      where: { deletedAt: null, userId: { not: null } },
+      select: { id: true, fullName: true, nationalId: true, phone: true, code: true,
+        user: { select: { id: true, username: true, isActive: true, mustChangePassword: true } } },
+      orderBy: { fullName: 'asc' },
+    });
+    return students.filter((s) => s.user).map((s) => ({
+      id: s.id, fullName: s.fullName, nationalId: s.nationalId, phone: s.phone, code: s.code,
+      userId: s.user!.id, username: s.user!.username, isActive: s.user!.isActive,
+      mustChangePassword: s.user!.mustChangePassword,
+    }));
+  }
+
+  async createAccountForStudent(actor: AuthUser, id: string) {
+    const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null } });
+    if (!student) throw new NotFoundException('الطالب غير موجود');
+    if (student.userId) throw new ConflictException('الطالب لديه حساب دخول بالفعل');
+    const nationalId = student.nationalId?.trim();
+    if (!nationalId) throw new BadRequestException('أضف رقم هوية الطالب أولاً من صفحة تعديل بياناته');
+    const username = nationalId.toLowerCase();
+    const taken = await this.prisma.user.findFirst({ where: { username, deletedAt: null }, select: { id: true } });
+    if (taken) throw new ConflictException('رقم الهوية مستخدم كاسم دخول لحساب آخر');
+    const temporaryPassword = randomBytes(9).toString('base64url');
+    const user = await this.prisma.user.create({ data: {
+      username, passwordHash: await bcrypt.hash(temporaryPassword, 12), fullName: student.fullName,
+      phone: student.phone, role: Role.STUDENT, isActive: true, mustChangePassword: true,
+    } });
+    await this.prisma.student.update({ where: { id }, data: { userId: user.id } });
+    await this.activity.log({ userId: actor.id, action: 'STUDENT_ACCOUNT_CREATE', summary: `إنشاء حساب دخول للطالب: ${student.fullName}`, entityType: 'Student', entityId: id });
+    return { studentId: id, fullName: student.fullName, username, temporaryPassword };
+  }
+
+  async resetStudentAccountPassword(actor: AuthUser, id: string) {
+    const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, include: { user: true } });
+    if (!student) throw new NotFoundException('الطالب غير موجود');
+    if (!student.user) throw new BadRequestException('الطالب لا يملك حساب دخول');
+    const temporaryPassword = randomBytes(9).toString('base64url');
+    await this.prisma.user.update({ where: { id: student.user.id },
+      data: { passwordHash: await bcrypt.hash(temporaryPassword, 12), mustChangePassword: true, isActive: true } });
+    await this.activity.log({ userId: actor.id, action: 'STUDENT_ACCOUNT_PASSWORD_RESET', summary: `إعادة تعيين كلمة مرور الطالب: ${student.fullName}`, entityType: 'Student', entityId: id });
+    return { studentId: id, fullName: student.fullName, username: student.user.username, temporaryPassword };
+  }
+
+  async setStudentAccountActive(actor: AuthUser, id: string, active: boolean) {
+    const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, include: { user: true } });
+    if (!student) throw new NotFoundException('الطالب غير موجود');
+    if (!student.user) throw new BadRequestException('الطالب لا يملك حساب دخول');
+    await this.prisma.user.update({ where: { id: student.user.id }, data: { isActive: active } });
+    await this.activity.log({ userId: actor.id, action: active ? 'STUDENT_ACCOUNT_ACTIVATE' : 'STUDENT_ACCOUNT_DEACTIVATE', summary: `${active ? 'تفعيل' : 'إيقاف'} حساب الطالب: ${student.fullName}`, entityType: 'Student', entityId: id });
+    return { studentId: id, isActive: active };
+  }
+
   /**
    * Sets or clears a student's picture.
    *

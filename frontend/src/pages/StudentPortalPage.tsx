@@ -1,19 +1,66 @@
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-import { Card, ErrorState, LoadingState, PageHeader, ProgressBar, StatCard } from '@/components/ui';
+import { FormEvent, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { api, apiError } from '@/lib/api';
+import toast from 'react-hot-toast';
+import { useAuthStore } from '@/store/auth';
+import { Button, Card, ErrorState, Input, LoadingState, PageHeader, ProgressBar, StatCard } from '@/components/ui';
 import { IconAward, IconBook, IconClipboard } from '@/components/ui/Icons';
 import { formatDateShort, formatParts } from '@/lib/format';
 
 export default function StudentPortalPage() {
+  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const changePassword = useMutation({
+    mutationFn: () => api.patch('/auth/change-password', { currentPassword, newPassword }),
+    onSuccess: async () => {
+      toast.success('تم تغيير كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.');
+      await logout();
+      navigate('/login', { replace: true });
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
+  const submitPassword = (event: FormEvent) => {
+    event.preventDefault();
+    if (!currentPassword || newPassword.length < 6 || newPassword !== confirmPassword || newPassword === currentPassword) {
+      setPasswordError(!currentPassword ? 'كلمة المرور المؤقتة مطلوبة' : newPassword.length < 6 ? 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل' : newPassword !== confirmPassword ? 'كلمتا المرور غير متطابقتين' : 'اختر كلمة مرور مختلفة عن المؤقتة');
+      return;
+    }
+    setPasswordError('');
+    changePassword.mutate();
+  };
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['student', 'me'],
+    enabled: !user?.mustChangePassword,
     queryFn: async () => (await api.get('/students/me')).data,
   });
 
   const history = useQuery({
     queryKey: ['student', 'me', 'history'],
+    enabled: !user?.mustChangePassword,
     queryFn: async () => (await api.get('/students/me/history')).data,
   });
+
+  if (user?.mustChangePassword) {
+    return (
+      <div className="mx-auto max-w-xl">
+        <PageHeader title="تغيير كلمة المرور" subtitle="لأمان حسابك، يجب تغيير كلمة المرور المؤقتة قبل متابعة ملفك الدراسي." />
+        <Card title="تعيين كلمة مرور جديدة">
+          <form onSubmit={submitPassword} className="grid gap-4">
+            <Input label="كلمة المرور المؤقتة" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required dir="ltr" />
+            <Input label="كلمة المرور الجديدة" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required hint="6 أحرف على الأقل" dir="ltr" />
+            <Input label="تأكيد كلمة المرور الجديدة" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required dir="ltr" />
+            {passwordError && <p role="alert" className="text-sm text-red-600">{passwordError}</p>}
+            <Button type="submit" loading={changePassword.isPending}>حفظ كلمة المرور</Button>
+          </form>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) return <LoadingState rows={5} />;
   if (isError || !data) return <ErrorState message="تعذر تحميل ملفك الدراسي" onRetry={() => refetch()} />;

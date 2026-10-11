@@ -81,6 +81,12 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    title: 'حساب الطالب',
+    items: [
+      { to: '/student', label: 'ملفي الدراسي', icon: <IconGraduation size={19} />, roles: ['STUDENT'] },
+    ],
+  },
+  {
     title: 'أبنائي',
     items: [
       { to: '/parent/children', label: 'متابعة الأبناء', icon: <IconGraduation size={19} />, roles: ['PARENT'] },

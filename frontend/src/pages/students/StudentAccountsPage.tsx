@@ -1,0 +1,26 @@
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { api, apiError } from '@/lib/api';
+import { Button, Card, PageHeader, SearchInput, LoadingState, ErrorState } from '@/components/ui';
+
+type Account = { id:string; fullName:string; nationalId:string|null; phone:string|null; username:string; isActive:boolean; mustChangePassword:boolean };
+type Student = { id:string; fullName:string; nationalId?:string|null };
+type Creds = { fullName:string; username:string; temporaryPassword:string };
+export default function StudentAccountsPage() {
+ const qc=useQueryClient(); const [search,setSearch]=useState(''); const [studentId,setStudentId]=useState(''); const [creds,setCreds]=useState<Creds|null>(null);
+ const q=useQuery({queryKey:['student-accounts'],queryFn:async()=>(await api.get<Account[]>('/students/accounts')).data});
+ const s=useQuery({queryKey:['students','account-options'],queryFn:async()=>(await api.get<{data:Student[]}>('/students',{params:{page:1,limit:100}})).data});
+ const create=useMutation({mutationFn:async(id:string)=>(await api.post<Creds>(`/students/${id}/account`)).data,onSuccess:d=>{setCreds(d);void qc.invalidateQueries({queryKey:['student-accounts']});},onError:e=>toast.error(apiError(e))});
+ const reset=useMutation({mutationFn:async(id:string)=>(await api.post<Creds>(`/students/${id}/account/reset-password`)).data,onSuccess:setCreds,onError:e=>toast.error(apiError(e))});
+ const toggle=useMutation({mutationFn:(a:Account)=>api.patch(`/students/${a.id}/account/active`,{isActive:!a.isActive}),onSuccess:()=>void qc.invalidateQueries({queryKey:['student-accounts']}),onError:e=>toast.error(apiError(e))});
+ const exportFile=async()=>{try{const r=await api.get('/students/accounts/export',{responseType:'blob'});const u=URL.createObjectURL(r.data);const a=document.createElement('a');a.href=u;a.download='student-accounts.xlsx';a.click();URL.revokeObjectURL(u);}catch(e){toast.error(apiError(e));}};
+ const accounts=q.data??[]; const ids=new Set(accounts.map(a=>a.id)); const options=(s.data?.data??[]).filter(x=>!ids.has(x.id));
+ const rows=accounts.filter(a=>[a.fullName,a.nationalId??'',a.phone??'',a.username].some(v=>v.toLowerCase().includes(search.toLowerCase())));
+ return <div dir="rtl"><PageHeader title="حسابات الطلاب" subtitle="إدارة حسابات الدخول وتصدير بياناتها" action={<Button onClick={exportFile}>إصدار Excel</Button>}/>
+ <Card className="mb-4"><div className="grid gap-3 md:grid-cols-[1fr_auto]"><select className="rounded-xl border p-3" value={studentId} onChange={e=>setStudentId(e.target.value)}><option value="">إضافة حساب لطالب مسجل</option>{options.map(x=><option key={x.id} value={x.id}>{x.fullName} — {x.nationalId||'بدون هوية'}</option>)}</select><Button disabled={!studentId||create.isPending} onClick={()=>create.mutate(studentId)}>إنشاء حساب طالب</Button></div><p className="mt-2 text-xs text-slate-500">يلزم وجود رقم هوية في ملف الطالب، ويُستخدم كاسم مستخدم.</p></Card>
+ <Card className="mb-4"><SearchInput value={search} onChange={setSearch} placeholder="بحث بالاسم أو الهوية أو الجوال أو اسم المستخدم"/></Card>
+ <Card padded={false}>{q.isLoading?<LoadingState/>:q.isError?<ErrorState message="تعذر تحميل حسابات الطلاب" onRetry={()=>q.refetch()}/>:<div className="table-wrap"><table className="table"><thead><tr><th>الطالب</th><th>رقم الهوية</th><th>الجوال</th><th>اسم المستخدم</th><th>كلمة المرور المؤقتة</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody>{rows.map(a=><tr key={a.id}><td>{a.fullName}</td><td>{a.nationalId||'—'}</td><td>{a.phone||'—'}</td><td dir="ltr">{a.username}</td><td>{a.mustChangePassword?'مطلوب تغييرها عند أول دخول':'غير متاحة بعد تغييرها'}</td><td>{a.isActive?'نشط':'موقوف'}</td><td><div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={()=>reset.mutate(a.id)} loading={reset.isPending}>إعادة تعيين كلمة السر</Button><Button size="sm" variant="secondary" onClick={()=>toggle.mutate(a)} loading={toggle.isPending}>{a.isActive?'إيقاف الحساب':'تفعيل الحساب'}</Button></div></td></tr>)}</tbody></table></div>}</Card>
+ {creds&&<div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"><Card className="w-full max-w-lg"><h2 className="mb-3 text-lg font-bold">بيانات الدخول المؤقتة — احفظها الآن</h2><p className="mb-2">الطالب: {creds.fullName}</p><p className="mb-2">اسم المستخدم: <b dir="ltr">{creds.username}</b></p><p className="mb-4">كلمة المرور المؤقتة: <b dir="ltr" className="select-all">{creds.temporaryPassword}</b></p><p className="mb-4 text-sm text-slate-500">لن يمكن استرجاعها بعد إغلاق هذه النافذة أو تغيير كلمة المرور.</p><Button onClick={()=>setCreds(null)}>تم، إغلاق</Button></Card></div>}
+ </div>;
+}

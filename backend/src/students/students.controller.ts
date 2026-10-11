@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import { Response } from 'express';
+import ExcelJS from 'exceljs';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser, Roles } from '../common/decorators';
@@ -60,6 +62,42 @@ export class StudentsController {
   @ApiOperation({ summary: 'ملاحظات الطالب' })
   notes(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.listNotes(user, id);
+  }
+
+  @Post('credentials-export')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'تصدير بيانات دخول الطلاب المنشأة للتو إلى Excel' })
+  async exportCredentials(
+    @Body() body: { credentials?: { fullName: string; code?: string; username: string; temporaryPassword: string }[] },
+    @Res() response: Response,
+  ) {
+    const rows = body?.credentials ?? [];
+    if (!rows.length || rows.length > 500 || rows.some((r) => !r.fullName || !r.username || !r.temporaryPassword)) {
+      response.status(400).json({ message: 'بيانات التصدير غير مكتملة أو تتجاوز الحد المسموح' });
+      return;
+    }
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('بيانات دخول الطلاب');
+    sheet.columns = [
+      { header: 'اسم الطالب', key: 'fullName', width: 30 },
+      { header: 'رقم الطالب', key: 'code', width: 18 },
+      { header: 'اسم المستخدم (رقم الهوية)', key: 'username', width: 25 },
+      { header: 'كلمة المرور المؤقتة', key: 'temporaryPassword', width: 26 },
+    ];
+    sheet.addRows(rows.map((r) => ({
+      fullName: r.fullName,
+      code: r.code ?? '',
+      username: r.username,
+      temporaryPassword: r.temporaryPassword,
+    })));
+    sheet.getRow(1).font = { bold: true };
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+    const buffer = await workbook.xlsx.writeBuffer();
+    response
+      .setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .setHeader('Content-Disposition', 'attachment; filename="student-login-credentials.xlsx"')
+      .setHeader('Cache-Control', 'no-store')
+      .send(Buffer.from(buffer));
   }
 
   // A teacher may register a student straight into their own circle; the

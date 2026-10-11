@@ -94,6 +94,63 @@ export class CertificatesService {
     });
   }
 
+  async listIssuedRecords() {
+    return this.prisma.certificateRecord.findMany({
+      include: {
+        student: { select: { id: true, fullName: true, code: true, circle: { select: { name: true } } } },
+        issuedBy: { select: { fullName: true } },
+        template: { select: { name: true } },
+      },
+      orderBy: { issuedAt: 'desc' },
+      take: 500,
+    });
+  }
+
+  async monthlyReportData(fromValue: string, toValue: string) {
+    const from = new Date(fromValue);
+    const to = new Date(toValue);
+    if (!fromValue || !toValue || Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+      throw new BadRequestException('فترة التقرير غير صحيحة');
+    }
+    from.setUTCHours(0, 0, 0, 0);
+    to.setUTCHours(23, 59, 59, 999);
+    const students = await this.prisma.student.findMany({
+      where: { deletedAt: null, status: 'ACTIVE' },
+      orderBy: { fullName: 'asc' },
+      select: {
+        id: true, code: true, fullName: true, evaluation: true, evaluationNote: true,
+        memorizedParts: true, currentSurah: true,
+        circle: { select: { name: true } },
+        attendance: { where: { date: { gte: from, lte: to } }, select: { status: true } },
+        recitations: {
+          where: { date: { gte: from, lte: to }, deletedAt: null },
+          orderBy: { date: 'asc' },
+          select: { date: true, type: true, fromSurah: true, fromAyah: true, toSurah: true, toAyah: true, pagesCount: true, mistakes: true, warnings: true, points: true, evaluation: true, notes: true },
+        },
+      },
+    });
+    return students.map((student) => ({
+      id: student.id, code: student.code, fullName: student.fullName,
+      circleName: student.circle?.name ?? 'بدون حلقة',
+      evaluation: student.evaluation, evaluationNote: student.evaluationNote,
+      memorizedParts: student.memorizedParts, currentSurah: student.currentSurah,
+      attendance: {
+        recorded: student.attendance.length,
+        present: student.attendance.filter((x) => x.status === 'PRESENT').length,
+        absent: student.attendance.filter((x) => x.status === 'ABSENT').length,
+        excused: student.attendance.filter((x) => x.status === 'EXCUSED').length,
+      },
+      recitations: {
+        sessions: student.recitations.length,
+        pages: student.recitations.reduce((sum, x) => sum + (x.pagesCount ?? 0), 0),
+        points: student.recitations.reduce((sum, x) => sum + x.points, 0),
+        mistakes: student.recitations.reduce((sum, x) => sum + x.mistakes, 0),
+        warnings: student.recitations.reduce((sum, x) => sum + x.warnings, 0),
+        entries: student.recitations,
+      },
+    }));
+  }
+
   async listRequests() {
     return this.prisma.studentFileRequest.findMany({
       include: { student: { select: { id: true, fullName: true, code: true } }, reviewedBy: { select: { fullName: true } } },
@@ -118,6 +175,33 @@ export class CertificatesService {
         fileUrl: body.status === StudentFileRequestStatus.READY ? body.fileUrl!.trim() : request.fileUrl,
         reviewedById: user.id,
         reviewedAt: new Date(),
+      },
+    });
+  }
+
+  async publishMonthlyReport(user: AuthUser, body: { studentId?: string; from?: string; to?: string; fileUrl?: string; reportDraft?: unknown }) {
+    if (!body.studentId || !body.from || !body.to || !body.fileUrl?.startsWith('data:application/pdf;base64,')) {
+      throw new BadRequestException('الطالب والفترة وملف PDF مطلوبون');
+    }
+    const from = new Date(body.from);
+    const to = new Date(body.to);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+      throw new BadRequestException('فترة التقرير غير صحيحة');
+    }
+    const student = await this.prisma.student.findFirst({ where: { id: body.studentId, deletedAt: null }, select: { id: true } });
+    if (!student) throw new NotFoundException('الطالب غير موجود');
+    return this.prisma.studentFileRequest.create({
+      data: {
+        studentId: student.id,
+        kind: StudentFileRequestKind.MONTHLY_REPORT,
+        periodFrom: from,
+        periodTo: to,
+        status: StudentFileRequestStatus.READY,
+        fileUrl: body.fileUrl,
+        reportDraft: (body.reportDraft ?? {}) as any,
+        reviewedById: user.id,
+        reviewedAt: new Date(),
+        decisionNote: 'تم إنشاء التقرير الشهري ونشره تلقائيًا من بيانات النظام.',
       },
     });
   }

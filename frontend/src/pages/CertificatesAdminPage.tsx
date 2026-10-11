@@ -14,7 +14,7 @@ function escapeCertificateText(value: unknown) {
     return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[ch];
   });
 }
-async function buildPrintableCertificate(studentName: string, title: string, kind: string, date: string, templateUrl?: string) {
+async function buildPrintableCertificate(studentName: string, title: string, kind: string, date: string, templateUrl?: string, layout?: any) {
   const kindLabels: Record<string, string> = { JUZ_COMPLETION:'إنجاز جزء', QURAN_COMPLETION:'ختم المصحف', TAJWEED_COURSE:'نجاح في دورة أحكام', SHARIA_COURSE:'نجاح في دورة شريعة', COURSE_COMPLETION:'نجاح في دورة مخصصة', HONOR:'تكريم' };
   let pdf: PDFDocument;
   if (templateUrl?.startsWith('data:application/pdf;base64,')) {
@@ -37,18 +37,20 @@ async function buildPrintableCertificate(studentName: string, title: string, kin
   ctx.direction = 'rtl';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#173d32';
-  const center = canvas.width / 2;
-  ctx.font = 'bold 34px Tahoma, Arial, sans-serif';
-  ctx.fillText('شهادة تقدير وإنجاز', center, canvas.height * 0.35);
-  ctx.font = '24px Tahoma, Arial, sans-serif';
-  ctx.fillText('تُمنح هذه الشهادة إلى', center, canvas.height * 0.44);
-  ctx.font = 'bold 38px Tahoma, Arial, sans-serif';
-  ctx.fillText(studentName, center, canvas.height * 0.53, canvas.width * 0.78);
-  ctx.font = '24px Tahoma, Arial, sans-serif';
-  ctx.fillText('وذلك تقديرًا لـ ' + (kindLabels[kind] || kind), center, canvas.height * 0.63);
-  ctx.font = '19px Tahoma, Arial, sans-serif';
-  ctx.fillText(title, center, canvas.height * 0.70, canvas.width * 0.8);
-  ctx.fillText('تاريخ الإصدار: ' + date, center, canvas.height * 0.78);
+  const positions = layout?.positions ?? {};
+  const draw = (key: string, text: string, fallbackX: number, fallbackY: number, font: string, maxWidth = canvas.width * 0.86) => {
+    const pos = positions[key] ?? {};
+    const px = Number.isFinite(Number(pos.x)) ? Math.min(95, Math.max(5, Number(pos.x))) : fallbackX;
+    const py = Number.isFinite(Number(pos.y)) ? Math.min(95, Math.max(5, Number(pos.y))) : fallbackY;
+    ctx.font = font;
+    ctx.fillText(text, canvas.width * px / 100, canvas.height * py / 100, maxWidth);
+  };
+  draw('heading', 'شهادة تقدير وإنجاز', 50, 35, 'bold 34px Tahoma, Arial, sans-serif');
+  draw('intro', 'تُمنح هذه الشهادة إلى', 50, 44, '24px Tahoma, Arial, sans-serif');
+  draw('studentName', studentName, 50, 53, 'bold 38px Tahoma, Arial, sans-serif', canvas.width * 0.78);
+  draw('kind', 'وذلك تقديرًا لـ ' + (kindLabels[kind] || kind), 50, 63, '24px Tahoma, Arial, sans-serif');
+  draw('title', title, 50, 70, '19px Tahoma, Arial, sans-serif');
+  draw('date', 'تاريخ الإصدار: ' + date, 50, 78, '19px Tahoma, Arial, sans-serif');
   const png = await pdf.embedPng(await new Promise<Uint8Array>((resolve, reject) => canvas.toBlob(async blob => {
     if (!blob) { reject(new Error('تعذر تجهيز صورة النص')); return; }
     resolve(new Uint8Array(await blob.arrayBuffer()));
@@ -61,7 +63,7 @@ async function buildPrintableCertificate(studentName: string, title: string, kin
   return 'data:application/pdf;base64,' + btoa(binary);
 }
 
-async function buildMonthlyReportPdf(student: any, from: string, to: string, templateUrl?: string) {
+async function buildMonthlyReportPdf(student: any, from: string, to: string, templateUrl?: string, layout?: any) {
   let pdf: PDFDocument;
   if (templateUrl?.startsWith('data:application/pdf;base64,')) {
     const raw = atob(templateUrl.split(',')[1]);
@@ -91,7 +93,16 @@ async function buildMonthlyReportPdf(student: any, from: string, to: string, tem
     ['التقييم العام: ' + (student.evaluation || 'غير محدد'), 0.78, 'bold 22px Tahoma, Arial'],
     ['ملاحظات التقييم: ' + (student.evaluationNote || 'لا توجد'), 0.85, '19px Tahoma, Arial'],
   ];
-  for (const [text, ratio, font] of lines) { ctx.font = font; ctx.fillText(text, x, canvas.height * ratio, canvas.width * 0.9); }
+  const positions = layout?.reportPositions ?? {};
+  const reportKeys = ['heading','student','circle','period','attendance','recitations','scores','evaluation','notes'];
+  for (let i = 0; i < lines.length; i++) {
+    const [text, ratio, font] = lines[i];
+    const pos = positions[reportKeys[i]] ?? {};
+    const px = Number.isFinite(Number(pos.x)) ? Math.min(95, Math.max(5, Number(pos.x))) : 50;
+    const py = Number.isFinite(Number(pos.y)) ? Math.min(95, Math.max(5, Number(pos.y))) : ratio * 100;
+    ctx.font = font;
+    ctx.fillText(text, canvas.width * px / 100, canvas.height * py / 100, canvas.width * 0.9);
+  }
   const png = await pdf.embedPng(await new Promise<Uint8Array>((resolve, reject) => canvas.toBlob(async blob => {
     if (!blob) { reject(new Error('تعذر تجهيز التقرير')); return; }
     resolve(new Uint8Array(await blob.arrayBuffer()));
@@ -110,7 +121,7 @@ export default function CertificatesAdminPage() {
   const [kind,setKind]=useState('JUZ_COMPLETION');
   const [sourceType,setSourceType]=useState('BUILDER');
   const [fileUrl,setFileUrl]=useState('');
-  const [design,setDesign]=useState('{"orientation":"landscape","fields":["studentName","date"]}');
+  const [design,setDesign]=useState(JSON.stringify({orientation:'landscape',positions:{heading:{x:50,y:35},intro:{x:50,y:44},studentName:{x:50,y:53},kind:{x:50,y:63},title:{x:50,y:70},date:{x:50,y:78}},reportPositions:{heading:{x:50,y:22},student:{x:50,y:32},circle:{x:50,y:39},period:{x:50,y:46},attendance:{x:50,y:55},recitations:{x:50,y:63},scores:{x:50,y:70},evaluation:{x:50,y:78},notes:{x:50,y:85}}},null,2));
   const [decisionNotes,setDecisionNotes]=useState<Record<string,string>>({});
   const [fileUrls,setFileUrls]=useState<Record<string,string>>({});
   const [issueKind,setIssueKind]=useState('JUZ_COMPLETION');
@@ -137,7 +148,7 @@ export default function CertificatesAdminPage() {
     const urls:Array<{url:string;name:string}>=[];
     const template=(templates.data??[]).find((t:any)=>t.id===selectedTemplateId);
     for(const student of chosen){
-      const url=await buildPrintableCertificate(student.fullName,issueTitle,issueKind,issueDate,template?.fileUrl||undefined);
+      const url=await buildPrintableCertificate(student.fullName,issueTitle,issueKind,issueDate,template?.fileUrl||undefined,template?.design||undefined);
       await api.post('/certificates/issue',{studentId:student.id,templateId:selectedTemplateId||undefined,kind:issueKind,title:issueTitle,details:{issueDate,studentName:student.fullName},fileUrl:url});
       urls.push({url,name:student.fullName});
     }
@@ -168,7 +179,7 @@ export default function CertificatesAdminPage() {
         <label className="grid gap-1 text-sm font-medium">نوع الشهادة<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={kind} onChange={e=>setKind(e.target.value)}>{Object.entries(kinds).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
         <label className="grid gap-1 text-sm font-medium">طريقة القالب<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={sourceType} onChange={e=>setSourceType(e.target.value)}><option value="BUILDER">تصميم داخل الموقع (إعدادات أولية)</option><option value="UPLOAD">قالب مرفوع</option></select></label>
         <label className="grid gap-1 text-sm font-medium">رفع قالب PDF من الجهاز<input type="file" accept="application/pdf,.pdf" className="rounded-lg border border-slate-300 bg-white p-2.5" onChange={e=>{const file=e.target.files?.[0];if(!file)return;if(file.type!=='application/pdf'){toast.error('اختر ملف PDF فقط');return;}if(file.size>5*1024*1024){toast.error('حجم القالب يجب ألا يتجاوز 5 ميغابايت');return;}const reader=new FileReader();reader.onload=()=>setFileUrl(String(reader.result||''));reader.readAsDataURL(file);}} />{fileUrl.startsWith('data:application/pdf;base64,')&&<a className="text-primary-700 underline" href={fileUrl} target="_blank" rel="noreferrer">معاينة قالب PDF المرفوع</a>}</label>
-        <label className="md:col-span-2 grid gap-1 text-sm font-medium">إعدادات التصميم (JSON)<textarea className="min-h-24 rounded-lg border border-slate-300 p-3 font-mono text-sm" value={design} onChange={e=>setDesign(e.target.value)} /></label>
+        <div className="md:col-span-2 rounded-xl border border-slate-200 p-4"><p className="font-semibold">أماكن النص على الشهادة</p><p className="mb-3 text-sm text-slate-500">حدد موضع كل عنصر كنسبة مئوية من عرض وارتفاع الصفحة. 50 يعني المنتصف؛ غيّر X لليمين أو اليسار وY للأعلى أو الأسفل. القالب الأصلي يبقى خلف النص.</p><div className="grid gap-3 sm:grid-cols-2">{[{key:"heading",label:"العنوان الرئيسي"},{key:"intro",label:"عبارة تُمنح هذه الشهادة"},{key:"studentName",label:"اسم الطالب"},{key:"kind",label:"نوع الإنجاز"},{key:"title",label:"عنوان الشهادة"},{key:"date",label:"التاريخ"}].map(field=>{const parsed=(()=>{try{return JSON.parse(design)}catch{return {}}})();const pos=parsed.positions?.[field.key]||{};return <div key={field.key} className="rounded-lg bg-slate-50 p-3"><p className="mb-2 text-sm font-semibold">{field.label}</p><div className="grid grid-cols-2 gap-2"><label className="text-xs">X — أفقي<input type="number" min="5" max="95" className="mt-1 w-full rounded border p-2" value={pos.x??50} onChange={e=>{const next=JSON.parse(design);next.positions=next.positions||{};next.positions[field.key]={...(next.positions[field.key]||{}),x:Number(e.target.value)};setDesign(JSON.stringify(next,null,2));}} /></label><label className="text-xs">Y — عمودي<input type="number" min="5" max="95" className="mt-1 w-full rounded border p-2" value={pos.y??50} onChange={e=>{const next=JSON.parse(design);next.positions=next.positions||{};next.positions[field.key]={...(next.positions[field.key]||{}),y:Number(e.target.value)};setDesign(JSON.stringify(next,null,2));}} /></label></div></div>})}</div><details className="mt-3"><summary className="cursor-pointer text-sm underline">إعدادات متقدمة (JSON)</summary><textarea className="mt-2 min-h-24 w-full rounded-lg border border-slate-300 p-3 font-mono text-sm" value={design} onChange={e=>setDesign(e.target.value)} /></details></div>
         <div><Button type="submit" disabled={create.isPending}>{create.isPending?'جارٍ الحفظ...':'حفظ القالب'}</Button></div>
       </form>
     </Card>
@@ -185,7 +196,7 @@ export default function CertificatesAdminPage() {
       {reportData.isLoading?<LoadingState/>:reportData.isError?<p className="mt-3 text-sm text-red-600">تعذر تحميل بيانات التقرير.</p>:<div className="mt-4">
         <div className="mb-3 flex items-center justify-between gap-2"><p className="font-semibold">الطلاب: {reportData.data?.length??0} · المحدد: {reportStudentIds.length}</p><button type="button" className="text-sm text-primary-700 underline" onClick={()=>setReportStudentIds(reportStudentIds.length===(reportData.data??[]).length?[]:(reportData.data??[]).map((s:any)=>s.id))}>تحديد الكل / إلغاء التحديد</button></div>
         <div className="grid max-h-56 gap-2 overflow-y-auto sm:grid-cols-2">{(reportData.data??[]).map((s:any)=><label key={s.id} className="flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-sm"><input type="checkbox" checked={reportStudentIds.includes(s.id)} onChange={e=>setReportStudentIds(old=>e.target.checked?[...old,s.id]:old.filter(id=>id!==s.id))}/><span>{s.fullName} — {s.circleName}</span></label>)}</div>
-        <Button disabled={!reportStudentIds.length||!reportFrom||!reportTo||reportFrom>reportTo} onClick={async()=>{const chosen=(reportData.data??[]).filter((s:any)=>reportStudentIds.includes(s.id));const zip=new JSZip();let saved=0;try{for(const student of chosen){const reportTemplate=(templates.data??[]).find((t:any)=>t.id===selectedTemplateId);const fileUrl=await buildMonthlyReportPdf(student,reportFrom,reportTo,reportTemplate?.fileUrl||undefined);await api.post('/certificates/monthly-reports/issue',{studentId:student.id,from:reportFrom,to:reportTo,fileUrl,reportDraft:{studentCode:student.code,circleName:student.circleName,attendance:student.attendance,recitations:student.recitations,evaluation:student.evaluation,evaluationNote:student.evaluationNote}});const raw=atob(fileUrl.split(',')[1]);zip.file((student.fullName||student.code).replace(/[\\\\/:*?"<>|]/g,'_')+'.pdf',Uint8Array.from(raw,ch=>ch.charCodeAt(0)));saved++;}const blob=await zip.generateAsync({type:'blob'});const href=URL.createObjectURL(blob);const a=document.createElement('a');a.href=href;a.download='التقارير-'+reportFrom+'-'+reportTo+'.zip';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(href),30000);toast.success('تم نشر '+saved+' تقرير وتنزيلها بملف ZIP');setReportStudentIds([]);await refresh();}catch(e){toast.error('تم نشر '+saved+' تقرير قبل حدوث خطأ. أعد المحاولة للطلاب المتبقين؛ لن تُحذف التقارير المنشورة.');await refresh();}}}>إنشاء التقارير ونشرها وتنزيل ZIP</Button>
+        <Button disabled={!reportStudentIds.length||!reportFrom||!reportTo||reportFrom>reportTo} onClick={async()=>{const chosen=(reportData.data??[]).filter((s:any)=>reportStudentIds.includes(s.id));const zip=new JSZip();let saved=0;try{for(const student of chosen){const reportTemplate=(templates.data??[]).find((t:any)=>t.id===selectedTemplateId);const fileUrl=await buildMonthlyReportPdf(student,reportFrom,reportTo,reportTemplate?.fileUrl||undefined,reportTemplate?.design||undefined);await api.post('/certificates/monthly-reports/issue',{studentId:student.id,from:reportFrom,to:reportTo,fileUrl,reportDraft:{studentCode:student.code,circleName:student.circleName,attendance:student.attendance,recitations:student.recitations,evaluation:student.evaluation,evaluationNote:student.evaluationNote}});const raw=atob(fileUrl.split(',')[1]);zip.file((student.fullName||student.code).replace(/[\\\\/:*?"<>|]/g,'_')+'.pdf',Uint8Array.from(raw,ch=>ch.charCodeAt(0)));saved++;}const blob=await zip.generateAsync({type:'blob'});const href=URL.createObjectURL(blob);const a=document.createElement('a');a.href=href;a.download='التقارير-'+reportFrom+'-'+reportTo+'.zip';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(href),30000);toast.success('تم نشر '+saved+' تقرير وتنزيلها بملف ZIP');setReportStudentIds([]);await refresh();}catch(e){toast.error('تم نشر '+saved+' تقرير قبل حدوث خطأ. أعد المحاولة للطلاب المتبقين؛ لن تُحذف التقارير المنشورة.');await refresh();}}}>إنشاء التقارير ونشرها وتنزيل ZIP</Button>
       </div>}
     </Card>
     <Card title="الشهادات الصادرة">

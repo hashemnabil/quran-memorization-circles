@@ -1276,7 +1276,7 @@ export class ExamsService {
     const activeIds = new Set(active.map((x: any) => x.id));
     const activeHizbIds = new Set(active.filter((x: any) => x.kind === 'HIZB').map((x: any) => x.id));
 
-    const passedSections = new Set(
+    const passedSections = new Set<string>(
       passedExams
         .flatMap((e: any) => [
           e.sectionId,
@@ -1284,6 +1284,13 @@ export class ExamsService {
         ])
         .filter((id: string) => activeIds.has(id)),
     );
+    const manualCompleted = await tx.examMilestoneRecord.findMany({
+      where: { studentId, status: 'COMPLETED' },
+      select: { sectionId: true },
+    });
+    manualCompleted.forEach((record: any) => {
+      if (activeIds.has(record.sectionId)) passedSections.add(record.sectionId);
+    });
 
     await tx.student.update({
       where: { id: studentId },

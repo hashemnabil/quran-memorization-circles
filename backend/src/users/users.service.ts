@@ -526,6 +526,7 @@ export class UsersService {
       TEACHER: 'معلم',
       EXAM_COMMITTEE: 'لجنة اختبارات',
       PARENT: 'ولي أمر',
+      STUDENT: 'طالب',
       SUPPORT: 'دعم فني',
     };
     return labels[role];

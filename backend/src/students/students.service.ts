@@ -771,7 +771,7 @@ export class StudentsService {
   async history(user: AuthUser, id: string) {
     await this.acl.assertStudentAccess(user, id);
 
-    const [memberships, suspensions, evaluations, exams] = await Promise.all([
+    const [memberships, suspensions, evaluations, exams, attendance, recitations] = await Promise.all([
       this.prisma.circleMembership.findMany({
         where: { studentId: id },
         include: { circle: { select: { id: true, name: true, code: true } } },
@@ -799,9 +799,19 @@ export class StudentsService {
         },
         orderBy: { scheduledAt: 'desc' },
       }),
+      this.prisma.attendance.findMany({
+        where: { studentId: id },
+        orderBy: { date: 'desc' },
+        take: 100,
+      }),
+      this.prisma.recitation.findMany({
+        where: { studentId: id, deletedAt: null },
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        take: 100,
+      }),
     ]);
 
-    return { memberships, suspensions, evaluations, exams };
+    return { memberships, suspensions, evaluations, exams, attendance, recitations };
   }
 
   async remove(actor: AuthUser, id: string) {

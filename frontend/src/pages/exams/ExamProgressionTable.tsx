@@ -15,8 +15,10 @@ function sequence() {
   for (let hizb = 60, juz = 30; hizb >= 1; ) {
     rows.push({ key: `HIZB-${String(hizb).padStart(2, '0')}`, label: `حزب ${hizb}`, kind: 'HIZB', number: hizb });
     hizb--;
-    rows.push({ key: `HIZB-${String(hizb).padStart(2, '0')}`, label: `حزب ${hizb}`, kind: 'HIZB', number: hizb });
-    hizb--;
+    if (hizb >= 1) {
+      rows.push({ key: `HIZB-${String(hizb).padStart(2, '0')}`, label: `حزب ${hizb}`, kind: 'HIZB', number: hizb });
+      hizb--;
+    }
     rows.push({ key: `JUZ-${String(juz).padStart(2, '0')}`, label: `جزء ${juz}`, kind: 'JUZ', number: juz });
     juz--;
   }
@@ -63,13 +65,14 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
       const related = exams.filter((exam) =>
         exam.section?.code === item.key || exam.sections?.some((entry) => entry.section.code === item.key),
       ).sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())[0];
-      const passed = Boolean(section?.isPassed || related?.result === 'PASSED');
-      const pending = Boolean(section?.hasOpenRequest || related?.status === 'SCHEDULED');
+      const record = records.find((entry) => entry.section.code === item.key);
+      const passed = Boolean(section?.isPassed || related?.result === 'PASSED' || record?.status === 'COMPLETED');
+      const pending = Boolean(section?.hasOpenRequest || related?.status === 'SCHEDULED' || record?.status === 'SCHEDULED' || record?.status === 'REQUESTED');
       const currentUnlocked = unlocked || passed || pending;
       if (!passed) unlocked = false;
-      return { ...item, section, related, passed, pending, unlocked: currentUnlocked };
+      return { ...item, section, related, record, passed, pending, unlocked: currentUnlocked };
     });
-  }, [eligibility, exams]);
+  }, [eligibility, exams, records]);
 
   if (loading) return <LoadingState rows={5} />;
   return (
@@ -82,7 +85,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
           <thead><tr><th>التسلسل</th><th>الحالة</th><th>العلامة</th><th>تاريخ الاختبار</th><th>الممتحن</th>{canEditMilestones && <th>إدارة</th>}</tr></thead>
           <tbody>
             {rows.map((row) => {
-              const record = records.find((entry) => entry.section.code === row.key);
+              const record = row.record;
               const score = record?.score ?? row.section?.score ?? row.related?.score;
               const completed = record?.status === 'COMPLETED' || row.related?.status === 'COMPLETED' || row.related?.status === 'ABSENT';
               const status = completed || row.passed ? 'تم الاختبار' : record?.status === 'SCHEDULED' || row.pending ? 'محدد / قيد الاختبار' : record?.status === 'REQUESTED' ? 'طُلب اختبار' : row.unlocked ? 'لم يُطلب اختبار' : 'مقفل بالتسلسل';

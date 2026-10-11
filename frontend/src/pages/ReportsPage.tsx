@@ -7,6 +7,14 @@ import { IconClipboard } from '@/components/ui/Icons';
 
 type ReportType = 'attendance'|'recitations'|'exams'|'student'|'circles'|'students'|'courses'|'courseStudents'|'courseAttendance';
 type ReportData = { type: ReportType; rows?: Record<string, unknown>[]; student?: Record<string,unknown>; attendance?: Record<string,unknown>[]; recitations?: Record<string,unknown>[]; exams?: Record<string,unknown>[]; stats: Record<string,number> };
+const formatReportValue = (value: unknown): string => {
+ if (value === null || value === undefined || value === '') return '—';
+ if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value)) {
+  const [year, month, day] = value.slice(0, 10).split('-');
+  return `${day}/${month}/${year}`;
+ }
+ return String(value);
+};
 const reports: {id:ReportType;title:string;description:string}[] = [
  {id:'attendance',title:'الحضور والغياب',description:'متابعة الحضور والغياب بعذر أو دون عذر'},
  {id:'recitations',title:'التسميع اليومي',description:'مقدار التسميع والتقييم والأخطاء والنقاط'},
@@ -97,7 +105,7 @@ export default function ReportsPage() {
   </div></Card>
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{statEntries.map(([key,value])=><StatCard key={key} label={key} value={value}/>)}</div>
   <Card><div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-bold text-slate-900">{reports.find(r=>r.id===type)?.title}</h2><span className="text-sm text-slate-500">{rows.length} سجل</span></div>
-   {isLoading?<p className="p-8 text-center text-slate-500">جارٍ تحميل التقرير…</p>:isError?<p className="p-8 text-center text-red-600">تعذّر تحميل التقرير. تحقق من الصلاحيات والاتصال بالخادم.</p>:type==='student'&&!studentId?<p className="p-8 text-center text-slate-500">اختر طالبًا لعرض ملفه الشامل.</p>:(['courseStudents','courseAttendance'].includes(type)&&!courseId)?<p className="p-8 text-center text-slate-500">اختر الدورة أولاً لعرض التقرير.</p>:!rows.length?<p className="p-8 text-center text-slate-500">لا توجد نتائج للفلاتر المحددة.</p>:<div className="overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="bg-slate-50 text-right">{columns.map(c=><th key={c} className="whitespace-nowrap px-4 py-3 font-bold text-slate-600">{c}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i} className="border-t border-slate-100">{columns.map(c=><td key={c} className="whitespace-nowrap px-4 py-3 text-slate-700">{String(row[c]??'—')}</td>)}</tr>)}</tbody></table></div>}
+   {isLoading?<p className="p-8 text-center text-slate-500">جارٍ تحميل التقرير…</p>:isError?<p className="p-8 text-center text-red-600">تعذّر تحميل التقرير. تحقق من الصلاحيات والاتصال بالخادم.</p>:type==='student'&&!studentId?<p className="p-8 text-center text-slate-500">اختر طالبًا لعرض ملفه الشامل.</p>:(['courseStudents','courseAttendance'].includes(type)&&!courseId)?<p className="p-8 text-center text-slate-500">اختر الدورة أولاً لعرض التقرير.</p>:!rows.length?<p className="p-8 text-center text-slate-500">لا توجد نتائج للفلاتر المحددة.</p>:<div className="overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="bg-slate-50 text-right">{columns.map(c=><th key={c} className="whitespace-nowrap px-4 py-3 font-bold text-slate-600">{c}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i} className="border-t border-slate-100">{columns.map(c=><td key={c} className="whitespace-nowrap px-4 py-3 text-slate-700">{formatReportValue(row[c])}</td>)}</tr>)}</tbody></table></div>}
   </Card>
  </div>;
 }

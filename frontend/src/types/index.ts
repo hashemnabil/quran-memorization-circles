@@ -47,6 +47,7 @@ export interface AuthUser {
   specialization?: string | null;
   avatarUrl?: string | null;
   isActive: boolean;
+  mustChangePassword?: boolean;
   teacherId?: string | null;
   parentId?: string | null;
   phone?: string | null;

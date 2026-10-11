@@ -179,6 +179,33 @@ export class CertificatesService {
     });
   }
 
+  async publishMonthlyReport(user: AuthUser, body: { studentId?: string; from?: string; to?: string; fileUrl?: string; reportDraft?: unknown }) {
+    if (!body.studentId || !body.from || !body.to || !body.fileUrl?.startsWith('data:application/pdf;base64,')) {
+      throw new BadRequestException('الطالب والفترة وملف PDF مطلوبون');
+    }
+    const from = new Date(body.from);
+    const to = new Date(body.to);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+      throw new BadRequestException('فترة التقرير غير صحيحة');
+    }
+    const student = await this.prisma.student.findFirst({ where: { id: body.studentId, deletedAt: null }, select: { id: true } });
+    if (!student) throw new NotFoundException('الطالب غير موجود');
+    return this.prisma.studentFileRequest.create({
+      data: {
+        studentId: student.id,
+        kind: StudentFileRequestKind.MONTHLY_REPORT,
+        periodFrom: from,
+        periodTo: to,
+        status: StudentFileRequestStatus.READY,
+        fileUrl: body.fileUrl,
+        reportDraft: (body.reportDraft ?? {}) as any,
+        reviewedById: user.id,
+        reviewedAt: new Date(),
+        decisionNote: 'تم إنشاء التقرير الشهري ونشره تلقائيًا من بيانات النظام.',
+      },
+    });
+  }
+
   async issueRecord(user: AuthUser, body: { studentId?: string; templateId?: string; kind?: CertificateKind; title?: string; details?: unknown; fileUrl?: string }) {
     if (!body.studentId || !body.title?.trim() || !body.fileUrl?.trim() || !Object.values(CertificateKind).includes(body.kind as CertificateKind)) {
       throw new BadRequestException('الطالب ونوع الشهادة وعنوانها وملف PDF مطلوبة');

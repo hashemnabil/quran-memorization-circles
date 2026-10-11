@@ -448,6 +448,11 @@ function StudentFormModal({
     fullName: '',
     birthDate: '',
     nationalId: '',
+    fatherNationalId: '',
+    phone: '',
+    guardianName: '',
+    guardianPhone: '',
+    guardianRelation: 'الأب',
     createAccount: false,
     address: '',
     circleId: '',
@@ -459,28 +464,16 @@ function StudentFormModal({
 
   const create = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.post('/students', payload),
-    onSuccess: async (response) => {
+    onSuccess: (response) => {
       const student = response.data;
       const credentials = student?.accountCredentials;
       if (credentials?.username && credentials?.temporaryPassword) {
-        try {
-          const file = await api.post('/students/credentials-export', {
-            credentials: [{ fullName: student.fullName, code: student.code, username: credentials.username, temporaryPassword: credentials.temporaryPassword }],
-          }, { responseType: 'blob' });
-          const url = URL.createObjectURL(file.data);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = 'student-login-credentials.xlsx';
-          link.click();
-          URL.revokeObjectURL(url);
-          toast.success('تم تسجيل الطالب وتنزيل ملف بيانات الدخول');
-        } catch {
-          toast.error('تعذر تنزيل Excel. بيانات الدخول المؤقتة — المستخدم: ' + credentials.username + '، كلمة المرور: ' + credentials.temporaryPassword);
-        }
+        toast.success(`تم تسجيل الطالب. اسم المستخدم: ${credentials.username} — كلمة المرور المؤقتة: ${credentials.temporaryPassword}`, { duration: 20000 });
       } else {
         toast.success('تم تسجيل الطالب بنجاح');
       }
       queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['student-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       onClose();
     },
@@ -535,6 +528,11 @@ function StudentFormModal({
         />
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
         <Input label={form.createAccount ? 'رقم الهوية (سيُستخدم اسمًا للمستخدم)' : 'رقم الهوية (اختياري)'} required={form.createAccount} value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
+        <Input label="رقم جوال الطالب" value={form.phone} onChange={(e) => set('phone', e.target.value)} dir="ltr" />
+        <Input label="اسم ولي الأمر" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />
+        <Input label="رقم هوية الأب" value={form.fatherNationalId} onChange={(e) => set('fatherNationalId', e.target.value)} dir="ltr" />
+        <Input label="رقم جوال ولي الأمر" value={form.guardianPhone} onChange={(e) => set('guardianPhone', e.target.value)} dir="ltr" />
+        <Input label="صلة القرابة" value={form.guardianRelation} onChange={(e) => set('guardianRelation', e.target.value)} />
         <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <input type="checkbox" checked={form.createAccount} onChange={(e) => set('createAccount', e.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-400" />
           <span><span className="block text-sm font-bold text-slate-800">إنشاء حساب دخول للطالب</span><span className="mt-1 block text-xs leading-5 text-slate-500">فعّل الخيار لإنشاء اسم مستخدم وكلمة مرور مؤقتة تلقائيًا. إذا تركته بدون تحديد، سيتم تسجيل بيانات الطالب فقط ويمكن إنشاء حساب له لاحقًا.</span></span>

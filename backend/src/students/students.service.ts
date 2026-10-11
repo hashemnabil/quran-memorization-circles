@@ -514,6 +514,9 @@ export class StudentsService {
           fatherNationalId: dto.fatherNationalId || null,
           address: dto.address,
           phone: dto.phone,
+          guardianName: dto.guardianName || null,
+          guardianPhone: dto.guardianPhone || null,
+          guardianRelation: dto.guardianRelation || null,
           // A student registered straight into the activity programme joins no
           // circle, whatever the form sent.
           circleId: this.circleForStatus(dto.status, dto.circleId),
@@ -553,12 +556,12 @@ export class StudentsService {
   async listAccounts() {
     const students = await this.prisma.student.findMany({
       where: { deletedAt: null, userId: { not: null } },
-      select: { id: true, fullName: true, nationalId: true, phone: true, code: true,
+      select: { id: true, fullName: true, nationalId: true, fatherNationalId: true, phone: true, guardianName: true, guardianPhone: true, code: true,
         user: { select: { id: true, username: true, isActive: true, mustChangePassword: true } } },
       orderBy: { fullName: 'asc' },
     });
     return students.filter((s) => s.user).map((s) => ({
-      id: s.id, fullName: s.fullName, nationalId: s.nationalId, phone: s.phone, code: s.code,
+      id: s.id, fullName: s.fullName, nationalId: s.nationalId, fatherNationalId: s.fatherNationalId, phone: s.phone, guardianName: s.guardianName, guardianPhone: s.guardianPhone, code: s.code,
       userId: s.user!.id, username: s.user!.username, isActive: s.user!.isActive,
       mustChangePassword: s.user!.mustChangePassword,
     }));

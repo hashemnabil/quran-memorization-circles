@@ -84,6 +84,19 @@ export class StudentsService {
     private readonly uploads: UploadsService,
   ) {}
 
+  /** Student self-service: resolve identity from the authenticated account, never from a client-supplied id. */
+  async getMyProfile(user: AuthUser) {
+    if (user.role !== Role.STUDENT) {
+      throw new ForbiddenException('هذه الصفحة مخصصة لحساب الطالب');
+    }
+    const student = await this.prisma.student.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!student) throw new NotFoundException('ملف الطالب غير مرتبط بهذا الحساب');
+    return this.findOne(user, student.id);
+  }
+
   async findAll(user: AuthUser, query: QueryStudentsDto) {
     const scope = await this.acl.studentScope(user);
 

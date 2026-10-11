@@ -78,6 +78,13 @@ enum ExamSectionKind {
   HIZB
 }
 
+enum ExamMilestoneStatus {
+  NOT_REQUESTED
+  REQUESTED
+  SCHEDULED
+  COMPLETED
+}
+
 enum EmploymentType {
   FULL_TIME
   PART_TIME
@@ -422,6 +429,7 @@ model Student {
   suspensions  SuspensionRequest[]
   examRequests ExamRequest[]
   exams        Exam[]
+  examMilestoneRecords ExamMilestoneRecord[]
   evaluations  StudentEvaluation[]
   studentNotes StudentNote[]
   transfers    TransferRequest[]  @relation("TransferStudent")
@@ -655,10 +663,36 @@ model ExamSection {
   exams        Exam[]
   onRequests   ExamRequestSection[]
   onExams      ExamSectionOnExam[]
+  milestoneRecords ExamMilestoneRecord[]
 
   @@index([order])
   @@index([kind])
   @@map("exam_sections")
+}
+
+/// Administrative per-student/per-section record. Unlike an Exam, this can
+/// record a manual override even when no formal request or exam exists.
+model ExamMilestoneRecord {
+  id          String              @id @default(uuid())
+  studentId   String
+  sectionId   String
+  status      ExamMilestoneStatus @default(NOT_REQUESTED)
+  result      ExamResult?
+  score       Int?
+  requestedAt DateTime?
+  examDate    DateTime?
+  examinerName String?
+  note        String?
+  updatedById String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  student Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  section ExamSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, sectionId])
+  @@index([studentId, status])
+  @@map("exam_milestone_records")
 }
 
 /// An exam may cover several juz'/ahzab at once. `ExamRequest.sectionId` stays

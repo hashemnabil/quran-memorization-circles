@@ -34,7 +34,8 @@ import {
   scoreEvaluation,
 } from '@/lib/labels';
 import { formatDateShort, formatDateTime, toInputDateTime } from '@/lib/format';
-import type { Exam, ExamRequest, PaginatedResponse, Student } from '@/types';
+import type { Exam, ExamEligibility, ExamRequest, PaginatedResponse, Student } from '@/types';
+import { ExamProgressionTable } from './ExamProgressionTable';
 
 interface ExamStats {
   pendingRequests: number;
@@ -69,8 +70,26 @@ export default function ExamsPage() {
   const canManage = user.role === 'ADMIN' || user.role === 'EXAM_COMMITTEE';
   const canRequest = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(user.role);
 
-  const [tab, setTab] = useState<'requests' | 'scheduled' | 'history'>('requests');
+  const [tab, setTab] = useState<'requests' | 'scheduled' | 'history' | 'progression'>('requests');
   const [creating, setCreating] = useState(false);
+  const [progressSearch, setProgressSearch] = useState('');
+  const debouncedProgressSearch = useDebounce(progressSearch);
+  const [progressStudent, setProgressStudent] = useState<Student | null>(null);
+  const progressStudents = useQuery({
+    queryKey: ['exams', 'progress-students', debouncedProgressSearch],
+    enabled: tab === 'progression' && debouncedProgressSearch.trim().length > 0 && !progressStudent,
+    queryFn: async () => (await api.get<PaginatedResponse<Student>>('/students', { params: { search: debouncedProgressSearch, limit: 8 } })).data,
+  });
+  const progressEligibility = useQuery({
+    queryKey: ['exams', 'eligibility', progressStudent?.id],
+    enabled: tab === 'progression' && !!progressStudent,
+    queryFn: async () => (await api.get<ExamEligibility>(`/exams/eligibility/${progressStudent!.id}`)).data,
+  });
+  const progressExams = useQuery({
+    queryKey: ['exams', 'progression-history', progressStudent?.id],
+    enabled: tab === 'progression' && !!progressStudent,
+    queryFn: async () => (await api.get<PaginatedResponse<Exam>>('/exams', { params: { studentId: progressStudent!.id, limit: 100 } })).data,
+  });
 
   const stats = useQuery({
     queryKey: ['exams', 'stats'],
@@ -103,6 +122,7 @@ export default function ExamsPage() {
           { key: 'requests', label: 'طلبات الاختبار', badge: stats.data?.pendingRequests },
           { key: 'scheduled', label: 'الاختبارات المجدولة', badge: stats.data?.scheduled },
           { key: 'history', label: 'سجل الاختبارات' },
+          { key: 'progression', label: 'تسلسل الأحزاب والأجزاء' },
         ]}
         active={tab}
         onChange={(key) => setTab(key as typeof tab)}
@@ -111,6 +131,28 @@ export default function ExamsPage() {
       {tab === 'requests' && <RequestsTab canManage={canManage} />}
       {tab === 'scheduled' && <ExamsTab mode="scheduled" canManage={canManage} />}
       {tab === 'history' && <ExamsTab mode="history" canManage={canManage} />}
+      {tab === 'progression' && (
+        <div className="mt-5 space-y-4">
+          <Card title="متابعة تسلسل الاختبارات">
+            {progressStudent ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm font-semibold">{progressStudent.fullName} <span className="numeric text-slate-400">{progressStudent.code}</span></div>
+                <Button variant="secondary" size="sm" onClick={() => setProgressStudent(null)}>اختيار طالب آخر</Button>
+              </div>
+            ) : (
+              <div>
+                <Input label="ابحث عن طالب" placeholder="الاسم أو رقم الطالب" value={progressSearch} onChange={(e) => setProgressSearch(e.target.value)} />
+                {progressStudents.data?.data.length ? (
+                  <ul className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-100">
+                    {progressStudents.data.data.map((s) => <li key={s.id}><button className="w-full px-3 py-2 text-start text-sm hover:bg-slate-50" onClick={() => setProgressStudent(s)}>{s.fullName} <span className="numeric text-xs text-slate-400">{s.code}</span></button></li>)}
+                  </ul>
+                ) : progressSearch.trim() && !progressStudents.isLoading ? <p className="mt-2 text-xs text-slate-400">لا توجد نتائج</p> : null}
+              </div>
+            )}
+          </Card>
+          {progressStudent && <ExamProgressionTable studentId={progressStudent.id} canEditMilestones={user.role === 'ADMIN'} eligibility={progressEligibility.data} exams={progressExams.data?.data ?? []} loading={progressEligibility.isLoading || progressExams.isLoading} />}
+        </div>
+      )}
 
       {creating && <CreateRequestModal onClose={() => setCreating(false)} />}
     </>
@@ -540,23 +582,40 @@ function RejectModal({ request, onClose }: { request: ExamRequest; onClose: () =
 function ResultModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [score, setScore] = useState('');
+  const [sectionScores, setSectionScores] = useState<Record<string, string>>({});
   const [mistakes, setMistakes] = useState('');
   const [notes, setNotes] = useState('');
-
+  const sections = exam.sections?.length ? exam.sections.map((entry) => entry.section) : [exam.section];
+  const grouped = sections.length > 1;
+  const values = sections.map((section) => {
+    const raw = sectionScores[section.id] ?? '';
+    const value = raw === '' ? null : Number(raw);
+    return { section, raw, value, valid: value !== null && Number.isInteger(value) && value >= 0 && value <= 100 };
+  });
   const numeric = score === '' ? null : Number(score);
-  const valid = numeric !== null && Number.isInteger(numeric) && numeric >= 0 && numeric <= 100;
-  const preview = valid ? scoreEvaluation(numeric) : null;
+  const overallScore = grouped
+    ? values.every((entry) => entry.valid)
+      ? Math.round(values.reduce((sum, entry) => sum + (entry.value ?? 0), 0) / values.length)
+      : null
+    : numeric;
+  const valid = grouped
+    ? values.every((entry) => entry.valid)
+    : numeric !== null && Number.isInteger(numeric) && numeric >= 0 && numeric <= 100;
+  const preview = overallScore !== null && Number.isInteger(overallScore) ? scoreEvaluation(overallScore) : null;
 
   const mutation = useMutation({
     mutationFn: () =>
       api.patch(`/exams/${exam.id}/result`, {
-        score: numeric,
+        score: overallScore,
+        sectionScores: grouped ? values.map((entry) => ({ sectionId: entry.section.id, score: entry.value })) : undefined,
         mistakes: mistakes === '' ? undefined : Number(mistakes),
         notes: notes || undefined,
       }),
     onSuccess: () => {
-      toast.success('تم رصد النتيجة');
+      toast.success('تم رصد النتائج المستقلة لكل مقرر');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
+      queryClient.invalidateQueries({ queryKey: ['exams', 'milestones', exam.student.id] });
+      queryClient.invalidateQueries({ queryKey: ['exams', 'eligibility', exam.student.id] });
       onClose();
     },
     onError: (error) => toast.error(apiError(error)),
@@ -570,30 +629,33 @@ function ResultModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
       size="sm"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
-            إلغاء
-          </Button>
-          <Button loading={mutation.isPending} disabled={!valid} onClick={() => mutation.mutate()}>
-            حفظ النتيجة
-          </Button>
+          <Button variant="secondary" onClick={onClose}>إلغاء</Button>
+          <Button loading={mutation.isPending} disabled={!valid} onClick={() => mutation.mutate()}>حفظ النتيجة</Button>
         </>
       }
     >
       <div className="space-y-3">
-        <Input
-          label="الدرجة من 100"
-          type="number"
-          min={0}
-          max={100}
-          required
-          value={score}
-          onChange={(e) => setScore(e.target.value)}
-        />
-        {preview && (
-          <p className="text-sm">
-            التقدير: <Badge className={EVALUATION_COLORS[preview]}>{EVALUATION_LABELS[preview]}</Badge>
-          </p>
+        {grouped ? (
+          <>
+            <p className="text-sm text-slate-500">أدخل علامة مستقلة لكل حزب أو جزء ضمن هذا الاختبار المجمع.</p>
+            {values.map(({ section, raw }) => (
+              <Input
+                key={section.id}
+                label={section.name}
+                type="number"
+                min={0}
+                max={100}
+                required
+                value={raw}
+                onChange={(e) => setSectionScores((current) => ({ ...current, [section.id]: e.target.value }))}
+              />
+            ))}
+            {overallScore !== null && <p className="text-xs text-slate-500">المتوسط العام: {overallScore} من 100</p>}
+          </>
+        ) : (
+          <Input label="الدرجة من 100" type="number" min={0} max={100} required value={score} onChange={(e) => setScore(e.target.value)} />
         )}
+        {preview && <p className="text-sm">التقدير العام: <Badge className={EVALUATION_COLORS[preview]}>{EVALUATION_LABELS[preview]}</Badge></p>}
         <Input label="عدد الأخطاء (اختياري)" type="number" min={0} value={mistakes} onChange={(e) => setMistakes(e.target.value)} />
         <Textarea label="ملاحظات" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </div>
@@ -660,9 +722,7 @@ function CreateRequestModal({ onClose }: { onClose: () => void }) {
   const [search, setSearch] = useState('');
   const debounced = useDebounce(search);
   const [student, setStudent] = useState<Student | null>(null);
-  const [hizb, setHizb] = useState('');
-  const [juz, setJuz] = useState('');
-  const [combined, setCombined] = useState('');
+  const [sectionIds, setSectionIds] = useState<string[]>([]);
   const [note, setNote] = useState('');
 
   const students = useQuery({
@@ -671,16 +731,22 @@ function CreateRequestModal({ onClose }: { onClose: () => void }) {
     queryFn: async () =>
       (await api.get<PaginatedResponse<Student>>('/students', { params: { search: debounced, limit: 8 } })).data,
   });
-
-  const hasValue = hizb !== '' || juz !== '' || combined !== '';
+  const eligibility = useQuery({
+    queryKey: ['exams', 'eligibility', student?.id],
+    enabled: !!student,
+    queryFn: async () => (await api.get<ExamEligibility>(`/exams/eligibility/${student!.id}`)).data,
+  });
+  const progression = eligibility.data?.progression ?? [];
+  const firstAvailable = progression.findIndex((item) => item.eligible);
+  const remainingProgression = firstAvailable < 0 ? [] : progression.slice(firstAvailable);
+  const nextBlockEnd = remainingProgression.findIndex((item) => item.isPassed || item.hasOpenRequest);
+  const selectableBlock = nextBlockEnd < 0 ? remainingProgression : remainingProgression.slice(0, nextBlockEnd);
 
   const mutation = useMutation({
     mutationFn: () =>
       api.post('/exams/requests', {
         studentId: student!.id,
-        requestedHizb: hizb === '' ? undefined : Number(hizb),
-        requestedJuz: juz === '' ? undefined : Number(juz),
-        requestedCombined: combined === '' ? undefined : Number(combined),
+        sectionIds,
         note: note || undefined,
       }),
     onSuccess: () => {
@@ -698,11 +764,9 @@ function CreateRequestModal({ onClose }: { onClose: () => void }) {
       title="طلب اختبار جديد"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
-            إلغاء
-          </Button>
-          <Button loading={mutation.isPending} disabled={!student || !hasValue} onClick={() => mutation.mutate()}>
-            تقديم الطلب
+          <Button variant="secondary" onClick={onClose}>إلغاء</Button>
+          <Button loading={mutation.isPending} disabled={!student || !sectionIds.length || eligibility.isLoading} onClick={() => mutation.mutate()}>
+            تقديم الطلب ({sectionIds.length})
           </Button>
         </>
       }
@@ -713,9 +777,7 @@ function CreateRequestModal({ onClose }: { onClose: () => void }) {
             <span className="text-sm font-bold text-slate-800">
               {student.fullName} <span className="numeric text-xs font-normal text-slate-400">{student.code}</span>
             </span>
-            <button className="text-xs text-primary-700" onClick={() => setStudent(null)}>
-              تغيير
-            </button>
+            <button className="text-xs text-primary-700" onClick={() => { setStudent(null); setSectionIds([]); }}>تغيير</button>
           </div>
         ) : (
           <div>
@@ -730,18 +792,32 @@ function CreateRequestModal({ onClose }: { onClose: () => void }) {
                   </li>
                 ))}
               </ul>
-            ) : (
-              debounced.trim() && !students.isLoading && <p className="mt-2 text-xs text-slate-400">لا توجد نتائج</p>
-            )}
+            ) : debounced.trim() && !students.isLoading ? <p className="mt-2 text-xs text-slate-400">لا توجد نتائج</p> : null}
           </div>
         )}
-
-        <div className="grid grid-cols-3 gap-3">
-          <Input label="الحزب" type="number" min={1} max={60} value={hizb} onChange={(e) => setHizb(e.target.value)} />
-          <Input label="الجزء" type="number" min={1} max={30} value={juz} onChange={(e) => setJuz(e.target.value)} />
-          <Input label="المجتمعة" type="number" min={1} max={60} value={combined} onChange={(e) => setCombined(e.target.value)} />
-        </div>
-        <p className="text-xs text-slate-400">أدخل حزباً أو جزءاً أو مجتمعة واحدة على الأقل.</p>
+        {student && (
+          <div>
+            <p className="mb-2 text-sm font-semibold">اختر مقرراً أو مجموعة متتابعة للتسميع المجتمعة</p>
+            {eligibility.isLoading ? <LoadingState rows={3} /> : !selectableBlock.length ? (
+              <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">لا توجد مقررات متاحة للطلب حالياً.</p>
+            ) : (
+              <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2">
+                {selectableBlock.map((item) => (
+                  <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      checked={sectionIds.includes(item.id)}
+                      onChange={(event) => setSectionIds((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))}
+                    />
+                    <span>{item.name}</span>
+                    <span className="mr-auto text-xs text-slate-400">{item.kind === 'HIZB' ? 'حزب' : 'جزء'}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <p className="mt-2 text-xs leading-5 text-slate-400">يُحفظ طلب المجموعة كطلب واحد، وتبقى نتيجة كل حزب أو جزء مسجلة بشكل مستقل. يجب أن تكون المقررات المختارة متتابعة حسب التسلسل.</p>
+          </div>
+        )}
         <Textarea label="ملاحظات" value={note} onChange={(e) => setNote(e.target.value)} />
       </div>
     </Modal>

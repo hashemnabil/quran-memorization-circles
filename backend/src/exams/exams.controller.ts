@@ -11,6 +11,7 @@ import {
   ReviewExamRequestDto,
   ScheduleExamDto,
   UpdateExamDto,
+  UpdateExamMilestoneDto,
 } from './dto/exam.dto';
 import { ExamsService } from './exams.service';
 
@@ -52,6 +53,24 @@ export class ExamsController {
   @ApiOperation({ summary: 'الاختبارات القادمة' })
   upcoming(@CurrentUser() user: AuthUser, @Query('days') days?: string) {
     return this.service.upcoming(user, days ? parseInt(days, 10) : 30);
+  }
+
+  @Get('milestones/:studentId')
+  @ApiOperation({ summary: 'سجلات كل حزب وجزء للطالب' })
+  milestoneRecords(@CurrentUser() user: AuthUser, @Param('studentId') studentId: string) {
+    return this.service.milestoneRecords(user, studentId);
+  }
+
+  @Patch('milestones/:studentId/:sectionId')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'تعديل حالة أو علامة أو تاريخ أو ممتحن مقرر بشكل مستقل' })
+  updateMilestone(
+    @CurrentUser() user: AuthUser,
+    @Param('studentId') studentId: string,
+    @Param('sectionId') sectionId: string,
+    @Body() dto: UpdateExamMilestoneDto,
+  ) {
+    return this.service.updateMilestoneRecord(user, studentId, sectionId, dto);
   }
 
   @Get('eligibility/:studentId')

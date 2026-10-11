@@ -36,6 +36,7 @@ import {
   ReviewExamRequestDto,
   ScheduleExamDto,
   UpdateExamDto,
+  UpdateExamMilestoneDto,
 } from './dto/exam.dto';
 
 // ============================================================================
@@ -367,13 +368,55 @@ export class ExamsService {
 
   /**
    * يحدد المقررات التي يستطيع الطالب طلب اختبارها.
-   * لا يوجد أي شرط للتسلسل.
-   * الطالب يستطيع اختيار: أي حزب، أي جزء، عدة أحزاب، عدة أجزاء
-   * بشرط:
+   * يتحقق من التسلسل الإلزامي للأحزاب والأجزاء.
+   * المقرر متاح فقط بعد اجتياز جميع المقررات الإلزامية السابقة، وبشرط:
    * 1. أن يكون المقرر فعالاً.
    * 2. ألا يكون الطالب قد اجتازه مسبقاً.
    * 3. ألا يكون عليه طلب اختبار قائم.
    */
+  async milestoneRecords(user: AuthUser, studentId: string) {
+    await this.acl.assertStudentAccess(user, studentId);
+    return this.prisma.examMilestoneRecord.findMany({
+      where: { studentId },
+      include: { section: { select: { id: true, name: true, code: true, order: true, kind: true, minScore: true } } },
+      orderBy: { section: { order: 'asc' } },
+    });
+  }
+
+  async updateMilestoneRecord(actor: AuthUser, studentId: string, sectionId: string, dto: UpdateExamMilestoneDto) {
+    if (actor.role !== Role.ADMIN) {
+      throw new ForbiddenException('تعديل السجل اليدوي للمقررات متاح للإدارة فقط');
+    }
+    const student = await this.prisma.student.findFirst({ where: { id: studentId, deletedAt: null }, select: { id: true } });
+    if (!student) throw new NotFoundException('الطالب غير موجود');
+    const section = await this.prisma.examSection.findFirst({ where: { id: sectionId, isActive: true }, select: { id: true } });
+    if (!section) throw new NotFoundException('مقرر الاختبار غير موجود');
+    const saved = await this.prisma.examMilestoneRecord.upsert({
+      where: { studentId_sectionId: { studentId, sectionId } },
+      create: {
+        studentId, sectionId, status: dto.status, result: null, score: dto.score ?? null,
+        requestedAt: dto.requestedAt ? this.parseDate(dto.requestedAt) : null,
+        examDate: dto.examDate ? this.parseDate(dto.examDate) : null,
+        examinerName: dto.examinerName ?? null, note: dto.note ?? null, updatedById: actor.id,
+      },
+      update: {
+        status: dto.status, result: null, score: dto.score ?? null,
+        requestedAt: dto.requestedAt ? this.parseDate(dto.requestedAt) : null,
+        examDate: dto.examDate ? this.parseDate(dto.examDate) : null,
+        examinerName: dto.examinerName ?? null, note: dto.note ?? null, updatedById: actor.id,
+      },
+      include: { section: true },
+    });
+    await this.updateStudentMemorization(this.prisma, studentId);
+    this.clearCache();
+    await this.activity.log({
+      userId: actor.id, action: 'EXAM_MILESTONE_OVERRIDE',
+      summary: `تعديل سجل اختبار ${saved.section.name} للطالب ${studentId}: ${dto.status}`,
+      entityType: 'ExamMilestoneRecord', entityId: saved.id,
+    });
+    return saved;
+  }
+
   async eligibility(user: AuthUser, studentId: string): Promise<EligibilityResult> {
     await this.acl.assertStudentAccess(user, studentId);
 
@@ -447,6 +490,12 @@ export class ExamsService {
     this.logger.log(`📊 عدد الطلبات المفتوحة: ${openWork.length}`);
 
     // ✅ تأكد من أن passedIds تحتوي على المعرفات الصحيحة فقط
+    const manualRecords = await this.prisma.examMilestoneRecord.findMany({
+      where: { studentId },
+      select: { sectionId: true, status: true, result: true, score: true },
+    });
+    const manualOpenIds = new Set(manualRecords.filter((record) => record.status === 'REQUESTED' || record.status === 'SCHEDULED').map((record) => record.sectionId));
+
     const passedIds = new Set(
       passed.flatMap((p) => {
         const ids = [p.sectionId];
@@ -456,6 +505,14 @@ export class ExamsService {
         return ids;
       }),
     );
+    for (const record of manualRecords) {
+      if (record.status === 'COMPLETED' && record.result !== ExamResult.FAILED) {
+        passedIds.add(record.sectionId);
+      } else {
+        // An explicit administrative record is authoritative over a grouped exam's overall result.
+        passedIds.delete(record.sectionId);
+      }
+    }
 
     // ✅ تأكد من أن openIds تحتوي على المعرفات الصحيحة فقط
     const openIds = new Set(
@@ -467,6 +524,7 @@ export class ExamsService {
         return ids;
       }),
     );
+    manualOpenIds.forEach((id) => openIds.add(id));
 
     // ✅ تشخيص المشكلة - سجل المعرفات
     this.logger.log(`🧪 المعرفات المجتازة: ${Array.from(passedIds).join(', ') || 'لا يوجد'}`);
@@ -481,15 +539,19 @@ export class ExamsService {
       const isPassed = passedIds.has(section.id);
       const isOpen = openIds.has(section.id);
 
-      let eligible = true;
+      const previousRequired = sections.filter((candidate) =>
+        candidate.isRequired && candidate.order < section.order,
+      );
+      const sequenceUnlocked = previousRequired.every((candidate) => passedIds.has(candidate.id));
+      let eligible = sequenceUnlocked && !isPassed && !isOpen;
       let reason: string | null = null;
 
       if (isPassed) {
-        eligible = false;
         reason = 'تم اجتياز هذا المقرر مسبقاً';
       } else if (isOpen) {
-        eligible = false;
         reason = 'يوجد طلب اختبار قائم لهذا المقرر';
+      } else if (!sequenceUnlocked) {
+        reason = 'هذا المقرر مقفل حتى اجتياز المقررات السابقة في التسلسل';
       }
 
       return {
@@ -499,6 +561,7 @@ export class ExamsService {
         eligible,
         reason,
         score:
+          manualRecords.find((record) => record.sectionId === section.id)?.score ??
           passed.find(
             (p) =>
               p.sectionId === section.id ||
@@ -509,7 +572,9 @@ export class ExamsService {
 
     const pendingSection = progression.find((p) => p.hasOpenRequest) ?? null;
 
-    const hizbPassed = sections.filter((x) => passedIds.has(x.id)).length;
+    const hizbSections = sections.filter((section) => section.kind === 'HIZB');
+    const juzSections = sections.filter((section) => section.kind === 'JUZ');
+    const hizbPassed = hizbSections.filter((section) => passedIds.has(section.id)).length;
 
     // كل المقررات التي يستطيع الطالب اختيارها
     const selectableSections = progression
@@ -529,10 +594,10 @@ export class ExamsService {
       passedCount: passedIds.size,
       totalSections: sections.length,
       hizbPassed,
-      hizbTotal: sections.length,
+      hizbTotal: hizbSections.length,
       juzEquivalent: juzFromHizb(hizbPassed),
-      juzTotal: sections.length / HIZB_PER_JUZ,
-      requiredPassed: hizbPassed,
+      juzTotal: juzSections.length,
+      requiredPassed: passedIds.size,
       requiredTotal: sections.length,
       direction: null,
       chains: [
@@ -551,7 +616,7 @@ export class ExamsService {
             order: pendingSection.order,
           }
         : null,
-      isComplete: hizbPassed === sections.length,
+      isComplete: passedIds.size === sections.length,
       progression,
     };
   }
@@ -562,13 +627,13 @@ export class ExamsService {
 
   /**
    * فحص مقرر واحد.
-   * لا يفحص ترتيب الحزب.
-   * فقط يمنع:
+   * يفرض التسلسل على أول مقرر في الطلب الجماعي.
+   * ويمنع:
    * - مقرر غير موجود.
    * - مقرر اجتازه الطالب.
    * - مقرر عليه طلب اختبار قائم.
    */
-  private async assertEligible(studentId: string, sectionId: string) {
+  private async assertEligible(studentId: string, sectionId: string, enforceSequence = true) {
     const section = await this.prisma.examSection.findFirst({
       where: {
         id: sectionId,
@@ -604,8 +669,62 @@ export class ExamsService {
       },
     });
 
-    if (alreadyPassed) {
+    const manualRecord = await this.prisma.examMilestoneRecord.findUnique({
+      where: { studentId_sectionId: { studentId, sectionId } },
+      select: { status: true, result: true },
+    });
+    const effectivelyPassed = manualRecord
+      ? manualRecord.status === 'COMPLETED' && manualRecord.result !== ExamResult.FAILED
+      : Boolean(alreadyPassed);
+    if (effectivelyPassed) {
       throw new ConflictException(`الطالب اجتاز "${section.name}" مسبقاً`);
+    }
+
+    // Enforce the required order on the server, not just in the UI.
+    const earlierRequired = enforceSequence ? await this.prisma.examSection.findMany({
+      where: { isActive: true, isRequired: true, order: { lt: section.order } },
+      select: { id: true, name: true },
+    }) : [];
+    if (earlierRequired.length) {
+      const passedEarlier = await this.prisma.exam.findMany({
+        where: {
+          studentId,
+          status: ExamStatus.COMPLETED,
+          result: ExamResult.PASSED,
+          score: { not: null },
+          OR: [
+            { sectionId: { in: earlierRequired.map((item) => item.id) } },
+            { sections: { some: { sectionId: { in: earlierRequired.map((item) => item.id) } } } },
+          ],
+        },
+        select: { sectionId: true, sections: { select: { sectionId: true } } },
+      });
+      const passedEarlierIds = new Set(passedEarlier.flatMap((exam) =>
+        [exam.sectionId, ...exam.sections.map((entry) => entry.sectionId)].filter(Boolean) as string[],
+      ));
+      const manualEarlier = await this.prisma.examMilestoneRecord.findMany({
+        where: { studentId, sectionId: { in: earlierRequired.map((item) => item.id) } },
+        select: { sectionId: true, status: true, result: true },
+      });
+      manualEarlier.forEach((record) => {
+        if (record.status === 'COMPLETED' && record.result !== ExamResult.FAILED) {
+          passedEarlierIds.add(record.sectionId);
+        } else {
+          passedEarlierIds.delete(record.sectionId);
+        }
+      });
+      const missing = earlierRequired.find((item) => !passedEarlierIds.has(item.id));
+      if (missing) {
+        throw new ConflictException(`لا يمكن طلب اختبار هذا المقرر قبل اجتياز ${missing.name}`);
+      }
+    }
+
+    const manualOpen = await this.prisma.examMilestoneRecord.findFirst({
+      where: { studentId, sectionId, status: { in: ['REQUESTED', 'SCHEDULED'] } },
+      select: { id: true },
+    });
+    if (manualOpen) {
+      throw new ConflictException('يوجد طلب اختبار قائم لهذا المقرر');
     }
 
     const open = await this.prisma.examRequest.findFirst({
@@ -651,7 +770,17 @@ export class ExamsService {
 
   private async validateAllSectionsEligibility(studentId: string, sections: any[]) {
     try {
-      await Promise.all(sections.map((section) => this.assertEligible(studentId, section.id)));
+      // Combined requests represent one consecutive block in the progression.
+      for (let index = 1; index < sections.length; index++) {
+        if (sections[index].order !== sections[index - 1].order + 1) {
+          throw new BadRequestException('التسميع المجتمعة يجب أن تتبع التسلسل دون تخطي مقررات');
+        }
+      }
+      // Enforce progression on the first section, while still checking
+      // duplicates/open requests for every selected section.
+      await Promise.all(sections.map((section, index) =>
+        this.assertEligible(studentId, section.id, index === 0),
+      ));
     } catch (error) {
       this.logger.error(
         `خطأ في التحقق من أهلية الطالب ${studentId}: ${error.message}`,
@@ -684,6 +813,9 @@ export class ExamsService {
     const hasManual = [dto.requestedHizb, dto.requestedJuz, dto.requestedCombined].some(
       (value) => value != null,
     );
+    if (hasManual) {
+      throw new BadRequestException('يرجى اختيار الأحزاب والأجزاء من قائمة التسلسل، لضمان تطبيق ترتيب الاختبارات');
+    }
 
     let sections: any[];
     let label: string;
@@ -1165,12 +1297,13 @@ export class ExamsService {
 
     const active = await tx.examSection.findMany({
       where: { isActive: true },
-      select: { id: true },
+      select: { id: true, kind: true },
     });
 
     const activeIds = new Set(active.map((x: any) => x.id));
+    const activeHizbIds = new Set(active.filter((x: any) => x.kind === 'HIZB').map((x: any) => x.id));
 
-    const passedSections = new Set(
+    const passedSections = new Set<string>(
       passedExams
         .flatMap((e: any) => [
           e.sectionId,
@@ -1178,13 +1311,25 @@ export class ExamsService {
         ])
         .filter((id: string) => activeIds.has(id)),
     );
+    const manualRecords = await tx.examMilestoneRecord.findMany({
+      where: { studentId },
+      select: { sectionId: true, status: true, result: true },
+    });
+    manualRecords.forEach((record: any) => {
+      if (!activeIds.has(record.sectionId)) return;
+      if (record.status === 'COMPLETED' && record.result !== ExamResult.FAILED) {
+        passedSections.add(record.sectionId);
+      } else {
+        passedSections.delete(record.sectionId);
+      }
+    });
 
     await tx.student.update({
       where: { id: studentId },
       data: {
         memorizedParts: Math.min(
           30,
-          exactJuzFromHizb(passedSections.size),
+          exactJuzFromHizb([...passedSections].filter((id) => activeHizbIds.has(id)).length),
         ),
       },
     });
@@ -1254,36 +1399,81 @@ export class ExamsService {
 
     this.validateExamForResult(exam);
 
-    const passed = dto.score >= exam.section.minScore;
-    const evaluation = evaluationFromScore(dto.score);
+    const examSections = exam.sections.length
+      ? exam.sections.map((entry) => entry.section)
+      : [exam.section];
+    if (examSections.length > 1) {
+      if (!dto.sectionScores || dto.sectionScores.length !== examSections.length) {
+        throw new BadRequestException('يجب إدخال علامة مستقلة لكل حزب وجزء في الاختبار المجمع');
+      }
+      const submittedIds = new Set(dto.sectionScores.map((entry) => entry.sectionId));
+      if (examSections.some((section) => !submittedIds.has(section.id))) {
+        throw new BadRequestException('يجب إدخال علامة لكل مقرر في هذا الاختبار دون تكرار أو حذف');
+      }
+    }
+
+    const scoreBySection = new Map((dto.sectionScores ?? []).map((entry) => [entry.sectionId, entry.score]));
+    const sectionScores = examSections.map((section) => ({
+      section,
+      score: scoreBySection.get(section.id) ?? dto.score,
+    }));
+    const overallScore = sectionScores.length > 1
+      ? Math.round(sectionScores.reduce((sum, entry) => sum + entry.score, 0) / sectionScores.length)
+      : dto.score;
+    const resultDto = { ...dto, score: overallScore };
+    const passed = overallScore >= exam.section.minScore;
+    const evaluation = evaluationFromScore(overallScore);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await this.updateExamResult(
         tx,
         id,
-        dto,
+        resultDto,
         passed,
         evaluation,
         actor,
       );
 
+      for (const entry of sectionScores) {
+        const sectionPassed = entry.score >= entry.section.minScore;
+        await tx.examMilestoneRecord.upsert({
+          where: { studentId_sectionId: { studentId: exam.studentId, sectionId: entry.section.id } },
+          create: {
+            studentId: exam.studentId,
+            sectionId: entry.section.id,
+            status: 'COMPLETED',
+            result: sectionPassed ? ExamResult.PASSED : ExamResult.FAILED,
+            score: entry.score,
+            examDate: exam.scheduledAt,
+            examinerName: exam.examiner?.fullName ?? null,
+            updatedById: actor.id,
+          },
+          update: {
+            status: 'COMPLETED',
+            result: sectionPassed ? ExamResult.PASSED : ExamResult.FAILED,
+            score: entry.score,
+            examDate: exam.scheduledAt,
+            examinerName: exam.examiner?.fullName ?? null,
+            updatedById: actor.id,
+          },
+        });
+      }
+
       if (exam.requestId) {
         await this.updateRequestStatus(tx, exam.requestId);
       }
 
-      if (passed) {
-        await this.updateStudentMemorization(tx, exam.studentId);
-      }
+      await this.updateStudentMemorization(tx, exam.studentId);
 
       return result;
     });
 
-    await this.sendResultNotifications(exam, updated, passed, dto.score);
+    await this.sendResultNotifications(exam, updated, passed, overallScore);
 
     await this.activity.log({
       userId: actor.id,
       action: 'EXAM_RESULT',
-      summary: `رصد نتيجة اختبار ${exam.student.fullName} في ${this.examLabel(exam)}: ${dto.score} (${EVALUATION_LABELS[evaluation]})`,
+      summary: `رصد نتيجة اختبار ${exam.student.fullName} في ${this.examLabel(exam)}: ${overallScore} (${EVALUATION_LABELS[evaluation]})`,
       entityType: 'Exam',
       entityId: id,
     });

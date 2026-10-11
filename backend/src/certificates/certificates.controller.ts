@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser, Roles } from '../common/decorators';
@@ -33,6 +33,16 @@ export class CertificatesController {
   @Get('mine')
   @Roles(Role.STUDENT)
   myCertificates(@CurrentUser() user: AuthUser) { return this.service.myCertificates(user); }
+
+  @Get('issued')
+  @Roles(Role.ADMIN)
+  issued() { return this.service.listIssuedRecords(); }
+
+  @Get('monthly-report-data')
+  @Roles(Role.ADMIN)
+  monthlyReportData(@Query('from') from: string, @Query('to') to: string) {
+    return this.service.monthlyReportData(from, to);
+  }
 
   @Get('requests')
   @Roles(Role.ADMIN)

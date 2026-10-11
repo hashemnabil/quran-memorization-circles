@@ -497,7 +497,7 @@ export class StudentsService {
     const passwordHash = await bcrypt.hash(temporaryPassword, 12);
     const student = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { username: dto.nationalId!.toLowerCase(), passwordHash, fullName: dto.fullName, role: Role.STUDENT, isActive: true },
+        data: { username: dto.nationalId!.toLowerCase(), passwordHash, fullName: dto.fullName, role: Role.STUDENT, isActive: true, mustChangePassword: true },
       });
       const created = await tx.student.create({
         data: {

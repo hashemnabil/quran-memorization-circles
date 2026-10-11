@@ -27,6 +27,7 @@ import { PreparationsModule } from './preparations/preparations.module';
 import { RegistryModule } from './registry/registry.module';
 import { ReportsModule } from './reports/reports.module';
 import { CertificatesModule } from './certificates/certificates.module';
+import { MediaActivitiesModule } from './media-activities/media-activities.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { CertificatesModule } from './certificates/certificates.module';
     RegistryModule,
     ReportsModule,
     CertificatesModule,
+    MediaActivitiesModule,
   ],
 })
 export class AppModule {}

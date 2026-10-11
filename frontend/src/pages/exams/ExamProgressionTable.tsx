@@ -98,7 +98,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
             {rows.map((row) => {
               const record = row.record;
               const groupedExam = (row.related?.sections?.length ?? 0) > 1;
-              const score = record?.score ?? row.section?.score ?? (groupedExam ? null : row.related?.score);
+              const score = record ? record.score : row.section?.score ?? (groupedExam ? null : row.related?.score);
               const completed = record ? record.status === 'COMPLETED' : row.related?.status === 'COMPLETED' || row.related?.status === 'ABSENT';
               const status = completed || row.passed ? 'تم الاختبار' : row.pending ? 'محدد / قيد الاختبار' : row.requested ? 'طُلب اختبار' : row.unlocked ? 'لم يُطلب اختبار' : 'مقفل بالتسلسل';
               return <tr key={row.key}>

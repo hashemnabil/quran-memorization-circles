@@ -38,7 +38,6 @@ async function buildPrintableCertificate(studentName: string, title: string, kin
   ctx.textAlign = 'center';
   ctx.fillStyle = '#173d32';
   const center = canvas.width / 2;
-  const scale = canvas.height / 595;
   ctx.font = 'bold 34px Tahoma, Arial, sans-serif';
   ctx.fillText('شهادة تقدير وإنجاز', center, canvas.height * 0.35);
   ctx.font = '24px Tahoma, Arial, sans-serif';
@@ -62,6 +61,48 @@ async function buildPrintableCertificate(studentName: string, title: string, kin
   return 'data:application/pdf;base64,' + btoa(binary);
 }
 
+async function buildMonthlyReportPdf(student: any, from: string, to: string, templateUrl?: string) {
+  let pdf: PDFDocument;
+  if (templateUrl?.startsWith('data:application/pdf;base64,')) {
+    const raw = atob(templateUrl.split(',')[1]);
+    pdf = await PDFDocument.load(Uint8Array.from(raw, ch => ch.charCodeAt(0)));
+  } else {
+    pdf = await PDFDocument.create();
+    pdf.addPage([842, 595]);
+  }
+  const page = pdf.getPages()[0];
+  if (!page) throw new Error('ملف القالب لا يحتوي على صفحات');
+  const { width, height } = page.getSize();
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1400, Math.round(width * 2));
+  canvas.height = Math.max(950, Math.round(height * 2));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('تعذر تجهيز التقرير');
+  ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.fillStyle = '#173d32';
+  const x = canvas.width / 2;
+  const lines: Array<[string, number, string]> = [
+    ['التقرير الشهري لحلقات تحفيظ القرآن الكريم', 0.22, 'bold 32px Tahoma, Arial'],
+    ['اسم الطالب: ' + student.fullName + '  |  الرقم: ' + student.code, 0.32, 'bold 25px Tahoma, Arial'],
+    ['الحلقة: ' + student.circleName, 0.39, '23px Tahoma, Arial'],
+    ['الفترة: ' + from + ' إلى ' + to, 0.46, '22px Tahoma, Arial'],
+    ['الحضور: ' + student.attendance.present + ' | الغياب: ' + student.attendance.absent + ' | بعذر: ' + student.attendance.excused + ' | سجلات: ' + student.attendance.recorded, 0.55, '21px Tahoma, Arial'],
+    ['جلسات التسميع: ' + student.recitations.sessions + ' | الصفحات: ' + Number(student.recitations.pages).toFixed(1), 0.63, '21px Tahoma, Arial'],
+    ['النقاط: ' + Number(student.recitations.points).toFixed(1) + ' | الأخطاء: ' + student.recitations.mistakes + ' | التنبيهات: ' + student.recitations.warnings, 0.70, '21px Tahoma, Arial'],
+    ['التقييم العام: ' + (student.evaluation || 'غير محدد'), 0.78, 'bold 22px Tahoma, Arial'],
+    ['ملاحظات التقييم: ' + (student.evaluationNote || 'لا توجد'), 0.85, '19px Tahoma, Arial'],
+  ];
+  for (const [text, ratio, font] of lines) { ctx.font = font; ctx.fillText(text, x, canvas.height * ratio, canvas.width * 0.9); }
+  const png = await pdf.embedPng(await new Promise<Uint8Array>((resolve, reject) => canvas.toBlob(async blob => {
+    if (!blob) { reject(new Error('تعذر تجهيز التقرير')); return; }
+    resolve(new Uint8Array(await blob.arrayBuffer()));
+  }, 'image/png')));
+  page.drawImage(png, { x: 0, y: 0, width, height });
+  const bytes = await pdf.save();
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return 'data:application/pdf;base64,' + btoa(binary);
+}
+
 export default function CertificatesAdminPage() {
   const qc=useQueryClient();
   const printWindowRef = useRef<Window | null>(null);
@@ -76,7 +117,12 @@ export default function CertificatesAdminPage() {
   const [issueTitle,setIssueTitle]=useState('شهادة إنجاز');
   const [issueDate,setIssueDate]=useState(new Date().toISOString().slice(0,10));
   const [selectedStudentIds,setSelectedStudentIds]=useState<string[]>([]);
+  const [reportStudentIds,setReportStudentIds]=useState<string[]>([]);
+  const [reportFrom,setReportFrom]=useState(new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().slice(0,10));
+  const [reportTo,setReportTo]=useState(new Date().toISOString().slice(0,10));
   const [selectedTemplateId,setSelectedTemplateId]=useState('');
+  const reportData=useQuery({queryKey:['certificates','monthly-report-data',reportFrom,reportTo],queryFn:async()=>(await api.get<any[]>('/certificates/monthly-report-data',{params:{from:reportFrom,to:reportTo}})).data,enabled:Boolean(reportFrom&&reportTo&&reportFrom<=reportTo)});
+  const issued=useQuery({queryKey:['certificates','issued'],queryFn:async()=>(await api.get<any[]>('/certificates/issued')).data});
   const templates=useQuery({queryKey:['certificates','templates'],queryFn:async()=>(await api.get<any[]>('/certificates/templates')).data});
   const requests=useQuery({queryKey:['certificates','requests'],queryFn:async()=>(await api.get<any[]>('/certificates/requests')).data});
   const students=useQuery({queryKey:['certificates','students'],queryFn:async()=>{const r=await api.get<any>('/students',{params:{page:1,limit:100}});return (r.data?.data ?? []) as Array<{id:string;fullName:string;code?:string}>;}});
@@ -128,6 +174,22 @@ export default function CertificatesAdminPage() {
     </Card>
     <Card title="القوالب النشطة">
       {templates.isLoading?<LoadingState/>:templates.data?.length?<div className="divide-y">{templates.data.map(t=><div key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-semibold">{t.name}</p><p className="text-sm text-slate-500">{kinds[t.kind]||t.kind} · {t.sourceType==='UPLOAD'?'مرفوع':'مصمم'}</p></div><Button variant="secondary" onClick={()=>deactivate.mutate(t.id)}>إيقاف القالب</Button></div>)}</div>:<p className="text-sm text-slate-500">لا توجد قوالب.</p>}
+    </Card>
+
+    <Card title="التقارير الشهرية التلقائية">
+      <p className="mb-3 text-sm text-slate-600">تُجمع بيانات الحضور والتسميع والتقييم المسجلة في النظام للفترة المحددة، ويُنشأ PDF مستقل لكل طالب وينشر في حسابه، مع تنزيل جماعي ZIP.</p>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Input label="من تاريخ" type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)} required />
+        <Input label="إلى تاريخ" type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)} required />
+      </div>
+      {reportData.isLoading?<LoadingState/>:reportData.isError?<p className="mt-3 text-sm text-red-600">تعذر تحميل بيانات التقرير.</p>:<div className="mt-4">
+        <div className="mb-3 flex items-center justify-between gap-2"><p className="font-semibold">الطلاب: {reportData.data?.length??0} · المحدد: {reportStudentIds.length}</p><button type="button" className="text-sm text-primary-700 underline" onClick={()=>setReportStudentIds(reportStudentIds.length===(reportData.data??[]).length?[]:(reportData.data??[]).map((s:any)=>s.id))}>تحديد الكل / إلغاء التحديد</button></div>
+        <div className="grid max-h-56 gap-2 overflow-y-auto sm:grid-cols-2">{(reportData.data??[]).map((s:any)=><label key={s.id} className="flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-sm"><input type="checkbox" checked={reportStudentIds.includes(s.id)} onChange={e=>setReportStudentIds(old=>e.target.checked?[...old,s.id]:old.filter(id=>id!==s.id))}/><span>{s.fullName} — {s.circleName}</span></label>)}</div>
+        <Button className="mt-4" disabled={!reportStudentIds.length||!reportFrom||!reportTo||reportFrom>reportTo} onClick={async()=>{const chosen=(reportData.data??[]).filter((s:any)=>reportStudentIds.includes(s.id));const zip=new JSZip();let saved=0;try{for(const student of chosen){const fileUrl=await buildMonthlyReportPdf(student,reportFrom,reportTo);await api.post('/certificates/monthly-reports/issue',{studentId:student.id,from:reportFrom,to:reportTo,fileUrl,reportDraft:{studentCode:student.code,circleName:student.circleName,attendance:student.attendance,recitations:student.recitations,evaluation:student.evaluation,evaluationNote:student.evaluationNote}});const raw=atob(fileUrl.split(',')[1]);zip.file((student.fullName||student.code).replace(/[\\\\/:*?"<>|]/g,'_')+'.pdf',Uint8Array.from(raw,ch=>ch.charCodeAt(0)));saved++;}const blob=await zip.generateAsync({type:'blob'});const href=URL.createObjectURL(blob);const a=document.createElement('a');a.href=href;a.download='التقارير-'+reportFrom+'-'+reportTo+'.zip';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(href),30000);toast.success('تم نشر '+saved+' تقرير وتنزيلها بملف ZIP');setReportStudentIds([]);await refresh();}catch(e){toast.error('تم نشر '+saved+' تقرير قبل حدوث خطأ. أعد المحاولة للطلاب المتبقين؛ لن تُحذف التقارير المنشورة.');await refresh();}}}>إنشاء التقارير ونشرها وتنزيل ZIP</Button>
+      </div>}
+    </Card>
+    <Card title="الشهادات الصادرة">
+      {issued.isLoading?<LoadingState/>:issued.isError?<p className="text-sm text-red-600">تعذر تحميل الشهادات الصادرة.</p>:issued.data?.length?<div className="divide-y">{issued.data.map((item:any)=><div key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-semibold">{item.title} — {item.student?.fullName}</p><p className="text-sm text-slate-500">{item.student?.circle?.name||'بدون حلقة'} · {new Date(item.issuedAt).toLocaleDateString('ar')}</p></div><a className="text-primary-700 underline" href={item.fileUrl} download={item.title+'.pdf'}>تنزيل PDF</a></div>)}</div>:<p className="text-sm text-slate-500">لا توجد شهادات صادرة.</p>}
     </Card>
     <Card title="طلبات الطلاب">
       {requests.isLoading?<LoadingState/>:requests.data?.length?<div className="space-y-4">{requests.data.map(r=><div key={r.id} className="rounded-xl border p-4"><div className="flex flex-wrap justify-between gap-2"><div><p className="font-semibold">{r.student?.fullName} — {r.kind==='CERTIFICATE'?(kinds[r.certificateKind]||'شهادة'):'تقرير شهري'}</p><p className="text-sm text-slate-500">الحالة: {statuses[r.status]||r.status} · {new Date(r.createdAt).toLocaleDateString('ar')}</p><p className="text-sm">{r.courseName||''} {r.periodFrom?new Date(r.periodFrom).toLocaleDateString('ar'):''} {r.periodTo?' — '+new Date(r.periodTo).toLocaleDateString('ar'):''}</p></div></div>{r.status!=='READY'&&r.status!=='REJECTED'&&<div className="mt-3 grid gap-3 md:grid-cols-2"><Input label="ملاحظة القرار" value={decisionNotes[r.id]||''} onChange={e=>setDecisionNotes(old=>({...old,[r.id]:e.target.value}))}/><Input label="رابط الملف النهائي عند النشر" value={fileUrls[r.id]||''} onChange={e=>setFileUrls(old=>({...old,[r.id]:e.target.value}))}/><div className="flex flex-wrap gap-2 md:col-span-2"><Button variant="secondary" onClick={()=>decide.mutate({id:r.id,status:'APPROVED'})}>موافقة</Button><Button variant="secondary" onClick={()=>decide.mutate({id:r.id,status:'REJECTED'})}>رفض</Button><Button onClick={()=>decide.mutate({id:r.id,status:'READY'})}>نشر الملف للطالب</Button></div></div>}</div>)}</div>:<p className="text-sm text-slate-500">لا توجد طلبات.</p>}

@@ -44,6 +44,11 @@ export class CreateStudentDto {
   @IsEnum(Gender)
   gender?: Gender;
 
+  @ApiPropertyOptional({ description: 'إنشاء حساب دخول للطالب عند التسجيل' })
+  @IsOptional()
+  @IsBoolean()
+  createAccount?: boolean;
+
   @ApiPropertyOptional({ description: 'رقم هوية الطالب' })
   @IsOptional()
   @IsString()

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -22,6 +22,7 @@ function buildPrintableCertificate(studentName: string, title: string, kind: str
 
 export default function CertificatesAdminPage() {
   const qc=useQueryClient();
+  const printWindowRef = useRef<Window | null>(null);
   const [name,setName]=useState('');
   const [kind,setKind]=useState('JUZ_COMPLETION');
   const [sourceType,setSourceType]=useState('BUILDER');
@@ -52,14 +53,14 @@ export default function CertificatesAdminPage() {
       urls.push({url,name:student.fullName});
     }
     return urls;
-  },onSuccess:async(urls)=>{toast.success('تم إصدار '+urls.length+' شهادة. ستُفتح نافذة الطباعة الآن.');window.open(urls[0].url,'_blank');setSelectedStudentIds([]);await refresh();},onError:e=>toast.error(e instanceof Error?e.message:apiError(e))});
+  },onSuccess:async(urls)=>{const printWindow=printWindowRef.current;printWindowRef.current=null;if(printWindow&&!printWindow.closed){printWindow.location.href=urls[0].url;toast.success('تم إصدار '+urls.length+' شهادة وفتح نافذة الطباعة.');}else{toast.error('تم إصدار الشهادات، لكن المتصفح أغلق نافذة الطباعة. اسمح بالنوافذ المنبثقة وأعد المحاولة.');}setSelectedStudentIds([]);await refresh();},onError:e=>{if(printWindowRef.current&&!printWindowRef.current.closed)printWindowRef.current.close();printWindowRef.current=null;toast.error(e instanceof Error?e.message:apiError(e));}});
 
   return <div className="space-y-6" dir="rtl">
     <PageHeader title="الشهادات والتقارير" subtitle="إدارة قوالب الشهادات ومراجعة طلبات الطلاب." />
 
     <Card title="إصدار شهادة للطباعة">
       <p className="mb-4 text-sm text-slate-600">اختر نوع الشهادة والطلاب، ثم أصدرها. من نافذة الطباعة اختر «حفظ بتنسيق PDF» أو اطبع مباشرة.</p>
-      <form className="grid gap-4 md:grid-cols-2" onSubmit={e=>{e.preventDefault();issue.mutate();}}>
+      <form className="grid gap-4 md:grid-cols-2" onSubmit={e=>{e.preventDefault();const printWindow=window.open('about:blank','_blank');if(!printWindow){toast.error('المتصفح منع نافذة الطباعة. اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة.');return;}printWindowRef.current=printWindow;issue.mutate();}}>
         <label className="grid gap-1 text-sm font-medium">قالب محفوظ<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={selectedTemplateId} onChange={e=>{setSelectedTemplateId(e.target.value);const t=templates.data?.find((x:any)=>x.id===e.target.value);if(t)setIssueKind(t.kind);}}><option value="">التصميم الافتراضي</option>{(templates.data??[]).map((t:any)=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
         <label className="grid gap-1 text-sm font-medium">نوع الشهادة<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={issueKind} onChange={e=>setIssueKind(e.target.value)}>{Object.entries(kinds).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
         <Input label="عنوان الشهادة" value={issueTitle} onChange={e=>setIssueTitle(e.target.value)} required />

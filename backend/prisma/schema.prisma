@@ -236,6 +236,9 @@ model User {
   courseAttendanceTaken   CourseAttendance[]     @relation("CourseAttendanceRecorder")
   announcements           Announcement[]         @relation("AnnouncementAuthor")
   surahCompletions        SurahCompletion[]      @relation("SurahCompletionRecorder")
+  certificateTemplates    CertificateTemplate[]
+  issuedCertificates      CertificateRecord[]   @relation("CertificateIssuer")
+  reviewedFileRequests    StudentFileRequest[]  @relation("FileRequestReviewer")
 
   @@index([role])
   @@index([isActive])
@@ -426,6 +429,8 @@ model Student {
   courseAttendance  CourseAttendance[]
   preparations      PreparationAssignment[]
   surahCompletions  SurahCompletion[]
+  certificates CertificateRecord[]
+  fileRequests StudentFileRequest[]
 
   @@index([circleId])
   @@index([parentId])
@@ -1131,4 +1136,96 @@ model RegistryUser {
   @@index([fullName])
   @@index([completed, isActive])
   @@map("registry_users")
+}
+
+
+// ---------------------------------------------------------------------------
+// Certificates and student files
+// ---------------------------------------------------------------------------
+
+enum CertificateKind {
+  JUZ_COMPLETION
+  QURAN_COMPLETION
+  TAJWEED_COURSE
+  SHARIA_COURSE
+  COURSE_COMPLETION
+  HONOR
+}
+
+enum StudentFileRequestKind {
+  CERTIFICATE
+  MONTHLY_REPORT
+}
+
+enum StudentFileRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  READY
+}
+
+model CertificateTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  kind        CertificateKind
+  sourceType  String   // UPLOAD or BUILDER
+  fileUrl     String?
+  design      Json     @default("{}")
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  certificates CertificateRecord[]
+
+  @@index([kind, isActive])
+  @@map("certificate_templates")
+}
+
+model CertificateRecord {
+  id          String   @id @default(uuid())
+  studentId   String
+  templateId  String?
+  kind        CertificateKind
+  title       String
+  details     Json     @default("{}")
+  fileUrl     String
+  issuedById  String
+  issuedAt    DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  template CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  issuedBy User @relation("CertificateIssuer", fields: [issuedById], references: [id], onDelete: Restrict)
+
+  @@index([studentId, issuedAt])
+  @@index([kind])
+  @@map("certificate_records")
+}
+
+model StudentFileRequest {
+  id          String   @id @default(uuid())
+  studentId   String
+  kind        StudentFileRequestKind
+  certificateKind CertificateKind?
+  courseName  String?
+  periodFrom  DateTime? @db.Date
+  periodTo    DateTime? @db.Date
+  status      StudentFileRequestStatus @default(PENDING)
+  requestNote String?
+  decisionNote String?
+  reportDraft Json?
+  fileUrl     String?
+  reviewedById String?
+  reviewedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reviewedBy User? @relation("FileRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([studentId, createdAt])
+  @@index([status, kind])
+  @@map("student_file_requests")
 }

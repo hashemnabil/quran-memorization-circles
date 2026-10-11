@@ -10,6 +10,8 @@ import DashboardPage from '@/pages/DashboardPage';
 import StudentPortalPage from '@/pages/StudentPortalPage';
 import ReportsPage from '@/pages/ReportsPage';
 import StudentAccountsPage from '@/pages/students/StudentAccountsPage';
+import StudentFilesPage from '@/pages/StudentFilesPage';
+import CertificatesAdminPage from '@/pages/CertificatesAdminPage';
 import CirclesPage from '@/pages/circles/CirclesPage';
 import CircleDetailsPage from '@/pages/circles/CircleDetailsPage';
 import StudentsPage from '@/pages/students/StudentsPage';
@@ -74,6 +76,8 @@ export default function App() {
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
         <Route path="student-accounts" element={<RequireRole roles={['ADMIN']}><StudentAccountsPage /></RequireRole>} />
+        <Route path="certificates-admin" element={<RequireRole roles={['ADMIN']}><CertificatesAdminPage /></RequireRole>} />
+        <Route path="my-files" element={<RequireRole roles={['STUDENT']}><StudentFilesPage /></RequireRole>} />
 
         {/* The exam committee works from the exam queue only, so the circle
             management pages are closed to it (spec item 7). */}

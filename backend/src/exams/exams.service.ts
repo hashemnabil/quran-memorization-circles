@@ -492,7 +492,7 @@ export class ExamsService {
     // ✅ تأكد من أن passedIds تحتوي على المعرفات الصحيحة فقط
     const manualRecords = await this.prisma.examMilestoneRecord.findMany({
       where: { studentId },
-      select: { sectionId: true, status: true, score: true },
+      select: { sectionId: true, status: true, result: true, score: true },
     });
     const manualCompleted = manualRecords.filter((record) => record.status === 'COMPLETED' && record.result !== ExamResult.FAILED);
     const manualCompletedIds = new Set(manualCompleted.map((record) => record.sectionId));

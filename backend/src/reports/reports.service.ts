@@ -19,13 +19,13 @@ const formatDateValue = (value: unknown): unknown => {
     const day = String(value.getUTCDate()).padStart(2, '0');
     return `${day}/${month}/${year}`;
   }
-  if (typeof value === 'string' && /^\\d{4}-\\d{2}-\\d{2}(?:T.*)?$/.test(value)) {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value)) {
     const [year, month, day] = value.slice(0, 10).split('-');
     return `${day}/${month}/${year}`;
   }
   return value;
 };
-const sheet = (rows: Record<string, unknown>[]) => XLSX.utils.json_to_sheet((rows.length ? rows : [{ 'لا توجد بيانات': '' }]).map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, formatDateValue(value)])));
+const sheet = (rows: Record<string, unknown>[]) => XLSX.utils.json_to_sheet((rows.length ? rows : [{ 'لا توجد بيانات': '' }]).map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, formatDateValue(value)]))));
 const arabicAttendance: Record<string, string> = { PRESENT: 'حاضر', ABSENT: 'غائب', EXCUSED: 'غائب بعذر' };
 
 @Injectable()

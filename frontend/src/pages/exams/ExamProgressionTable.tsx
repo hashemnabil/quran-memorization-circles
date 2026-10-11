@@ -75,9 +75,9 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
       const request = requests.find((entry) =>
         entry.section?.code === item.key || entry.sections?.some((part) => part.section.code === item.key),
       );
-      const passed = Boolean(section?.isPassed || related?.result === 'PASSED' || record?.status === 'COMPLETED');
-      const pending = Boolean(related?.status === 'SCHEDULED' || record?.status === 'SCHEDULED' || request?.status === 'SCHEDULED');
-      const requested = Boolean(record?.status === 'REQUESTED' || request?.status === 'PENDING');
+      const passed = record ? record.status === 'COMPLETED' : Boolean(section?.isPassed || related?.result === 'PASSED');
+      const pending = record ? record.status === 'SCHEDULED' : Boolean(related?.status === 'SCHEDULED' || request?.status === 'SCHEDULED');
+      const requested = record ? record.status === 'REQUESTED' : request?.status === 'PENDING';
       const currentUnlocked = unlocked || passed || pending || requested;
       if (!passed) unlocked = false;
       return { ...item, section, related, record, request, passed, pending, requested, unlocked: currentUnlocked };
@@ -98,7 +98,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
               const record = row.record;
               const groupedExam = (row.related?.sections?.length ?? 0) > 1;
               const score = record?.score ?? row.section?.score ?? (groupedExam ? null : row.related?.score);
-              const completed = record?.status === 'COMPLETED' || row.related?.status === 'COMPLETED' || row.related?.status === 'ABSENT';
+              const completed = record ? record.status === 'COMPLETED' : row.related?.status === 'COMPLETED' || row.related?.status === 'ABSENT';
               const status = completed || row.passed ? 'تم الاختبار' : row.pending ? 'محدد / قيد الاختبار' : row.requested ? 'طُلب اختبار' : row.unlocked ? 'لم يُطلب اختبار' : 'مقفل بالتسلسل';
               return <tr key={row.key}>
                 <td className="font-medium">{row.label}</td>

@@ -22,6 +22,9 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   if (status === 'idle' || status === 'loading') return <FullScreenLoader />;
   if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (user.role === 'STUDENT' && location.pathname !== '/' && location.pathname !== '/student') {
+    return <Navigate to="/student" replace />;
+  }
 
   return <>{children}</>;
 }

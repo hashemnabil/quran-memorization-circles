@@ -23,7 +23,11 @@ export class ReportsController {
   async export(@CurrentUser() user: AuthUser, @Query() query: Record<string, string>, @Res() res: Response) {
     const { buffer, filename } = await this.reports.exportXlsx(user, query.type as ReportType, query);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    // HTTP headers only support Latin-1 bytes; use an ASCII fallback and RFC 5987 for UTF-8 names.
+    const encodedFilename = encodeURIComponent(filename).replace(/[!'()*]/g, (char) =>
+      `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="report.xlsx"; filename*=UTF-8''${encodedFilename}`);
     res.send(buffer);
   }
 }

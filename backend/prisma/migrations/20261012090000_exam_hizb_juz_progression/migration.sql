@@ -13,9 +13,9 @@ WHERE "kind" = 'HIZB'
   AND "code" ~ '^HIZB-[0-9]{2}$';
 
 INSERT INTO "exam_sections"
-  ("id", "name", "code", "order", "kind", "isRequired", "pagesCount", "minScore", "description", "isActive", "createdAt", "updatedAt")
+  ("id", "name", "code", "order", "kind", "isRequired", "pagesCount", "minScore", "description", "isActive", "createdAt")
 SELECT
-  md5(random()::text || clock_timestamp()::text)::uuid,
+  md5(random()::text || clock_timestamp()::text),
   'الجزء ' || n,
   'JUZ-' || lpad(n::text, 2, '0'),
   ((30 - n) * 3) + 3,
@@ -25,7 +25,6 @@ SELECT
   60,
   'اختبار حفظ وإتقان الجزء ' || n,
   true,
-  CURRENT_TIMESTAMP,
   CURRENT_TIMESTAMP
 FROM generate_series(1, 30) AS n
 ON CONFLICT DO NOTHING;

@@ -677,6 +677,7 @@ model ExamMilestoneRecord {
   studentId   String
   sectionId   String
   status      ExamMilestoneStatus @default(NOT_REQUESTED)
+  result      ExamResult?
   score       Int?
   requestedAt DateTime?
   examDate    DateTime?

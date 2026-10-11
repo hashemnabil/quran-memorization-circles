@@ -50,7 +50,7 @@ export default function ReportsPage() {
    url=URL.createObjectURL(response.data);
    const a=document.createElement('a');
    a.href=url;
-   a.download=`${({attendance:'تقرير_الحضور_والغياب',recitations:'تقرير_التسميع_اليومي',exams:'تقرير_الاختبارات',student:'الملف_الشامل_للطالب',circles:'إحصائيات_الحلقات',students:'سجل_الطلاب'} as Record<string,string>)[type]??'تقرير'}.xlsx`;
+   a.download=`${({attendance:'تقرير_الحضور_والغياب',recitations:'تقرير_التسميع_اليومي',exams:'تقرير_الاختبارات',student:'الملف_الشامل_للطالب',circles:'إحصائيات_الحلقات',students:'سجل_الطلاب',courses:'حلقات_الدورات',courseStudents:'طلاب_الدورات',courseAttendance:'حضور_وغياب_الدورات'} as Record<string,string>)[type]??'تقرير'}.xlsx`;
    a.style.display='none';
    document.body.appendChild(a);
    a.click();

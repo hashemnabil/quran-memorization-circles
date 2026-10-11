@@ -70,6 +70,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/reports', label: 'التقارير', icon: <IconClipboard size={19} />, roles: ['ADMIN'] },
       { to: '/student-accounts', label: 'حسابات الطلاب', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
+      { to: '/certificates-admin', label: 'الشهادات والتقارير', icon: <IconAward size={19} />, roles: ['ADMIN'] },
     ],
   },
   {
@@ -84,6 +85,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'حساب الطالب',
     items: [
       { to: '/student', label: 'ملفي الدراسي', icon: <IconGraduation size={19} />, roles: ['STUDENT'] },
+      { to: '/my-files', label: 'ملفاتي', icon: <IconClipboard size={19} />, roles: ['STUDENT'] },
     ],
   },
   {

@@ -235,6 +235,7 @@ model User {
   coursesInstructed       Course[]               @relation("CourseInstructor")
   courseAttendanceTaken   CourseAttendance[]     @relation("CourseAttendanceRecorder")
   announcements           Announcement[]         @relation("AnnouncementAuthor")
+  mediaActivities          MediaActivity[]
   surahCompletions        SurahCompletion[]      @relation("SurahCompletionRecorder")
   certificateTemplates    CertificateTemplate[]
   issuedCertificates      CertificateRecord[]   @relation("CertificateIssuer")

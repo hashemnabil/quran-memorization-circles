@@ -494,8 +494,6 @@ export class ExamsService {
       where: { studentId },
       select: { sectionId: true, status: true, result: true, score: true },
     });
-    const manualCompleted = manualRecords.filter((record) => record.status === 'COMPLETED' && record.result !== ExamResult.FAILED);
-    const manualCompletedIds = new Set(manualCompleted.map((record) => record.sectionId));
     const manualOpenIds = new Set(manualRecords.filter((record) => record.status === 'REQUESTED' || record.status === 'SCHEDULED').map((record) => record.sectionId));
 
     const passedIds = new Set(

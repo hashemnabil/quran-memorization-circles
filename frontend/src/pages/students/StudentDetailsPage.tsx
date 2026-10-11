@@ -461,7 +461,6 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
         <InfoRow label="تاريخ الميلاد" value={formatDate(student.birthDate)} />
         <InfoRow label="العمر" value={calcAge(student.birthDate)} />
         <InfoRow label="رقم الهوية" value={<span className="numeric" dir="ltr">{student.nationalId}</span>} />
-        <InfoRow label="هوية الأب" value={<span className="numeric" dir="ltr">{student.fatherNationalId}</span>} />
         <InfoRow label="العنوان" value={student.address} />
         <InfoRow label="تاريخ التسجيل" value={formatDate(student.enrollmentDate)} />
         <InfoRow
@@ -474,7 +473,7 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
         />
       </Card>
 
-      <Card title="الحلقة وولي الأمر" className="lg:col-span-1">
+      <Card title="الحلقة" className="lg:col-span-1">
         <InfoRow
           label="الحلقة"
           value={
@@ -487,12 +486,6 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
         />
         <InfoRow label="المعلم" value={student.teacherName} />
         <InfoRow label="المشرف" value={student.supervisorName} />
-        <InfoRow label="ولي الأمر" value={student.parentName} />
-        <InfoRow
-          label="جوال ولي الأمر"
-          value={<span className="numeric" dir="ltr">{student.parentPhone}</span>}
-        />
-        <InfoRow label="صلة القرابة" value={student.guardianRelation} />
       </Card>
 
       <Card title="المستوى والتقييم" className="lg:col-span-1">
@@ -1316,12 +1309,8 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
     fullName: student.fullName,
     birthDate: student.birthDate?.slice(0, 10) ?? '',
     nationalId: student.nationalId ?? '',
-    fatherNationalId: student.fatherNationalId ?? '',
     address: student.address ?? '',
     phone: student.phone ?? '',
-    guardianName: student.guardianName ?? '',
-    guardianPhone: student.guardianPhone ?? '',
-    guardianRelation: student.guardianRelation ?? '',
     memorizedParts: student.memorizedParts,
     currentSurah: student.currentSurah ?? '',
     circleId: student.circleId ?? '',
@@ -1339,9 +1328,6 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
       const payload: Record<string, unknown> = isAdmin
         ? { ...form, circleId: form.circleId || null }
         : {
-            guardianName: form.guardianName,
-            guardianPhone: form.guardianPhone,
-            guardianRelation: form.guardianRelation,
             phone: form.phone,
             address: form.address,
             notes: form.notes,
@@ -1369,8 +1355,6 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
     const next: Record<string, string> = {};
     const phoneErr = phoneError(form.phone);
     if (phoneErr) next.phone = phoneErr;
-    const guardianPhoneErr = phoneError(form.guardianPhone);
-    if (guardianPhoneErr) next.guardianPhone = guardianPhoneErr;
     setErrors(next);
     if (Object.values(next).some(Boolean)) return;
     mutation.mutate();
@@ -1420,9 +1404,6 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
         )}
         <Input label="جوال الطالب" value={form.phone} onChange={(e) => set('phone', e.target.value)} error={errors.phone} hint={PHONE_HINT} dir="ltr" />
         <Input label="العنوان" value={form.address} onChange={(e) => set('address', e.target.value)} />
-        <Input label="اسم ولي الأمر" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />
-        <Input label="جوال ولي الأمر" value={form.guardianPhone} onChange={(e) => set('guardianPhone', e.target.value)} error={errors.guardianPhone} hint={PHONE_HINT} dir="ltr" />
-        <Input label="صلة القرابة" value={form.guardianRelation} onChange={(e) => set('guardianRelation', e.target.value)} />
         <Input
           label="الأجزاء المحفوظة"
           type="number"

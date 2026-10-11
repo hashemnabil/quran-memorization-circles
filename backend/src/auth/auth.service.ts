@@ -69,6 +69,9 @@ export class AuthService {
     if (!user.isActive) {
       throw new UnauthorizedException('تم إيقاف هذا الحساب، يرجى مراجعة الإدارة');
     }
+    if (user.role === 'PARENT') {
+      throw new UnauthorizedException('تم إيقاف بوابة ولي الأمر؛ يرجى استخدام حساب الطالب');
+    }
 
     const tokens = await this.issueTokens(user, userAgent);
 

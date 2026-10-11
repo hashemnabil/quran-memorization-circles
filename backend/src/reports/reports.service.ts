@@ -97,7 +97,14 @@ export class ReportsService {
         include: { student: { select: { id: true, code: true, fullName: true } }, circle: { select: { name: true } } },
         orderBy: [{ date: 'desc' }, { student: { fullName: 'asc' } }], take: 10000,
       });
-      return { type, rows: rows.map(r => ({ 'التاريخ': r.date, 'معرّف الطالب': r.student.id, 'رقم الطالب': r.student.code, 'الطالب': r.student.fullName, 'الحلقة': r.circle.name, 'الحالة': arabicAttendance[r.status] ?? r.status, 'ملاحظات': r.note ?? '' })), stats: { total: rows.length, present: rows.filter(r=>r.status==='PRESENT').length, absent: rows.filter(r=>r.status==='ABSENT').length, excused: rows.filter(r=>r.status==='EXCUSED').length } };
+      const dates = [...new Set(rows.map(r => r.date.toISOString().slice(0, 10)))].sort((a, b) => b.localeCompare(a));
+      const matrix = new Map<string, Record<string, unknown>>();
+      for (const r of rows) {
+        if (!matrix.has(r.student.id)) matrix.set(r.student.id, { 'رقم الطالب': r.student.code, 'الطالب': r.student.fullName, 'الحلقة': r.circle.name });
+        matrix.get(r.student.id)![r.date.toISOString().slice(0, 10)] = arabicAttendance[r.status] ?? r.status;
+      }
+      const matrixRows = [...matrix.values()].map(row => Object.fromEntries([...Object.entries(row).slice(0, 3), ...dates.map(date => [date, row[date] ?? '—'])]));
+      return { type, dates, rows: matrixRows, stats: { total: rows.length, present: rows.filter(r=>r.status==='PRESENT').length, absent: rows.filter(r=>r.status==='ABSENT').length, excused: rows.filter(r=>r.status==='EXCUSED').length } };
     }
     if (type === 'recitations') {
       const rows = await this.prisma.recitation.findMany({
@@ -138,8 +145,14 @@ export class ReportsService {
         return { type, rows, stats: { total: rows.length, active: enrollments.filter(e=>!e.endedAt).length } };
       }
       const records = await this.prisma.courseAttendance.findMany({ where: { courseId: course.id, student: { deletedAt: null }, ...(from || to ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}) }, include: { student: { select: { code: true, fullName: true } }, course: { select: { name: true } } }, orderBy: [{ date: 'desc' }, { student: { fullName: 'asc' } }], take: 10000 });
-      const rows = records.map(a => ({ 'التاريخ': a.date, 'الدورة': a.course.name, 'رقم الطالب': a.student.code, 'الطالب': a.student.fullName, 'الحالة': arabicAttendance[a.status] ?? a.status, 'ملاحظات': a.note ?? '' }));
-      return { type, rows, stats: { total: rows.length, present: records.filter(a=>a.status==='PRESENT').length, absent: records.filter(a=>a.status==='ABSENT').length, excused: records.filter(a=>a.status==='EXCUSED').length } };
+      const dates = [...new Set(records.map(a => a.date.toISOString().slice(0, 10)))].sort((a, b) => b.localeCompare(a));
+      const matrix = new Map<string, Record<string, unknown>>();
+      for (const a of records) {
+        if (!matrix.has(a.studentId)) matrix.set(a.studentId, { 'رقم الطالب': a.student.code, 'الطالب': a.student.fullName, 'الدورة': a.course.name });
+        matrix.get(a.studentId)![a.date.toISOString().slice(0, 10)] = arabicAttendance[a.status] ?? a.status;
+      }
+      const matrixRows = [...matrix.values()].map(row => Object.fromEntries([...Object.entries(row).slice(0, 3), ...dates.map(date => [date, row[date] ?? '—'])]));
+      return { type, dates, rows: matrixRows, stats: { total: records.length, present: records.filter(a=>a.status==='PRESENT').length, absent: records.filter(a=>a.status==='ABSENT').length, excused: records.filter(a=>a.status==='EXCUSED').length } };
     }
 
     const circles = await this.prisma.circle.findMany({ where:{deletedAt:null,...(allowed===null?{}:{id:{in:allowed}}),...(q.circleId?{id:q.circleId}:{})}, include:{_count:{select:{students:true,attendance:true,recitations:true}},teachers:{where:{endedAt:null},include:{teacher:{include:{user:{select:{fullName:true}}}}}}},orderBy:{name:'asc'},take:5000 });

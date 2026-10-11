@@ -40,17 +40,27 @@ export class StudentsController {
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'تصدير بيانات حسابات الطلاب إلى Excel' })
   async exportStudentAccounts(@Res() response: Response) {
+    return this.sendAccountsWorkbook(response, {});
+  }
+
+  @Post('accounts/export-with-temporary-passwords')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'تصدير الحسابات مع كلمات المرور المؤقتة المتاحة في جلسة الإدارة الحالية' })
+  async exportStudentAccountsWithTemporaryPasswords(@Body() body: { temporaryPasswords?: Record<string, string> }, @Res() response: Response) {
+    return this.sendAccountsWorkbook(response, body.temporaryPasswords ?? {});
+  }
+
+  private async sendAccountsWorkbook(response: Response, temporaryPasswords: Record<string, string>) {
     const rows = await this.service.listAccounts();
     const worksheet = XLSX.utils.json_to_sheet(rows.map((r) => ({
       'اسم الطالب': r.fullName,
       'رقم هوية الطالب': r.nationalId ?? '',
       'رقم هوية الأب': r.fatherNationalId ?? '',
-      'جوال الطالب': r.phone ?? '',
       'اسم ولي الأمر': r.guardianName ?? '',
       'جوال ولي الأمر': r.guardianPhone ?? '',
       'اسم المستخدم': r.username,
       'حالة الحساب': r.isActive ? 'نشط' : 'موقوف',
-      'كلمة المرور المؤقتة': r.mustChangePassword ? 'مطلوب تغييرها عند أول دخول (لا تُخزّن كنص)' : '',
+      'كلمة المرور المؤقتة': r.mustChangePassword ? (temporaryPasswords[r.id] ?? '') : '',
     })));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'حسابات الطلاب');

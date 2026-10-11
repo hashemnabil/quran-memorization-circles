@@ -582,23 +582,40 @@ function RejectModal({ request, onClose }: { request: ExamRequest; onClose: () =
 function ResultModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [score, setScore] = useState('');
+  const [sectionScores, setSectionScores] = useState<Record<string, string>>({});
   const [mistakes, setMistakes] = useState('');
   const [notes, setNotes] = useState('');
-
+  const sections = exam.sections?.length ? exam.sections.map((entry) => entry.section) : [exam.section];
+  const grouped = sections.length > 1;
+  const values = sections.map((section) => {
+    const raw = sectionScores[section.id] ?? '';
+    const value = raw === '' ? null : Number(raw);
+    return { section, raw, value, valid: value !== null && Number.isInteger(value) && value >= 0 && value <= 100 };
+  });
   const numeric = score === '' ? null : Number(score);
-  const valid = numeric !== null && Number.isInteger(numeric) && numeric >= 0 && numeric <= 100;
-  const preview = valid ? scoreEvaluation(numeric) : null;
+  const overallScore = grouped
+    ? values.every((entry) => entry.valid)
+      ? Math.round(values.reduce((sum, entry) => sum + (entry.value ?? 0), 0) / values.length)
+      : null
+    : numeric;
+  const valid = grouped
+    ? values.every((entry) => entry.valid)
+    : numeric !== null && Number.isInteger(numeric) && numeric >= 0 && numeric <= 100;
+  const preview = overallScore !== null && Number.isInteger(overallScore) ? scoreEvaluation(overallScore) : null;
 
   const mutation = useMutation({
     mutationFn: () =>
       api.patch(`/exams/${exam.id}/result`, {
-        score: numeric,
+        score: overallScore,
+        sectionScores: grouped ? values.map((entry) => ({ sectionId: entry.section.id, score: entry.value })) : undefined,
         mistakes: mistakes === '' ? undefined : Number(mistakes),
         notes: notes || undefined,
       }),
     onSuccess: () => {
-      toast.success('تم رصد النتيجة');
+      toast.success('تم رصد النتائج المستقلة لكل مقرر');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
+      queryClient.invalidateQueries({ queryKey: ['exams', 'milestones', exam.student.id] });
+      queryClient.invalidateQueries({ queryKey: ['exams', 'eligibility', exam.student.id] });
       onClose();
     },
     onError: (error) => toast.error(apiError(error)),
@@ -612,30 +629,33 @@ function ResultModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
       size="sm"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
-            إلغاء
-          </Button>
-          <Button loading={mutation.isPending} disabled={!valid} onClick={() => mutation.mutate()}>
-            حفظ النتيجة
-          </Button>
+          <Button variant="secondary" onClick={onClose}>إلغاء</Button>
+          <Button loading={mutation.isPending} disabled={!valid} onClick={() => mutation.mutate()}>حفظ النتيجة</Button>
         </>
       }
     >
       <div className="space-y-3">
-        <Input
-          label="الدرجة من 100"
-          type="number"
-          min={0}
-          max={100}
-          required
-          value={score}
-          onChange={(e) => setScore(e.target.value)}
-        />
-        {preview && (
-          <p className="text-sm">
-            التقدير: <Badge className={EVALUATION_COLORS[preview]}>{EVALUATION_LABELS[preview]}</Badge>
-          </p>
+        {grouped ? (
+          <>
+            <p className="text-sm text-slate-500">أدخل علامة مستقلة لكل حزب أو جزء ضمن هذا الاختبار المجمع.</p>
+            {values.map(({ section, raw }) => (
+              <Input
+                key={section.id}
+                label={section.name}
+                type="number"
+                min={0}
+                max={100}
+                required
+                value={raw}
+                onChange={(e) => setSectionScores((current) => ({ ...current, [section.id]: e.target.value }))}
+              />
+            ))}
+            {overallScore !== null && <p className="text-xs text-slate-500">المتوسط العام: {overallScore} من 100</p>}
+          </>
+        ) : (
+          <Input label="الدرجة من 100" type="number" min={0} max={100} required value={score} onChange={(e) => setScore(e.target.value)} />
         )}
+        {preview && <p className="text-sm">التقدير العام: <Badge className={EVALUATION_COLORS[preview]}>{EVALUATION_LABELS[preview]}</Badge></p>}
         <Input label="عدد الأخطاء (اختياري)" type="number" min={0} value={mistakes} onChange={(e) => setMistakes(e.target.value)} />
         <Textarea label="ملاحظات" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </div>

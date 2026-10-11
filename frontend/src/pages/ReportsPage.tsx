@@ -9,7 +9,7 @@ type ReportType = 'attendance'|'recitations'|'exams'|'student'|'circles'|'studen
 type ReportData = { type: ReportType; rows?: Record<string, unknown>[]; student?: Record<string,unknown>; attendance?: Record<string,unknown>[]; recitations?: Record<string,unknown>[]; exams?: Record<string,unknown>[]; stats: Record<string,number> };
 const formatReportValue = (value: unknown): string => {
  if (value === null || value === undefined || value === '') return '—';
- if (typeof value === 'string' && /^\\d{4}-\\d{2}-\\d{2}(?:T.*)?$/.test(value)) {
+ if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value)) {
   const [year, month, day] = value.slice(0, 10).split('-');
   return `${day}/${month}/${year}`;
  }

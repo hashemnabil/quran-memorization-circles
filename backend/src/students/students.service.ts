@@ -28,9 +28,6 @@ import {
 
 /** Fields a teacher is allowed to change on a student record. */
 const TEACHER_EDITABLE_FIELDS = [
-  'guardianPhone',
-  'guardianName',
-  'guardianRelation',
   'phone',
   'address',
   'notes',
@@ -54,8 +51,6 @@ const LIST_SELECT = {
   currentSurah: true,
   currentPage: true,
   photoUrl: true,
-  guardianName: true,
-  guardianPhone: true,
   enrollmentDate: true,
   createdAt: true,
   circle: {
@@ -69,9 +64,6 @@ const LIST_SELECT = {
         select: { role: true, teacher: { select: { id: true, user: { select: { fullName: true } } } } },
       },
     },
-  },
-  parentProfile: {
-    select: { id: true, phone: true, user: { select: { id: true, fullName: true } } },
   },
 } satisfies Prisma.StudentSelect;
 
@@ -180,14 +172,12 @@ export class StudentsService {
       where: { id, deletedAt: null },
       select: {
         ...LIST_SELECT,
-        fatherNationalId: true,
         address: true,
         phone: true,
         notes: true,
         evaluationNote: true,
         evaluatedAt: true,
         updatedAt: true,
-        parentId: true,
         circleId: true,
       },
     });
@@ -851,8 +841,6 @@ export class StudentsService {
       teacherName: primary?.teacher?.user?.fullName ?? null,
       teacherId: primary?.teacher?.id ?? null,
       supervisorName: student.circle?.supervisor?.fullName ?? null,
-      parentName: student.parentProfile?.user?.fullName ?? student.guardianName ?? null,
-      parentPhone: student.parentProfile?.phone ?? student.guardianPhone ?? null,
     };
   }
 

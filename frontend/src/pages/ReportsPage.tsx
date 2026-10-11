@@ -36,7 +36,26 @@ export default function ReportsPage() {
  const statEntries=Object.entries(data?.stats??{}).map(([key,value])=>[statLabels[key]??key,value] as [string,number]);
  const rows: Record<string, unknown>[] = type==='student' ? (data?.attendance??[]).map(r=>({المجموعة:'الحضور',...r})).concat((data?.recitations??[]).map(r=>({المجموعة:'التسميع',...r})),(data?.exams??[]).map(r=>({المجموعة:'الاختبارات',...r}))) : (data?.rows??[]);
  const columns=rows.length?Object.keys(rows[0]):[];
- const exportReport=async()=>{try{const response=await api.get('/reports/export',{params:{...params,_refresh:undefined},responseType:'blob'});const url=URL.createObjectURL(response.data);const a=document.createElement('a');a.href=url;a.download=`${({attendance:'تقرير_الحضور_والغياب',recitations:'تقرير_التسميع_اليومي',exams:'تقرير_الاختبارات',student:'الملف_الشامل_للطالب',circles:'إحصائيات_الحلقات',students:'سجل_الطلاب'} as Record<string,string>)[type]??'تقرير'}.xlsx`;a.click();URL.revokeObjectURL(url);}catch{ /* Axios interceptor/toast owns request errors. */ }};
+ const exportReport=async()=>{
+  let url: string | undefined;
+  try {
+   const response=await api.get('/reports/export',{params:{...params,_refresh:undefined},responseType:'blob'});
+   if (!(response.data instanceof Blob) || response.data.size === 0) throw new Error('الملف المستلم فارغ أو غير صالح');
+   url=URL.createObjectURL(response.data);
+   const a=document.createElement('a');
+   a.href=url;
+   a.download=`${({attendance:'تقرير_الحضور_والغياب',recitations:'تقرير_التسميع_اليومي',exams:'تقرير_الاختبارات',student:'الملف_الشامل_للطالب',circles:'إحصائيات_الحلقات',students:'سجل_الطلاب'} as Record<string,string>)[type]??'تقرير'}.xlsx`;
+   a.style.display='none';
+   document.body.appendChild(a);
+   a.click();
+   a.remove();
+   window.setTimeout(()=>{if(url) URL.revokeObjectURL(url);},1000);
+  } catch(error) {
+   if(url) URL.revokeObjectURL(url);
+   console.error('Excel export failed:',error);
+   window.alert('تعذّر تصدير ملف Excel. قد تكون الجلسة انتهت أو حدث خطأ بالخادم؛ حدّث الصفحة وحاول مرة أخرى.');
+  }
+ };
  return <div dir="rtl" className="space-y-6">
   <PageHeader title="التقارير" subtitle="تقارير موثوقة من قاعدة بيانات المدرسة مع تصدير Excel." />
   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{reports.map(r=><button key={r.id} onClick={()=>setType(r.id)} className={`rounded-2xl border p-4 text-right transition hover:-translate-y-0.5 hover:shadow-md ${type===r.id?'border-primary-700 bg-primary-50 ring-1 ring-primary-700':'border-slate-200 bg-white'}`}><span className="mb-2 inline-flex rounded-xl bg-primary-100 p-2 text-primary-800"><IconClipboard size={20}/></span><div className="font-bold text-slate-900">{r.title}</div><p className="mt-1 text-sm text-slate-500">{r.description}</p></button>)}</div>

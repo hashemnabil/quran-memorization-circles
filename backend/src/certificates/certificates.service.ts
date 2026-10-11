@@ -102,7 +102,7 @@ export class CertificatesService {
   }
 
   async decideRequest(user: AuthUser, id: string, body: { status?: StudentFileRequestStatus; decisionNote?: string; fileUrl?: string }) {
-    if (![StudentFileRequestStatus.APPROVED, StudentFileRequestStatus.REJECTED, StudentFileRequestStatus.READY].includes(body.status as StudentFileRequestStatus)) {
+    if (body.status !== StudentFileRequestStatus.APPROVED && body.status !== StudentFileRequestStatus.REJECTED && body.status !== StudentFileRequestStatus.READY) {
       throw new BadRequestException('حالة القرار غير صحيحة');
     }
     const request = await this.prisma.studentFileRequest.findUnique({ where: { id } });

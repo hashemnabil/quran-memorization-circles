@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import JSZip from 'jszip';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -13,6 +14,46 @@ const types: Record<string, string> = {
   DESIGN: 'تصميم',
 };
 
+const xmlEscape = (value: unknown) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&apos;');
+
+async function downloadExcel(rows: Activity[], from: string, to: string) {
+  const headers = ['تاريخ التنفيذ', 'نوع العمل', 'عنوان العمل', 'التفاصيل', 'رابط العمل', 'أضافه'];
+  const data = rows.map(a => [
+    String(a.activityDate).slice(0, 10),
+    types[a.type] || a.type,
+    a.title,
+    a.description,
+    a.workUrl || '',
+    a.createdBy?.fullName || '—',
+  ]);
+  const allRows = [headers, ...data];
+  const cell = (value: unknown, column: number, row: number) =>
+    `<c r="${String.fromCharCode(65 + column)}${row}" t="inlineStr"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
+  const sheetRows = allRows.map((row, ri) =>
+    `<row r="${ri + 1}">${row.map((value, ci) => cell(value, ci, ri + 1)).join('')}</row>`
+  ).join('');
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
+  zip.file('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+  zip.file('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="سجل الإعلام" sheetId="1" r:id="rId1"/></sheets></workbook>');
+  zip.file('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
+  zip.file('xl/worksheets/sheet1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheetRows}</sheetData></worksheet>`);
+  const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `media-activities-${from}-to-${to}.xlsx`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function MediaActivitiesPage() {
   const qc = useQueryClient();
   const [type, setType] = useState('PHOTOGRAPHY');
@@ -20,6 +61,9 @@ export default function MediaActivitiesPage() {
   const [description, setDescription] = useState('');
   const [activityDate, setActivityDate] = useState(new Date().toISOString().slice(0, 10));
   const [workUrl, setWorkUrl] = useState('');
+  const [reportFrom, setReportFrom] = useState('');
+  const [reportTo, setReportTo] = useState('');
+  const [exporting, setExporting] = useState(false);
   const activities = useQuery({ queryKey: ['media-activities'], queryFn: async () => (await api.get<Activity[]>('/media-activities')).data });
   const create = useMutation({
     mutationFn: async () => (await api.post('/media-activities', { type, title, description, activityDate, workUrl: workUrl.trim() || undefined })).data,
@@ -32,8 +76,43 @@ export default function MediaActivitiesPage() {
     onError: e => toast.error(apiError(e)),
   });
 
+  const exportReport = async () => {
+    if (!reportFrom || !reportTo) {
+      toast.error('يرجى تحديد تاريخ البداية والنهاية');
+      return;
+    }
+    if (reportFrom > reportTo) {
+      toast.error('تاريخ البداية يجب أن يكون قبل تاريخ النهاية');
+      return;
+    }
+    setExporting(true);
+    try {
+      const response = await api.get<Activity[]>('/media-activities', { params: { from: reportFrom, to: reportTo } });
+      if (!response.data.length) {
+        toast.error('لا توجد سجلات إعلام ضمن الفترة المحددة');
+        return;
+      }
+      await downloadExcel(response.data, reportFrom, reportTo);
+      toast.success(`تم تصدير ${response.data.length} سجل إعلام`);
+    } catch (error) {
+      toast.error(apiError(error));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return <div className="space-y-6" dir="rtl">
     <PageHeader title="سجل الإعلام" subtitle="سجّل الأعمال الإعلامية مع وصف واضح وتاريخ التنفيذ ورابط العمل المنشور إن وجد." />
+    <Card title="تصدير تقرير سجل الإعلام إلى Excel">
+      <p className="mb-4 text-sm text-slate-600">اختر الفترة الزمنية لتصدير كل سجلات الإعلام الواقعة ضمنها.</p>
+      <div className="grid gap-4 md:grid-cols-3 md:items-end">
+        <Input label="من تاريخ" type="date" value={reportFrom} onChange={e => setReportFrom(e.target.value)} required />
+        <Input label="إلى تاريخ" type="date" value={reportTo} onChange={e => setReportTo(e.target.value)} required />
+        <Button type="button" onClick={exportReport} disabled={exporting || !reportFrom || !reportTo}>
+          {exporting ? 'جارٍ تجهيز التقرير...' : 'تصدير Excel'}
+        </Button>
+      </div>
+    </Card>
     <Card title="إضافة نشاط إعلامي">
       <form className="grid gap-4 md:grid-cols-2" onSubmit={e => { e.preventDefault(); create.mutate(); }}>
         <label className="grid gap-1 text-sm font-medium">نوع العمل

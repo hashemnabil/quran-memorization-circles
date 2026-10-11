@@ -7,11 +7,32 @@ import { AuthUser } from '../common/decorators';
 export class MediaActivitiesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list() {
+  list(from?: string, to?: string) {
+    const where: { activityDate?: { gte?: Date; lte?: Date } } = {};
+    if (from || to) {
+      where.activityDate = {};
+      if (from) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || Number.isNaN(Date.parse(`${from}T00:00:00.000Z`))) {
+          throw new BadRequestException('تاريخ البداية غير صحيح');
+        }
+        where.activityDate.gte = new Date(`${from}T00:00:00.000Z`);
+      }
+      if (to) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(to) || Number.isNaN(Date.parse(`${to}T00:00:00.000Z`))) {
+          throw new BadRequestException('تاريخ النهاية غير صحيح');
+        }
+        where.activityDate.lte = new Date(`${to}T00:00:00.000Z`);
+      }
+      if (from && to && from > to) {
+        throw new BadRequestException('تاريخ البداية يجب أن يكون قبل تاريخ النهاية');
+      }
+    }
+
     return this.prisma.mediaActivity.findMany({
+      where,
       include: { createdBy: { select: { fullName: true } } },
       orderBy: [{ activityDate: 'desc' }, { createdAt: 'desc' }],
-      take: 500,
+      ...(!from && !to ? { take: 500 } : {}),
     });
   }
 

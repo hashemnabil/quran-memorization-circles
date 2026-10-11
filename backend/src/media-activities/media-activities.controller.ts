@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser, Roles } from '../common/decorators';
@@ -12,7 +12,9 @@ export class MediaActivitiesController {
   constructor(private readonly service: MediaActivitiesService) {}
 
   @Get()
-  list() { return this.service.list(); }
+  list(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.service.list(from, to);
+  }
 
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() body: any) {

@@ -114,6 +114,13 @@ export class AccessControlService {
         const ids = await this.ownCircleIds(user);
         return { circleId: { in: ids } };
       }
+      case Role.STUDENT: {
+        const own = await this.prisma.student.findFirst({
+          where: { userId: user.id, deletedAt: null },
+          select: { id: true },
+        });
+        return own ? { id: own.id } : { id: '__none__' };
+      }
       case Role.PARENT:
         return user.parentId ? { parentId: user.parentId } : { id: '__none__' };
       default:

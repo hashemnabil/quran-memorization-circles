@@ -513,7 +513,10 @@ export class ExamsService {
 
     const pendingSection = progression.find((p) => p.hasOpenRequest) ?? null;
 
-    const hizbPassed = sections.filter((x) => passedIds.has(x.id)).length;
+    const hizbSections = sections.filter((section) => section.kind === 'HIZB');
+    const juzSections = sections.filter((section) => section.kind === 'JUZ');
+    const hizbPassed = hizbSections.filter((section) => passedIds.has(section.id)).length;
+    const juzPassed = juzSections.filter((section) => passedIds.has(section.id)).length;
 
     // كل المقررات التي يستطيع الطالب اختيارها
     const selectableSections = progression
@@ -533,9 +536,9 @@ export class ExamsService {
       passedCount: passedIds.size,
       totalSections: sections.length,
       hizbPassed,
-      hizbTotal: sections.length,
+      hizbTotal: hizbSections.length,
       juzEquivalent: juzFromHizb(hizbPassed),
-      juzTotal: sections.length / HIZB_PER_JUZ,
+      juzTotal: juzSections.length,
       requiredPassed: hizbPassed,
       requiredTotal: sections.length,
       direction: null,
@@ -555,7 +558,7 @@ export class ExamsService {
             order: pendingSection.order,
           }
         : null,
-      isComplete: hizbPassed === sections.length,
+      isComplete: passedIds.size === sections.length,
       progression,
     };
   }

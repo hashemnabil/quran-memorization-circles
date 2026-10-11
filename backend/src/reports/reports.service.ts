@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { AuthUser } from '../common/decorators';
 
-export type ReportType = 'attendance' | 'recitations' | 'exams' | 'student' | 'circles';
+export type ReportType = 'attendance' | 'recitations' | 'exams' | 'student' | 'circles' | 'students';
 const DATE = (s?: string) => {
   if (!s) return undefined;
   const d = new Date(s);
@@ -20,7 +20,7 @@ export class ReportsService {
   constructor(private readonly prisma: PrismaService, private readonly acl: AccessControlService) {}
 
   async getReport(user: AuthUser, type: ReportType, q: Record<string, string>) {
-    if (!['attendance','recitations','exams','student','circles'].includes(type)) throw new BadRequestException('نوع التقرير غير معروف');
+    if (!['attendance','recitations','exams','student','circles','students'].includes(type)) throw new BadRequestException('نوع التقرير غير معروف');
     if (user.role !== Role.ADMIN && user.role !== Role.SUPERVISOR && user.role !== Role.TEACHER) {
       throw new BadRequestException('لا تملك صلاحية عرض التقارير');
     }
@@ -35,6 +35,46 @@ export class ReportsService {
       ...(q.circleId ? { circleId: q.circleId } : {}),
     };
     if (q.studentId) await this.acl.assertStudentAccess(user, q.studentId);
+
+    if (type === 'students') {
+      const rows = await this.prisma.student.findMany({
+        where: {
+          ...studentScope,
+          deletedAt: null,
+          ...(q.status ? { status: q.status as any } : {}),
+          ...(q.evaluation ? { evaluation: q.evaluation as any } : {}),
+          ...(q.circleId ? { circleId: q.circleId } : {}),
+          ...(q.search ? { OR: [
+            { fullName: { contains: q.search, mode: 'insensitive' } },
+            { code: { contains: q.search, mode: 'insensitive' } },
+            { nationalId: { contains: q.search } },
+            { guardianName: { contains: q.search, mode: 'insensitive' } },
+            { guardianPhone: { contains: q.search } },
+          ] } : {}),
+        },
+        include: {
+          circle: { select: { name: true, teachers: { where: { endedAt: null }, include: { teacher: { include: { user: { select: { fullName: true } } } } } } } },
+          parentProfile: { include: { user: { select: { fullName: true } } } },
+        },
+        orderBy: { fullName: 'asc' },
+        take: 10000,
+      });
+      const statusLabels: Record<string, string> = { ACTIVE: 'منتظم', SUSPENDED: 'موقوف', ACTIVITY: 'محوّل لبرنامج النشاط', GRADUATED: 'متخرج', WITHDRAWN: 'منسحب' };
+      const evaluationLabels: Record<string, string> = { EXCELLENT: 'ممتاز', VERY_GOOD: 'جيد جداً', GOOD: 'جيد', ACCEPTABLE: 'مقبول', UNSATISFACTORY: 'غير مرضٍ' };
+      const output = rows.map(r => ({
+        'الطالب': r.fullName,
+        'رقم الطالب': r.code,
+        'الحلقة': r.circle?.name ?? (r.status === 'ACTIVITY' ? 'برنامج النشاط' : 'غير مسجل'),
+        'المعلم': r.circle?.teachers.map(t => t.teacher.user.fullName).join('، ') ?? '',
+        'ولي الأمر': r.guardianName ?? r.parentProfile?.user.fullName ?? '',
+        'هاتف ولي الأمر': r.guardianPhone ?? r.parentProfile?.phone ?? '',
+        'الأجزاء': r.memorizedParts,
+        'النقاط': Math.round(r.totalPoints * 100) / 100,
+        'التقييم': r.evaluation ? evaluationLabels[r.evaluation] ?? r.evaluation : '',
+        'الحالة': statusLabels[r.status] ?? r.status,
+      }));
+      return { type, rows: output, stats: { total: output.length, active: rows.filter(r => r.status === 'ACTIVE').length, suspended: rows.filter(r => r.status === 'SUSPENDED').length, activity: rows.filter(r => r.status === 'ACTIVITY').length } };
+    }
 
     if (type === 'attendance') {
       const rows = await this.prisma.attendance.findMany({
@@ -80,7 +120,7 @@ export class ReportsService {
       XLSX.utils.book_append_sheet(wb, sheet(data.recitations), 'التسميع');
       XLSX.utils.book_append_sheet(wb, sheet(data.exams), 'الاختبارات');
     } else {
-      XLSX.utils.book_append_sheet(wb, sheet(data.rows), ({attendance:'الحضور والغياب',recitations:'التسميع اليومي',exams:'الاختبارات',circles:'إحصائيات الحلقات'} as Record<string,string>)[type] ?? 'التقرير');
+      XLSX.utils.book_append_sheet(wb, sheet(data.rows), ({attendance:'الحضور والغياب',recitations:'التسميع اليومي',exams:'الاختبارات',circles:'إحصائيات الحلقات',students:'سجل الطلاب'} as Record<string,string>)[type] ?? 'التقرير');
     }
     return { buffer:XLSX.write(wb,{type:'buffer',bookType:'xlsx'}), filename:`report-${type}-${new Date().toISOString().slice(0,10)}.xlsx` };
   }

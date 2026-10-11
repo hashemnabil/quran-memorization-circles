@@ -702,9 +702,7 @@ function CreateRequestModal({ onClose }: { onClose: () => void }) {
   const [search, setSearch] = useState('');
   const debounced = useDebounce(search);
   const [student, setStudent] = useState<Student | null>(null);
-  const [hizb, setHizb] = useState('');
-  const [juz, setJuz] = useState('');
-  const [combined, setCombined] = useState('');
+  const [sectionIds, setSectionIds] = useState<string[]>([]);
   const [note, setNote] = useState('');
 
   const students = useQuery({
@@ -713,16 +711,20 @@ function CreateRequestModal({ onClose }: { onClose: () => void }) {
     queryFn: async () =>
       (await api.get<PaginatedResponse<Student>>('/students', { params: { search: debounced, limit: 8 } })).data,
   });
-
-  const hasValue = hizb !== '' || juz !== '' || combined !== '';
+  const eligibility = useQuery({
+    queryKey: ['exams', 'eligibility', student?.id],
+    enabled: !!student,
+    queryFn: async () => (await api.get<ExamEligibility>(`/exams/eligibility/${student!.id}`)).data,
+  });
+  const progression = eligibility.data?.progression ?? [];
+  const firstAvailable = progression.findIndex((item) => !item.isPassed && !item.hasOpenRequest);
+  const selectableBlock = firstAvailable < 0 ? [] : progression.slice(firstAvailable).filter((item) => !item.isPassed && !item.hasOpenRequest);
 
   const mutation = useMutation({
     mutationFn: () =>
       api.post('/exams/requests', {
         studentId: student!.id,
-        requestedHizb: hizb === '' ? undefined : Number(hizb),
-        requestedJuz: juz === '' ? undefined : Number(juz),
-        requestedCombined: combined === '' ? undefined : Number(combined),
+        sectionIds,
         note: note || undefined,
       }),
     onSuccess: () => {
@@ -740,11 +742,9 @@ function CreateRequestModal({ onClose }: { onClose: () => void }) {
       title="طلب اختبار جديد"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
-            إلغاء
-          </Button>
-          <Button loading={mutation.isPending} disabled={!student || !hasValue} onClick={() => mutation.mutate()}>
-            تقديم الطلب
+          <Button variant="secondary" onClick={onClose}>إلغاء</Button>
+          <Button loading={mutation.isPending} disabled={!student || !sectionIds.length || eligibility.isLoading} onClick={() => mutation.mutate()}>
+            تقديم الطلب ({sectionIds.length})
           </Button>
         </>
       }
@@ -755,9 +755,7 @@ function CreateRequestModal({ onClose }: { onClose: () => void }) {
             <span className="text-sm font-bold text-slate-800">
               {student.fullName} <span className="numeric text-xs font-normal text-slate-400">{student.code}</span>
             </span>
-            <button className="text-xs text-primary-700" onClick={() => setStudent(null)}>
-              تغيير
-            </button>
+            <button className="text-xs text-primary-700" onClick={() => { setStudent(null); setSectionIds([]); }}>تغيير</button>
           </div>
         ) : (
           <div>
@@ -772,18 +770,32 @@ function CreateRequestModal({ onClose }: { onClose: () => void }) {
                   </li>
                 ))}
               </ul>
-            ) : (
-              debounced.trim() && !students.isLoading && <p className="mt-2 text-xs text-slate-400">لا توجد نتائج</p>
-            )}
+            ) : debounced.trim() && !students.isLoading ? <p className="mt-2 text-xs text-slate-400">لا توجد نتائج</p> : null}
           </div>
         )}
-
-        <div className="grid grid-cols-3 gap-3">
-          <Input label="الحزب" type="number" min={1} max={60} value={hizb} onChange={(e) => setHizb(e.target.value)} />
-          <Input label="الجزء" type="number" min={1} max={30} value={juz} onChange={(e) => setJuz(e.target.value)} />
-          <Input label="المجتمعة" type="number" min={1} max={60} value={combined} onChange={(e) => setCombined(e.target.value)} />
-        </div>
-        <p className="text-xs text-slate-400">أدخل حزباً أو جزءاً أو مجتمعة واحدة على الأقل.</p>
+        {student && (
+          <div>
+            <p className="mb-2 text-sm font-semibold">اختر مقرراً أو مجموعة متتابعة للتسميع المجتمعة</p>
+            {eligibility.isLoading ? <LoadingState rows={3} /> : !selectableBlock.length ? (
+              <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">لا توجد مقررات متاحة للطلب حالياً.</p>
+            ) : (
+              <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2">
+                {selectableBlock.map((item) => (
+                  <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      checked={sectionIds.includes(item.id)}
+                      onChange={(event) => setSectionIds((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))}
+                    />
+                    <span>{item.name}</span>
+                    <span className="mr-auto text-xs text-slate-400">{item.kind === 'HIZB' ? 'حزب' : 'جزء'}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <p className="mt-2 text-xs leading-5 text-slate-400">يُحفظ طلب المجموعة كطلب واحد، وتبقى نتيجة كل حزب أو جزء مسجلة بشكل مستقل. يجب أن تكون المقررات المختارة متتابعة حسب التسلسل.</p>
+          </div>
+        )}
         <Textarea label="ملاحظات" value={note} onChange={(e) => setNote(e.target.value)} />
       </div>
     </Modal>

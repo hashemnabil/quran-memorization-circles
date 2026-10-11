@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { Button, Card, PageHeader, Select, StatCard } from '@/components/ui';
 import { IconClipboard } from '@/components/ui/Icons';
@@ -40,8 +40,9 @@ export default function ReportsPage() {
  const [evaluation,setEvaluation]=useState('');
  const [refresh,setRefresh]=useState(0);
  const {data:circles=[]}=useQuery({queryKey:['reports','circles-options'],queryFn:async()=> (await api.get<any[]>('/circles/options')).data});
- const {data:courseResponse}=useQuery({queryKey:['reports','courses-options'],queryFn:async()=> (await api.get<any>('/courses',{params:{limit:200}})).data});
+ const {data:courseResponse,isLoading:coursesLoading,isError:coursesIsError,error:coursesQueryError,refetch:refetchCourses}=useQuery({queryKey:['reports','courses-options'],queryFn:async()=> (await api.get<any>('/courses',{params:{limit:200}})).data, retry:1});
  const courses=(courseResponse?.data??courseResponse??[]) as any[];
+ const coursesErrorMessage=apiError(coursesQueryError,'تعذّر تحميل قائمة الدورات.');
  const {data:students}=useQuery({queryKey:['reports','students'],queryFn:async()=> (await api.get<any>('/students',{params:{limit:100}})).data});
  const {data:teachers}=useQuery({queryKey:['reports','teachers'],queryFn:async()=> (await api.get<any>('/teachers',{params:{limit:100}})).data,enabled:user?.role==='ADMIN'||user?.role==='SUPERVISOR'});
  const params=useMemo(()=>({type,from:from||undefined,to:to||undefined,circleId:circleId||undefined,courseId:courseId||undefined,teacherId:teacherId||undefined,studentId:studentId||undefined,search:search||undefined,status:status||undefined,evaluation:evaluation||undefined,_refresh:refresh}),[type,from,to,circleId,courseId,teacherId,studentId,search,status,evaluation,refresh]);
@@ -96,7 +97,7 @@ export default function ReportsPage() {
    {!['circles','students','courses','courseStudents'].includes(type)&&<label className="text-sm font-semibold text-slate-700">من تاريخ<input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-2.5"/></label>}
    {!['circles','students','courses','courseStudents'].includes(type)&&<label className="text-sm font-semibold text-slate-700">إلى تاريخ<input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-2.5"/></label>}
    {['attendance','recitations','exams','students'].includes(type)&&<label className="text-sm font-semibold text-slate-700">الحلقة<Select value={circleId} onChange={e=>setCircleId(e.target.value)}><option value="">كل الحلقات المتاحة</option>{circles.map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}</Select></label>}
-   {['courseStudents','courseAttendance'].includes(type)&&<label className="text-sm font-semibold text-slate-700">الدورة<Select value={courseId} onChange={e=>setCourseId(e.target.value)}><option value="">اختر الدورة</option>{courses.map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}</Select></label>}
+   {['courseStudents','courseAttendance'].includes(type)&&<label className="text-sm font-semibold text-slate-700">الدورة<Select value={courseId} onChange={e=>setCourseId(e.target.value)}><option value="">اختر الدورة</option>{courses.map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}</Select>{coursesLoading&&<p className="mt-1 text-xs text-slate-500">جارٍ تحميل الدورات…</p>}{coursesIsError&&<div className="mt-1 text-xs text-red-600">{coursesErrorMessage} <button type="button" className="underline font-semibold" onClick={()=>refetchCourses()}>إعادة المحاولة</button></div>}{!coursesLoading&&!coursesIsError&&courses.length===0&&<p className="mt-1 text-xs text-amber-700">لم يتم العثور على دورات متاحة.</p>}</label>}
       {type==='students'&&<label className="text-sm font-semibold text-slate-700">بحث الطالب<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="الاسم أو رقم الطالب أو الهوية" className="mt-1 w-full rounded-xl border border-slate-300 p-2.5"/></label>}
    {type==='students'&&<label className="text-sm font-semibold text-slate-700">الحالة<Select value={status} onChange={e=>setStatus(e.target.value)}><option value="">كل الحالات</option><option value="ACTIVE">منتظم</option><option value="SUSPENDED">موقوف</option><option value="ACTIVITY">محوّل لبرنامج النشاط</option><option value="GRADUATED">متخرج</option><option value="WITHDRAWN">منسحب</option></Select></label>}
    {type==='students'&&<label className="text-sm font-semibold text-slate-700">التقييم<Select value={evaluation} onChange={e=>setEvaluation(e.target.value)}><option value="">كل التقييمات</option><option value="EXCELLENT">ممتاز</option><option value="VERY_GOOD">جيد جداً</option><option value="GOOD">جيد</option><option value="ACCEPTABLE">مقبول</option><option value="UNSATISFACTORY">غير مرضٍ</option></Select></label>}

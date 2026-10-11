@@ -16,7 +16,7 @@ export class MediaActivitiesService {
   }
 
   async create(user: AuthUser, body: { type?: MediaActivityType; title?: string; description?: string; activityDate?: string; workUrl?: string }) {
-    if (![Role.ADMIN, Role.SUPERVISOR].includes(user.role as Role)) {
+    if (user.role !== Role.ADMIN && user.role !== Role.SUPERVISOR) {
       throw new BadRequestException('لا تملك صلاحية إضافة نشاط إعلامي');
     }
     if (!body.title?.trim() || !body.description?.trim() || !body.activityDate ||

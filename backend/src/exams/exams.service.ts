@@ -572,7 +572,7 @@ export class ExamsService {
    * - مقرر اجتازه الطالب.
    * - مقرر عليه طلب اختبار قائم.
    */
-  private async assertEligible(studentId: string, sectionId: string) {
+  private async assertEligible(studentId: string, sectionId: string, enforceSequence = true) {
     const section = await this.prisma.examSection.findFirst({
       where: {
         id: sectionId,
@@ -613,10 +613,10 @@ export class ExamsService {
     }
 
     // Enforce the required order on the server, not just in the UI.
-    const earlierRequired = await this.prisma.examSection.findMany({
+    const earlierRequired = enforceSequence ? await this.prisma.examSection.findMany({
       where: { isActive: true, isRequired: true, order: { lt: section.order } },
       select: { id: true, name: true },
-    });
+    }) : [];
     if (earlierRequired.length) {
       const passedEarlier = await this.prisma.exam.findMany({
         where: {
@@ -683,7 +683,12 @@ export class ExamsService {
 
   private async validateAllSectionsEligibility(studentId: string, sections: any[]) {
     try {
-      await Promise.all(sections.map((section) => this.assertEligible(studentId, section.id)));
+      // A combined request may include consecutive future sections. Enforce
+      // progression on its first section, while still checking duplicates/open
+      // requests for every selected section.
+      await Promise.all(sections.map((section, index) =>
+        this.assertEligible(studentId, section.id, index === 0),
+      ));
     } catch (error) {
       this.logger.error(
         `خطأ في التحقق من أهلية الطالب ${studentId}: ${error.message}`,

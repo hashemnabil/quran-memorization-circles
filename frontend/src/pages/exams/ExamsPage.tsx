@@ -717,7 +717,7 @@ function CreateRequestModal({ onClose }: { onClose: () => void }) {
     queryFn: async () => (await api.get<ExamEligibility>(`/exams/eligibility/${student!.id}`)).data,
   });
   const progression = eligibility.data?.progression ?? [];
-  const firstAvailable = progression.findIndex((item) => !item.isPassed && !item.hasOpenRequest);
+  const firstAvailable = progression.findIndex((item) => item.eligible);
   const remainingProgression = firstAvailable < 0 ? [] : progression.slice(firstAvailable);
   const nextBlockEnd = remainingProgression.findIndex((item) => item.isPassed || item.hasOpenRequest);
   const selectableBlock = nextBlockEnd < 0 ? remainingProgression : remainingProgression.slice(0, nextBlockEnd);

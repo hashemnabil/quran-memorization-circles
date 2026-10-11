@@ -43,8 +43,11 @@ export class StudentsController {
     const rows = await this.service.listAccounts();
     const worksheet = XLSX.utils.json_to_sheet(rows.map((r) => ({
       'اسم الطالب': r.fullName,
-      'رقم الهوية': r.nationalId ?? '',
-      'رقم الجوال': r.phone ?? '',
+      'رقم هوية الطالب': r.nationalId ?? '',
+      'رقم هوية الأب': r.fatherNationalId ?? '',
+      'جوال الطالب': r.phone ?? '',
+      'اسم ولي الأمر': r.guardianName ?? '',
+      'جوال ولي الأمر': r.guardianPhone ?? '',
       'اسم المستخدم': r.username,
       'حالة الحساب': r.isActive ? 'نشط' : 'موقوف',
       'كلمة المرور المؤقتة': r.mustChangePassword ? 'مطلوب تغييرها عند أول دخول (لا تُخزّن كنص)' : '',

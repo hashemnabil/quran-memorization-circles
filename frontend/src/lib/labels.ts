@@ -25,6 +25,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   TEACHER: 'معلم',
   EXAM_COMMITTEE: 'لجنة الاختبارات',
   PARENT: 'ولي أمر',
+  STUDENT: 'طالب',
   SUPPORT: 'دعم فني',
 };
 
@@ -34,6 +35,7 @@ export const ROLE_COLORS: Record<Role, string> = {
   TEACHER: 'bg-sky-100 text-sky-800',
   EXAM_COMMITTEE: 'bg-gold-100 text-gold-800',
   PARENT: 'bg-purple-100 text-purple-800',
+  STUDENT: 'bg-emerald-100 text-emerald-800',
   SUPPORT: 'bg-slate-200 text-slate-700',
 };
 

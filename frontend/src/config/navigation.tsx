@@ -69,6 +69,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'الملفات',
     items: [
       { to: '/reports', label: 'التقارير', icon: <IconClipboard size={19} />, roles: ['ADMIN'] },
+      { to: '/student-accounts', label: 'حسابات الطلاب', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
     ],
   },
   {

@@ -136,7 +136,6 @@ export class UsersService {
         isActive: dto.isActive ?? true,
         // Teachers and parents need a profile row to be attachable to circles / children.
         ...(dto.role === Role.TEACHER ? { teacher: { create: {} } } : {}),
-        ...(dto.role === Role.PARENT ? { parent: { create: { phone: dto.phone || null } } } : {}),
       },
       select: USER_SELECT,
     });
@@ -177,13 +176,6 @@ export class UsersService {
       // Make sure the profile matching the new role exists.
       if (dto.role === Role.TEACHER) {
         await this.prisma.teacherProfile.upsert({
-          where: { userId: id },
-          create: { userId: id },
-          update: { deletedAt: null },
-        });
-      }
-      if (dto.role === Role.PARENT) {
-        await this.prisma.parentProfile.upsert({
           where: { userId: id },
           create: { userId: id },
           update: { deletedAt: null },

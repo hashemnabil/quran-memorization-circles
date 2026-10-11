@@ -94,7 +94,24 @@ export class StudentsService {
       select: { id: true },
     });
     if (!student) throw new NotFoundException('ملف الطالب غير مرتبط بهذا الحساب');
-    return this.findOne(user, student.id);
+    const profile = await this.findOne(user, student.id);
+    // Do not expose guardian identities or guardian contact details to the student session.
+    const { parentProfile: _parentProfile, parentName: _parentName, parentPhone: _parentPhone,
+      guardianName: _guardianName, guardianPhone: _guardianPhone, parentId: _parentId,
+      fatherNationalId: _fatherNationalId, ...safeProfile } = profile as any;
+    return safeProfile;
+  }
+
+  async getMyHistory(user: AuthUser) {
+    if (user.role !== Role.STUDENT) {
+      throw new ForbiddenException('هذه الصفحة مخصصة لحساب الطالب');
+    }
+    const student = await this.prisma.student.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!student) throw new NotFoundException('ملف الطالب غير مرتبط بهذا الحساب');
+    return this.history(user, student.id);
   }
 
   async findAll(user: AuthUser, query: QueryStudentsDto) {

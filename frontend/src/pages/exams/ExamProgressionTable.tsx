@@ -9,6 +9,7 @@ import type { Exam, ExamEligibility } from '@/types';
 
 type ExamRow = Exam & { scheduledAt: string; examiner?: { fullName: string } | null; gradedBy?: { fullName: string } | null };
 type MilestoneRecord = { id: string; sectionId: string; status: 'NOT_REQUESTED' | 'REQUESTED' | 'SCHEDULED' | 'COMPLETED'; score: number | null; examDate: string | null; examinerName: string | null; section: { id: string; code: string; name: string; order: number } };
+type ExamRequestRow = { status: 'PENDING' | 'SCHEDULED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED'; sectionId: string; section: { id: string; code: string }; sections?: { section: { id: string; code: string } }[] };
 
 function sequence() {
   const rows: { key: string; label: string; kind: 'HIZB' | 'JUZ'; number: number }[] = [];
@@ -41,6 +42,12 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
     queryFn: async () => (await api.get<MilestoneRecord[]>(`/exams/milestones/${studentId}`)).data,
   });
   const records = recordsQuery.data ?? [];
+  const requestsQuery = useQuery({
+    queryKey: ['exams', 'milestones-requests', studentId],
+    enabled: !!studentId,
+    queryFn: async () => (await api.get<{ data: ExamRequestRow[] }>('/exams/requests', { params: { studentId, limit: 100 } })).data,
+  });
+  const requests = requestsQuery.data?.data ?? [];
   const saveRecord = useMutation({
     mutationFn: async (sectionId: string) => (await api.patch(`/exams/milestones/${studentId}/${sectionId}`, {
       status: draft.status,
@@ -66,13 +73,17 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
         exam.section?.code === item.key || exam.sections?.some((entry) => entry.section.code === item.key),
       ).sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())[0];
       const record = records.find((entry) => entry.section.code === item.key);
+      const request = requests.find((entry) =>
+        entry.section?.code === item.key || entry.sections?.some((part) => part.section.code === item.key),
+      );
       const passed = Boolean(section?.isPassed || related?.result === 'PASSED' || record?.status === 'COMPLETED');
-      const pending = Boolean(section?.hasOpenRequest || related?.status === 'SCHEDULED' || record?.status === 'SCHEDULED' || record?.status === 'REQUESTED');
-      const currentUnlocked = unlocked || passed || pending;
+      const pending = Boolean(related?.status === 'SCHEDULED' || record?.status === 'SCHEDULED' || request?.status === 'SCHEDULED');
+      const requested = Boolean(record?.status === 'REQUESTED' || request?.status === 'PENDING');
+      const currentUnlocked = unlocked || passed || pending || requested;
       if (!passed) unlocked = false;
-      return { ...item, section, related, record, passed, pending, unlocked: currentUnlocked };
+      return { ...item, section, related, record, request, passed, pending, requested, unlocked: currentUnlocked };
     });
-  }, [eligibility, exams, records]);
+  }, [eligibility, exams, records, requests]);
 
   if (loading) return <LoadingState rows={5} />;
   return (
@@ -88,7 +99,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
               const record = row.record;
               const score = record?.score ?? row.section?.score ?? row.related?.score;
               const completed = record?.status === 'COMPLETED' || row.related?.status === 'COMPLETED' || row.related?.status === 'ABSENT';
-              const status = completed || row.passed ? 'تم الاختبار' : record?.status === 'SCHEDULED' || row.pending ? 'محدد / قيد الاختبار' : record?.status === 'REQUESTED' ? 'طُلب اختبار' : row.unlocked ? 'لم يُطلب اختبار' : 'مقفل بالتسلسل';
+              const status = completed || row.passed ? 'تم الاختبار' : row.pending ? 'محدد / قيد الاختبار' : row.requested ? 'طُلب اختبار' : row.unlocked ? 'لم يُطلب اختبار' : 'مقفل بالتسلسل';
               return <tr key={row.key}>
                 <td className="font-medium">{row.label}</td>
                 <td><Badge className={row.passed ? 'bg-emerald-100 text-emerald-800' : row.pending ? 'bg-blue-100 text-blue-800' : row.unlocked ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'}>{status}</Badge></td>

@@ -221,7 +221,7 @@ export class AuthService {
     const rounds = parseInt(this.config.get('BCRYPT_ROUNDS') || '10', 10);
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash: await bcrypt.hash(dto.newPassword, rounds) },
+      data: { passwordHash: await bcrypt.hash(dto.newPassword, rounds), mustChangePassword: false },
     });
 
     // Force every other session to re-authenticate with the new password.
@@ -251,6 +251,7 @@ export class AuthService {
       avatarUrl: user.avatarUrl ?? null,
       phone: user.phone ?? null,
       isActive: user.isActive,
+      mustChangePassword: user.mustChangePassword ?? false,
       teacherId: user.teacher?.id ?? null,
       parentId: user.parent?.id ?? null,
     };

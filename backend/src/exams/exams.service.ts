@@ -683,9 +683,14 @@ export class ExamsService {
 
   private async validateAllSectionsEligibility(studentId: string, sections: any[]) {
     try {
-      // A combined request may include consecutive future sections. Enforce
-      // progression on its first section, while still checking duplicates/open
-      // requests for every selected section.
+      // Combined requests represent one consecutive block in the progression.
+      for (let index = 1; index < sections.length; index++) {
+        if (sections[index].order !== sections[index - 1].order + 1) {
+          throw new BadRequestException('التسميع المجتمعة يجب أن تتبع التسلسل دون تخطي مقررات');
+        }
+      }
+      // Enforce progression on the first section, while still checking
+      // duplicates/open requests for every selected section.
       await Promise.all(sections.map((section, index) =>
         this.assertEligible(studentId, section.id, index === 0),
       ));

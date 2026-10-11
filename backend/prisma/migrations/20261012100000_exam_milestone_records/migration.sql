@@ -5,6 +5,7 @@ CREATE TABLE "exam_milestone_records" (
   "studentId" TEXT NOT NULL,
   "sectionId" TEXT NOT NULL,
   "status" "ExamMilestoneStatus" NOT NULL DEFAULT 'NOT_REQUESTED',
+  "result" "ExamResult",
   "score" INTEGER,
   "requestedAt" TIMESTAMP(3),
   "examDate" TIMESTAMP(3),

@@ -50,6 +50,11 @@ export class CreateStudentDto {
   @MaxLength(30)
   nationalId?: string;
 
+  @ApiPropertyOptional({ description: 'إنشاء حساب دخول للطالب عند التسجيل' })
+  @IsOptional()
+  @IsBoolean()
+  createAccount?: boolean;
+
   @ApiPropertyOptional({ description: 'رقم هوية الأب' })
   @IsOptional()
   @IsString()

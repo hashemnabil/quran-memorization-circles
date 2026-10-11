@@ -110,6 +110,9 @@ export class UsersService {
   }
 
   async create(actor: AuthUser, dto: CreateUserDto) {
+    if (dto.role === Role.PARENT || dto.role === Role.STUDENT) {
+      throw new BadRequestException('حسابات الطلاب تُنشأ تلقائياً من ملف الطالب، وحسابات ولي الأمر متوقفة');
+    }
     await this.assertUsernameFree(dto.username);
     if (dto.email) {
       const emailTaken = await this.prisma.user.findFirst({
@@ -164,6 +167,9 @@ export class UsersService {
       if (taken) throw new ConflictException('البريد الإلكتروني مستخدم مسبقاً');
     }
 
+    if (dto.role === Role.PARENT || dto.role === Role.STUDENT) {
+      throw new BadRequestException('لا يمكن إنشاء أو تحويل الحسابات إلى دور طالب أو ولي أمر من إدارة المستخدمين');
+    }
     if (dto.role && dto.role !== current.role) {
       if (current.role === Role.ADMIN) {
         await this.assertNotLastAdmin(id);

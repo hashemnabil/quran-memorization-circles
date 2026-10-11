@@ -1315,8 +1315,12 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
     fullName: student.fullName,
     birthDate: student.birthDate?.slice(0, 10) ?? '',
     nationalId: student.nationalId ?? '',
+    fatherNationalId: student.fatherNationalId ?? '',
     address: student.address ?? '',
     phone: student.phone ?? '',
+    guardianName: student.guardianName ?? student.parentName ?? student.parentProfile?.user.fullName ?? '',
+    guardianPhone: student.guardianPhone ?? student.parentPhone ?? student.parentProfile?.phone ?? '',
+    guardianRelation: student.guardianRelation ?? '',
     memorizedParts: student.memorizedParts,
     currentSurah: student.currentSurah ?? '',
     circleId: student.circleId ?? '',
@@ -1409,6 +1413,14 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
           </Select>
         )}
         <Input label="جوال الطالب" value={form.phone} onChange={(e) => set('phone', e.target.value)} error={errors.phone} hint={PHONE_HINT} dir="ltr" />
+        {isAdmin && (
+          <>
+            <Input label="رقم هوية الأب" value={form.fatherNationalId} onChange={(e) => set('fatherNationalId', e.target.value)} dir="ltr" />
+            <Input label="اسم ولي الأمر" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />
+            <Input label="جوال ولي الأمر" value={form.guardianPhone} onChange={(e) => set('guardianPhone', e.target.value)} dir="ltr" />
+            <Input label="صلة القرابة" value={form.guardianRelation} onChange={(e) => set('guardianRelation', e.target.value)} />
+          </>
+        )}
         <Input label="العنوان" value={form.address} onChange={(e) => set('address', e.target.value)} />
         <Input
           label="الأجزاء المحفوظة"

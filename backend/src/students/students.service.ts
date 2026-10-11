@@ -514,6 +514,9 @@ export class StudentsService {
           fatherNationalId: dto.fatherNationalId || null,
           address: dto.address,
           phone: dto.phone,
+          guardianName: dto.guardianName || null,
+          guardianPhone: dto.guardianPhone || null,
+          guardianRelation: dto.guardianRelation || null,
           // A student registered straight into the activity programme joins no
           // circle, whatever the form sent.
           circleId: this.circleForStatus(dto.status, dto.circleId),

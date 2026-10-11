@@ -54,7 +54,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/students', label: 'الطلاب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/teachers', label: 'المعلمين', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
       { to: '/supervisors', label: 'المشرفين', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
-      { to: '/parents', label: 'أولياء الأمور', icon: <IconUser size={19} />, roles: ['ADMIN'] },
       { to: '/staff', label: 'دليل الكادر', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
     ],
   },
@@ -84,12 +83,6 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'حساب الطالب',
     items: [
       { to: '/student', label: 'ملفي الدراسي', icon: <IconGraduation size={19} />, roles: ['STUDENT'] },
-    ],
-  },
-  {
-    title: 'أبنائي',
-    items: [
-      { to: '/parent/children', label: 'متابعة الأبناء', icon: <IconGraduation size={19} />, roles: ['PARENT'] },
     ],
   },
   {

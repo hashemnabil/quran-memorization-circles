@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
-import JSZip from 'jszip';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -8,6 +7,12 @@ import { Button, Card, Input, LoadingState, PageHeader } from '@/components/ui';
 
 const kinds: Record<string,string> = { JUZ_COMPLETION:'إنجاز جزء', QURAN_COMPLETION:'ختم المصحف', TAJWEED_COURSE:'نجاح في دورة أحكام', SHARIA_COURSE:'نجاح في دورة شريعة', COURSE_COMPLETION:'نجاح في دورة مخصصة', HONOR:'تكريم' };
 const statuses: Record<string,string> = { PENDING:'قيد المراجعة', APPROVED:'مقبول - قيد التجهيز', REJECTED:'مرفوض', READY:'جاهز للتنزيل' };
+
+async function mergePdfDataUrls(items: any[]) {
+ const merged = await PDFDocument.create();
+ for (const item of items) { const encoded = item.url.split(',')[1]; if (!encoded) throw new Error('ملف PDF غير صالح'); const raw = atob(encoded); const bytes = Uint8Array.from(raw, (ch: string) => ch.charCodeAt(0)); const source = await PDFDocument.load(bytes); const pages = await merged.copyPages(source, source.getPageIndices()); pages.forEach((page: any) => merged.addPage(page)); }
+ const bytes = await merged.save(); const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); const a = document.createElement('a'); a.href = url; a.download = 'ملفات-الطلاب-' + new Date().toISOString().slice(0,10) + '.pdf'; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
 
 function escapeCertificateText(value: unknown) {
   return String(value ?? '').replace(/[&<>"']/g, function (ch) {
@@ -153,7 +158,7 @@ export default function CertificatesAdminPage() {
       urls.push({url,name:student.fullName});
     }
     return urls;
-  },onSuccess:async(urls)=>{const printWindow=printWindowRef.current;printWindowRef.current=null;try{const zip=new JSZip();for(const item of urls){const raw=atob(item.url.split(',')[1]);const bytes=Uint8Array.from(raw,ch=>ch.charCodeAt(0));zip.file(item.name.replace(/[\\\\/:*?\"<>|]/g,'_')+'.pdf',bytes);}const blob=await zip.generateAsync({type:'blob'});const downloadUrl=URL.createObjectURL(blob);const a=document.createElement('a');a.href=downloadUrl;a.download='الشهادات-'+issueDate+'.zip';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(downloadUrl),30000);if(printWindow&&!printWindow.closed)printWindow.close();toast.success('تم إصدار وتنزيل '+urls.length+' شهادة PDF.');}catch{if(printWindow&&!printWindow.closed)printWindow.close();toast.error('تم حفظ السجلات، لكن تعذر تجهيز ملف التنزيل الجماعي.');}setSelectedStudentIds([]);await refresh();},onError:e=>{if(printWindowRef.current&&!printWindowRef.current.closed)printWindowRef.current.close();printWindowRef.current=null;toast.error(e instanceof Error?e.message:apiError(e));}});
+  },onSuccess:async(urls)=>{const printWindow=printWindowRef.current;printWindowRef.current=null;try{await mergePdfDataUrls(urls);if(printWindow&&!printWindow.closed)printWindow.close();toast.success('تم إصدار '+urls.length+' شهادة وتنزيلها في ملف PDF واحد، وحُفظت النسخ الفردية بحسابات الطلاب.');}catch{if(printWindow&&!printWindow.closed)printWindow.close();toast.error('تم حفظ السجلات، لكن تعذر تجهيز ملف PDF الجماعي.');}setSelectedStudentIds([]);await refresh();},onError:e=>{if(printWindowRef.current&&!printWindowRef.current.closed)printWindowRef.current.close();printWindowRef.current=null;toast.error(e instanceof Error?e.message:apiError(e));}});
 
   return <div className="space-y-6" dir="rtl">
     <PageHeader title="الشهادات والتقارير" subtitle="إدارة قوالب الشهادات ومراجعة طلبات الطلاب." />
@@ -188,7 +193,7 @@ export default function CertificatesAdminPage() {
     </Card>
 
     <Card title="التقارير الشهرية التلقائية">
-      <p className="mb-3 text-sm text-slate-600">تُجمع بيانات الحضور والتسميع والتقييم المسجلة في النظام للفترة المحددة، ويُنشأ PDF مستقل لكل طالب وينشر في حسابه، مع تنزيل جماعي ZIP.</p>
+      <p className="mb-3 text-sm text-slate-600">تُجمع بيانات الحضور والتسميع والتقييم للفترة المحددة، ويُنشر PDF مستقل في حساب كل طالب، ويمكن تنزيل التقارير المحددة في ملف PDF واحد غير مضغوط.</p>
       <div className="grid gap-3 md:grid-cols-2">
         <Input label="من تاريخ" type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)} required />
         <Input label="إلى تاريخ" type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)} required />
@@ -196,7 +201,7 @@ export default function CertificatesAdminPage() {
       {reportData.isLoading?<LoadingState/>:reportData.isError?<p className="mt-3 text-sm text-red-600">تعذر تحميل بيانات التقرير.</p>:<div className="mt-4">
         <div className="mb-3 flex items-center justify-between gap-2"><p className="font-semibold">الطلاب: {reportData.data?.length??0} · المحدد: {reportStudentIds.length}</p><button type="button" className="text-sm text-primary-700 underline" onClick={()=>setReportStudentIds(reportStudentIds.length===(reportData.data??[]).length?[]:(reportData.data??[]).map((s:any)=>s.id))}>تحديد الكل / إلغاء التحديد</button></div>
         <div className="grid max-h-56 gap-2 overflow-y-auto sm:grid-cols-2">{(reportData.data??[]).map((s:any)=><label key={s.id} className="flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-sm"><input type="checkbox" checked={reportStudentIds.includes(s.id)} onChange={e=>setReportStudentIds(old=>e.target.checked?[...old,s.id]:old.filter(id=>id!==s.id))}/><span>{s.fullName} — {s.circleName}</span></label>)}</div>
-        <Button disabled={!reportStudentIds.length||!reportFrom||!reportTo||reportFrom>reportTo} onClick={async()=>{const chosen=(reportData.data??[]).filter((s:any)=>reportStudentIds.includes(s.id));const zip=new JSZip();let saved=0;try{for(const student of chosen){const reportTemplate=(templates.data??[]).find((t:any)=>t.id===selectedTemplateId);const fileUrl=await buildMonthlyReportPdf(student,reportFrom,reportTo,reportTemplate?.fileUrl||undefined,reportTemplate?.design||undefined);await api.post('/certificates/monthly-reports/issue',{studentId:student.id,from:reportFrom,to:reportTo,fileUrl,reportDraft:{studentCode:student.code,circleName:student.circleName,attendance:student.attendance,recitations:student.recitations,evaluation:student.evaluation,evaluationNote:student.evaluationNote}});const raw=atob(fileUrl.split(',')[1]);zip.file((student.fullName||student.code).replace(/[\\\\/:*?"<>|]/g,'_')+'.pdf',Uint8Array.from(raw,ch=>ch.charCodeAt(0)));saved++;}const blob=await zip.generateAsync({type:'blob'});const href=URL.createObjectURL(blob);const a=document.createElement('a');a.href=href;a.download='التقارير-'+reportFrom+'-'+reportTo+'.zip';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(href),30000);toast.success('تم نشر '+saved+' تقرير وتنزيلها بملف ZIP');setReportStudentIds([]);await refresh();}catch(e){toast.error('تم نشر '+saved+' تقرير قبل حدوث خطأ. أعد المحاولة للطلاب المتبقين؛ لن تُحذف التقارير المنشورة.');await refresh();}}}>إنشاء التقارير ونشرها وتنزيل ZIP</Button>
+        <Button disabled={!reportStudentIds.length||!reportFrom||!reportTo||reportFrom>reportTo} onClick={async()=>{const chosen=(reportData.data??[]).filter((s:any)=>reportStudentIds.includes(s.id));let saved=0;const pdfs:any[]=[];try{for(const student of chosen){const reportTemplate=(templates.data??[]).find((t:any)=>t.id===selectedTemplateId);const fileUrl=await buildMonthlyReportPdf(student,reportFrom,reportTo,reportTemplate?.fileUrl||undefined,reportTemplate?.design||undefined);await api.post('/certificates/monthly-reports/issue',{studentId:student.id,from:reportFrom,to:reportTo,fileUrl,reportDraft:{studentCode:student.code,circleName:student.circleName,attendance:student.attendance,recitations:student.recitations,evaluation:student.evaluation,evaluationNote:student.evaluationNote}});pdfs.push({url:fileUrl,name:student.fullName||student.code});saved++;}await mergePdfDataUrls(pdfs);toast.success('تم نشر '+saved+' تقرير وتنزيلها في ملف PDF واحد غير مضغوط');setReportStudentIds([]);await refresh();}catch(e){toast.error('تم نشر '+saved+' تقرير قبل حدوث خطأ. التقارير المنشورة محفوظة ولن تُحذف.');await refresh();}}}}>إنشاء التقارير ونشرها وتنزيل PDF</Button>
       </div>}
     </Card>
     <Card title="الشهادات الصادرة">

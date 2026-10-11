@@ -561,7 +561,7 @@ export class ExamsService {
         eligible,
         reason,
         score:
-          manualCompleted.find((record) => record.sectionId === section.id)?.score ??
+          manualRecords.find((record) => record.sectionId === section.id)?.score ??
           passed.find(
             (p) =>
               p.sectionId === section.id ||

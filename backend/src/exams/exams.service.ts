@@ -516,7 +516,6 @@ export class ExamsService {
     const hizbSections = sections.filter((section) => section.kind === 'HIZB');
     const juzSections = sections.filter((section) => section.kind === 'JUZ');
     const hizbPassed = hizbSections.filter((section) => passedIds.has(section.id)).length;
-    const juzPassed = juzSections.filter((section) => passedIds.has(section.id)).length;
 
     // كل المقررات التي يستطيع الطالب اختيارها
     const selectableSections = progression

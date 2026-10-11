@@ -81,7 +81,12 @@ export class UpdateExamMilestoneDto {
   @Max(100)
   score?: number | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'تاريخ طلب الاختبار' })
+  @IsOptional()
+  @IsDateString()
+  requestedAt?: string | null;
+
+  @ApiPropertyOptional({ description: 'تاريخ إجراء الاختبار' })
   @IsOptional()
   @IsDateString()
   examDate?: string | null;

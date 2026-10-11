@@ -51,13 +51,19 @@ interface Examiner {
   fullName: string;
 }
 
-/** What the request asks for — manual values first, otherwise the sections. */
+/** Show the exact sections selected in a request, especially combined requests. */
 function describeRequest(r: ExamRequest): string {
   const parts: string[] = [];
   if (r.requestedHizb != null) parts.push(`حزب ${r.requestedHizb}`);
   if (r.requestedJuz != null) parts.push(`جزء ${r.requestedJuz}`);
   if (r.requestedCombined != null) parts.push(`مجتمعة ${r.requestedCombined}`);
   if (parts.length) return parts.join(' + ');
+
+  const selectedSections = r.sections?.map((entry) => entry.section.name).filter(Boolean) ?? [];
+  if (selectedSections.length > 1) {
+    return `اختبار مجمّع: ${selectedSections.join('، ')}`;
+  }
+  if (selectedSections.length === 1) return selectedSections[0];
   return describeExamSections(r.section, r.sections);
 }
 

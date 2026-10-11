@@ -174,6 +174,18 @@ export class StudentsService {
         ...LIST_SELECT,
         address: true,
         phone: true,
+        fatherNationalId: true,
+        guardianName: true,
+        guardianPhone: true,
+        guardianRelation: true,
+        parentId: true,
+        parentProfile: {
+          select: {
+            id: true,
+            phone: true,
+            user: { select: { fullName: true } },
+          },
+        },
         notes: true,
         evaluationNote: true,
         evaluatedAt: true,

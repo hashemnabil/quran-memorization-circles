@@ -10,6 +10,11 @@ export default function StudentPortalPage() {
     queryFn: async () => (await api.get('/students/me')).data,
   });
 
+  const history = useQuery({
+    queryKey: ['student', 'me', 'history'],
+    queryFn: async () => (await api.get('/students/me/history')).data,
+  });
+
   if (isLoading) return <LoadingState rows={5} />;
   if (isError || !data) return <ErrorState message="تعذر تحميل ملفك الدراسي" onRetry={() => refetch()} />;
 
@@ -48,6 +53,24 @@ export default function StudentPortalPage() {
           <Info label="الدورات" value={data.courses?.filter((c: any) => c.isCurrent).map((c: any) => c.name).join('، ') || 'لا توجد دورة حالية'} />
         </div>
       </Card>
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <Card title="سجل الحضور والغياب">
+          {history.data?.attendance?.length ? <div className="space-y-2">
+            {history.data.attendance.slice(0, 12).map((item: any) => <div key={item.id} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 text-sm">
+              <span>{formatDateShort(item.date)}</span>
+              <strong>{item.status === 'PRESENT' ? 'حاضر' : item.status === 'ABSENT' ? 'غائب' : item.status === 'EXCUSED' ? 'غياب بعذر' : item.status}</strong>
+            </div>)}
+          </div> : <p className="text-sm text-slate-500">لا توجد سجلات حضور متاحة.</p>}
+        </Card>
+        <Card title="سجل التسميع">
+          {history.data?.recitations?.length ? <div className="space-y-2">
+            {history.data.recitations.slice(0, 12).map((item: any) => <div key={item.id} className="border-b border-slate-100 py-2 text-sm">
+              <div className="flex items-center justify-between gap-3"><strong>{item.fromSurah} ({item.fromAyah}) — {item.toSurah} ({item.toAyah})</strong><span className="text-xs text-slate-500">{formatDateShort(item.date)}</span></div>
+              <p className="mt-1 text-xs text-slate-500">النقاط: {item.points ?? 0} · الأخطاء: {item.mistakes ?? 0} · التنبيهات: {item.warnings ?? 0}</p>
+            </div>)}
+          </div> : <p className="text-sm text-slate-500">لا توجد سجلات تسميع متاحة.</p>}
+        </Card>
+      </div>
     </>
   );
 }

@@ -375,6 +375,7 @@ export default function StudentDetailsPage() {
           onApprove={approveRequest.mutate}
           onReject={(requestId, reason) => rejectRequest.mutate({ requestId, reason })}
           onDelete={deleteExam.mutate}
+          canEditMilestones={user.role === 'ADMIN'}
           isPending={approveRequest.isPending || rejectRequest.isPending || deleteExam.isPending}
         />
       )}
@@ -634,6 +635,7 @@ function ExamsTabComponent({
   eligibility, 
   exams, 
   canManage,
+  canEditMilestones,
   onApprove,
   onReject,
   onDelete,
@@ -644,6 +646,7 @@ function ExamsTabComponent({
   eligibility?: ExamEligibility; 
   exams: any[];
   canManage: boolean;
+  canEditMilestones: boolean;
   onApprove: (id: string) => void;
   onReject: (id: string, reason: string) => void;
   onDelete: (id: string) => void;
@@ -689,7 +692,7 @@ function ExamsTabComponent({
         </div>
       )}
 
-      <ExamProgressionTable eligibility={eligibility} exams={exams as any[]} loading={!eligibility} />
+      <ExamProgressionTable studentId={studentId} canEditMilestones={canEditMilestones} eligibility={eligibility} exams={exams as any[]} loading={!eligibility} />
 
       <Tabs tabs={examTabs} active={examSubTab} onChange={setExamSubTab} />
 

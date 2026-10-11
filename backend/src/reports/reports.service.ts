@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { AuthUser } from '../common/decorators';
 
-export type ReportType = 'attendance' | 'recitations' | 'exams' | 'student' | 'circles' | 'students';
+export type ReportType = 'attendance' | 'recitations' | 'exams' | 'student' | 'circles' | 'students' | 'courses' | 'courseStudents' | 'courseAttendance';
 const DATE = (s?: string) => {
   if (!s) return undefined;
   const d = new Date(s);
@@ -20,7 +20,7 @@ export class ReportsService {
   constructor(private readonly prisma: PrismaService, private readonly acl: AccessControlService) {}
 
   async getReport(user: AuthUser, type: ReportType, q: Record<string, string>) {
-    if (!['attendance','recitations','exams','student','circles','students'].includes(type)) throw new BadRequestException('نوع التقرير غير معروف');
+    if (!['attendance','recitations','exams','student','circles','students','courses','courseStudents','courseAttendance'].includes(type)) throw new BadRequestException('نوع التقرير غير معروف');
     if (user.role !== Role.ADMIN && user.role !== Role.SUPERVISOR && user.role !== Role.TEACHER) {
       throw new BadRequestException('لا تملك صلاحية عرض التقارير');
     }
@@ -64,6 +64,8 @@ export class ReportsService {
       const output = rows.map(r => ({
         'الطالب': r.fullName,
         'رقم الطالب': r.code,
+        'رقم الهوية': r.nationalId ?? '',
+        'تاريخ الميلاد': r.birthDate ?? '',
         'الحلقة': r.circle?.name ?? (r.status === 'ACTIVITY' ? 'برنامج النشاط' : 'غير مسجل'),
         'المعلم': r.circle?.teachers.map(t => t.teacher.user.fullName).join('، ') ?? '',
         'ولي الأمر': r.guardianName ?? r.parentProfile?.user.fullName ?? '',
@@ -107,6 +109,26 @@ export class ReportsService {
       if (!student) throw new BadRequestException('الطالب غير موجود أو لا تملك صلاحية الوصول إليه');
       return { type, student:{'معرّف الطالب':student.id,'رقم الطالب':student.code,'اسم الطالب':student.fullName,'الجنس':student.gender==='MALE'?'ذكر':student.gender==='FEMALE'?'أنثى':student.gender,'الحالة':student.status,'الحلقة':student.circle?.name??'','تاريخ التسجيل':student.enrollmentDate,'هاتف الطالب':student.phone??'','ولي الأمر':student.guardianName??'','هاتف ولي الأمر':student.guardianPhone??'','الأجزاء المحفوظة':student.memorizedParts,'مجموع النقاط':student.totalPoints}, attendance:student.attendance.map(a=>({date:a.date,circle:a.circle.name,status:arabicAttendance[a.status]??a.status,note:a.note??''})), recitations:student.recitations.map(r=>({date:r.date,circle:r.circle.name,teacher:r.teacher.user.fullName,type:r.type,from:`${r.fromSurah}:${r.fromAyah}`,to:`${r.toSurah}:${r.toAyah}`,pages:r.pagesCount??0,verses:r.versesCount??0,points:r.points,evaluation:r.evaluation??''})), exams:student.exams.map(e=>({date:e.scheduledAt,section:e.section.name,examiner:e.examiner?.fullName??'',status:e.status,score:e.score??'',result:e.result??'',evaluation:e.evaluation??''})), stats:{attendance:student.attendance.length,recitations:student.recitations.length,exams:student.exams.length,points:student.totalPoints} };
     }
+    const courseScope: Prisma.CourseWhereInput = { deletedAt: null, ...(user.role === Role.TEACHER ? { instructorId: user.id } : {}), ...(q.courseId ? { id: q.courseId } : {}) };
+    if (['courses', 'courseStudents', 'courseAttendance'].includes(type)) {
+      if (type === 'courses') {
+        const courses = await this.prisma.course.findMany({ where: courseScope, include: { instructor: { select: { fullName: true } }, _count: { select: { enrollments: true, attendance: true } } }, orderBy: { name: 'asc' }, take: 5000 });
+        const rows = courses.map(c => ({ 'الدورة': c.name, 'رمز الدورة': c.code, 'النوع': c.type === 'SHARIA' ? 'شرعية' : 'تجويد', 'المحاضر': c.instructor?.fullName ?? c.instructorName ?? '', 'الموقع': c.location ?? '', 'تاريخ البداية': c.startDate ?? '', 'تاريخ النهاية': c.endDate ?? '', 'عدد المسجلين': c._count.enrollments, 'سجلات الحضور': c._count.attendance, 'مفعّلة': c.isActive ? 'نعم' : 'لا' }));
+        return { type, rows, stats: { total: rows.length, students: courses.reduce((n,c)=>n+c._count.enrollments,0), attendance: courses.reduce((n,c)=>n+c._count.attendance,0) } };
+      }
+      if (!q.courseId) throw new BadRequestException('اختر الدورة أولاً');
+      const course = await this.prisma.course.findFirst({ where: courseScope, select: { id: true, name: true } });
+      if (!course) throw new BadRequestException('الدورة غير موجودة أو لا تملك صلاحية الوصول إليها');
+      if (type === 'courseStudents') {
+        const enrollments = await this.prisma.courseEnrollment.findMany({ where: { courseId: course.id, student: { deletedAt: null, ...studentScope } }, include: { student: { select: { code: true, fullName: true, nationalId: true, birthDate: true, phone: true, status: true, guardianName: true, guardianPhone: true } } }, orderBy: { student: { fullName: 'asc' } }, take: 10000 });
+        const rows = enrollments.map(e => ({ 'الدورة': course.name, 'اسم الطالب': e.student.fullName, 'رقم الطالب': e.student.code, 'رقم الهوية': e.student.nationalId ?? '', 'تاريخ الميلاد': e.student.birthDate ?? '', 'الهاتف': e.student.phone ?? '', 'ولي الأمر': e.student.guardianName ?? '', 'هاتف ولي الأمر': e.student.guardianPhone ?? '', 'الحالة': e.student.status, 'تاريخ التسجيل بالدورة': e.enrolledAt, 'تاريخ الانسحاب': e.endedAt ?? '', 'التسجيل الحالي': e.endedAt ? 'لا' : 'نعم' }));
+        return { type, rows, stats: { total: rows.length, active: enrollments.filter(e=>!e.endedAt).length } };
+      }
+      const records = await this.prisma.courseAttendance.findMany({ where: { courseId: course.id, student: { deletedAt: null, ...studentScope }, ...(from || to ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}) }, include: { student: { select: { code: true, fullName: true } }, course: { select: { name: true } } }, orderBy: [{ date: 'desc' }, { student: { fullName: 'asc' } }], take: 10000 });
+      const rows = records.map(a => ({ 'التاريخ': a.date, 'الدورة': a.course.name, 'رقم الطالب': a.student.code, 'الطالب': a.student.fullName, 'الحالة': arabicAttendance[a.status] ?? a.status, 'ملاحظات': a.note ?? '' }));
+      return { type, rows, stats: { total: rows.length, present: records.filter(a=>a.status==='PRESENT').length, absent: records.filter(a=>a.status==='ABSENT').length, excused: records.filter(a=>a.status==='EXCUSED').length } };
+    }
+
     const circles = await this.prisma.circle.findMany({ where:{deletedAt:null,...(allowed===null?{}:{id:{in:allowed}}),...(q.circleId?{id:q.circleId}:{})}, include:{_count:{select:{students:true,attendance:true,recitations:true}},teachers:{where:{endedAt:null},include:{teacher:{include:{user:{select:{fullName:true}}}}}}},orderBy:{name:'asc'},take:5000 });
     return { type, rows:circles.map(c=>({'الحلقة':c.name,'رمز الحلقة':c.code,'عدد الطلاب':c._count.students,'سجلات الحضور':c._count.attendance,'سجلات التسميع':c._count.recitations,'المعلمون':c.teachers.map(t=>t.teacher.user.fullName).join('، '),'السعة الاستيعابية':c.capacity,'مفعّلة':c.isActive?'نعم':'لا'})), stats:{circles:circles.length,students:circles.reduce((n,c)=>n+c._count.students,0),attendance:circles.reduce((n,c)=>n+c._count.attendance,0),recitations:circles.reduce((n,c)=>n+c._count.recitations,0)} };
   }
@@ -120,8 +142,8 @@ export class ReportsService {
       XLSX.utils.book_append_sheet(wb, sheet(data.recitations), 'التسميع');
       XLSX.utils.book_append_sheet(wb, sheet(data.exams), 'الاختبارات');
     } else {
-      XLSX.utils.book_append_sheet(wb, sheet(data.rows), ({attendance:'الحضور والغياب',recitations:'التسميع اليومي',exams:'الاختبارات',circles:'إحصائيات الحلقات',students:'سجل الطلاب'} as Record<string,string>)[type] ?? 'التقرير');
+      XLSX.utils.book_append_sheet(wb, sheet(data.rows), ({attendance:'الحضور والغياب',recitations:'التسميع اليومي',exams:'الاختبارات',circles:'إحصائيات الحلقات',students:'سجل الطلاب',courses:'حلقات_الدورات',courseStudents:'طلاب_الدورات',courseAttendance:'حضور_وغياب_الدورات'} as Record<string,string>)[type] ?? 'التقرير');
     }
-    return { buffer:XLSX.write(wb,{type:'buffer',bookType:'xlsx'}), filename:`${({attendance:'تقرير_الحضور_والغياب',recitations:'تقرير_التسميع_اليومي',exams:'تقرير_الاختبارات',student:'الملف_الشامل_للطالب',circles:'إحصائيات_الحلقات',students:'سجل_الطلاب'} as Record<string,string>)[type] ?? 'تقرير'}_${new Date().toISOString().slice(0,10)}.xlsx` };
+    return { buffer:XLSX.write(wb,{type:'buffer',bookType:'xlsx'}), filename:`${({attendance:'تقرير_الحضور_والغياب',recitations:'تقرير_التسميع_اليومي',exams:'تقرير_الاختبارات',student:'الملف_الشامل_للطالب',circles:'إحصائيات_الحلقات',students:'سجل_الطلاب',courses:'حلقات_الدورات',courseStudents:'طلاب_الدورات',courseAttendance:'حضور_وغياب_الدورات'} as Record<string,string>)[type] ?? 'تقرير'}_${new Date().toISOString().slice(0,10)}.xlsx` };
   }
 }

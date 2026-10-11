@@ -718,7 +718,9 @@ function CreateRequestModal({ onClose }: { onClose: () => void }) {
   });
   const progression = eligibility.data?.progression ?? [];
   const firstAvailable = progression.findIndex((item) => !item.isPassed && !item.hasOpenRequest);
-  const selectableBlock = firstAvailable < 0 ? [] : progression.slice(firstAvailable).filter((item) => !item.isPassed && !item.hasOpenRequest);
+  const remainingProgression = firstAvailable < 0 ? [] : progression.slice(firstAvailable);
+  const nextBlockEnd = remainingProgression.findIndex((item) => item.isPassed || item.hasOpenRequest);
+  const selectableBlock = nextBlockEnd < 0 ? remainingProgression : remainingProgression.slice(0, nextBlockEnd);
 
   const mutation = useMutation({
     mutationFn: () =>

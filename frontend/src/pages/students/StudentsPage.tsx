@@ -448,28 +448,37 @@ function StudentFormModal({
     fullName: '',
     birthDate: '',
     nationalId: '',
-    fatherNationalId: '',
     address: '',
-    guardianName: '',
-    guardianPhone: '',
-    guardianRelation: 'الأب',
     circleId: '',
-    parentId: '',
     memorizedParts: 0,
     currentSurah: '',
     notes: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data: parents } = useQuery({
-    queryKey: ['parents', 'options'],
-    queryFn: async () => (await api.get('/parents/options')).data,
-  });
-
   const create = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.post('/students', payload),
-    onSuccess: () => {
-      toast.success('تم تسجيل الطالب بنجاح');
+    onSuccess: async (response) => {
+      const student = response.data;
+      const credentials = student?.accountCredentials;
+      if (credentials?.username && credentials?.temporaryPassword) {
+        try {
+          const file = await api.post('/students/credentials-export', {
+            credentials: [{ fullName: student.fullName, code: student.code, username: credentials.username, temporaryPassword: credentials.temporaryPassword }],
+          }, { responseType: 'blob' });
+          const url = URL.createObjectURL(file.data);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'student-login-credentials.xlsx';
+          link.click();
+          URL.revokeObjectURL(url);
+          toast.success('تم تسجيل الطالب وتنزيل ملف بيانات الدخول');
+        } catch {
+          toast.error('تم إنشاء الحساب، لكن تعذر تنزيل ملف Excel. راجع مسؤول النظام لإعادة تعيين كلمة المرور.');
+        }
+      } else {
+        toast.success('تم تسجيل الطالب بنجاح');
+      }
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       onClose();
@@ -480,8 +489,7 @@ function StudentFormModal({
   const submit = () => {
     const nextErrors: Record<string, string> = {};
     if (!form.fullName.trim()) nextErrors.fullName = 'اسم الطالب مطلوب';
-    const guardianPhoneError = phoneError(form.guardianPhone);
-    if (guardianPhoneError) nextErrors.guardianPhone = guardianPhoneError;
+    if (!form.nationalId.trim()) nextErrors.nationalId = 'رقم هوية الطالب مطلوب لإنشاء حساب الدخول';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
@@ -525,13 +533,7 @@ function StudentFormModal({
           className="sm:col-span-2"
         />
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
-        <Input label="رقم الهوية" value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} dir="ltr" />
-        <Input
-          label="رقم هوية الأب"
-          value={form.fatherNationalId}
-          onChange={(e) => set('fatherNationalId', e.target.value)}
-          dir="ltr"
-        />
+        <Input label="رقم الهوية (اسم المستخدم)" required value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
         <Input label="العنوان" value={form.address} onChange={(e) => set('address', e.target.value)} />
 
         <Select label="الحلقة" value={form.circleId} onChange={(e) => set('circleId', e.target.value)}>
@@ -542,24 +544,6 @@ function StudentFormModal({
             </option>
           ))}
         </Select>
-        <Select label="حساب ولي الأمر" value={form.parentId} onChange={(e) => set('parentId', e.target.value)}>
-          <option value="">بدون ربط</option>
-          {parents?.map((p: any) => (
-            <option key={p.id} value={p.id}>
-              {p.user.fullName}
-            </option>
-          ))}
-        </Select>
-
-        <Input label="اسم ولي الأمر" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />
-        <Input
-          label="جوال ولي الأمر"
-          value={form.guardianPhone}
-          onChange={(e) => set('guardianPhone', e.target.value)}
-          error={errors.guardianPhone}
-          dir="ltr"
-        />
-        <Input label="صلة القرابة" value={form.guardianRelation} onChange={(e) => set('guardianRelation', e.target.value)} />
         <Input
           label="الأجزاء المحفوظة"
           type="number"

@@ -494,7 +494,7 @@ export class ExamsService {
       where: { studentId },
       select: { sectionId: true, status: true, score: true },
     });
-    const manualCompleted = manualRecords.filter((record) => record.status === 'COMPLETED');
+    const manualCompleted = manualRecords.filter((record) => record.status === 'COMPLETED' && record.result !== ExamResult.FAILED);
     const manualCompletedIds = new Set(manualCompleted.map((record) => record.sectionId));
     const manualOpenIds = new Set(manualRecords.filter((record) => record.status === 'REQUESTED' || record.status === 'SCHEDULED').map((record) => record.sectionId));
 
@@ -665,7 +665,7 @@ export class ExamsService {
     });
 
     const manualPassed = await this.prisma.examMilestoneRecord.findFirst({
-      where: { studentId, sectionId, status: 'COMPLETED' },
+      where: { studentId, sectionId, status: 'COMPLETED', OR: [{ result: ExamResult.PASSED }, { result: null }] },
       select: { id: true },
     });
     if (alreadyPassed || manualPassed) {
@@ -695,7 +695,7 @@ export class ExamsService {
         [exam.sectionId, ...exam.sections.map((entry) => entry.sectionId)].filter(Boolean) as string[],
       ));
       const manuallyPassedEarlier = await this.prisma.examMilestoneRecord.findMany({
-        where: { studentId, sectionId: { in: earlierRequired.map((item) => item.id) }, status: 'COMPLETED' },
+        where: { studentId, sectionId: { in: earlierRequired.map((item) => item.id) }, status: 'COMPLETED', OR: [{ result: ExamResult.PASSED }, { result: null }] },
         select: { sectionId: true },
       });
       manuallyPassedEarlier.forEach((record) => passedEarlierIds.add(record.sectionId));
@@ -1298,7 +1298,7 @@ export class ExamsService {
         .filter((id: string) => activeIds.has(id)),
     );
     const manualCompleted = await tx.examMilestoneRecord.findMany({
-      where: { studentId, status: 'COMPLETED' },
+      where: { studentId, status: 'COMPLETED', OR: [{ result: ExamResult.PASSED }, { result: null }] },
       select: { sectionId: true },
     });
     manualCompleted.forEach((record: any) => {

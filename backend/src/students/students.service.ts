@@ -476,37 +476,41 @@ export class StudentsService {
       await this.acl.assertCircleAccess(actor, dto.circleId);
       await this.assertCircleHasRoom(dto.circleId);
     }
-    if (!dto.nationalId?.trim()) {
+    if (dto.createAccount && !dto.nationalId?.trim()) {
       throw new BadRequestException('رقم هوية الطالب مطلوب لإنشاء حساب الدخول');
     }
-    dto.nationalId = dto.nationalId.trim();
+    dto.nationalId = dto.nationalId?.trim() || undefined;
     if (dto.nationalId) {
       const dup = await this.prisma.student.findFirst({
         where: { nationalId: dto.nationalId, deletedAt: null },
       });
       if (dup) throw new ConflictException('رقم الهوية مسجل مسبقاً لطالب آخر');
-      const usernameTaken = await this.prisma.user.findFirst({
-        where: { username: dto.nationalId.toLowerCase(), deletedAt: null },
-        select: { id: true },
-      });
-      if (usernameTaken) throw new ConflictException('رقم الهوية مستخدم كاسم دخول لحساب آخر');
+      if (dto.createAccount) {
+        const usernameTaken = await this.prisma.user.findFirst({
+          where: { username: dto.nationalId.toLowerCase(), deletedAt: null },
+          select: { id: true },
+        });
+        if (usernameTaken) throw new ConflictException('رقم الهوية مستخدم كاسم دخول لحساب آخر');
+      }
     }
     const code = dto.code?.trim() || (await this.nextCode());
 
-    const temporaryPassword = randomBytes(9).toString('base64url');
-    const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+    const temporaryPassword = dto.createAccount ? randomBytes(9).toString('base64url') : undefined;
+    const passwordHash = temporaryPassword ? await bcrypt.hash(temporaryPassword, 12) : undefined;
     const student = await this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: { username: dto.nationalId!.toLowerCase(), passwordHash, fullName: dto.fullName, role: Role.STUDENT, isActive: true, mustChangePassword: true },
-      });
+      const user = dto.createAccount
+        ? await tx.user.create({
+            data: { username: dto.nationalId!.toLowerCase(), passwordHash: passwordHash!, fullName: dto.fullName, role: Role.STUDENT, isActive: true, mustChangePassword: true },
+          })
+        : null;
       const created = await tx.student.create({
         data: {
           code,
           fullName: dto.fullName,
           birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
           gender: dto.gender,
-          nationalId: dto.nationalId!,
-          userId: user.id,
+          nationalId: dto.nationalId,
+          userId: user?.id,
           fatherNationalId: dto.fatherNationalId || null,
           address: dto.address,
           phone: dto.phone,
@@ -539,8 +543,10 @@ export class StudentsService {
     });
 
     const profile = await this.findOne(actor, student.id);
-    // Shown once to the administrator; only the password hash is persisted.
-    return { ...profile, accountCredentials: { username: dto.nationalId, temporaryPassword } };
+    // Temporary credentials are returned only when an account was explicitly requested.
+    return temporaryPassword
+      ? { ...profile, accountCredentials: { username: dto.nationalId, temporaryPassword } }
+      : profile;
   }
 
   /**

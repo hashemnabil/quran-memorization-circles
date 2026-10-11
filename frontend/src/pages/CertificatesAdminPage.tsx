@@ -11,7 +11,7 @@ const statuses: Record<string,string> = { PENDING:'قيد المراجعة', APP
 async function mergePdfDataUrls(items: any[]) {
  const merged = await PDFDocument.create();
  for (const item of items) { const encoded = item.url.split(',')[1]; if (!encoded) throw new Error('ملف PDF غير صالح'); const raw = atob(encoded); const bytes = Uint8Array.from(raw, (ch: string) => ch.charCodeAt(0)); const source = await PDFDocument.load(bytes); const pages = await merged.copyPages(source, source.getPageIndices()); pages.forEach((page: any) => merged.addPage(page)); }
- const bytes = await merged.save(); const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); const a = document.createElement('a'); a.href = url; a.download = 'ملفات-الطلاب-' + new Date().toISOString().slice(0,10) + '.pdf'; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+ const bytes = await merged.save(); const url = URL.createObjectURL(new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: 'application/pdf' })); const a = document.createElement('a'); a.href = url; a.download = 'ملفات-الطلاب-' + new Date().toISOString().slice(0,10) + '.pdf'; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
 function escapeCertificateText(value: unknown) {

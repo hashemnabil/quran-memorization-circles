@@ -71,6 +71,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/reports', label: 'التقارير', icon: <IconClipboard size={19} />, roles: ['ADMIN'] },
       { to: '/student-accounts', label: 'حسابات الطلاب', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
       { to: '/certificates-admin', label: 'الشهادات والتقارير', icon: <IconAward size={19} />, roles: ['ADMIN'] },
+      { to: '/media-activities', label: 'سجل الإعلام', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
     ],
   },
   {

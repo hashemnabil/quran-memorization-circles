@@ -103,7 +103,7 @@ const HIZB_SECTIONS = Array.from({ length: 60 }, (_, i) => {
   return {
     code: `HIZB-${String(hizb).padStart(2, '0')}`,
     name: `الحزب ${hizb}`,
-    order: hizb,
+    order: (Math.floor((60 - hizb) / 2) * 3) + ((60 - hizb) % 2) + 1,
     kind: ExamSectionKind.HIZB,
     pagesCount: 10,
     minScore: 60,
@@ -112,7 +112,21 @@ const HIZB_SECTIONS = Array.from({ length: 60 }, (_, i) => {
   };
 });
 
-const EXAM_SECTIONS = HIZB_SECTIONS;
+const JUZ_SECTIONS = Array.from({ length: 30 }, (_, i) => {
+  const juz = i + 1;
+  return {
+    code: `JUZ-${String(juz).padStart(2, '0')}`,
+    name: `الجزء ${juz}`,
+    order: (30 - juz) * 3 + 3,
+    kind: ExamSectionKind.JUZ,
+    pagesCount: 20,
+    minScore: 60,
+    isRequired: true,
+    description: `اختبار حفظ وإتقان الجزء ${juz}`,
+  };
+});
+
+const EXAM_SECTIONS = [...HIZB_SECTIONS, ...JUZ_SECTIONS];
 
 const SURAH_RANGES = [
   { from: 'النبأ', fromAyah: 1, to: 'النبأ', toAyah: 40, pages: 2 },

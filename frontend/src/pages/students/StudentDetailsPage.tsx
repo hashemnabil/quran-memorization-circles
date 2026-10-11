@@ -6,6 +6,7 @@ import { api, apiError } from '@/lib/api';
 import { PHONE_HINT, phoneError } from '@/lib/validation';
 import { useAuthStore } from '@/store/auth';
 import { StudentPhoto } from '@/components/StudentPhoto';
+import { ExamProgressionTable } from '@/pages/exams/ExamProgressionTable';
 import {
   Badge,
   Button,
@@ -687,6 +688,8 @@ function ExamsTabComponent({
           />
         </div>
       )}
+
+      <ExamProgressionTable eligibility={eligibility} exams={exams as any[]} loading={!eligibility} />
 
       <Tabs tabs={examTabs} active={examSubTab} onChange={setExamSubTab} />
 

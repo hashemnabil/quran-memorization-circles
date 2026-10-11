@@ -52,6 +52,12 @@ export class CertificatesController {
   @Roles(Role.ADMIN)
   decide(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: any) { return this.service.decideRequest(user, id, body); }
 
+  @Post('monthly-reports/issue')
+  @Roles(Role.ADMIN)
+  publishMonthlyReport(@CurrentUser() user: AuthUser, @Body() body: any) {
+    return this.service.publishMonthlyReport(user, body);
+  }
+
   @Post('issue')
   @Roles(Role.ADMIN)
   issue(@CurrentUser() user: AuthUser, @Body() body: any) { return this.service.issueRecord(user, body); }

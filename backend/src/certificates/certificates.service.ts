@@ -94,6 +94,63 @@ export class CertificatesService {
     });
   }
 
+  async listIssuedRecords() {
+    return this.prisma.certificateRecord.findMany({
+      include: {
+        student: { select: { id: true, fullName: true, code: true, circle: { select: { name: true } } } },
+        issuedBy: { select: { fullName: true } },
+        template: { select: { name: true } },
+      },
+      orderBy: { issuedAt: 'desc' },
+      take: 500,
+    });
+  }
+
+  async monthlyReportData(fromValue: string, toValue: string) {
+    const from = new Date(fromValue);
+    const to = new Date(toValue);
+    if (!fromValue || !toValue || Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+      throw new BadRequestException('فترة التقرير غير صحيحة');
+    }
+    from.setUTCHours(0, 0, 0, 0);
+    to.setUTCHours(23, 59, 59, 999);
+    const students = await this.prisma.student.findMany({
+      where: { deletedAt: null, status: 'ACTIVE' },
+      orderBy: { fullName: 'asc' },
+      select: {
+        id: true, code: true, fullName: true, evaluation: true, evaluationNote: true,
+        memorizedParts: true, currentSurah: true,
+        circle: { select: { name: true } },
+        attendance: { where: { date: { gte: from, lte: to } }, select: { status: true } },
+        recitations: {
+          where: { date: { gte: from, lte: to }, deletedAt: null },
+          orderBy: { date: 'asc' },
+          select: { date: true, type: true, fromSurah: true, fromAyah: true, toSurah: true, toAyah: true, pagesCount: true, mistakes: true, warnings: true, points: true, evaluation: true, notes: true },
+        },
+      },
+    });
+    return students.map((student) => ({
+      id: student.id, code: student.code, fullName: student.fullName,
+      circleName: student.circle?.name ?? 'بدون حلقة',
+      evaluation: student.evaluation, evaluationNote: student.evaluationNote,
+      memorizedParts: student.memorizedParts, currentSurah: student.currentSurah,
+      attendance: {
+        recorded: student.attendance.length,
+        present: student.attendance.filter((x) => x.status === 'PRESENT').length,
+        absent: student.attendance.filter((x) => x.status === 'ABSENT').length,
+        excused: student.attendance.filter((x) => x.status === 'EXCUSED').length,
+      },
+      recitations: {
+        sessions: student.recitations.length,
+        pages: student.recitations.reduce((sum, x) => sum + (x.pagesCount ?? 0), 0),
+        points: student.recitations.reduce((sum, x) => sum + x.points, 0),
+        mistakes: student.recitations.reduce((sum, x) => sum + x.mistakes, 0),
+        warnings: student.recitations.reduce((sum, x) => sum + x.warnings, 0),
+        entries: student.recitations,
+      },
+    }));
+  }
+
   async listRequests() {
     return this.prisma.studentFileRequest.findMany({
       include: { student: { select: { id: true, fullName: true, code: true } }, reviewedBy: { select: { fullName: true } } },

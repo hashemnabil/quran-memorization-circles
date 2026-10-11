@@ -42,108 +42,42 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'الرئيسية',
     items: [
-      { to: '/', label: 'لوحة المعلومات', icon: <IconDashboard size={19} />, roles: ALL },
+      { to: '/', label: 'لوحة التحكم', icon: <IconDashboard size={19} />, roles: ALL },
+      { to: '/circles', label: 'الحلقات', icon: <IconCircleGroup size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
+      { to: '/students', label: 'الطلاب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
+      { to: '/courses', label: 'الدورات', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
     ],
   },
   {
-    // Everything that makes up a circle: the circle itself and the people in it.
-    // The exam committee is absent by design — it works from the exam queue only.
-    title: 'إدارة الحلقات',
+    title: 'إدارة',
     items: [
-      {
-        to: '/circles',
-        label: 'الحلقات',
-        icon: <IconCircleGroup size={19} />,
-        roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'],
-      },
-      {
-        to: '/students',
-        label: 'الطلاب',
-        icon: <IconGraduation size={19} />,
-        roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'],
-      },
-      {
-        to: '/teachers',
-        label: 'المعلمون',
-        icon: <IconUsers size={19} />,
-        roles: ['ADMIN', 'SUPERVISOR'],
-      },
-      {
-        to: '/supervisors',
-        label: 'المشرفون',
-        icon: <IconUsers size={19} />,
-        roles: ['ADMIN'],
-      },
-    { label: 'سجل المستخدمين', to: '/registry-admin', icon: <span>▣</span>, roles: ['ADMIN'] },
+      { to: '/students', label: 'الطلاب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
+      { to: '/teachers', label: 'المعلمين', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
+      { to: '/supervisors', label: 'المشرفين', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
       { to: '/parents', label: 'أولياء الأمور', icon: <IconUser size={19} />, roles: ['ADMIN'] },
-    ],
-  },
-  {
-    title: 'الدورات التعليمية',
-    items: [
-      {
-        to: '/courses',
-        label: 'الدورات',
-        icon: <IconBook size={19} />,
-        roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'],
-      },
-    ],
-  },
-  {
-    title: 'الكادر',
-    items: [
-      {
-        to: '/staff',
-        label: 'دليل الكادر',
-        icon: <IconUsers size={19} />,
-        roles: ['ADMIN', 'SUPERVISOR'],
-      },
-      {
-        to: '/staff/attendance',
-        label: 'حضور الكادر',
-        icon: <IconClipboard size={19} />,
-        roles: ['ADMIN', 'SUPERVISOR'],
-      },
+      { to: '/staff', label: 'دليل الكادر', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
     ],
   },
   {
     title: 'المتابعة اليومية',
     items: [
-      {
-        to: '/attendance',
-        label: 'الحضور والغياب',
-        icon: <IconClipboard size={19} />,
-        roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'],
-      },
-      {
-        to: '/recitations',
-        label: 'التسميع اليومي',
-        icon: <IconBook size={19} />,
-        roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'],
-      },
+      { to: '/staff/attendance', label: 'حضور الكادر', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
+      { to: '/attendance', label: 'الحضور والغياب', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
+      { to: '/recitations', label: 'التسميع اليومي', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
     ],
   },
   {
-    title: 'الطلبات والاختبارات',
+    title: 'الملفات',
     items: [
-      {
-        to: '/exams',
-        label: 'الاختبارات',
-        icon: <IconAward size={19} />,
-        roles: ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE'],
-      },
-      {
-        to: '/transfers',
-        label: 'طلبات النقل',
-        icon: <IconExchange size={19} />,
-        roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'],
-      },
-      {
-        to: '/suspensions',
-        label: 'إيقاف الطلاب',
-        icon: <IconPause size={19} />,
-        roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'],
-      },
+      { to: '/reports', label: 'التقارير', icon: <IconClipboard size={19} />, roles: ['ADMIN'] },
+    ],
+  },
+  {
+    title: 'الطلبات',
+    items: [
+      { to: '/exams', label: 'الاختبارات', icon: <IconAward size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE'] },
+      { to: '/transfers', label: 'نقل الطالب', icon: <IconExchange size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
+      { to: '/suspensions', label: 'إيقاف الطالب', icon: <IconPause size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
     ],
   },
   {
@@ -156,28 +90,25 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'التواصل',
     items: [
       { to: '/chat', label: 'المحادثات', icon: <IconChat size={19} />, roles: ALL, badge: 'chat' },
-      {
-        to: '/notifications',
-        label: 'الإشعارات',
-        icon: <IconCalendar size={19} />,
-        roles: ALL,
-        badge: 'notifications',
-      },
+      { to: '/notifications', label: 'الإشعارات', icon: <IconCalendar size={19} />, roles: ALL, badge: 'notifications' },
       { to: '/support', label: 'الدعم الفني', icon: <IconLifeBuoy size={19} />, roles: ALL, badge: 'support' },
     ],
   },
   {
-    title: 'النظام',
+    title: 'نظام المدرسة',
     items: [
       { to: '/users', label: 'المستخدمون', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
-      { to: '/reports', label: 'التقارير', icon: <IconClipboard size={19} />, roles: ['ADMIN'] },
       { to: '/announcements', label: 'الإعلانات', icon: <IconBell size={19} />, roles: ['ADMIN'] },
       { to: '/settings', label: 'إعدادات المدرسة', icon: <IconSettings size={19} />, roles: ['ADMIN'] },
+    ],
+  },
+  {
+    title: 'نظام',
+    items: [
       { to: '/profile', label: 'الملف الشخصي', icon: <IconUser size={19} />, roles: ALL },
     ],
   },
 ];
-
 export function navigationFor(role: Role): NavGroup[] {
   return NAV_GROUPS.map((group) => ({
     ...group,

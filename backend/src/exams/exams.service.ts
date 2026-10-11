@@ -481,15 +481,19 @@ export class ExamsService {
       const isPassed = passedIds.has(section.id);
       const isOpen = openIds.has(section.id);
 
-      let eligible = true;
+      const previousRequired = sections.filter((candidate) =>
+        candidate.isRequired && candidate.order < section.order,
+      );
+      const sequenceUnlocked = previousRequired.every((candidate) => passedIds.has(candidate.id));
+      let eligible = sequenceUnlocked && !isPassed && !isOpen;
       let reason: string | null = null;
 
       if (isPassed) {
-        eligible = false;
         reason = 'تم اجتياز هذا المقرر مسبقاً';
       } else if (isOpen) {
-        eligible = false;
         reason = 'يوجد طلب اختبار قائم لهذا المقرر';
+      } else if (!sequenceUnlocked) {
+        reason = 'هذا المقرر مقفل حتى اجتياز المقررات السابقة في التسلسل';
       }
 
       return {
@@ -606,6 +610,34 @@ export class ExamsService {
 
     if (alreadyPassed) {
       throw new ConflictException(`الطالب اجتاز "${section.name}" مسبقاً`);
+    }
+
+    // Enforce the required order on the server, not just in the UI.
+    const earlierRequired = await this.prisma.examSection.findMany({
+      where: { isActive: true, isRequired: true, order: { lt: section.order } },
+      select: { id: true, name: true },
+    });
+    if (earlierRequired.length) {
+      const passedEarlier = await this.prisma.exam.findMany({
+        where: {
+          studentId,
+          status: ExamStatus.COMPLETED,
+          result: ExamResult.PASSED,
+          score: { not: null },
+          OR: [
+            { sectionId: { in: earlierRequired.map((item) => item.id) } },
+            { sections: { some: { sectionId: { in: earlierRequired.map((item) => item.id) } } } },
+          ],
+        },
+        select: { sectionId: true, sections: { select: { sectionId: true } } },
+      });
+      const passedEarlierIds = new Set(passedEarlier.flatMap((exam) =>
+        [exam.sectionId, ...exam.sections.map((entry) => entry.sectionId)].filter(Boolean) as string[],
+      ));
+      const missing = earlierRequired.find((item) => !passedEarlierIds.has(item.id));
+      if (missing) {
+        throw new ConflictException(`لا يمكن طلب اختبار هذا المقرر قبل اجتياز ${missing.name}`);
+      }
     }
 
     const open = await this.prisma.examRequest.findFirst({

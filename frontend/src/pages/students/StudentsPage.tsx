@@ -331,7 +331,7 @@ export default function StudentsPage() {
                               الهوية: {student.nationalId ?? '—'}
                             </span>
                             <span className="block text-[11px] text-slate-500">
-                              الميلاد: {student.birthDate ? formatDate(student.birthDate) : '—'}
+                              الميلاد: {student.birthDate ? formatDateShort(student.birthDate) : '—'}
                             </span>
                           </div>
                         </div>

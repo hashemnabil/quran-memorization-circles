@@ -538,7 +538,7 @@ export class ExamsService {
       hizbTotal: hizbSections.length,
       juzEquivalent: juzFromHizb(hizbPassed),
       juzTotal: juzSections.length,
-      requiredPassed: hizbPassed,
+      requiredPassed: passedIds.size,
       requiredTotal: sections.length,
       direction: null,
       chains: [

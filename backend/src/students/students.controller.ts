@@ -27,6 +27,13 @@ export class StudentsController {
     return this.service.findAll(user, query);
   }
 
+  @Get('me')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'ملف الطالب الحالي وسجلاته الخاصة' })
+  getMyProfile(@CurrentUser() user: AuthUser) {
+    return this.service.getMyProfile(user);
+  }
+
   @Get(':id')
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   @ApiOperation({ summary: 'ملف الطالب الموحّد' })

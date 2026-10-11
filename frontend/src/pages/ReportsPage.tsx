@@ -29,11 +29,11 @@ export default function ReportsPage() {
  const params=useMemo(()=>({type,from:from||undefined,to:to||undefined,circleId:circleId||undefined,teacherId:teacherId||undefined,studentId:studentId||undefined,_refresh:refresh}),[type,from,to,circleId,teacherId,studentId,refresh]);
  const {data,isLoading,isError}=useQuery({queryKey:['reports',params],queryFn:async()=> (await api.get<ReportData>('/reports',{params})).data, enabled:type!=='student'||!!studentId});
  const statEntries=Object.entries(data?.stats??{});
- const rows=type==='student' ? (data?.attendance??[]).map(r=>({المجموعة:'الحضور',...r})).concat((data?.recitations??[]).map(r=>({المجموعة:'التسميع',...r})),(data?.exams??[]).map(r=>({المجموعة:'الاختبارات',...r}))) : (data?.rows??[]);
+ const rows: Record<string, unknown>[] = type==='student' ? (data?.attendance??[]).map(r=>({المجموعة:'الحضور',...r})).concat((data?.recitations??[]).map(r=>({المجموعة:'التسميع',...r})),(data?.exams??[]).map(r=>({المجموعة:'الاختبارات',...r}))) : (data?.rows??[]);
  const columns=rows.length?Object.keys(rows[0]):[];
  const exportReport=async()=>{try{const response=await api.get('/reports/export',{params:{...params,_refresh:undefined},responseType:'blob'});const url=URL.createObjectURL(response.data);const a=document.createElement('a');a.href=url;a.download=`report-${type}.xlsx`;a.click();URL.revokeObjectURL(url);}catch{ /* Axios interceptor/toast owns request errors. */ }};
  return <div dir="rtl" className="space-y-6">
-  <PageHeader title="التقارير" description="تقارير موثوقة من قاعدة بيانات المدرسة مع تصدير Excel." />
+  <PageHeader title="التقارير" subtitle="تقارير موثوقة من قاعدة بيانات المدرسة مع تصدير Excel." />
   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{reports.map(r=><button key={r.id} onClick={()=>setType(r.id)} className={`rounded-2xl border p-4 text-right transition hover:-translate-y-0.5 hover:shadow-md ${type===r.id?'border-primary-700 bg-primary-50 ring-1 ring-primary-700':'border-slate-200 bg-white'}`}><span className="mb-2 inline-flex rounded-xl bg-primary-100 p-2 text-primary-800"><IconClipboard size={20}/></span><div className="font-bold text-slate-900">{r.title}</div><p className="mt-1 text-sm text-slate-500">{r.description}</p></button>)}</div>
   <Card><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
    {type!=='circles'&&<label className="text-sm font-semibold text-slate-700">من تاريخ<input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-2.5"/></label>}

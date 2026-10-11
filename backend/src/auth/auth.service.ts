@@ -107,6 +107,13 @@ export class AuthService {
     if (!stored.user || stored.user.deletedAt || !stored.user.isActive) {
       throw new UnauthorizedException('الحساب غير متاح');
     }
+    if (stored.user.role === 'PARENT') {
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: stored.user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('تم إيقاف بوابة ولي الأمر؛ يرجى استخدام حساب الطالب');
+    }
 
     // Rotate: the presented token is burned and a fresh pair is issued.
     await this.prisma.refreshToken.update({

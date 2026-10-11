@@ -34,7 +34,8 @@ import {
   scoreEvaluation,
 } from '@/lib/labels';
 import { formatDateShort, formatDateTime, toInputDateTime } from '@/lib/format';
-import type { Exam, ExamRequest, PaginatedResponse, Student } from '@/types';
+import type { Exam, ExamEligibility, ExamRequest, PaginatedResponse, Student } from '@/types';
+import { ExamProgressionTable } from './ExamProgressionTable';
 
 interface ExamStats {
   pendingRequests: number;
@@ -69,8 +70,26 @@ export default function ExamsPage() {
   const canManage = user.role === 'ADMIN' || user.role === 'EXAM_COMMITTEE';
   const canRequest = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(user.role);
 
-  const [tab, setTab] = useState<'requests' | 'scheduled' | 'history'>('requests');
+  const [tab, setTab] = useState<'requests' | 'scheduled' | 'history' | 'progression'>('requests');
   const [creating, setCreating] = useState(false);
+  const [progressSearch, setProgressSearch] = useState('');
+  const debouncedProgressSearch = useDebounce(progressSearch);
+  const [progressStudent, setProgressStudent] = useState<Student | null>(null);
+  const progressStudents = useQuery({
+    queryKey: ['exams', 'progress-students', debouncedProgressSearch],
+    enabled: tab === 'progression' && debouncedProgressSearch.trim().length > 0 && !progressStudent,
+    queryFn: async () => (await api.get<PaginatedResponse<Student>>('/students', { params: { search: debouncedProgressSearch, limit: 8 } })).data,
+  });
+  const progressEligibility = useQuery({
+    queryKey: ['exams', 'eligibility', progressStudent?.id],
+    enabled: tab === 'progression' && !!progressStudent,
+    queryFn: async () => (await api.get<ExamEligibility>(`/exams/eligibility/${progressStudent!.id}`)).data,
+  });
+  const progressExams = useQuery({
+    queryKey: ['exams', 'progression-history', progressStudent?.id],
+    enabled: tab === 'progression' && !!progressStudent,
+    queryFn: async () => (await api.get<PaginatedResponse<Exam>>('/exams', { params: { studentId: progressStudent!.id, limit: 100 } })).data,
+  });
 
   const stats = useQuery({
     queryKey: ['exams', 'stats'],
@@ -103,6 +122,7 @@ export default function ExamsPage() {
           { key: 'requests', label: 'طلبات الاختبار', badge: stats.data?.pendingRequests },
           { key: 'scheduled', label: 'الاختبارات المجدولة', badge: stats.data?.scheduled },
           { key: 'history', label: 'سجل الاختبارات' },
+          { key: 'progression', label: 'تسلسل الأحزاب والأجزاء' },
         ]}
         active={tab}
         onChange={(key) => setTab(key as typeof tab)}
@@ -111,6 +131,28 @@ export default function ExamsPage() {
       {tab === 'requests' && <RequestsTab canManage={canManage} />}
       {tab === 'scheduled' && <ExamsTab mode="scheduled" canManage={canManage} />}
       {tab === 'history' && <ExamsTab mode="history" canManage={canManage} />}
+      {tab === 'progression' && (
+        <div className="mt-5 space-y-4">
+          <Card title="متابعة تسلسل الاختبارات">
+            {progressStudent ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm font-semibold">{progressStudent.fullName} <span className="numeric text-slate-400">{progressStudent.code}</span></div>
+                <Button variant="secondary" size="sm" onClick={() => setProgressStudent(null)}>اختيار طالب آخر</Button>
+              </div>
+            ) : (
+              <div>
+                <Input label="ابحث عن طالب" placeholder="الاسم أو رقم الطالب" value={progressSearch} onChange={(e) => setProgressSearch(e.target.value)} />
+                {progressStudents.data?.data.length ? (
+                  <ul className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-100">
+                    {progressStudents.data.data.map((s) => <li key={s.id}><button className="w-full px-3 py-2 text-start text-sm hover:bg-slate-50" onClick={() => setProgressStudent(s)}>{s.fullName} <span className="numeric text-xs text-slate-400">{s.code}</span></button></li>)}
+                  </ul>
+                ) : progressSearch.trim() && !progressStudents.isLoading ? <p className="mt-2 text-xs text-slate-400">لا توجد نتائج</p> : null}
+              </div>
+            )}
+          </Card>
+          {progressStudent && <ExamProgressionTable eligibility={progressEligibility.data} exams={progressExams.data?.data ?? []} loading={progressEligibility.isLoading || progressExams.isLoading} />}
+        </div>
+      )}
 
       {creating && <CreateRequestModal onClose={() => setCreating(false)} />}
     </>

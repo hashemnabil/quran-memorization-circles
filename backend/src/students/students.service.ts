@@ -6,6 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Evaluation, Prisma, Role, StudentStatus } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { ActivityService } from '../common/services/activity.service';
@@ -454,36 +456,35 @@ export class StudentsService {
       await this.acl.assertCircleAccess(actor, dto.circleId);
       await this.assertCircleHasRoom(dto.circleId);
     }
+    if (!dto.nationalId?.trim()) {
+      throw new BadRequestException('رقم هوية الطالب مطلوب لإنشاء حساب الدخول');
+    }
+    dto.nationalId = dto.nationalId.trim();
     if (dto.nationalId) {
       const dup = await this.prisma.student.findFirst({
         where: { nationalId: dto.nationalId, deletedAt: null },
       });
       if (dup) throw new ConflictException('رقم الهوية مسجل مسبقاً لطالب آخر');
     }
-    if (dto.parentId) {
-      const parent = await this.prisma.parentProfile.findFirst({
-        where: { id: dto.parentId, deletedAt: null },
-      });
-      if (!parent) throw new BadRequestException('ولي الأمر المحدد غير موجود');
-    }
-
     const code = dto.code?.trim() || (await this.nextCode());
 
+    const temporaryPassword = randomBytes(9).toString('base64url');
+    const passwordHash = await bcrypt.hash(temporaryPassword, 12);
     const student = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { username: dto.nationalId!.toLowerCase(), passwordHash, fullName: dto.fullName, role: Role.STUDENT, isActive: true },
+      });
       const created = await tx.student.create({
         data: {
           code,
           fullName: dto.fullName,
           birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
           gender: dto.gender,
-          nationalId: dto.nationalId || null,
+          nationalId: dto.nationalId!,
+          userId: user.id,
           fatherNationalId: dto.fatherNationalId || null,
           address: dto.address,
           phone: dto.phone,
-          parentId: dto.parentId || null,
-          guardianName: dto.guardianName,
-          guardianPhone: dto.guardianPhone,
-          guardianRelation: dto.guardianRelation,
           // A student registered straight into the activity programme joins no
           // circle, whatever the form sent.
           circleId: this.circleForStatus(dto.status, dto.circleId),
@@ -512,7 +513,9 @@ export class StudentsService {
       entityId: student.id,
     });
 
-    return this.findOne(actor, student.id);
+    const profile = await this.findOne(actor, student.id);
+    // Shown once to the administrator; only the password hash is persisted.
+    return { ...profile, accountCredentials: { username: dto.nationalId, temporaryPassword } };
   }
 
   /**

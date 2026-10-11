@@ -236,6 +236,9 @@ model User {
   courseAttendanceTaken   CourseAttendance[]     @relation("CourseAttendanceRecorder")
   announcements           Announcement[]         @relation("AnnouncementAuthor")
   surahCompletions        SurahCompletion[]      @relation("SurahCompletionRecorder")
+  certificateTemplates    CertificateTemplate[]
+  issuedCertificates      CertificateRecord[]   @relation("CertificateIssuer")
+  reviewedFileRequests    StudentFileRequest[]  @relation("FileRequestReviewer")
 
   @@index([role])
   @@index([isActive])

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ExamRequestStatus, ExamSectionKind, ExamStatus } from '@prisma/client';
+import { ExamMilestoneStatus, ExamRequestStatus, ExamSectionKind, ExamStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -66,6 +66,37 @@ export class CreateExamRequestDto {
   @IsString()
   @MaxLength(1000)
   note?: string;
+}
+
+export class UpdateExamMilestoneDto {
+  @ApiProperty({ enum: ExamMilestoneStatus })
+  @IsEnum(ExamMilestoneStatus)
+  status: ExamMilestoneStatus;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  score?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  examDate?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  examinerName?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  note?: string | null;
 }
 
 export class ReviewExamRequestDto {

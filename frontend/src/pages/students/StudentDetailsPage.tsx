@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -266,7 +266,7 @@ export default function StudentDetailsPage() {
               <Button variant="secondary" size="sm" icon={<IconPause size={15} />} onClick={() => setModal('suspend')}>
                 طلب إيقاف
               </Button>
-              <Button size="sm" icon={<IconAward size={15} />} onClick={() => setModal('exam')}>
+              <Button size="sm" icon={<IconAward size={15} />} onClick={() => navigate('/exams', { state: { requestStudent: student } })}>
                 طلب اختبار
               </Button>
             </>
@@ -436,7 +436,6 @@ export default function StudentDetailsPage() {
       {modal === 'note' && <NoteModal studentId={id} onClose={() => setModal(null)} />}
       {modal === 'transfer' && <TransferModal student={student} onClose={() => setModal(null)} />}
       {modal === 'suspend' && <SuspendModal student={student} onClose={() => setModal(null)} />}
-      {modal === 'exam' && <ExamRequestModal student={student} onClose={() => setModal(null)} />}
       {modal === 'edit' && <EditStudentModal student={student} onClose={() => setModal(null)} />}
     </>
   );

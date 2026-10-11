@@ -448,6 +448,7 @@ function StudentFormModal({
     fullName: '',
     birthDate: '',
     nationalId: '',
+    createAccount: false,
     address: '',
     circleId: '',
     memorizedParts: 0,
@@ -489,7 +490,7 @@ function StudentFormModal({
   const submit = () => {
     const nextErrors: Record<string, string> = {};
     if (!form.fullName.trim()) nextErrors.fullName = 'اسم الطالب مطلوب';
-    if (!form.nationalId.trim()) nextErrors.nationalId = 'رقم هوية الطالب مطلوب لإنشاء حساب الدخول';
+    if (form.createAccount && !form.nationalId.trim()) nextErrors.nationalId = 'رقم الهوية مطلوب لإنشاء حساب الدخول';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
@@ -533,7 +534,17 @@ function StudentFormModal({
           className="sm:col-span-2"
         />
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
-        <Input label="رقم الهوية (اسم المستخدم)" required value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
+        <Input label="رقم الهوية" required={form.createAccount} value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
+        <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700 sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={form.createAccount}
+            onChange={(e) => set('createAccount', e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+          />
+          إنشاء حساب دخول للطالب
+          <span className="font-normal text-slate-500">— عند التحديد يُنشأ اسم المستخدم وكلمة مرور مؤقتة تلقائياً</span>
+        </label>
         <Input label="العنوان" value={form.address} onChange={(e) => set('address', e.target.value)} />
 
         <Select label="الحلقة" value={form.circleId} onChange={(e) => set('circleId', e.target.value)}>

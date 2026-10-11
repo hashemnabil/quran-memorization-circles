@@ -394,13 +394,13 @@ export class ExamsService {
     const saved = await this.prisma.examMilestoneRecord.upsert({
       where: { studentId_sectionId: { studentId, sectionId } },
       create: {
-        studentId, sectionId, status: dto.status, score: dto.score ?? null,
+        studentId, sectionId, status: dto.status, result: null, score: dto.score ?? null,
         requestedAt: dto.requestedAt ? this.parseDate(dto.requestedAt) : null,
         examDate: dto.examDate ? this.parseDate(dto.examDate) : null,
         examinerName: dto.examinerName ?? null, note: dto.note ?? null, updatedById: actor.id,
       },
       update: {
-        status: dto.status, score: dto.score ?? null,
+        status: dto.status, result: null, score: dto.score ?? null,
         requestedAt: dto.requestedAt ? this.parseDate(dto.requestedAt) : null,
         examDate: dto.examDate ? this.parseDate(dto.examDate) : null,
         examinerName: dto.examinerName ?? null, note: dto.note ?? null, updatedById: actor.id,

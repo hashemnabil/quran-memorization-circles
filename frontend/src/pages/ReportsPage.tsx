@@ -8,7 +8,7 @@ import { IconClipboard } from '@/components/ui/Icons';
 type ReportType = 'attendance'|'recitations'|'exams'|'student'|'circles'|'students'|'courses'|'courseStudents'|'courseAttendance';
 const formatReportValue = (value: unknown) => {
  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
- if (typeof value === 'string' && /^\\d{4}-\\d{2}-\\d{2}T00:00:00(?:\\.000)?Z$/.test(value)) return value.slice(0, 10);
+ if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T00:00:00(?:\\.000)?Z$/.test(value)) return value.slice(0, 10);
  return String(value ?? '—');
 };
 type ReportData = { type: ReportType; rows?: Record<string, unknown>[]; student?: Record<string,unknown>; attendance?: Record<string,unknown>[]; recitations?: Record<string,unknown>[]; exams?: Record<string,unknown>[]; stats: Record<string,number> };

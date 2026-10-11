@@ -12,7 +12,20 @@ const DATE = (s?: string) => {
   if (Number.isNaN(d.getTime())) throw new BadRequestException('صيغة التاريخ غير صحيحة');
   return d;
 };
-const sheet = (rows: Record<string, unknown>[]) => XLSX.utils.json_to_sheet(rows.length ? rows : [{ 'لا توجد بيانات': '' }]);
+const formatDateValue = (value: unknown): unknown => {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(value.getUTCDate()).padStart(2, '0');
+    return `${day}/${month}/${year}`;
+  }
+  if (typeof value === 'string' && /^\\d{4}-\\d{2}-\\d{2}(?:T.*)?$/.test(value)) {
+    const [year, month, day] = value.slice(0, 10).split('-');
+    return `${day}/${month}/${year}`;
+  }
+  return value;
+};
+const sheet = (rows: Record<string, unknown>[]) => XLSX.utils.json_to_sheet((rows.length ? rows : [{ 'لا توجد بيانات': '' }]).map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, formatDateValue(value)])));
 const arabicAttendance: Record<string, string> = { PRESENT: 'حاضر', ABSENT: 'غائب', EXCUSED: 'غائب بعذر' };
 
 @Injectable()

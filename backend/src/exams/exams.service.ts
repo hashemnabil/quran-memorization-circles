@@ -488,11 +488,13 @@ export class ExamsService {
     this.logger.log(`📊 عدد الطلبات المفتوحة: ${openWork.length}`);
 
     // ✅ تأكد من أن passedIds تحتوي على المعرفات الصحيحة فقط
-    const manualCompleted = await this.prisma.examMilestoneRecord.findMany({
-      where: { studentId, status: 'COMPLETED' },
-      select: { sectionId: true, score: true },
+    const manualRecords = await this.prisma.examMilestoneRecord.findMany({
+      where: { studentId },
+      select: { sectionId: true, status: true, score: true },
     });
+    const manualCompleted = manualRecords.filter((record) => record.status === 'COMPLETED');
     const manualCompletedIds = new Set(manualCompleted.map((record) => record.sectionId));
+    const manualOpenIds = new Set(manualRecords.filter((record) => record.status === 'REQUESTED' || record.status === 'SCHEDULED').map((record) => record.sectionId));
 
     const passedIds = new Set(
       passed.flatMap((p) => {
@@ -515,6 +517,7 @@ export class ExamsService {
         return ids;
       }),
     );
+    manualOpenIds.forEach((id) => openIds.add(id));
 
     // ✅ تشخيص المشكلة - سجل المعرفات
     this.logger.log(`🧪 المعرفات المجتازة: ${Array.from(passedIds).join(', ') || 'لا يوجد'}`);

@@ -110,7 +110,7 @@ export default function DashboardPage() {
             <p className="mt-1.5 text-sm leading-6 text-primary-100/90">من هون بتقدر تتابع أهم المعلومات وتوصل بسرعة للأقسام اللي بتستخدمها.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link to="/chat" className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-bold transition hover:bg-white/20"><IconLifeBuoy size={17} /> التواصل</Link>
+            <Link to="/support" className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-bold transition hover:bg-white/20"><IconLifeBuoy size={17} /> الدعم الفني</Link>
             <Link to="/notifications" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-bold text-primary-900 transition hover:bg-primary-50"><IconCalendar size={17} /> الإشعارات</Link>
           </div>
         </div>

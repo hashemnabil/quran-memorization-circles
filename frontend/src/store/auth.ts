@@ -81,6 +81,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ status: 'loading' });
     try {
       const { data } = await api.get('/auth/me');
+      cacheOfflineUser(data as AuthUser);
       set({ user: data, status: 'authenticated' });
     } catch (error) {
       const isAxios = axios.isAxiosError(error);

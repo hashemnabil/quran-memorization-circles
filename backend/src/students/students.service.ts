@@ -521,6 +521,9 @@ export class StudentsService {
     if (!/^\d{1,9}$/.test(code)) {
       throw new BadRequestException('رقم الطالب يجب أن يحتوي على أرقام فقط وبحد أقصى 9 أرقام');
     }
+    if (registrationTrack !== StudentRegistrationTrack.CIRCLE && !code.startsWith(trackPrefix)) {
+      throw new BadRequestException(`رقم الطالب لهذا المسار يجب أن يبدأ بـ ${trackPrefix}`);
+    }
     const existingCode = await this.prisma.student.findUnique({ where: { code } });
     if (existingCode) throw new ConflictException('رقم الطالب مستخدم مسبقاً');
 

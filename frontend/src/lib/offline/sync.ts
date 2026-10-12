@@ -2,6 +2,7 @@ import {
   blockOfflineOperation,
   listOfflineOperations,
   removeOfflineOperation,
+  recordOfflineRetry,
   type OutboxOperation,
 } from './outbox';
 
@@ -62,8 +63,9 @@ async function drain(accountId: string, replay: ReplayHandler): Promise<SyncRepo
     let result: ReplayResult;
     try {
       result = await replay(operation);
-    } catch (error) {
+    } catch {
       // A network interruption is retryable; leave the item in the queue.
+      await recordOfflineRetry(operation.id, accountId, 'تعذر الاتصال أثناء المزامنة');
       report.retried += 1;
       report.stopped = true;
       break;
@@ -75,6 +77,7 @@ async function drain(accountId: string, replay: ReplayHandler): Promise<SyncRepo
       continue;
     }
     if (result.kind === 'retry') {
+      await recordOfflineRetry(operation.id, accountId, result.reason);
       report.retried += 1;
       report.stopped = true;
       break;

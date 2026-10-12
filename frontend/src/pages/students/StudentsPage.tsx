@@ -546,7 +546,7 @@ function StudentFormModal({
     // Empty strings would fail the API's UUID / date validation.
     const values = { ...form, registrationTrack, courseId: registrationTrack === 'COURSE' ? courseId : '', circleId: registrationTrack === 'CIRCLE' ? form.circleId : '' };
     const payload = Object.fromEntries(Object.entries(values).filter(([, value]) => value !== '' && value !== null && value !== undefined));
-    delete (payload as Record<string, unknown>).code;
+    if (registrationTrack !== 'CIRCLE') delete (payload as Record<string, unknown>).code;
     create.mutate(payload);
   };
 

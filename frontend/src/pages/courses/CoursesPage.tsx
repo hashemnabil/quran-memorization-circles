@@ -64,7 +64,7 @@ export default function CoursesPage() {
   const { data: stats } = useQuery({
     queryKey: ['courses', 'stats'],
     queryFn: async () => (await api.get('/courses/stats')).data,
-    enabled: canManage,
+    enabled: isAdmin,
   });
 
   const remove = useMutation({

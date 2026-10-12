@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { syncOfflineOperations } from '@/lib/offline/sync';
 import { replayOfflineOperation } from '@/lib/offline/replay';
+import { queryClient } from '@/lib/queryClient';
 
 /** Browser connectivity events are hints, not proof that the API is reachable. */
 export default function OfflineStatus() {
@@ -11,7 +12,12 @@ export default function OfflineStatus() {
   useEffect(() => {
     const sync = () => {
       if (navigator.onLine && accountId) {
-        void syncOfflineOperations(accountId, replayOfflineOperation).catch(() => {
+        void syncOfflineOperations(accountId, replayOfflineOperation).then((report) => {
+          if (report.applied > 0) {
+            void queryClient.invalidateQueries({ queryKey: ['attendance'] });
+            void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+          }
+        }).catch(() => {
           // Keep the durable outbox intact; the next online event retries it.
         });
       }

@@ -372,6 +372,7 @@ export default function StudentDetailsPage() {
           onReject={(requestId, reason) => rejectRequest.mutate({ requestId, reason })}
           onDelete={deleteExam.mutate}
           canEditMilestones={user.role === 'ADMIN'}
+          onRequestExam={() => setModal('exam')}
           isPending={rejectRequest.isPending || deleteExam.isPending}
         />
       )}
@@ -632,6 +633,7 @@ function ExamsTabComponent({
   exams, 
   canManage,
   canEditMilestones,
+  onRequestExam,
   onReject,
   onDelete,
   isPending
@@ -642,6 +644,7 @@ function ExamsTabComponent({
   exams: any[];
   canManage: boolean;
   canEditMilestones: boolean;
+  onRequestExam: () => void;
   onReject: (id: string, reason: string) => void;
   onDelete: (id: string) => void;
   isPending: boolean;
@@ -686,6 +689,10 @@ function ExamsTabComponent({
         </div>
       )}
 
+      <Card title="تسلسل اختبارات الأحزاب والأجزاء">
+        <p className="mb-3 text-sm text-slate-500">قدّم طلب الاختبار من هنا، حسب التسلسل المتاح للطالب.</p>
+        <Button size="sm" icon={<IconAward size={15} />} onClick={onRequestExam}>طلب اختبار</Button>
+      </Card>
       <ExamProgressionTable studentId={studentId} canEditMilestones={canEditMilestones} eligibility={eligibility} exams={exams as any[]} loading={!eligibility} />
 
       <Tabs tabs={examTabs} active={examSubTab} onChange={setExamSubTab} />

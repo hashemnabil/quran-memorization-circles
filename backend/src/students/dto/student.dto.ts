@@ -22,7 +22,19 @@ import {
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { PhoneField } from '../../common/validators/phone';
 
+export enum StudentRegistrationTrack { CIRCLE = 'CIRCLE', COURSE = 'COURSE', ACTIVITY = 'ACTIVITY' }
+
 export class CreateStudentDto {
+  @ApiPropertyOptional({ enum: StudentRegistrationTrack, default: StudentRegistrationTrack.CIRCLE })
+  @IsOptional()
+  @IsEnum(StudentRegistrationTrack)
+  registrationTrack?: StudentRegistrationTrack;
+
+  @ApiPropertyOptional({ description: 'الدورة المختارة عند التسجيل في مسار الدورات' })
+  @IsOptional()
+  @IsUUID('4', { message: 'معرّف الدورة غير صالح' })
+  courseId?: string;
+
   @ApiProperty({ example: 'عبدالله محمد أحمد' })
   @IsString()
   @IsNotEmpty({ message: 'اسم الطالب مطلوب' })

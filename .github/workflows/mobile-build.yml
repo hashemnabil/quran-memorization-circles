@@ -21,7 +21,7 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Install frontend dependencies
-        run: npm ci --prefix frontend
+        run: npm install --prefix frontend
       - name: Build web assets for native wrapper
         run: npm --prefix frontend run build
         env:

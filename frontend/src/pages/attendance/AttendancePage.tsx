@@ -135,6 +135,7 @@ export default function AttendancePage() {
             payload,
           });
           setJustSaved({ circleId, date });
+          window.dispatchEvent(new Event('quran-circles:outbox-changed'));
           toast.success('حُفظ كشف الحضور على هذا الجهاز، وسنحاول مزامنته عند عودة الاتصال');
           return;
         } catch {

@@ -446,6 +446,7 @@ function StudentFormModal({
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
     fullName: '',
+    code: '',
     birthDate: '',
     nationalId: '',
     fatherNationalId: '',
@@ -481,6 +482,7 @@ function StudentFormModal({
 
   const submit = () => {
     const nextErrors: Record<string, string> = {};
+    if (form.code && !/^\d{1,9}$/.test(form.code)) nextErrors.code = 'رقم الطالب أرقام فقط وبحد أقصى 9 أرقام';
     if (!form.fullName.trim()) nextErrors.fullName = 'اسم الطالب مطلوب';
     if (form.createAccount && !form.nationalId.trim()) nextErrors.nationalId = 'رقم الهوية مطلوب لإنشاء حساب الدخول';
     setErrors(nextErrors);
@@ -525,6 +527,7 @@ function StudentFormModal({
           error={errors.fullName}
           className="sm:col-span-2"
         />
+        <Input label="رقم الطالب (اختياري؛ يُولّد تلقائياً إذا تُرك فارغاً)" value={form.code} onChange={(e) => set('code', e.target.value.replace(/\D/g, '').slice(0, 9))} error={errors.code} dir="ltr" />
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
         <Input label={form.createAccount ? 'رقم الهوية (سيُستخدم اسمًا للمستخدم)' : 'رقم الهوية (اختياري)'} required={form.createAccount} value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
         <Input label="اسم ولي الأمر" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />

@@ -517,7 +517,7 @@ export class StudentsService {
       }
     }
     const trackPrefix = registrationTrack === StudentRegistrationTrack.CIRCLE ? '1' : registrationTrack === StudentRegistrationTrack.COURSE ? '2' : '3';
-    const code = dto.code?.trim() || (registrationTrack === StudentRegistrationTrack.CIRCLE ? await this.nextCode() : await this.nextTrackCode(trackPrefix));
+    const code = dto.code?.trim() || (registrationTrack === StudentRegistrationTrack.CIRCLE ? await this.nextCode() : await this.nextTrackCode(registrationTrack === StudentRegistrationTrack.COURSE ? '2' : '3'));
     if (!/^\d{1,9}$/.test(code)) {
       throw new BadRequestException('رقم الطالب يجب أن يحتوي على أرقام فقط وبحد أقصى 9 أرقام');
     }

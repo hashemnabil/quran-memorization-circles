@@ -90,13 +90,36 @@ export class AttendanceService {
     // One submission per circle per day. The form disappears in the UI too, but
     // this is the check that actually prevents a duplicate — a correction after
     // the fact goes through `updateRecord`, one student at a time.
-    const existing = await this.prisma.attendance.findFirst({
+    const existing = await this.prisma.attendance.findMany({
       where: { circleId: dto.circleId, date },
-      select: { id: true },
+      select: { studentId: true, status: true, note: true },
     });
-    if (existing) {
+    if (existing.length > 0) {
+      // A mobile client may lose the HTTP response after the transaction commits.
+      // Treat an exact replay of the same complete sheet as success, but never
+      // silently overwrite a sheet that has since changed.
+      const submitted = new Map(dto.entries.map((entry) => [
+        entry.studentId,
+        { status: entry.status, note: entry.status === AttendanceStatus.EXCUSED ? entry.note ?? null : null },
+      ]));
+      const identical =
+        existing.length === dto.entries.length &&
+        submitted.size === dto.entries.length &&
+        existing.every((row) => {
+          const candidate = submitted.get(row.studentId);
+          return !!candidate && candidate.status === row.status && candidate.note === row.note;
+        });
+      if (identical) {
+        return {
+          message: 'كشف الحضور محفوظ مسبقاً بنفس البيانات',
+          date: dto.date,
+          circleId: dto.circleId,
+          count: existing.length,
+          idempotentReplay: true,
+        };
+      }
       throw new BadRequestException(
-        'تم حفظ كشف حضور هذه الحلقة لهذا اليوم، ويمكن تعديل حضور أي طالب من سجل الحضور',
+        'تم حفظ كشف حضور هذه الحلقة لهذا اليوم ببيانات مختلفة، ويمكن تعديل حضور أي طالب من سجل الحضور',
       );
     }
 

@@ -116,7 +116,6 @@ export default function StudentDetailsPage() {
 
   const [tab, setTab] = useState('overview');
   const [modal, setModal] = useState<'evaluation' | 'note' | 'transfer' | 'suspend' | 'exam' | 'edit' | null>(null);
-  const [requestedSectionId, setRequestedSectionId] = useState<string | undefined>(undefined);
 
   const canManage = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(user.role);
 
@@ -373,8 +372,7 @@ export default function StudentDetailsPage() {
           onReject={(requestId, reason) => rejectRequest.mutate({ requestId, reason })}
           onDelete={deleteExam.mutate}
           canEditMilestones={user.role === 'ADMIN'}
-          onRequestExam={() => { setRequestedSectionId(undefined); setModal('exam'); }}
-          onRequestSection={(sectionId) => { setRequestedSectionId(sectionId); setModal('exam'); }}
+          onRequestExam={() => setModal('exam')}
           isPending={rejectRequest.isPending || deleteExam.isPending}
         />
       )}
@@ -436,7 +434,7 @@ export default function StudentDetailsPage() {
       {modal === 'transfer' && <TransferModal student={student} onClose={() => setModal(null)} />}
       {modal === 'suspend' && <SuspendModal student={student} onClose={() => setModal(null)} />}
       {modal === 'edit' && <EditStudentModal student={student} onClose={() => setModal(null)} />}
-      {modal === 'exam' && <StudentExamRequestModal student={student} initialSectionId={requestedSectionId} onClose={() => setModal(null)} />}
+      {modal === 'exam' && <StudentExamRequestModal student={student} onClose={() => setModal(null)} />}
     </>
   );
 }
@@ -636,7 +634,6 @@ function ExamsTabComponent({
   canManage,
   canEditMilestones,
   onRequestExam,
-  onRequestSection,
   onReject,
   onDelete,
   isPending
@@ -648,7 +645,6 @@ function ExamsTabComponent({
   canManage: boolean;
   canEditMilestones: boolean;
   onRequestExam: () => void;
-  onRequestSection: (sectionId: string) => void;
   onReject: (id: string, reason: string) => void;
   onDelete: (id: string) => void;
   isPending: boolean;
@@ -693,11 +689,7 @@ function ExamsTabComponent({
         </div>
       )}
 
-      <Card title="تسلسل اختبارات الأحزاب والأجزاء">
-        <p className="mb-3 text-sm text-slate-500">قدّم طلب الاختبار من هنا، حسب التسلسل المتاح للطالب.</p>
-        <Button size="sm" icon={<IconAward size={15} />} onClick={onRequestExam}>طلب اختبار</Button>
-      </Card>
-      <ExamProgressionTable studentId={studentId} canEditMilestones={canEditMilestones} canRequest={['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(useAuthStore.getState().user?.role ?? '')} onRequestSection={onRequestSection} eligibility={eligibility} exams={exams as any[]} loading={!eligibility} />
+      <ExamProgressionTable studentId={studentId} canEditMilestones={canEditMilestones} canRequest={['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(useAuthStore.getState().user?.role ?? '')} eligibility={eligibility} exams={exams as any[]} loading={!eligibility} />
 
       <Tabs tabs={examTabs} active={examSubTab} onChange={setExamSubTab} />
 
@@ -1778,9 +1770,9 @@ function PreparationModal({ student, onClose }: { student: Student; onClose: () 
 }
 
 
-function StudentExamRequestModal({ student, initialSectionId, onClose }: { student: Student; initialSectionId?: string; onClose: () => void }) {
+function StudentExamRequestModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [sectionIds, setSectionIds] = useState<string[]>(initialSectionId ? [initialSectionId] : []);
+  const [sectionIds, setSectionIds] = useState<string[]>([]);
   const [note, setNote] = useState('');
 
   const eligibilityQuery = useQuery({

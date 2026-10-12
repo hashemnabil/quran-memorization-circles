@@ -15,6 +15,11 @@
     "db:fresh": "npm --prefix backend run db:fresh",
     "db:reset": "npm --prefix backend run db:reset",
     "start:prod": "npm --prefix backend run start:prod",
-    "db:setup": "npm --prefix backend run db:setup"
+    "db:setup": "npm --prefix backend run db:setup",
+    "dev:all": "concurrently -k -n API,WEB -c blue,green \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "mobile:build": "npm --prefix frontend run build && npm --prefix frontend run mobile:sync"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
   }
 }

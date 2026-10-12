@@ -76,6 +76,7 @@ export default function App() {
         <Route index element={currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
+        <Route path="documents/:report" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
         <Route path="student-accounts" element={<RequireRole roles={['ADMIN']}><StudentAccountsPage /></RequireRole>} />
         <Route path="certificates-admin" element={<RequireRole roles={['ADMIN']}><CertificatesAdminPage /></RequireRole>} />
         <Route path="media-activities" element={<RequireRole roles={['ADMIN', 'SUPERVISOR']}><MediaActivitiesPage /></RequireRole>} />

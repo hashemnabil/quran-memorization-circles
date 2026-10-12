@@ -18,7 +18,9 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-800 font-sans antialiased;
+    @apply text-slate-800 font-sans antialiased;
+    background: linear-gradient(180deg, #f7faf8 0%, #f3f7f5 48%, #f8faf9 100%);
+    font-family: 'Cairo', 'Tajawal', 'Segoe UI', system-ui, sans-serif;
     font-feature-settings: 'kern';
     text-rendering: optimizeLegibility;
   }
@@ -69,11 +71,28 @@
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-slate-200/80 bg-white shadow-card;
+    @apply rounded-2xl border bg-white shadow-card;
+    border-color: #e3ebe6;
+    box-shadow: 0 2px 5px rgba(20, 64, 48, 0.025), 0 8px 24px rgba(20, 64, 48, 0.045);
+  }
+
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+    letter-spacing: -0.015em;
+  }
+
+  ::selection {
+    background: #d8f3e3;
+    color: #144030;
   }
 
   .card-hover {
-    @apply transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-card-hover;
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover;
+  }
+
+  .card-hover:hover {
+    border-color: #c7dfd1;
+    box-shadow: 0 8px 16px rgba(20, 64, 48, 0.06), 0 16px 32px rgba(20, 64, 48, 0.07);
   }
 
   .btn {
@@ -83,6 +102,7 @@
   }
   .btn-primary {
     @apply btn bg-primary-700 text-white hover:bg-primary-800 focus-visible:ring-primary-500 shadow-sm;
+    box-shadow: 0 3px 8px rgba(24, 99, 70, 0.16);
   }
   .btn-secondary {
     @apply btn bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 focus-visible:ring-slate-400;
@@ -101,14 +121,16 @@
   }
 
   .field {
-    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100 disabled:bg-slate-50 disabled:text-slate-500;
+    @apply w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100 disabled:bg-slate-50 disabled:text-slate-500;
+    border-color: #dce7e0;
   }
 
   .input {
-    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800
+    @apply w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-800
            placeholder:text-slate-400 transition
            focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100
            disabled:bg-slate-50 disabled:text-slate-500;
+    border-color: #dce7e0;
   }
   .label {
     @apply block text-sm font-semibold text-slate-700 mb-1.5;
@@ -122,7 +144,8 @@
   }
 
   .table-wrap {
-    @apply overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-card;
+    @apply overflow-x-auto rounded-2xl border bg-white shadow-card;
+    border-color: #e3ebe6;
     /* Momentum scrolling on touch devices when the table is wider than the screen. */
     -webkit-overflow-scrolling: touch;
   }
@@ -133,7 +156,9 @@
   }
   /* Alignment is inherited from `.table` so per-cell `text-center` utilities still win. */
   .table thead th {
-    @apply bg-slate-50 px-4 py-3 text-xs font-bold tracking-wide text-slate-500 whitespace-nowrap;
+    @apply px-4 py-3 text-xs font-bold tracking-wide whitespace-nowrap;
+    background: #f3f8f5;
+    color: #527063;
   }
   /*
    * Cells do not wrap by default: names and dates staying on one line keeps every

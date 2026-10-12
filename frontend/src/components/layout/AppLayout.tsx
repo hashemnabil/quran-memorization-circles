@@ -93,7 +93,7 @@ export default function AppLayout() {
    * full sidebar regardless of the desktop collapse preference.
    */
   const Sidebar = ({ rail }: { rail: boolean }) => (
-    <div className="flex h-full flex-col bg-primary-900 text-primary-50">
+    <div className="sidebar-shell flex h-full flex-col text-primary-50">
       <div
         className={cx(
           'flex items-center gap-3 border-b border-white/10 py-5',
@@ -165,15 +165,15 @@ export default function AppLayout() {
                       aria-label={item.label}
                       className={({ isActive }) =>
                         cx(
-                          'group relative flex items-center rounded-xl text-sm font-semibold transition',
+                          'sidebar-nav-item group relative flex items-center rounded-xl text-sm font-semibold transition',
                           rail ? 'justify-center px-0 py-3' : 'gap-3 px-3 py-2.5',
                           isActive
-                            ? 'bg-white/15 text-white shadow-sm'
+                            ? 'sidebar-nav-active text-white shadow-sm'
                             : 'text-primary-100/90 hover:bg-white/10 hover:text-white',
                         )
                       }
                     >
-                      <span className="relative shrink-0 opacity-90">
+                      <span className={cx("sidebar-nav-icon relative grid shrink-0 place-items-center rounded-lg", rail ? "h-10 w-10" : "h-9 w-9", isActive ? "sidebar-nav-icon-active" : "")}>
                         {item.icon}
                         {/* Collapsed rail has no room for a label, so the count becomes a dot. */}
                         {rail && count > 0 && (
@@ -263,8 +263,8 @@ export default function AppLayout() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
-          <div className="flex items-center gap-2 px-4 py-3 sm:gap-3 sm:px-6">
+        <header className="app-topbar sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+          <div className="flex items-center gap-2 px-4 py-3.5 sm:gap-3 sm:px-6">
             <button
               className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden"
               onClick={() => setDrawerOpen(true)}
@@ -365,7 +365,7 @@ export default function AppLayout() {
         {/* Sits directly under the header so it is seen on every page. */}
         <AnnouncementBar />
 
-        <main className="min-w-0 flex-1 p-4 sm:p-6">
+        <main className="min-w-0 flex-1 p-4 sm:p-7 lg:p-8">
           <Outlet />
         </main>
 

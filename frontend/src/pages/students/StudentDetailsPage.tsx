@@ -263,7 +263,7 @@ export default function StudentDetailsPage() {
               <Button variant="secondary" size="sm" icon={<IconPause size={15} />} onClick={() => setModal('suspend')}>
                 طلب إيقاف
               </Button>
-              <Button size="sm" icon={<IconAward size={15} />} onClick={() => { setModal(null); setTab('exams'); }}>
+              <Button size="sm" icon={<IconAward size={15} />} onClick={() => { setTab('exams'); setModal('exam'); }}>
                 طلب اختبار
               </Button>
             </>

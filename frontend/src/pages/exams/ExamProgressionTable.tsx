@@ -25,12 +25,14 @@ function sequence() {
   return rows;
 }
 
-export function ExamProgressionTable({ eligibility, exams, loading, studentId, canEditMilestones = false }: {
+export function ExamProgressionTable({ eligibility, exams, loading, studentId, canEditMilestones = false, canRequest = false, onRequestSection }: {
   eligibility?: ExamEligibility;
   exams: ExamRow[];
   loading?: boolean;
   studentId?: string;
   canEditMilestones?: boolean;
+  canRequest?: boolean;
+  onRequestSection?: (sectionId: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
       </div>
       <div className="table-wrap border-0 shadow-none">
         <table className="table">
-          <thead><tr><th>التسلسل</th><th>الحالة</th><th>العلامة</th><th>تاريخ الاختبار</th><th>الممتحن</th>{canEditMilestones && <th>إدارة</th>}</tr></thead>
+          <thead><tr><th>التسلسل</th><th>الحالة</th><th>العلامة</th><th>تاريخ الاختبار</th><th>الممتحن</th>{canRequest && <th>طلب اختبار</th>}{canEditMilestones && <th>إدارة</th>}</tr></thead>
           <tbody>
             {rows.map((row) => {
               const record = row.record;
@@ -119,6 +121,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
                 <td className="numeric">{score == null ? '—' : score}</td>
                 <td className="numeric">{row.related?.scheduledAt ? formatDateShort(row.related.scheduledAt) : record?.examDate ? formatDateShort(record.examDate) : record?.requestedAt ? formatDateShort(record.requestedAt) : '—'}</td>
                 <td>{row.related?.examiner?.fullName || row.related?.gradedBy?.fullName || record?.examinerName || '—'}</td>
+                {canRequest && <td>{row.section && row.unlocked && !row.passed && !row.pending && !row.requested ? <button className="btn btn-primary btn-sm" onClick={() => onRequestSection?.(row.section!.id)}>طلب اختبار</button> : <span className="text-xs text-slate-400">{row.passed ? 'مجتاز' : row.pending || row.requested ? 'طلب قائم' : 'حسب التسلسل'}</span>}</td>}
                 {canEditMilestones && <td>
                   {editing === row.key ? (
                     <div className="min-w-56 space-y-1">

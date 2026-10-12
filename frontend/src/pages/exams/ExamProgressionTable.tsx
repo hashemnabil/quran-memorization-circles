@@ -83,9 +83,10 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
       // The live request/exam is authoritative. Manual milestone rows can be stale
       // (e.g. NOT_REQUESTED after a request, or REQUESTED after scheduling).
       const liveCompleted = related?.status === 'COMPLETED' || related?.status === 'ABSENT';
+      const liveActive = related?.status === 'SCHEDULED' || request?.status === 'PENDING' || request?.status === 'SCHEDULED';
       const passed = liveCompleted
         ? related?.result === 'PASSED'
-        : record ? record.status === 'COMPLETED' : Boolean(section?.isPassed);
+        : liveActive ? false : record ? record.status === 'COMPLETED' : Boolean(section?.isPassed);
       const pending = related?.status === 'SCHEDULED' || request?.status === 'SCHEDULED' ||
         (!related && request?.status !== 'PENDING' && record?.status === 'SCHEDULED');
       const requested = !pending && !liveCompleted &&

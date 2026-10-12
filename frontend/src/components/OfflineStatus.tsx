@@ -75,7 +75,7 @@ export default function OfflineStatus() {
         <section dir="rtl" aria-label="التعديلات المحفوظة محلياً" className={`fixed inset-x-3 z-[99] mx-auto max-w-2xl rounded-xl border border-amber-200 bg-white p-4 shadow-lg ${online ? 'top-3' : 'top-12'}`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-bold text-slate-800">تعديلات تنتظر المزامنة ({operations.length})</h2>
-            <button type="button" onClick={() => void refresh()} className="rounded-lg border px-3 py-1 text-sm hover:bg-slate-50">تحديث الحالة</button>
+            <button type="button" onClick={() => { if (!navigator.onLine || !accountId) { void refresh(); return; } void syncOfflineOperations(accountId, replayOfflineOperation).then(async (report) => { if (report.applied > 0) { void queryClient.invalidateQueries({ queryKey: ['attendance'] }); void queryClient.invalidateQueries({ queryKey: ['dashboard'] }); } await refresh(); }).catch(() => void refresh()); }} className="rounded-lg border px-3 py-1 text-sm hover:bg-slate-50">محاولة المزامنة الآن</button>
           </div>
           <p className="mt-1 text-sm text-slate-600">تبقى البيانات على هذا الجهاز حتى تنجح المزامنة. لا تحذف بيانات التطبيق قبل مراجعة هذه العناصر.</p>
           <ul className="mt-3 max-h-64 space-y-2 overflow-auto">

@@ -117,6 +117,17 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      <section className="mb-6">
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-primary-700">مساحة العمل</p>
+            <h2 className="mt-1 text-lg font-extrabold text-slate-800">وصول سريع لأهم الأقسام</h2>
+          </div>
+          <span className="hidden text-xs text-slate-400 sm:block">اختصارات حسب صلاحيات حسابك</span>
+        </div>
+        <QuickAccess role={data.role} />
+      </section>
+
       {data.role === 'ADMIN' && <AdminDashboard data={data} />}
       {data.role === 'SUPERVISOR' && <SupervisorDashboard data={data} />}
       {data.role === 'TEACHER' && <TeacherDashboard data={data} />}
@@ -124,6 +135,70 @@ export default function DashboardPage() {
       {data.role === 'SUPPORT' && <SupportDashboard data={data} />}
       {data.role === 'PARENT' && <ParentDashboard data={data} />}
     </>
+  );
+}
+
+
+// --- role-aware quick access ------------------------------------------------
+
+function QuickAccess({ role }: { role: string }) {
+  const links = role === 'ADMIN' ? [
+    { to: '/circles', label: 'إدارة الحلقات', detail: 'الحلقات والمعلمون', icon: <IconCircleGroup size={21} />, tone: 'mint' },
+    { to: '/students', label: 'شؤون الطلاب', detail: 'الملفات والمتابعة', icon: <IconGraduation size={21} />, tone: 'blue' },
+    { to: '/attendance', label: 'الحضور والغياب', detail: 'متابعة الدوام اليومي', icon: <IconClipboard size={21} />, tone: 'amber' },
+    { to: '/exams', label: 'الاختبارات', detail: 'المواعيد والنتائج', icon: <IconAward size={21} />, tone: 'violet' },
+  ] : role === 'SUPERVISOR' ? [
+    { to: '/circles', label: 'حلقاتي', detail: 'متابعة الحلقات', icon: <IconCircleGroup size={21} />, tone: 'mint' },
+    { to: '/students', label: 'الطلاب', detail: 'الملفات والمتابعة', icon: <IconGraduation size={21} />, tone: 'blue' },
+    { to: '/attendance', label: 'الحضور والغياب', detail: 'مراجعة الحضور', icon: <IconClipboard size={21} />, tone: 'amber' },
+    { to: '/recitations', label: 'التسميع اليومي', detail: 'سجل التسميع', icon: <IconBook size={21} />, tone: 'violet' },
+  ] : role === 'TEACHER' ? [
+    { to: '/circles', label: 'حلقاتي', detail: 'معلومات الحلقة', icon: <IconCircleGroup size={21} />, tone: 'mint' },
+    { to: '/attendance', label: 'تسجيل الحضور', detail: 'حضور الطلاب اليومي', icon: <IconClipboard size={21} />, tone: 'blue' },
+    { to: '/recitations', label: 'التسميع اليومي', detail: 'متابعة الحفظ', icon: <IconBook size={21} />, tone: 'amber' },
+    { to: '/exams', label: 'الاختبارات', detail: 'المواعيد والنتائج', icon: <IconAward size={21} />, tone: 'violet' },
+  ] : role === 'EXAM_COMMITTEE' ? [
+    { to: '/exams', label: 'الاختبارات', detail: 'المواعيد والطلبات', icon: <IconAward size={21} />, tone: 'mint' },
+    { to: '/students', label: 'الطلاب', detail: 'الوصول لملفات الطلاب', icon: <IconGraduation size={21} />, tone: 'blue' },
+    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'amber' },
+    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconUsers size={21} />, tone: 'violet' },
+  ] : role === 'SUPPORT' ? [
+    { to: '/support', label: 'طلبات الدعم', detail: 'متابعة التذاكر', icon: <IconLifeBuoy size={21} />, tone: 'mint' },
+    { to: '/users', label: 'المستخدمون', detail: 'إدارة الحسابات', icon: <IconUsers size={21} />, tone: 'blue' },
+    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'amber' },
+    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconUsers size={21} />, tone: 'violet' },
+  ] : role === 'PARENT' ? [
+    { to: '/student', label: 'الملف الدراسي', detail: 'متابعة المستوى الدراسي', icon: <IconGraduation size={21} />, tone: 'mint' },
+    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'blue' },
+    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع المدرسة', icon: <IconUsers size={21} />, tone: 'amber' },
+    { to: '/support', label: 'الدعم الفني', detail: 'مساعدة ومتابعة الطلبات', icon: <IconLifeBuoy size={21} />, tone: 'violet' },
+  ] : [
+    { to: '/student', label: 'ملفي الدراسي', detail: 'متابعة تقدمك', icon: <IconGraduation size={21} />, tone: 'mint' },
+    { to: '/my-files', label: 'ملفاتي', detail: 'الملفات والشهادات', icon: <IconBook size={21} />, tone: 'blue' },
+    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'amber' },
+    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع المعلمين', icon: <IconUsers size={21} />, tone: 'violet' },
+  ];
+
+  const tones: Record<string, string> = {
+    mint: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+    blue: 'bg-sky-50 text-sky-700 ring-sky-100',
+    amber: 'bg-amber-50 text-amber-700 ring-amber-100',
+    violet: 'bg-violet-50 text-violet-700 ring-violet-100',
+  };
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {links.map((item) => (
+        <Link key={item.to} to={item.to} className="quick-access-card group flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-primary-200 hover:shadow-lg">
+          <span className={cx('grid h-12 w-12 shrink-0 place-items-center rounded-2xl ring-1 transition group-hover:scale-105', tones[item.tone])}>{item.icon}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-extrabold text-slate-800">{item.label}</span>
+            <span className="mt-1 block truncate text-xs text-slate-500">{item.detail}</span>
+          </span>
+          <span className="text-slate-300 transition group-hover:-translate-x-0.5 group-hover:text-primary-600" aria-hidden>←</span>
+        </Link>
+      ))}
+    </div>
   );
 }
 

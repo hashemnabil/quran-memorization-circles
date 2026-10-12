@@ -136,6 +136,12 @@ export default function StudentDetailsPage() {
     enabled: !!id && tab === 'history',
   });
 
+  const { data: studentExamRequests } = useQuery({
+    queryKey: ['exams', 'requests', id],
+    queryFn: async () => (await api.get('/exams/requests', { params: { studentId: id, limit: 50 } })).data,
+    enabled: !!id && tab === 'history',
+  });
+
   const { data: attendance } = useQuery({
     queryKey: ['attendance', { studentId: id }],
     queryFn: async () =>
@@ -175,18 +181,9 @@ export default function StudentDetailsPage() {
   });
 
   // Exam Requests mutations
-  const approveRequest = useMutation({
-    mutationFn: (requestId: string) => api.patch(`/exams/requests/${requestId}/approve`),
-    onSuccess: () => {
-      toast.success('تمت الموافقة على طلب الاختبار');
-      queryClient.invalidateQueries({ queryKey: ['exams'] });
-    },
-    onError: (error) => toast.error(apiError(error)),
-  });
-
   const rejectRequest = useMutation({
     mutationFn: ({ requestId, reason }: { requestId: string; reason: string }) =>
-      api.patch(`/exams/requests/${requestId}/reject`, { reason }),
+      api.patch(`/exams/requests/${requestId}/reject`, { reviewNote: reason }),
     onSuccess: () => {
       toast.success('تم رفض طلب الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
@@ -266,7 +263,7 @@ export default function StudentDetailsPage() {
               <Button variant="secondary" size="sm" icon={<IconPause size={15} />} onClick={() => setModal('suspend')}>
                 طلب إيقاف
               </Button>
-              <Button size="sm" icon={<IconAward size={15} />} onClick={() => setTab('exams')}>
+              <Button size="sm" icon={<IconAward size={15} />} onClick={() => { setTab('exams'); setModal('exam'); }}>
                 طلب اختبار
               </Button>
             </>
@@ -371,12 +368,11 @@ export default function StudentDetailsPage() {
           student={student}
           eligibility={eligibility} 
           exams={exams?.data ?? []} 
-          canManage={canManage}
-          onApprove={approveRequest.mutate}
+          canManage={['ADMIN', 'EXAM_COMMITTEE'].includes(user.role)}
           onReject={(requestId, reason) => rejectRequest.mutate({ requestId, reason })}
           onDelete={deleteExam.mutate}
           canEditMilestones={user.role === 'ADMIN'}
-          isPending={approveRequest.isPending || rejectRequest.isPending || deleteExam.isPending}
+          isPending={rejectRequest.isPending || deleteExam.isPending}
         />
       )}
       {tab === 'points' && <PointsTab student={student} canManage={canManage} />}
@@ -430,13 +426,14 @@ export default function StudentDetailsPage() {
           )}
         </Card>
       )}
-      {tab === 'history' && <HistoryTab history={history} />}
+      {tab === 'history' && <HistoryTab history={history} examRequests={studentExamRequests?.data ?? []} />}
 
       {modal === 'evaluation' && <EvaluationModal student={student} onClose={() => setModal(null)} />}
       {modal === 'note' && <NoteModal studentId={id} onClose={() => setModal(null)} />}
       {modal === 'transfer' && <TransferModal student={student} onClose={() => setModal(null)} />}
       {modal === 'suspend' && <SuspendModal student={student} onClose={() => setModal(null)} />}
       {modal === 'edit' && <EditStudentModal student={student} onClose={() => setModal(null)} />}
+      {modal === 'exam' && <StudentExamRequestModal student={student} onClose={() => setModal(null)} />}
     </>
   );
 }
@@ -635,7 +632,6 @@ function ExamsTabComponent({
   exams, 
   canManage,
   canEditMilestones,
-  onApprove,
   onReject,
   onDelete,
   isPending
@@ -646,7 +642,6 @@ function ExamsTabComponent({
   exams: any[];
   canManage: boolean;
   canEditMilestones: boolean;
-  onApprove: (id: string) => void;
   onReject: (id: string, reason: string) => void;
   onDelete: (id: string) => void;
   isPending: boolean;
@@ -669,7 +664,7 @@ function ExamsTabComponent({
   const requests = requestsData?.data || [];
   const scheduledExams = scheduledData?.data || [];
 
-  const [examSubTab, setExamSubTab] = useState('history');
+  const [examSubTab, setExamSubTab] = useState('requests');
 
   const examTabs = [
     { key: 'history', label: 'سجل الاختبارات' },
@@ -766,15 +761,6 @@ function ExamsTabComponent({
                       {canManage && request.status === 'PENDING' && (
                         <td>
                           <div className="flex items-center gap-1">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-emerald-600 hover:bg-emerald-50"
-                              onClick={() => onApprove(request.id)}
-                              loading={isPending}
-                            >
-                              <IconCheck size={16} />
-                            </Button>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -902,7 +888,7 @@ function ExamsTabComponent({
 // HISTORY TAB
 // ============================================================================
 
-function HistoryTab({ history }: { history: any }) {
+function HistoryTab({ history, examRequests }: { history: any; examRequests: any[] }) {
   if (!history) return <LoadingState rows={4} />;
 
   return (
@@ -973,6 +959,25 @@ function HistoryTab({ history }: { history: any }) {
           </ul>
         ) : (
           <EmptyState title="لا يوجد سجل تقييمات" />
+        )}
+      </Card>
+
+      <Card title="سجل طلبات الاختبار" padded={false}>
+        {examRequests.length ? (
+          <ul className="divide-y divide-slate-100">
+            {examRequests.map((request) => (
+              <li key={request.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">{describeExamSections(request.section, request.sections)}</p>
+                  <p className="numeric mt-1 text-[11px] text-slate-400">{formatDateShort(request.createdAt)}</p>
+                  {request.reviewNote && <p className="mt-1 text-xs text-slate-500">ملاحظة: {request.reviewNote}</p>}
+                </div>
+                <Badge className={getStatusColor(request.status)}>{getStatusLabel(request.status)}</Badge>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState title="لا توجد طلبات اختبار سابقة" icon={<IconClock size={24} />} />
         )}
       </Card>
 
@@ -1757,6 +1762,84 @@ function PreparationModal({ student, onClose }: { student: Student; onClose: () 
         value={form.note}
         onChange={(e) => set('note', e.target.value)}
       />
+    </Modal>
+  );
+}
+
+
+function StudentExamRequestModal({ student, onClose }: { student: Student; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [sectionIds, setSectionIds] = useState<string[]>([]);
+  const [note, setNote] = useState('');
+
+  const eligibilityQuery = useQuery({
+    queryKey: ['exams', 'eligibility', student.id],
+    queryFn: async () => (await api.get<ExamEligibility>(`/exams/eligibility/${student.id}`)).data,
+  });
+
+  const progression = eligibilityQuery.data?.progression ?? [];
+  const firstAvailable = progression.findIndex((item) => item.eligible);
+  const remaining = firstAvailable < 0 ? [] : progression.slice(firstAvailable);
+  const nextBlockEnd = remaining.findIndex((item) => item.isPassed || item.hasOpenRequest);
+  const selectable = nextBlockEnd < 0 ? remaining : remaining.slice(0, nextBlockEnd);
+
+  const mutation = useMutation({
+    mutationFn: () => api.post('/exams/requests', {
+      studentId: student.id,
+      sectionIds,
+      note: note || undefined,
+    }),
+    onSuccess: async () => {
+      toast.success('تم تقديم طلب الاختبار وحفظه');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['exams'] }),
+        queryClient.invalidateQueries({ queryKey: ['students', student.id] }),
+        queryClient.invalidateQueries({ queryKey: ['students', student.id, 'history'] }),
+      ]);
+      onClose();
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`طلب اختبار — ${student.fullName}`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>إلغاء</Button>
+          <Button
+            loading={mutation.isPending}
+            disabled={!sectionIds.length || eligibilityQuery.isLoading || !selectable.length}
+            onClick={() => mutation.mutate()}
+          >
+            تقديم الطلب ({sectionIds.length})
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-sm text-slate-500">اختر المقررات المطلوبة. سيُحفظ الطلب ويظهر في طلبات الاختبار بملف الطالب وقسم الاختبارات.</p>
+        {eligibilityQuery.isLoading ? <LoadingState rows={3} /> : !selectable.length ? (
+          <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">لا توجد مقررات متاحة للطلب حالياً. تحقق من تسلسل الاختبارات أو من وجود طلب قائم.</p>
+        ) : (
+          <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2">
+            {selectable.map((item) => (
+              <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={sectionIds.includes(item.id)}
+                  onChange={(event) => setSectionIds((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))}
+                />
+                <span>{item.name}</span>
+                <span className="mr-auto text-xs text-slate-400">{item.kind === 'HIZB' ? 'حزب' : 'جزء'}</span>
+              </label>
+            ))}
+          </div>
+        )}
+        <Textarea label="ملاحظات (اختياري)" value={note} onChange={(event) => setNote(event.target.value)} />
+      </div>
     </Modal>
   );
 }

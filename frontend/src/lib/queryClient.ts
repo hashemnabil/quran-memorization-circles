@@ -1,15 +1,34 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryCache, QueryClient } from '@tanstack/react-query';
+
+let queryClient: QueryClient;
 
 /**
- * The app's single query cache.
- *
- * It lives here rather than inside `main.tsx` so the auth store can empty it
- * when the account changes. Every cached answer belongs to whoever was signed
- * in when it was fetched — the announcements addressed to them, their students,
- * their conversations — so carrying it across a sign-in shows one user another
- * user's data until the entry goes stale.
+ * Preserve an already-cached result when a request fails without a network
+ * response. This lets screens continue rendering their last successful read
+ * instead of replacing it with an error screen while the device is offline.
+ * Mutations are not affected and must never be treated as successful offline.
  */
-export const queryClient = new QueryClient({
+const queryCache = new QueryCache({
+  onError: (error, query) => {
+    const hasCachedData = query.state.data !== undefined;
+    const noNetworkResponse = typeof navigator !== 'undefined' && (
+      !navigator.onLine || !(error as { response?: unknown } | null)?.response
+    );
+    if (hasCachedData && noNetworkResponse) {
+      const key = query.queryKey;
+      const cachedData = query.state.data;
+      queueMicrotask(() => {
+        // Only restore if this query still exists and still has cached data.
+        if (queryClient.getQueryData(key) !== undefined) {
+          queryClient.setQueryData(key, cachedData);
+        }
+      });
+    }
+  },
+});
+
+queryClient = new QueryClient({
+  queryCache,
   defaultOptions: {
     queries: {
       retry: (failureCount, error: any) => {
@@ -28,3 +47,5 @@ export const queryClient = new QueryClient({
 export function resetQueryCache() {
   queryClient.clear();
 }
+
+export { queryClient };

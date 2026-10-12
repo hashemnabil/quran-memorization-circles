@@ -574,6 +574,51 @@ export class StudentsService {
   }
 
 
+  async importStudentsWithAccounts(actor: AuthUser, rows: Array<Record<string, string>>) {
+    if (actor.role !== Role.ADMIN) throw new ForbiddenException('استيراد الطلاب متاح للإدارة فقط');
+    const results: Array<{ row: number; fullName: string; code?: string; username?: string; temporaryPassword?: string; error?: string }> = [];
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      try {
+        if (!row.fullName) throw new BadRequestException('اسم الطالب مطلوب');
+        if (!row.nationalId) throw new BadRequestException('رقم هوية الطالب مطلوب لإنشاء اسم المستخدم');
+        if (row.gender && !['MALE', 'FEMALE'].includes(row.gender)) throw new BadRequestException('الجنس يجب أن يكون MALE أو FEMALE');
+        let circleId: string | undefined;
+        if (row.circleCode) {
+          const circle = await this.prisma.circle.findFirst({ where: { code: row.circleCode, deletedAt: null }, select: { id: true } });
+          if (!circle) throw new BadRequestException(`رمز الحلقة غير موجود: ${row.circleCode}`);
+          circleId = circle.id;
+        }
+        const created = await this.create(actor, {
+          fullName: row.fullName,
+          nationalId: row.nationalId,
+          fatherNationalId: row.fatherNationalId || undefined,
+          birthDate: row.birthDate || undefined,
+          gender: (row.gender || undefined) as any,
+          phone: row.phone || undefined,
+          address: row.address || undefined,
+          guardianName: row.guardianName || undefined,
+          guardianPhone: row.guardianPhone || undefined,
+          guardianRelation: row.guardianRelation || undefined,
+          circleId,
+          notes: row.notes || undefined,
+          createAccount: true,
+        } as CreateStudentDto);
+        results.push({ row: index + 2, fullName: created.fullName, code: created.code,
+          username: created.accountCredentials?.username, temporaryPassword: created.accountCredentials?.temporaryPassword });
+      } catch (error: any) {
+        const message = error?.response?.message || error?.message || 'تعذر استيراد الصف';
+        results.push({ row: index + 2, fullName: row.fullName || '(بدون اسم)', error: Array.isArray(message) ? message.join('، ') : message });
+      }
+    }
+    const imported = results.filter((item) => !item.error);
+    await this.activity.log({ userId: actor.id, action: 'STUDENT_EXCEL_IMPORT',
+      summary: `استيراد ${imported.length} طالب من ملف Excel`, entityType: 'Student',
+      metadata: { imported: imported.length, failed: results.length - imported.length } });
+    return { total: rows.length, imported: imported.length, failed: results.length - imported.length, results,
+      credentials: imported.map(({ fullName, code, username, temporaryPassword }) => ({ fullName, code, username, temporaryPassword })) };
+  }
+
   async listAccounts() {
     const students = await this.prisma.student.findMany({
       where: { deletedAt: null, userId: { not: null } },

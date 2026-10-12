@@ -41,6 +41,7 @@ export default function ReportsPage() {
  const [studentId,setStudentId]=useState('');
  const [search,setSearch]=useState('');
  const [status,setStatus]=useState(searchParams.get('status') ?? '');
+ const [track]=useState(searchParams.get('track') ?? '');
  const [evaluation,setEvaluation]=useState('');
  const [refresh,setRefresh]=useState(0);
  const {data:circles=[]}=useQuery({queryKey:['reports','circles-options'],queryFn:async()=> (await api.get<any[]>('/circles/options')).data});
@@ -49,7 +50,7 @@ export default function ReportsPage() {
  const coursesErrorMessage=apiError(coursesQueryError,'تعذّر تحميل قائمة الدورات.');
  const {data:students}=useQuery({queryKey:['reports','students'],queryFn:async()=> (await api.get<any>('/students',{params:{limit:100}})).data});
  const {data:teachers}=useQuery({queryKey:['reports','teachers'],queryFn:async()=> (await api.get<any>('/teachers',{params:{limit:100}})).data,enabled:user?.role==='ADMIN'||user?.role==='SUPERVISOR'});
- const params=useMemo(()=>({type,from:from||undefined,to:to||undefined,circleId:circleId||undefined,courseId:courseId||undefined,teacherId:teacherId||undefined,studentId:studentId||undefined,search:search||undefined,status:status||undefined,evaluation:evaluation||undefined,_refresh:refresh}),[type,from,to,circleId,courseId,teacherId,studentId,search,status,evaluation,refresh]);
+ const params=useMemo(()=>({type,from:from||undefined,to:to||undefined,circleId:circleId||undefined,courseId:courseId||undefined,teacherId:teacherId||undefined,studentId:studentId||undefined,search:search||undefined,status:status||undefined,track:track||undefined,evaluation:evaluation||undefined,_refresh:refresh}),[type,from,to,circleId,courseId,teacherId,studentId,search,status,track,evaluation,refresh]);
  const {data,isLoading,isError,error}=useQuery({queryKey:['reports',params],queryFn:async()=> (await api.get<ReportData>('/reports',{params})).data, enabled:(type!=='student'||!!studentId)&&(!['courseStudents','courseAttendance'].includes(type)||!!courseId)});
  const reportError=(()=>{const err=error as {response?:{status?:number;data?:{message?:string|string[]}};message?:string}|null; const message=err?.response?.data?.message; if(Array.isArray(message)) return message.join('، '); if(message) return message; if(err?.response?.status) return `فشل تحميل التقرير (HTTP ${err.response.status}).`; return 'تعذّر الاتصال بالخادم. تحقق من الاتصال وحاول مجددًا.';})();
  const statLabels: Record<string,string> = { total:'إجمالي السجلات', present:'الحضور', absent:'الغياب', excused:'الغياب بعذر', pages:'مجموع الصفحات', points:'مجموع النقاط', students:'عدد الطلاب', passed:'ناجح', failed:'راسب', average:'متوسط العلامات', circles:'عدد الحلقات', attendance:'سجلات الحضور', recitations:'سجلات التسميع', active:'منتظمون', suspended:'موقوفون', activity:'برنامج النشاط' };
@@ -95,7 +96,7 @@ export default function ReportsPage() {
   }
  };
  return <div dir="rtl" className="space-y-6">
-  <PageHeader title={status==='SUSPENDED'?'سجل طلاب المفصولين':status==='ACTIVITY'?'سجل طلاب النشاط':status==='ACTIVE'?'سجل طلاب التحفيظ':'التقارير والمستندات'} subtitle="حدد الفترة والفلاتر المطلوبة، ثم اعرض التقرير أو صدّره إلى Excel." />
+  <PageHeader title={status==='SUSPENDED'?'سجل طلاب المفصولين':status==='ACTIVITY'?'سجل طلاب النشاط':track==='CIRCLE'?'سجل طلاب التحفيظ':status==='ACTIVE'?'سجل طلاب التحفيظ':'التقارير والمستندات'} subtitle="حدد الفترة والفلاتر المطلوبة، ثم اعرض التقرير أو صدّره إلى Excel." />
   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{reports.map(r=><button key={r.id} onClick={()=>setType(r.id)} className={`rounded-2xl border p-4 text-right transition hover:-translate-y-0.5 hover:shadow-md ${type===r.id?'border-primary-700 bg-primary-50 ring-1 ring-primary-700':'border-slate-200 bg-white'}`}><span className="mb-2 inline-flex rounded-xl bg-primary-100 p-2 text-primary-800"><IconClipboard size={20}/></span><div className="font-bold text-slate-900">{r.title}</div><p className="mt-1 text-sm text-slate-500">{r.description}</p></button>)}</div>
   <Card><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
    {!['circles','students','courses','courseStudents'].includes(type)&&<label className="text-sm font-semibold text-slate-700">من تاريخ<input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-2.5"/></label>}

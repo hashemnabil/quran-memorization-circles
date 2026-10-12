@@ -677,8 +677,10 @@ export class ExamsService {
       where: { studentId_sectionId: { studentId, sectionId } },
       select: { status: true, result: true },
     });
-    const effectivelyPassed = manualRecord
-      ? manualRecord.status === 'COMPLETED' && manualRecord.result !== ExamResult.FAILED
+    // A stale REQUESTED/SCHEDULED/NOT_REQUESTED manual row must not erase a
+    // real passing exam. Only an explicit manual completion overrides it.
+    const effectivelyPassed = manualRecord?.status === 'COMPLETED'
+      ? manualRecord.result !== ExamResult.FAILED
       : Boolean(alreadyPassed);
     if (effectivelyPassed) {
       throw new ConflictException(`الطالب اجتاز "${section.name}" مسبقاً`);

@@ -26,7 +26,7 @@ export const HIZB_SECTIONS = Array.from({ length: 60 }, (_, i) => {
   return {
     code: `HIZB-${String(hizb).padStart(2, '0')}`,
     name: `الحزب ${hizb}`,
-    order: hizb,
+    order: (Math.floor((60 - hizb) / 2) * 3) + ((60 - hizb) % 2) + 1,
     kind: ExamSectionKind.HIZB,
     pagesCount: 10,
     minScore: 60,
@@ -34,6 +34,22 @@ export const HIZB_SECTIONS = Array.from({ length: 60 }, (_, i) => {
     description: `اختبار حفظ وإتقان الحزب ${hizb} (من الجزء ${Math.ceil(hizb / 2)})`,
   };
 });
+
+const JUZ_SECTIONS = Array.from({ length: 30 }, (_, i) => {
+  const juz = i + 1;
+  return {
+    code: `JUZ-${String(juz).padStart(2, '0')}`,
+    name: `الجزء ${juz}`,
+    order: (30 - juz) * 3 + 3,
+    kind: ExamSectionKind.JUZ,
+    pagesCount: 20,
+    minScore: 60,
+    isRequired: true,
+    description: `اختبار حفظ وإتقان الجزء ${juz}`,
+  };
+});
+
+export const EXAM_SECTIONS = [...HIZB_SECTIONS, ...JUZ_SECTIONS];
 
 export interface BaselineResult {
   username: string;
@@ -67,7 +83,7 @@ export async function createBaseline(prisma: PrismaClient): Promise<BaselineResu
 
   const existingSections = await prisma.examSection.count();
   if (existingSections === 0) {
-    await prisma.examSection.createMany({ data: HIZB_SECTIONS });
+    await prisma.examSection.createMany({ data: EXAM_SECTIONS });
   }
 
   return { username: admin.username, sections: await prisma.examSection.count() };

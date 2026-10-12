@@ -230,7 +230,15 @@ export interface Student {
     code: string;
     supervisor?: { id: string; fullName: string } | null;
   } | null;
-  parentProfile?: { id: string; phone?: string | null; user: { id: string; fullName: string } } | null;
+  parentProfile?: {
+    id: string;
+    nationalId?: string | null;
+    phone?: string | null;
+    altPhone?: string | null;
+    address?: string | null;
+    occupation?: string | null;
+    user: { id: string; fullName: string; username?: string; phone?: string | null; email?: string | null };
+  } | null;
   teacherName?: string | null;
   teacherId?: string | null;
   supervisorName?: string | null;

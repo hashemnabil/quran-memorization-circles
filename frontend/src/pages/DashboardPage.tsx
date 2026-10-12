@@ -164,11 +164,11 @@ function QuickAccess({ role }: { role: string }) {
     { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconUsers size={21} />, tone: 'violet' },
   ] : role === 'SUPPORT' ? [
     { to: '/support', label: 'طلبات الدعم', detail: 'متابعة التذاكر', icon: <IconLifeBuoy size={21} />, tone: 'mint' },
-    { to: '/users', label: 'المستخدمون', detail: 'إدارة الحسابات', icon: <IconUsers size={21} />, tone: 'blue' },
-    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'amber' },
+    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'blue' },
+    { to: '/profile', label: 'الملف الشخصي', detail: 'بيانات حسابك', icon: <IconUsers size={21} />, tone: 'amber' },
     { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconUsers size={21} />, tone: 'violet' },
   ] : role === 'PARENT' ? [
-    { to: '/student', label: 'الملف الدراسي', detail: 'متابعة المستوى الدراسي', icon: <IconGraduation size={21} />, tone: 'mint' },
+    { to: '/profile', label: 'الملف الشخصي', detail: 'بيانات حسابك', icon: <IconGraduation size={21} />, tone: 'mint' },
     { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'blue' },
     { to: '/chat', label: 'المحادثات', detail: 'التواصل مع المدرسة', icon: <IconUsers size={21} />, tone: 'amber' },
     { to: '/support', label: 'الدعم الفني', detail: 'مساعدة ومتابعة الطلبات', icon: <IconLifeBuoy size={21} />, tone: 'violet' },

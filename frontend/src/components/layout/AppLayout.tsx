@@ -141,9 +141,7 @@ export default function AppLayout() {
           <div key={group.title} className="mb-5">
             {rail ? (
               <div className="mx-auto mb-2 h-px w-8 bg-white/10" aria-hidden />
-            ) : group.title === 'الرئيسية' || group.title === 'الملف الشخصي' ? (
-              <div className="mb-2 px-3 py-1 text-[11px] font-bold tracking-wide text-primary-300/90">{group.title}</div>
-            ) : (
+            ) : group.title === 'الرئيسية' || group.title === 'الملف الشخصي' ? null : (
               <button
                 type="button"
                 className="mb-2 flex w-full items-center justify-between rounded-lg px-3 py-2 text-right text-[11px] font-bold tracking-wide text-primary-300/90 transition hover:bg-white/5 hover:text-white"

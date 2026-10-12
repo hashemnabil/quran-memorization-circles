@@ -73,7 +73,7 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <>
-        <PageHeader title="لوحة المعلومات" subtitle="جارٍ تحميل البيانات..." />
+        <PageHeader title="الرئيسية" subtitle="جارٍ تجهيز ملخص اليوم..." />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="card h-24 animate-pulse" />
@@ -92,7 +92,7 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader
-        title="لوحة المعلومات"
+        title="الرئيسية"
         subtitle={greeting}
         action={
           <Badge className="bg-primary-50 text-primary-700">
@@ -100,6 +100,21 @@ export default function DashboardPage() {
           </Badge>
         }
       />
+
+      <section className="relative mb-5 overflow-hidden rounded-2xl border border-primary-800/10 bg-gradient-to-l from-primary-900 via-primary-800 to-primary-700 px-5 py-6 text-white shadow-card sm:px-7 sm:py-7">
+        <div className="pointer-events-none absolute -left-8 -top-10 h-40 w-40 rounded-full border-[24px] border-white/5" aria-hidden />
+        <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
+          <div className="max-w-2xl">
+            <p className="mb-2 text-xs font-bold tracking-wide text-primary-200">نظام إدارة حلقات تحفيظ القرآن الكريم</p>
+            <h2 className="text-xl font-extrabold leading-relaxed sm:text-2xl">أهلاً وسهلاً، {user.fullName}</h2>
+            <p className="mt-1.5 text-sm leading-6 text-primary-100/90">من هون بتقدر تتابع أهم المعلومات وتوصل بسرعة للأقسام اللي بتستخدمها.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/support" className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-bold transition hover:bg-white/20"><IconLifeBuoy size={17} /> الدعم الفني</Link>
+            <Link to="/notifications" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-bold text-primary-900 transition hover:bg-primary-50"><IconCalendar size={17} /> الإشعارات</Link>
+          </div>
+        </div>
+      </section>
 
       {data.role === 'ADMIN' && <AdminDashboard data={data} />}
       {data.role === 'SUPERVISOR' && <SupervisorDashboard data={data} />}

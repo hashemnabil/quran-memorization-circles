@@ -20,6 +20,20 @@
   body {
     @apply bg-slate-50 text-slate-800 font-sans antialiased;
     font-feature-settings: 'kern';
+    text-rendering: optimizeLegibility;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid #2b9a6b;
+    outline-offset: 2px;
   }
 
   /* Slim, unobtrusive scrollbars that match the palette. */
@@ -55,11 +69,11 @@
 
 @layer components {
   .card {
-    @apply bg-white rounded-2xl shadow-card border border-slate-100;
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-card;
   }
 
   .card-hover {
-    @apply transition-shadow duration-200 hover:shadow-card-hover;
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-card-hover;
   }
 
   .btn {

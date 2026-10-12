@@ -145,6 +145,10 @@ export default function ChatPage() {
       );
     };
     const onEdited = () => queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
+    const onRead = () => {
+      queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', id] });
+      queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
+    };
     const onConversationUpdated = () => {
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
@@ -152,10 +156,12 @@ export default function ChatPage() {
 
     socket.on('typing', onTyping);
     socket.on('chat:message-edited', onEdited);
+    socket.on('chat:read', onRead);
     socket.on('chat:conversation-updated', onConversationUpdated);
     return () => {
       socket.off('typing', onTyping);
       socket.off('chat:message-edited', onEdited);
+      socket.off('chat:read', onRead);
       socket.off('chat:conversation-updated', onConversationUpdated);
     };
   }, [id, user.id, queryClient]);
@@ -209,6 +215,8 @@ export default function ChatPage() {
   const filtered = conversations?.filter((c) => c.title.toLowerCase().includes(search.toLowerCase())) ?? [];
   const isGroup = active?.type === 'GROUP';
   const canModerate = !!active?.isAdmin;
+  const otherMember = active?.type === 'DIRECT' ? active.members?.find((member) => member.user.id !== user.id) : undefined;
+  const otherLastReadAt = otherMember?.lastReadAt ? new Date(otherMember.lastReadAt).getTime() : 0;
 
   return (
     <>
@@ -409,6 +417,11 @@ export default function ChatPage() {
                           <p className={cx('mt-1 text-[10px] text-slate-400', mine && 'text-left')}>
                             {timeAgo(message.createdAt)}
                             {message.editedAt && <span className="mr-1">• مُعدَّلة</span>}
+                            {mine && active?.type === 'DIRECT' && (
+                              <span className={cx('mr-1', otherLastReadAt >= new Date(message.createdAt).getTime() ? 'font-semibold text-sky-600' : 'text-slate-400')}>
+                                • {otherLastReadAt >= new Date(message.createdAt).getTime() ? 'تمت المشاهدة' : 'تم الإرسال'}
+                              </span>
+                            )}
                           </p>
                         </div>
 

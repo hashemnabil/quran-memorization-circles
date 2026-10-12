@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
@@ -29,10 +29,17 @@ const reports: {id:ReportType;title:string;description:string}[] = [
 ];
 export default function ReportsPage() {
  const user=useAuthStore(s=>s.user);
+ const location=useLocation();
  const [searchParams]=useSearchParams();
+ const documentSlug=location.pathname.startsWith('/documents/')?location.pathname.split('/').pop()??null:null;
+ const documentConfig: Record<string,{type:ReportType;title:string;status?:string;track?:string}> = {
+  attendance:{type:'attendance',title:'تقرير الحضور والغياب'}, recitations:{type:'recitations',title:'تقرير التسميع اليومي'}, exams:{type:'exams',title:'تقرير الاختبارات والنتائج'}, student:{type:'student',title:'الملف الشامل للطالب'}, circles:{type:'circles',title:'إحصائية الحلقات والمحفظين'}, students:{type:'students',title:'سجل الطلاب'}, 'memorization-students':{type:'students',title:'سجل طلاب التحفيظ',track:'CIRCLE'}, 'activity-students':{type:'students',title:'سجل طلاب النشاط',status:'ACTIVITY'}, 'suspended-students':{type:'students',title:'سجل طلاب المفصولين',status:'SUSPENDED'}, 'course-students':{type:'courseStudents',title:'سجل طلاب الدورات'}, courses:{type:'courses',title:'حلقات الدورات'}, 'course-attendance':{type:'courseAttendance',title:'حضور وغياب الدورات'}
+ };
+ const documentPage=documentSlug?documentConfig[documentSlug]:undefined;
  const initialType=searchParams.get('type') as ReportType | null;
  const validTypes: ReportType[]=['attendance','recitations','exams','student','circles','students','courses','courseStudents','courseAttendance'];
- const [type,setType]=useState<ReportType>(initialType && validTypes.includes(initialType)?initialType:'attendance');
+ const [type,setType]=useState<ReportType>(documentPage?.type ?? (initialType && validTypes.includes(initialType)?initialType:'attendance'));
+ useEffect(()=>{if(documentPage){setType(documentPage.type);setStatus(documentPage.status??'');setTrack(documentPage.track??'');}},[location.pathname]);
  const [from,setFrom]=useState('');
  const [to,setTo]=useState('');
  const [circleId,setCircleId]=useState('');
@@ -40,8 +47,8 @@ export default function ReportsPage() {
  const [teacherId,setTeacherId]=useState('');
  const [studentId,setStudentId]=useState('');
  const [search,setSearch]=useState('');
- const [status,setStatus]=useState(searchParams.get('status') ?? '');
- const [track]=useState(searchParams.get('track') ?? '');
+ const [status,setStatus]=useState(documentPage?.status ?? searchParams.get('status') ?? '');
+ const [track,setTrack]=useState(documentPage?.track ?? searchParams.get('track') ?? '');
  const [evaluation,setEvaluation]=useState('');
  const [refresh,setRefresh]=useState(0);
  const {data:circles=[]}=useQuery({queryKey:['reports','circles-options'],queryFn:async()=> (await api.get<any[]>('/circles/options')).data});
@@ -96,8 +103,8 @@ export default function ReportsPage() {
   }
  };
  return <div dir="rtl" className="space-y-6">
-  <PageHeader title={status==='SUSPENDED'?'سجل طلاب المفصولين':status==='ACTIVITY'?'سجل طلاب النشاط':track==='CIRCLE'?'سجل طلاب التحفيظ':status==='ACTIVE'?'سجل طلاب التحفيظ':'التقارير والمستندات'} subtitle="حدد الفترة والفلاتر المطلوبة، ثم اعرض التقرير أو صدّره إلى Excel." />
-  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{reports.map(r=><button key={r.id} onClick={()=>setType(r.id)} className={`rounded-2xl border p-4 text-right transition hover:-translate-y-0.5 hover:shadow-md ${type===r.id?'border-primary-700 bg-primary-50 ring-1 ring-primary-700':'border-slate-200 bg-white'}`}><span className="mb-2 inline-flex rounded-xl bg-primary-100 p-2 text-primary-800"><IconClipboard size={20}/></span><div className="font-bold text-slate-900">{r.title}</div><p className="mt-1 text-sm text-slate-500">{r.description}</p></button>)}</div>
+  <PageHeader title={documentPage?.title ?? (status==='SUSPENDED'?'سجل طلاب المفصولين':status==='ACTIVITY'?'سجل طلاب النشاط':track==='CIRCLE'?'سجل طلاب التحفيظ':status==='ACTIVE'?'سجل طلاب التحفيظ':'التقارير والمستندات')} subtitle="حدد الفترة من وإلى، ثم صدّر المستند المطلوب إلى Excel." />
+  {!documentPage && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{reports.map(r=><button key={r.id} onClick={()=>setType(r.id)} className={`rounded-2xl border p-4 text-right transition hover:-translate-y-0.5 hover:shadow-md ${type===r.id?'border-primary-700 bg-primary-50 ring-1 ring-primary-700':'border-slate-200 bg-white'}`}><span className="mb-2 inline-flex rounded-xl bg-primary-100 p-2 text-primary-800"><IconClipboard size={20}/></span><div className="font-bold text-slate-900">{r.title}</div><p className="mt-1 text-sm text-slate-500">{r.description}</p></button>)}</div>}
   <Card><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
    {<label className="text-sm font-semibold text-slate-700">من تاريخ<input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-2.5"/></label>}
    {<label className="text-sm font-semibold text-slate-700">إلى تاريخ<input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-2.5"/></label>}
@@ -111,7 +118,7 @@ export default function ReportsPage() {
    <div className="flex items-end gap-2"><Button onClick={()=>setRefresh(v=>v+1)}>تحديث التقرير</Button><Button variant="secondary" onClick={exportReport} disabled={(type==='student'&&!studentId)||(['courseStudents','courseAttendance'].includes(type)&&!courseId)}>تصدير Excel</Button></div>
   </div></Card>
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{statEntries.map(([key,value])=><StatCard key={key} label={key} value={value}/>)}</div>
-  <Card><div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-bold text-slate-900">{status==='SUSPENDED'?'سجل طلاب المفصولين':status==='ACTIVITY'?'سجل طلاب النشاط':status==='ACTIVE'?'سجل طلاب التحفيظ':reports.find(r=>r.id===type)?.title}</h2><span className="text-sm text-slate-500">{rows.length} سجل</span></div>
+  <Card><div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-bold text-slate-900">{documentPage?.title ?? (status==='SUSPENDED'?'سجل طلاب المفصولين':status==='ACTIVITY'?'سجل طلاب النشاط':track==='CIRCLE'?'سجل طلاب التحفيظ':status==='ACTIVE'?'سجل طلاب التحفيظ':reports.find(r=>r.id===type)?.title)}</h2><span className="text-sm text-slate-500">{rows.length} سجل</span></div>
    {isLoading?<p className="p-8 text-center text-slate-500">جارٍ تحميل التقرير…</p>:isError?<p className="p-8 text-center text-red-600">{reportError}</p>:type==='student'&&!studentId?<p className="p-8 text-center text-slate-500">اختر طالبًا لعرض ملفه الشامل.</p>:(['courseStudents','courseAttendance'].includes(type)&&!courseId)?<p className="p-8 text-center text-slate-500">اختر الدورة أولاً لعرض التقرير.</p>:!rows.length?<p className="p-8 text-center text-slate-500">لا توجد نتائج للفلاتر المحددة.</p>:<div className="overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="bg-slate-50 text-right">{columns.map(c=><th key={c} className="whitespace-nowrap px-4 py-3 font-bold text-slate-600">{formatReportValue(c)}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i} className="border-t border-slate-100">{columns.map(c=><td key={c} className="whitespace-nowrap px-4 py-3 text-slate-700">{formatReportValue(row[c])}</td>)}</tr>)}</tbody></table></div>}
   </Card>
  </div>;

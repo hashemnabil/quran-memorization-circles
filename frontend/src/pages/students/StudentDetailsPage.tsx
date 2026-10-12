@@ -487,6 +487,27 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
         <InfoRow label="المشرف" value={student.supervisorName} />
       </Card>
 
+      <Card title="بيانات ولي الأمر" className="lg:col-span-1">
+        <InfoRow
+          label="اسم ولي الأمر"
+          value={student.guardianName ?? student.parentName ?? student.parentProfile?.user.fullName}
+        />
+        <InfoRow
+          label="رقم الهوية"
+          value={<span className="numeric" dir="ltr">{student.fatherNationalId ?? student.parentProfile?.nationalId}</span>}
+        />
+        <InfoRow
+          label="رقم الجوال"
+          value={<span dir="ltr">{student.guardianPhone ?? student.parentPhone ?? student.parentProfile?.phone ?? student.parentProfile?.user.phone}</span>}
+        />
+        <InfoRow label="جوال إضافي" value={<span dir="ltr">{student.parentProfile?.altPhone}</span>} />
+        <InfoRow label="صلة القرابة" value={student.guardianRelation} />
+        <InfoRow label="المهنة" value={student.parentProfile?.occupation} />
+        <InfoRow label="العنوان" value={student.parentProfile?.address} />
+        <InfoRow label="البريد الإلكتروني" value={student.parentProfile?.user.email} />
+        <InfoRow label="اسم المستخدم" value={student.parentProfile?.user.username} />
+      </Card>
+
       <Card title="المستوى والتقييم" className="lg:col-span-1">
         <div className="mb-4">
           <div className="mb-1.5 flex items-center justify-between text-xs">

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { api, tokenStore } from '@/lib/api';
 import { clearHeartbeat, expireStaleSession } from '@/lib/session';
 import { resetQueryCache } from '@/lib/queryClient';
+import { clearPersistedQueryCache } from '@/lib/offline/queryCache';
 import type { AuthUser, Role } from '@/types';
 
 interface AuthState {
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   async logout() {
+    const accountId = get().user?.id ?? '';
     try {
       await api.post('/auth/logout', { refreshToken: tokenStore.refresh() });
     } catch {
@@ -34,6 +36,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Nothing the previous account loaded may survive into the next session.
     resetQueryCache();
     set({ user: null, status: 'unauthenticated' });
+    // Explicit logout removes cached private reads for this account from this device.
+    await clearPersistedQueryCache(accountId).catch(() => undefined);
   },
 
   async loadSession() {

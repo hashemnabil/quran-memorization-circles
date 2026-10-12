@@ -458,6 +458,8 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
       <Card title="البيانات الشخصية" className="lg:col-span-1">
         <InfoRow label="رقم الطالب" value={<span className="numeric">{student.code}</span>} />
         <InfoRow label="تاريخ الميلاد" value={formatDate(student.birthDate)} />
+        <InfoRow label="البريد الإلكتروني" value={student.parentProfile?.user.email} />
+        <InfoRow label="اسم المستخدم" value={student.parentProfile?.user.username} />
         <InfoRow label="العمر" value={calcAge(student.birthDate)} />
         <InfoRow label="رقم الهوية" value={<span className="numeric" dir="ltr">{student.nationalId}</span>} />
         <InfoRow label="العنوان" value={student.address} />
@@ -504,8 +506,6 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
         <InfoRow label="صلة القرابة" value={student.guardianRelation} />
         <InfoRow label="المهنة" value={student.parentProfile?.occupation} />
         <InfoRow label="العنوان" value={student.parentProfile?.address} />
-        <InfoRow label="البريد الإلكتروني" value={student.parentProfile?.user.email} />
-        <InfoRow label="اسم المستخدم" value={student.parentProfile?.user.username} />
       </Card>
 
       <Card title="المستوى والتقييم" className="lg:col-span-1">

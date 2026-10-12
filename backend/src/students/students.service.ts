@@ -182,8 +182,12 @@ export class StudentsService {
         parentProfile: {
           select: {
             id: true,
+            nationalId: true,
             phone: true,
-            user: { select: { fullName: true } },
+            altPhone: true,
+            address: true,
+            occupation: true,
+            user: { select: { fullName: true, phone: true, email: true, username: true } },
           },
         },
         notes: true,

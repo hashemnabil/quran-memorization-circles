@@ -87,3 +87,24 @@ export async function blockOfflineOperation(id: string, accountId: string, reaso
     });
   } finally { db.close(); }
 }
+
+
+/** Record a transient replay failure without discarding the queued payload. */
+export async function recordOfflineRetry(id: string, accountId: string, reason: string): Promise<void> {
+  const db = await openDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      const store = tx.objectStore(STORE);
+      const req = store.get(id);
+      req.onsuccess = () => {
+        const item = req.result as OutboxOperation | undefined;
+        if (item?.accountId === accountId && item.state === 'pending') {
+          store.put({ ...item, attempts: item.attempts + 1, lastError: reason });
+        }
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error('تعذر تسجيل محاولة المزامنة'));
+    });
+  } finally { db.close(); }
+}

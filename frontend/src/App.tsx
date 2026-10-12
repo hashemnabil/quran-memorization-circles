@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth';
 import { startHeartbeat } from '@/lib/session';
+import { queryClient } from '@/lib/queryClient';
+import { persistQueryCache, restoreQueryCache } from '@/lib/offline/queryCache';
 import AppLayout from '@/components/layout/AppLayout';
 import { RedirectIfAuthenticated, RequireAuth, RequireRole } from '@/components/RouteGuards';
 
@@ -49,6 +51,34 @@ export default function App() {
   useEffect(() => {
     void loadSession();
   }, [loadSession]);
+
+  // Restore the last successful reads for this account, then persist cache changes.
+  // The snapshot is account-scoped and is only a stale offline fallback; live queries
+  // still refetch from the existing API whenever connectivity is available.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let unsubscribe: (() => void) | undefined;
+    void restoreQueryCache(currentUser.id).catch(() => false).finally(() => {
+      if (!active) return;
+      unsubscribe = queryClient.getQueryCache().subscribe(() => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          void persistQueryCache(currentUser.id).catch(() => {
+            // Offline reads are best-effort if IndexedDB is unavailable or full.
+          });
+        }, 400);
+      });
+      // Also persist the current snapshot after restoration.
+      void persistQueryCache(currentUser.id).catch(() => undefined);
+    });
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+      unsubscribe?.();
+    };
+  }, [currentUser?.id]);
 
   // Marks the app as running, so a gap in the beat means the browser was closed.
   useEffect(() => startHeartbeat(), []);

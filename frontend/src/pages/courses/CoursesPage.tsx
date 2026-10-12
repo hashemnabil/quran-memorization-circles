@@ -39,8 +39,9 @@ const WEEKDAYS = ['SATURDAY', 'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURS
 export default function CoursesPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const canManage = useAuthStore((s) => s.hasRole('ADMIN', 'SUPERVISOR'));
-  const isAdmin = useAuthStore((s) => s.hasRole('ADMIN'));
+  const user = useAuthStore((s) => s.user)!;
+  const isAdmin = user.role === 'ADMIN';
+  const canManage = isAdmin || user.role === 'SUPERVISOR';
 
   const [search, setSearch] = useState('');
   const [type, setType] = useState<CourseType | ''>('');
@@ -55,7 +56,7 @@ export default function CoursesPage() {
     queryFn: async () =>
       (
         await api.get<PaginatedResponse<Course>>('/courses', {
-          params: { search: debounced || undefined, type: type || undefined, page, limit: 12 },
+          params: { search: debounced || undefined, type: type || undefined, page, limit: 12, instructorId: isAdmin ? undefined : user.id },
         })
       ).data,
   });
@@ -63,7 +64,7 @@ export default function CoursesPage() {
   const { data: stats } = useQuery({
     queryKey: ['courses', 'stats'],
     queryFn: async () => (await api.get('/courses/stats')).data,
-    enabled: canManage,
+    enabled: isAdmin,
   });
 
   const remove = useMutation({

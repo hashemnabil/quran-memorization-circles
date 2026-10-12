@@ -8,7 +8,7 @@ import type { Exam, ExamEligibility } from '@/types';
 
 type ExamRow = Exam & { scheduledAt: string; examiner?: { fullName: string } | null; gradedBy?: { fullName: string } | null };
 type MilestoneRecord = { id: string; sectionId: string; status: 'NOT_REQUESTED' | 'REQUESTED' | 'SCHEDULED' | 'COMPLETED'; score: number | null; requestedAt: string | null; examDate: string | null; examinerName: string | null; section: { id: string; code: string; name: string; order: number } };
-type ExamRequestRow = { status: 'PENDING' | 'SCHEDULED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED'; sectionId: string; section: { id: string; code: string }; sections?: { section: { id: string; code: string } }[] };
+type ExamRequestRow = { id: string; createdAt: string; status: 'PENDING' | 'SCHEDULED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED'; sectionId: string; section: { id: string; code: string }; sections?: { section: { id: string; code: string } }[] };
 
 function sequence() {
   const rows: { key: string; label: string; kind: 'HIZB' | 'JUZ'; number: number }[] = [];
@@ -73,12 +73,23 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
         exam.section?.code === item.key || exam.sections?.some((entry) => entry.section.code === item.key),
       ).sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())[0];
       const record = records.find((entry) => entry.section.code === item.key);
-      const request = requests.find((entry) =>
-        entry.section?.code === item.key || entry.sections?.some((part) => part.section.code === item.key),
-      );
-      const passed = record ? record.status === 'COMPLETED' : Boolean(section?.isPassed || related?.result === 'PASSED');
-      const pending = record ? record.status === 'SCHEDULED' : Boolean(related?.status === 'SCHEDULED' || request?.status === 'SCHEDULED');
-      const requested = record ? record.status === 'REQUESTED' : request?.status === 'PENDING';
+      // Use the newest request for this section. Old rejected/cancelled requests
+      // must not hide a newer request.
+      const request = [...requests]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .find((entry) =>
+          entry.section?.code === item.key || entry.sections?.some((part) => part.section.code === item.key),
+        );
+      // The live request/exam is authoritative. Manual milestone rows can be stale
+      // (e.g. NOT_REQUESTED after a request, or REQUESTED after scheduling).
+      const liveCompleted = related?.status === 'COMPLETED' || related?.status === 'ABSENT';
+      const passed = liveCompleted
+        ? related?.result === 'PASSED'
+        : record ? record.status === 'COMPLETED' : Boolean(section?.isPassed);
+      const pending = related?.status === 'SCHEDULED' || request?.status === 'SCHEDULED' ||
+        (!related && request?.status !== 'PENDING' && record?.status === 'SCHEDULED');
+      const requested = !pending && !liveCompleted &&
+        (request?.status === 'PENDING' || (!request && record?.status === 'REQUESTED'));
       const currentUnlocked = unlocked || passed || pending || requested;
       if (!passed) unlocked = false;
       return { ...item, section, related, record, request, passed, pending, requested, unlocked: currentUnlocked };
@@ -99,14 +110,14 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
               const record = row.record;
               const groupedExam = (row.related?.sections?.length ?? 0) > 1;
               const score = record ? record.score : row.section?.score ?? (groupedExam ? null : row.related?.score);
-              const completed = record ? record.status === 'COMPLETED' : row.related?.status === 'COMPLETED' || row.related?.status === 'ABSENT';
+              const completed = row.related?.status === 'COMPLETED' || row.related?.status === 'ABSENT' || (!row.related && record?.status === 'COMPLETED');
               const status = completed || row.passed ? 'تم الاختبار' : row.pending ? 'محدد / قيد الاختبار' : row.requested ? 'طُلب اختبار' : row.unlocked ? 'لم يُطلب اختبار' : 'مقفل بالتسلسل';
               return <tr key={row.key}>
                 <td className="font-medium">{row.label}</td>
                 <td><Badge className={row.passed ? 'bg-emerald-100 text-emerald-800' : row.pending ? 'bg-blue-100 text-blue-800' : row.unlocked ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'}>{status}</Badge></td>
                 <td className="numeric">{score == null ? '—' : score}</td>
-                <td className="numeric">{record?.examDate ? formatDateShort(record.examDate) : row.related?.scheduledAt ? formatDateShort(row.related.scheduledAt) : record?.requestedAt ? formatDateShort(record.requestedAt) : '—'}</td>
-                <td>{record?.examinerName || row.related?.examiner?.fullName || row.related?.gradedBy?.fullName || '—'}</td>
+                <td className="numeric">{row.related?.scheduledAt ? formatDateShort(row.related.scheduledAt) : record?.examDate ? formatDateShort(record.examDate) : record?.requestedAt ? formatDateShort(record.requestedAt) : '—'}</td>
+                <td>{row.related?.examiner?.fullName || row.related?.gradedBy?.fullName || record?.examinerName || '—'}</td>
                 {canEditMilestones && <td>
                   {editing === row.key ? (
                     <div className="min-w-56 space-y-1">

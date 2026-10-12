@@ -664,7 +664,7 @@ function ExamsTabComponent({
   const requests = requestsData?.data || [];
   const scheduledExams = scheduledData?.data || [];
 
-  const [examSubTab, setExamSubTab] = useState('history');
+  const [examSubTab, setExamSubTab] = useState('requests');
 
   const examTabs = [
     { key: 'history', label: 'سجل الاختبارات' },

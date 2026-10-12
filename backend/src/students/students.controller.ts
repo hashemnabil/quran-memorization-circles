@@ -42,9 +42,8 @@ export class StudentsController {
   @ApiOperation({ summary: 'تنزيل قالب استيراد الطلاب من Excel' })
   downloadImportTemplate(@Res() response: Response) {
     const headers = ['اسم الطالب', 'رقم هوية الطالب', 'رقم هوية الأب', 'تاريخ الميلاد', 'الجنس (MALE/FEMALE)', 'جوال الطالب', 'العنوان', 'اسم ولي الأمر', 'جوال ولي الأمر', 'صلة القرابة', 'رمز الحلقة', 'ملاحظات'];
-    const example = ['عبدالله محمد أحمد', '123456789', '', '2015-01-15', 'MALE', '', '', 'محمد أحمد', '', 'الأب', '', ''];
     const workbook = XLSX.utils.book_new();
-    const sheet = XLSX.utils.aoa_to_sheet([headers, example]);
+    const sheet = XLSX.utils.aoa_to_sheet([headers]);
     sheet['!cols'] = headers.map(() => ({ wch: 22 }));
     XLSX.utils.book_append_sheet(workbook, sheet, 'استيراد الطلاب');
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });

@@ -54,6 +54,7 @@ export class StudentsController {
     const rows = await this.service.listAccounts();
     const worksheet = XLSX.utils.json_to_sheet(rows.map((r) => ({
       'اسم الطالب': r.fullName,
+      'رقم الطالب': r.code ?? '',
       'رقم هوية الطالب': r.nationalId ?? '',
       'رقم هوية الأب': r.fatherNationalId ?? '',
       'اسم ولي الأمر': r.guardianName ?? '',

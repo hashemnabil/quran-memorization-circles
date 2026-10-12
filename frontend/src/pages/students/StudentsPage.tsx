@@ -527,7 +527,16 @@ function StudentFormModal({
           error={errors.fullName}
           className="sm:col-span-2"
         />
-        <Input label="رقم الطالب (اختياري؛ يُولّد تلقائياً إذا تُرك فارغاً)" value={form.code} onChange={(e) => set('code', e.target.value.replace(/\D/g, '').slice(0, 9))} error={errors.code} dir="ltr" />
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">رقم الطالب (اختياري)</label>
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <Input value={form.code} onChange={(e) => set('code', e.target.value.replace(/\D/g, '').slice(0, 9))} error={errors.code} dir="ltr" />
+            </div>
+            <Button type="button" variant="secondary" size="sm" onClick={() => set('code', `1${new Date().getFullYear()}${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`)}>توليد رقم طالب</Button>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">مثال: 120261234. إذا تركته فارغاً، سيتم توليده تلقائياً عند التسجيل.</p>
+        </div>
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
         <Input label={form.createAccount ? 'رقم الهوية (سيُستخدم اسمًا للمستخدم)' : 'رقم الهوية (اختياري)'} required={form.createAccount} value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
         <Input label="اسم ولي الأمر" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />

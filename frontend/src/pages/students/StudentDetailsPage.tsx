@@ -456,7 +456,7 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       <Card title="البيانات الشخصية" className="lg:col-span-1">
-        <InfoRow label="رقم الطالب" value={<span className="numeric">{student.code}</span>} />
+        <InfoRow label="رقم الطالب" value={<span className="numeric">{student.code.replace(/^ST-/i, '')}</span>} />
         <InfoRow label="تاريخ الميلاد" value={formatDate(student.birthDate)} />
         <InfoRow label="البريد الإلكتروني" value={student.parentProfile?.user.email} />
         <InfoRow label="اسم المستخدم" value={student.parentProfile?.user.username} />
@@ -1340,7 +1340,16 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
           disabled={!isAdmin}
           className="sm:col-span-2"
         />
-        <Input label="رقم الطالب" value={form.code} onChange={(e) => set('code', e.target.value.replace(/\D/g, '').slice(0, 9))} error={errors.code} disabled={!isAdmin} dir="ltr" />
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">رقم الطالب</label>
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <Input value={form.code} onChange={(e) => set('code', e.target.value.replace(/\D/g, '').slice(0, 9))} error={errors.code} disabled={!isAdmin} dir="ltr" />
+            </div>
+            {isAdmin && <Button type="button" variant="secondary" size="sm" onClick={() => set('code', `1${new Date().getFullYear()}${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`)}>توليد رقم طالب</Button>}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">مثال: 120261234</p>
+        </div>
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} disabled={!isAdmin} />
         <Input label="رقم الهوية" value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} disabled={!isAdmin} dir="ltr" />
         {isAdmin && (

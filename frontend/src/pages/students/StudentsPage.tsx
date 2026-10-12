@@ -237,7 +237,7 @@ export default function StudentsPage() {
               setSearch(v);
               setPage(1);
             }}
-            placeholder="بحث بالاسم أو رقم الطالب (ST-0004) أو رقم الهوية..."
+            placeholder="بحث بالاسم أو رقم الطالب أو رقم الهوية..."
             className="xl:col-span-2"
           />
           <Select

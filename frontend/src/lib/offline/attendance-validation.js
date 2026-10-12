@@ -35,10 +35,13 @@ export function validateAttendancePayload(payload, now = new Date()) {
     if (typeof entry.studentId !== 'string' || !UUID_V4.test(entry.studentId)) {
       return 'معرّف أحد الطلاب غير صالح';
     }
-    if (seen.has(entry.studentId)) {
+    // UUIDs are case-insensitive; normalize before duplicate detection so
+    // differently-cased copies of the same database ID cannot slip through.
+    const normalizedStudentId = entry.studentId.toLowerCase();
+    if (seen.has(normalizedStudentId)) {
       return 'يوجد طالب مكرر في كشف الحضور';
     }
-    seen.add(entry.studentId);
+    seen.add(normalizedStudentId);
     if (!ATTENDANCE_STATUSES.has(entry.status)) {
       return 'حالة الحضور غير صالحة';
     }

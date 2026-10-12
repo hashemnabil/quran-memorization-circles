@@ -26,6 +26,7 @@ const formatDateValue = (value: unknown): unknown => {
   return value;
 };
 const sheet = (rows: Record<string, unknown>[]) => XLSX.utils.json_to_sheet((rows.length ? rows : [{ 'لا توجد بيانات': '' }]).map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, formatDateValue(value)]))));
+const studentCode = (code?: string | null) => code?.replace(/^ST-/i, '') ?? '';
 const arabicAttendance: Record<string, string> = { PRESENT: 'حاضر', ABSENT: 'غائب', EXCUSED: 'غائب بعذر' };
 
 @Injectable()
@@ -76,7 +77,7 @@ export class ReportsService {
       const evaluationLabels: Record<string, string> = { EXCELLENT: 'ممتاز', VERY_GOOD: 'جيد جداً', GOOD: 'جيد', ACCEPTABLE: 'مقبول', UNSATISFACTORY: 'غير مرضٍ' };
       const output = rows.map(r => ({
         'الطالب': r.fullName,
-        'رقم الطالب': r.code,
+        'رقم الطالب': studentCode(r.code),
         'رقم الهوية': r.nationalId ?? '',
         'تاريخ الميلاد': r.birthDate ?? '',
         'الحلقة': r.circle?.name ?? (r.status === 'ACTIVITY' ? 'برنامج النشاط' : 'غير مسجل'),
@@ -100,7 +101,7 @@ export class ReportsService {
       const dates = [...new Set(rows.map(r => r.date.toISOString().slice(0, 10)))].sort((a, b) => b.localeCompare(a));
       const matrix = new Map<string, Record<string, unknown>>();
       for (const r of rows) {
-        if (!matrix.has(r.student.id)) matrix.set(r.student.id, { 'رقم الطالب': r.student.code, 'الطالب': r.student.fullName, 'الحلقة': r.circle.name });
+        if (!matrix.has(r.student.id)) matrix.set(r.student.id, { 'رقم الطالب': studentCode(r.student.code), 'الطالب': r.student.fullName, 'الحلقة': r.circle.name });
         matrix.get(r.student.id)![r.date.toISOString().slice(0, 10)] = arabicAttendance[r.status] ?? r.status;
       }
       const matrixRows = [...matrix.values()].map(row => Object.fromEntries([...Object.entries(row).slice(0, 3), ...dates.map(date => [date, row[date] ?? '—'])]));
@@ -127,7 +128,7 @@ export class ReportsService {
       if (!q.studentId) throw new BadRequestException('اختر الطالب أولاً لعرض ملفه الشامل');
       const student = await this.prisma.student.findFirst({ where: { id:q.studentId, ...studentScope, deletedAt:null }, include:{ circle:{select:{name:true}}, attendance:{where:allowed===null?{}:{circleId:{in:allowed}},orderBy:{date:'desc'},include:{circle:{select:{name:true}}},take:10000}, recitations:{where:{deletedAt:null,...(allowed===null?{}:{circleId:{in:allowed}})},orderBy:{date:'desc'},include:{circle:{select:{name:true}},teacher:{include:{user:{select:{fullName:true}}}}},take:10000}, exams:{orderBy:{scheduledAt:'desc'},include:{section:{select:{name:true}},examiner:{select:{fullName:true}}},take:10000} } });
       if (!student) throw new BadRequestException('الطالب غير موجود أو لا تملك صلاحية الوصول إليه');
-      return { type, student:{'معرّف الطالب':student.id,'رقم الطالب':student.code,'اسم الطالب':student.fullName,'الجنس':student.gender==='MALE'?'ذكر':student.gender==='FEMALE'?'أنثى':student.gender,'الحالة':student.status,'الحلقة':student.circle?.name??'','تاريخ التسجيل':student.enrollmentDate,'هاتف الطالب':student.phone??'','ولي الأمر':student.guardianName??'','هاتف ولي الأمر':student.guardianPhone??'','الأجزاء المحفوظة':student.memorizedParts,'مجموع النقاط':student.totalPoints}, attendance:student.attendance.map(a=>({date:a.date,circle:a.circle.name,status:arabicAttendance[a.status]??a.status,note:a.note??''})), recitations:student.recitations.map(r=>({date:r.date,circle:r.circle.name,teacher:r.teacher.user.fullName,type:r.type,from:`${r.fromSurah}:${r.fromAyah}`,to:`${r.toSurah}:${r.toAyah}`,pages:r.pagesCount??0,verses:r.versesCount??0,points:r.points,evaluation:r.evaluation??''})), exams:student.exams.map(e=>({date:e.scheduledAt,section:e.section.name,examiner:e.examiner?.fullName??'',status:e.status,score:e.score??'',result:e.result??'',evaluation:e.evaluation??''})), stats:{attendance:student.attendance.length,recitations:student.recitations.length,exams:student.exams.length,points:student.totalPoints} };
+      return { type, student:{'معرّف الطالب':student.id,'رقم الطالب':studentCode(student.code),'اسم الطالب':student.fullName,'الجنس':student.gender==='MALE'?'ذكر':student.gender==='FEMALE'?'أنثى':student.gender,'الحالة':student.status,'الحلقة':student.circle?.name??'','تاريخ التسجيل':student.enrollmentDate,'هاتف الطالب':student.phone??'','ولي الأمر':student.guardianName??'','هاتف ولي الأمر':student.guardianPhone??'','الأجزاء المحفوظة':student.memorizedParts,'مجموع النقاط':student.totalPoints}, attendance:student.attendance.map(a=>({date:a.date,circle:a.circle.name,status:arabicAttendance[a.status]??a.status,note:a.note??''})), recitations:student.recitations.map(r=>({date:r.date,circle:r.circle.name,teacher:r.teacher.user.fullName,type:r.type,from:`${r.fromSurah}:${r.fromAyah}`,to:`${r.toSurah}:${r.toAyah}`,pages:r.pagesCount??0,verses:r.versesCount??0,points:r.points,evaluation:r.evaluation??''})), exams:student.exams.map(e=>({date:e.scheduledAt,section:e.section.name,examiner:e.examiner?.fullName??'',status:e.status,score:e.score??'',result:e.result??'',evaluation:e.evaluation??''})), stats:{attendance:student.attendance.length,recitations:student.recitations.length,exams:student.exams.length,points:student.totalPoints} };
     }
     const courseScope: Prisma.CourseWhereInput = { deletedAt: null, ...(user.role === Role.TEACHER ? { instructorId: user.id } : {}), ...(q.courseId ? { id: q.courseId } : {}) };
     if (['courses', 'courseStudents', 'courseAttendance'].includes(type)) {
@@ -148,7 +149,7 @@ export class ReportsService {
       const dates = [...new Set(records.map(a => a.date.toISOString().slice(0, 10)))].sort((a, b) => b.localeCompare(a));
       const matrix = new Map<string, Record<string, unknown>>();
       for (const a of records) {
-        if (!matrix.has(a.studentId)) matrix.set(a.studentId, { 'رقم الطالب': a.student.code, 'الطالب': a.student.fullName, 'الدورة': a.course.name });
+        if (!matrix.has(a.studentId)) matrix.set(a.studentId, { 'رقم الطالب': studentCode(a.student.code), 'الطالب': a.student.fullName, 'الدورة': a.course.name });
         matrix.get(a.studentId)![a.date.toISOString().slice(0, 10)] = arabicAttendance[a.status] ?? a.status;
       }
       const matrixRows = [...matrix.values()].map(row => Object.fromEntries([...Object.entries(row).slice(0, 3), ...dates.map(date => [date, row[date] ?? '—'])]));

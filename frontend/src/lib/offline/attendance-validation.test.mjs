@@ -42,6 +42,13 @@ test('rejects duplicate students and unsupported statuses', () => {
     ],
   }, now));
   assert.ok(validateAttendancePayload({
+    ...valid(),
+    entries: [
+      { studentId, status: 'PRESENT' },
+      { studentId: studentId.toUpperCase(), status: 'ABSENT' },
+    ],
+  }, now), 'UUIDs differing only by letter case still identify the same student');
+  assert.ok(validateAttendancePayload({
     ...valid(), entries: [{ studentId, status: 'UNKNOWN' }],
   }, now));
 });

@@ -128,6 +128,7 @@ export class StudentsService {
               OR: [
                 { fullName: { contains: query.search, mode: 'insensitive' } },
                 { code: { contains: query.search, mode: 'insensitive' } },
+                { code: { contains: `ST-${query.search}`, mode: 'insensitive' } },
                 { nationalId: { contains: query.search } },
                 { fatherNationalId: { contains: query.search } },
                 { guardianPhone: { contains: query.search } },

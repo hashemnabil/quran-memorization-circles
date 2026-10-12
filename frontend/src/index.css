@@ -41,7 +41,7 @@
    * Numbers, dates, codes and phone numbers inside RTL text.
    *
    * `plaintext` picks the base direction from the first strong character of the
-   * content, so "14/08/2026" and "ST-0004" stay LTR while "5 أيام" stays RTL.
+   * content, so "14/08/2026" and "رقم الطالب" stay LTR while "5 أيام" stays RTL.
    * Never set `display` here: this class is applied to <td> elements, and any
    * display override would drop them out of the table layout and break the
    * column alignment.

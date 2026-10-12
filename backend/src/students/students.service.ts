@@ -124,10 +124,11 @@ export class StudentsService {
         this.trackFilter(query.track),
         query.search
           ? {
-              // Name, student number (ST-0004), national id, or guardian details.
+              // Name, student number, national id, or guardian details.
               OR: [
                 { fullName: { contains: query.search, mode: 'insensitive' } },
                 { code: { contains: query.search, mode: 'insensitive' } },
+                { code: { contains: `ST-${query.search}`, mode: 'insensitive' } },
                 { nationalId: { contains: query.search } },
                 { fatherNationalId: { contains: query.search } },
                 { guardianPhone: { contains: query.search } },

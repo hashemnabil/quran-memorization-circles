@@ -173,7 +173,7 @@ export default function AppLayout() {
                         )
                       }
                     >
-                      <span className={cx("sidebar-nav-icon relative grid shrink-0 place-items-center rounded-lg", rail ? "h-10 w-10" : "h-9 w-9", isActive ? "sidebar-nav-icon-active" : "")}>
+                      <span className={cx("sidebar-nav-icon relative grid shrink-0 place-items-center rounded-lg", rail ? "h-10 w-10" : "h-9 w-9")}>
                         {item.icon}
                         {/* Collapsed rail has no room for a label, so the count becomes a dot. */}
                         {rail && count > 0 && (

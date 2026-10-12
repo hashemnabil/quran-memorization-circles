@@ -182,7 +182,7 @@ export const HIZB_SECTIONS = Array.from({ length: 60 }, (_, i) => {
   return {
     code: `HIZB-${String(hizb).padStart(2, '0')}`,
     name: `الحزب ${hizb}`,
-    order: hizb,
+    order: (Math.floor((60 - hizb) / 2) * 3) + ((60 - hizb) % 2) + 1,
     kind: 'HIZB' as const,
     pagesCount: 10,
     minScore: 60,

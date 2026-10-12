@@ -29,17 +29,19 @@ export type SyncReport = {
  * each operation type. Until a server endpoint has those guarantees, do not
  * enqueue writes for it or register it with this runner.
  */
-let activeRun: Promise<SyncReport> | null = null;
+const activeRuns = new Map<string, Promise<SyncReport>>();
 
 export function syncOfflineOperations(
   accountId: string,
   replay: ReplayHandler,
 ): Promise<SyncReport> {
-  if (activeRun) return activeRun;
-  activeRun = drain(accountId, replay).finally(() => {
-    activeRun = null;
+  const existing = activeRuns.get(accountId);
+  if (existing) return existing;
+  const run = drain(accountId, replay).finally(() => {
+    activeRuns.delete(accountId);
   });
-  return activeRun;
+  activeRuns.set(accountId, run);
+  return run;
 }
 
 async function drain(accountId: string, replay: ReplayHandler): Promise<SyncReport> {
@@ -57,7 +59,9 @@ async function drain(accountId: string, replay: ReplayHandler): Promise<SyncRepo
     }
     if (operation.state === 'blocked') {
       report.blocked += 1;
-      continue;
+      // Do not apply later operations that may depend on this blocked change.
+      report.stopped = true;
+      break;
     }
 
     let result: ReplayResult;

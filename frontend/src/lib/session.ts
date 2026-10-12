@@ -1,4 +1,5 @@
 import { tokenStore } from '@/lib/api';
+import { Capacitor } from '@capacitor/core';
 
 /**
  * "Log the user out one minute after the browser is closed."
@@ -38,6 +39,13 @@ export function clearHeartbeat() {
  * tokens were dropped because the browser had been closed for too long.
  */
 export function expireStaleSession(): boolean {
+  // Mobile apps are routinely suspended or closed while offline. Let the API's
+  // access/refresh-token validation govern mobile sessions instead of treating
+  // app suspension as a logout; keep the browser's existing short-gap policy.
+  if (Capacitor.isNativePlatform()) {
+    writeHeartbeat();
+    return false;
+  }
   let lastSeen: number | null = null;
   try {
     const raw = localStorage.getItem(HEARTBEAT_KEY);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -110,7 +110,6 @@ function getStatusLabel(status: string): string {
 
 export default function StudentDetailsPage() {
   const { id = '' } = useParams();
-  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -267,7 +266,7 @@ export default function StudentDetailsPage() {
               <Button variant="secondary" size="sm" icon={<IconPause size={15} />} onClick={() => setModal('suspend')}>
                 طلب إيقاف
               </Button>
-              <Button size="sm" icon={<IconAward size={15} />} onClick={() => navigate('/exams', { state: { requestStudent: student } })}>
+              <Button size="sm" icon={<IconAward size={15} />} onClick={() => setTab('exams')}>
                 طلب اختبار
               </Button>
             </>

@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import * as XLSX from 'xlsx';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -34,6 +35,56 @@ export class StudentsController {
   @ApiOperation({ summary: 'ملف الطالب الحالي وسجلاته الخاصة' })
   getMyProfile(@CurrentUser() user: AuthUser) {
     return this.service.getMyProfile(user);
+  }
+
+  @Get('import-template')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'تنزيل قالب استيراد الطلاب من Excel' })
+  downloadImportTemplate(@Res() response: Response) {
+    const headers = ['اسم الطالب', 'رقم هوية الطالب', 'رقم هوية الأب', 'تاريخ الميلاد', 'الجنس (MALE/FEMALE)', 'جوال الطالب', 'العنوان', 'اسم ولي الأمر', 'جوال ولي الأمر', 'صلة القرابة', 'رمز الحلقة', 'ملاحظات'];
+    const example = ['عبدالله محمد أحمد', '123456789', '', '2015-01-15', 'MALE', '', '', 'محمد أحمد', '', 'الأب', '', ''];
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.aoa_to_sheet([headers, example]);
+    sheet['!cols'] = headers.map(() => ({ wch: 22 }));
+    XLSX.utils.book_append_sheet(workbook, sheet, 'استيراد الطلاب');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .setHeader('Content-Disposition', 'attachment; filename="students-import-template.xlsx"')
+      .setHeader('Cache-Control', 'no-store').send(buffer);
+  }
+
+  @Post('import-excel')
+  @Roles(Role.ADMIN)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'استيراد الطلاب وإنشاء حساباتهم من ملف Excel' })
+  async importExcel(@CurrentUser() user: AuthUser, @UploadedFile() file?: Express.Multer.File) {
+    if (!file?.buffer?.length) throw new BadRequestException('ارفع ملف Excel أولاً');
+    let rows: Record<string, unknown>[];
+    try {
+      const workbook = XLSX.read(file.buffer, { type: 'buffer', cellDates: true });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      if (!sheet) throw new Error('missing sheet');
+      rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false }) as Record<string, unknown>[];
+    } catch {
+      throw new BadRequestException('تعذر قراءة الملف؛ استخدم قالب Excel المرفق');
+    }
+    if (!rows.length) throw new BadRequestException('الملف لا يحتوي على طلاب');
+    if (rows.length > 500) throw new BadRequestException('الحد الأقصى للاستيراد في المرة الواحدة هو 500 طالب');
+    const mapped = rows.map((row) => ({
+      fullName: String(row['اسم الطالب'] ?? '').trim(),
+      nationalId: String(row['رقم هوية الطالب'] ?? '').trim(),
+      fatherNationalId: String(row['رقم هوية الأب'] ?? '').trim(),
+      birthDate: String(row['تاريخ الميلاد'] ?? '').trim(),
+      gender: String(row['الجنس (MALE/FEMALE)'] ?? '').trim().toUpperCase(),
+      phone: String(row['جوال الطالب'] ?? '').trim(),
+      address: String(row['العنوان'] ?? '').trim(),
+      guardianName: String(row['اسم ولي الأمر'] ?? '').trim(),
+      guardianPhone: String(row['جوال ولي الأمر'] ?? '').trim(),
+      guardianRelation: String(row['صلة القرابة'] ?? '').trim(),
+      circleCode: String(row['رمز الحلقة'] ?? '').trim(),
+      notes: String(row['ملاحظات'] ?? '').trim(),
+    })).filter((row) => Object.values(row).some((value) => value !== ''));
+    return this.service.importStudentsWithAccounts(user, mapped);
   }
 
   @Get('accounts/export')

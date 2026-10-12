@@ -32,7 +32,7 @@ export default function AppLayout() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ 'شؤون إدارية': false, 'شؤون الطلبة': false, المستندات: false, التواصل: false, 'نظام المدرسة': false });
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ 'شؤون إدارية': false, الإعلام: false, 'شؤون الطلبة': false, المستندات: false, التواصل: false, 'نظام المدرسة': false });
   // The collapsed rail is a desktop-only preference, remembered between visits.
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
 

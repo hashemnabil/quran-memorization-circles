@@ -136,6 +136,12 @@ export default function StudentDetailsPage() {
     enabled: !!id && tab === 'history',
   });
 
+  const { data: studentExamRequests } = useQuery({
+    queryKey: ['exams', 'requests', id],
+    queryFn: async () => (await api.get('/exams/requests', { params: { studentId: id, limit: 50 } })).data,
+    enabled: !!id && tab === 'history',
+  });
+
   const { data: attendance } = useQuery({
     queryKey: ['attendance', { studentId: id }],
     queryFn: async () =>
@@ -186,7 +192,7 @@ export default function StudentDetailsPage() {
 
   const rejectRequest = useMutation({
     mutationFn: ({ requestId, reason }: { requestId: string; reason: string }) =>
-      api.patch(`/exams/requests/${requestId}/reject`, { reason }),
+      api.patch(`/exams/requests/${requestId}/reject`, { reviewNote: reason }),
     onSuccess: () => {
       toast.success('تم رفض طلب الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
@@ -430,7 +436,7 @@ export default function StudentDetailsPage() {
           )}
         </Card>
       )}
-      {tab === 'history' && <HistoryTab history={history} />}
+      {tab === 'history' && <HistoryTab history={history} examRequests={studentExamRequests?.data ?? []} />}
 
       {modal === 'evaluation' && <EvaluationModal student={student} onClose={() => setModal(null)} />}
       {modal === 'note' && <NoteModal studentId={id} onClose={() => setModal(null)} />}
@@ -903,7 +909,7 @@ function ExamsTabComponent({
 // HISTORY TAB
 // ============================================================================
 
-function HistoryTab({ history }: { history: any }) {
+function HistoryTab({ history, examRequests }: { history: any; examRequests: any[] }) {
   if (!history) return <LoadingState rows={4} />;
 
   return (
@@ -974,6 +980,25 @@ function HistoryTab({ history }: { history: any }) {
           </ul>
         ) : (
           <EmptyState title="لا يوجد سجل تقييمات" />
+        )}
+      </Card>
+
+      <Card title="سجل طلبات الاختبار" padded={false}>
+        {examRequests.length ? (
+          <ul className="divide-y divide-slate-100">
+            {examRequests.map((request) => (
+              <li key={request.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">{describeExamSections(request.section, request.sections)}</p>
+                  <p className="numeric mt-1 text-[11px] text-slate-400">{formatDateShort(request.createdAt)}</p>
+                  {request.reviewNote && <p className="mt-1 text-xs text-slate-500">ملاحظة: {request.reviewNote}</p>}
+                </div>
+                <Badge className={getStatusColor(request.status)}>{getStatusLabel(request.status)}</Badge>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState title="لا توجد طلبات اختبار سابقة" icon={<IconClock size={24} />} />
         )}
       </Card>
 

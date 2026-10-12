@@ -507,9 +507,13 @@ export class ExamsService {
     );
     for (const record of manualRecords) {
       if (record.status === 'COMPLETED' && record.result !== ExamResult.FAILED) {
+        // A manually completed milestone counts as passed, even if it has no
+        // linked Exam row (the admin's manual status is the source of truth).
         passedIds.add(record.sectionId);
-      } else {
-        // An explicit administrative record is authoritative over a grouped exam's overall result.
+      } else if (record.status === 'COMPLETED' && record.result === ExamResult.FAILED) {
+        // Only an explicit recorded failure overrides an actual exam pass.
+        // NOT_REQUESTED / REQUESTED / SCHEDULED records must not erase a pass
+        // already recorded by the exam workflow.
         passedIds.delete(record.sectionId);
       }
     }
@@ -709,7 +713,8 @@ export class ExamsService {
       manualEarlier.forEach((record) => {
         if (record.status === 'COMPLETED' && record.result !== ExamResult.FAILED) {
           passedEarlierIds.add(record.sectionId);
-        } else {
+        } else if (record.status === 'COMPLETED' && record.result === ExamResult.FAILED) {
+          // Do not let a non-completed manual row erase a pass from an exam.
           passedEarlierIds.delete(record.sectionId);
         }
       });

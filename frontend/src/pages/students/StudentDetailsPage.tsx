@@ -247,7 +247,7 @@ export default function StudentDetailsPage() {
             الطلاب
           </Link>
         }
-        subtitle={`${student.code} • ${calcAge(student.birthDate)} • ${student.circle?.name ?? 'غير مسجل في حلقة'} • رقم الهوية: ${student.nationalId ?? 'غير مسجل'} • تاريخ الميلاد: ${student.birthDate ? formatDate(student.birthDate) : 'غير مسجل'}`}
+        subtitle={`${student.code.replace(/^ST-/i, '')} • ${calcAge(student.birthDate)} • ${student.circle?.name ?? 'غير مسجل في حلقة'} • رقم الهوية: ${student.nationalId ?? 'غير مسجل'} • تاريخ الميلاد: ${student.birthDate ? formatDate(student.birthDate) : 'غير مسجل'}`}
         action={
           canManage && (
             <>

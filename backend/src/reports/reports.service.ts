@@ -26,6 +26,7 @@ const formatDateValue = (value: unknown): unknown => {
   return value;
 };
 const sheet = (rows: Record<string, unknown>[]) => XLSX.utils.json_to_sheet((rows.length ? rows : [{ 'لا توجد بيانات': '' }]).map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, formatDateValue(value)]))));
+const studentCode = (code?: string | null) => code?.replace(/^ST-/i, '') ?? '';
 const arabicAttendance: Record<string, string> = { PRESENT: 'حاضر', ABSENT: 'غائب', EXCUSED: 'غائب بعذر' };
 
 @Injectable()
@@ -76,7 +77,7 @@ export class ReportsService {
       const evaluationLabels: Record<string, string> = { EXCELLENT: 'ممتاز', VERY_GOOD: 'جيد جداً', GOOD: 'جيد', ACCEPTABLE: 'مقبول', UNSATISFACTORY: 'غير مرضٍ' };
       const output = rows.map(r => ({
         'الطالب': r.fullName,
-        'رقم الطالب': r.code,
+        'رقم الطالب': studentCode(r.code),
         'رقم الهوية': r.nationalId ?? '',
         'تاريخ الميلاد': r.birthDate ?? '',
         'الحلقة': r.circle?.name ?? (r.status === 'ACTIVITY' ? 'برنامج النشاط' : 'غير مسجل'),
@@ -100,7 +101,7 @@ export class ReportsService {
       const dates = [...new Set(rows.map(r => r.date.toISOString().slice(0, 10)))].sort((a, b) => b.localeCompare(a));
       const matrix = new Map<string, Record<string, unknown>>();
       for (const r of rows) {
-        if (!matrix.has(r.student.id)) matrix.set(r.student.id, { 'رقم الطالب': r.student.code, 'الطالب': r.student.fullName, 'الحلقة': r.circle.name });
+        if (!matrix.has(r.student.id)) matrix.set(r.student.id, { 'رقم الطالب': studentCode(r.student.code), 'الطالب': r.student.fullName, 'الحلقة': r.circle.name });
         matrix.get(r.student.id)![r.date.toISOString().slice(0, 10)] = arabicAttendance[r.status] ?? r.status;
       }
       const matrixRows = [...matrix.values()].map(row => Object.fromEntries([...Object.entries(row).slice(0, 3), ...dates.map(date => [date, row[date] ?? '—'])]));
@@ -112,7 +113,7 @@ export class ReportsService {
         include: { student: { select: { id: true, code: true, fullName: true } }, circle: { select: { name: true } }, teacher: { include: { user: { select: { fullName: true } } } } },
         orderBy: { date: 'desc' }, take: 10000,
       });
-      return { type, rows: rows.map(r=>({ 'التاريخ':r.date, 'معرّف الطالب':r.student.id, 'رقم الطالب':r.student.code, 'الطالب':r.student.fullName, 'الحلقة':r.circle.name, 'المعلم':r.teacher.user.fullName, 'نوع التسميع':r.type, 'من سورة وآية':`${r.fromSurah}:${r.fromAyah}`, 'إلى سورة وآية':`${r.toSurah}:${r.toAyah}`, 'عدد الصفحات':r.pagesCount ?? 0, 'عدد الآيات':r.versesCount ?? 0, 'الأخطاء':r.mistakes, 'التنبيهات':r.warnings, 'النقاط':r.points, 'التقييم':r.evaluation ?? '' })), stats:{ total:rows.length, pages:rows.reduce((n,r)=>n+(r.pagesCount??0),0), points:rows.reduce((n,r)=>n+r.points,0), students:new Set(rows.map(r=>r.studentId)).size } };
+      return { type, rows: rows.map(r=>({ 'التاريخ':r.date, 'معرّف الطالب':r.student.id, 'رقم الطالب':studentCode(r.student.code), 'الطالب':r.student.fullName, 'الحلقة':r.circle.name, 'المعلم':r.teacher.user.fullName, 'نوع التسميع':r.type, 'من سورة وآية':`${r.fromSurah}:${r.fromAyah}`, 'إلى سورة وآية':`${r.toSurah}:${r.toAyah}`, 'عدد الصفحات':r.pagesCount ?? 0, 'عدد الآيات':r.versesCount ?? 0, 'الأخطاء':r.mistakes, 'التنبيهات':r.warnings, 'النقاط':r.points, 'التقييم':r.evaluation ?? '' })), stats:{ total:rows.length, pages:rows.reduce((n,r)=>n+(r.pagesCount??0),0), points:rows.reduce((n,r)=>n+r.points,0), students:new Set(rows.map(r=>r.studentId)).size } };
     }
     if (type === 'exams') {
       const rows = await this.prisma.exam.findMany({
@@ -121,13 +122,13 @@ export class ReportsService {
         orderBy:{ scheduledAt:'desc' }, take:10000,
       });
       const scoped = rows.filter(r => allowed === null || (r.student.circleId && allowed.includes(r.student.circleId)));
-      return { type, rows: scoped.map(r=>({ 'تاريخ الاختبار':r.scheduledAt, 'معرّف الطالب':r.student.id, 'رقم الطالب':r.student.code, 'الطالب':r.student.fullName, 'المقرر':r.section.name, 'الممتحن':r.examiner?.fullName??'', 'حالة الاختبار':r.status, 'العلامة':r.score ?? '', 'النتيجة':r.result==='PASSED'?'ناجح':r.result==='FAILED'?'راسب':r.result ?? '', 'التقييم':r.evaluation ?? '' })), stats:{ total:scoped.length, passed:scoped.filter(r=>r.result==='PASSED').length, failed:scoped.filter(r=>r.result==='FAILED').length, average:scoped.filter(r=>r.score!==null).length ? Math.round(scoped.filter(r=>r.score!==null).reduce((n,r)=>n+(r.score??0),0)/scoped.filter(r=>r.score!==null).length) : 0 } };
+      return { type, rows: scoped.map(r=>({ 'تاريخ الاختبار':r.scheduledAt, 'معرّف الطالب':r.student.id, 'رقم الطالب':studentCode(r.student.code), 'الطالب':r.student.fullName, 'المقرر':r.section.name, 'الممتحن':r.examiner?.fullName??'', 'حالة الاختبار':r.status, 'العلامة':r.score ?? '', 'النتيجة':r.result==='PASSED'?'ناجح':r.result==='FAILED'?'راسب':r.result ?? '', 'التقييم':r.evaluation ?? '' })), stats:{ total:scoped.length, passed:scoped.filter(r=>r.result==='PASSED').length, failed:scoped.filter(r=>r.result==='FAILED').length, average:scoped.filter(r=>r.score!==null).length ? Math.round(scoped.filter(r=>r.score!==null).reduce((n,r)=>n+(r.score??0),0)/scoped.filter(r=>r.score!==null).length) : 0 } };
     }
     if (type === 'student') {
       if (!q.studentId) throw new BadRequestException('اختر الطالب أولاً لعرض ملفه الشامل');
       const student = await this.prisma.student.findFirst({ where: { id:q.studentId, ...studentScope, deletedAt:null }, include:{ circle:{select:{name:true}}, attendance:{where:allowed===null?{}:{circleId:{in:allowed}},orderBy:{date:'desc'},include:{circle:{select:{name:true}}},take:10000}, recitations:{where:{deletedAt:null,...(allowed===null?{}:{circleId:{in:allowed}})},orderBy:{date:'desc'},include:{circle:{select:{name:true}},teacher:{include:{user:{select:{fullName:true}}}}},take:10000}, exams:{orderBy:{scheduledAt:'desc'},include:{section:{select:{name:true}},examiner:{select:{fullName:true}}},take:10000} } });
       if (!student) throw new BadRequestException('الطالب غير موجود أو لا تملك صلاحية الوصول إليه');
-      return { type, student:{'معرّف الطالب':student.id,'رقم الطالب':student.code,'اسم الطالب':student.fullName,'الجنس':student.gender==='MALE'?'ذكر':student.gender==='FEMALE'?'أنثى':student.gender,'الحالة':student.status,'الحلقة':student.circle?.name??'','تاريخ التسجيل':student.enrollmentDate,'هاتف الطالب':student.phone??'','ولي الأمر':student.guardianName??'','هاتف ولي الأمر':student.guardianPhone??'','الأجزاء المحفوظة':student.memorizedParts,'مجموع النقاط':student.totalPoints}, attendance:student.attendance.map(a=>({date:a.date,circle:a.circle.name,status:arabicAttendance[a.status]??a.status,note:a.note??''})), recitations:student.recitations.map(r=>({date:r.date,circle:r.circle.name,teacher:r.teacher.user.fullName,type:r.type,from:`${r.fromSurah}:${r.fromAyah}`,to:`${r.toSurah}:${r.toAyah}`,pages:r.pagesCount??0,verses:r.versesCount??0,points:r.points,evaluation:r.evaluation??''})), exams:student.exams.map(e=>({date:e.scheduledAt,section:e.section.name,examiner:e.examiner?.fullName??'',status:e.status,score:e.score??'',result:e.result??'',evaluation:e.evaluation??''})), stats:{attendance:student.attendance.length,recitations:student.recitations.length,exams:student.exams.length,points:student.totalPoints} };
+      return { type, student:{'معرّف الطالب':student.id,'رقم الطالب':studentCode(student.code),'اسم الطالب':student.fullName,'الجنس':student.gender==='MALE'?'ذكر':student.gender==='FEMALE'?'أنثى':student.gender,'الحالة':student.status,'الحلقة':student.circle?.name??'','تاريخ التسجيل':student.enrollmentDate,'هاتف الطالب':student.phone??'','ولي الأمر':student.guardianName??'','هاتف ولي الأمر':student.guardianPhone??'','الأجزاء المحفوظة':student.memorizedParts,'مجموع النقاط':student.totalPoints}, attendance:student.attendance.map(a=>({date:a.date,circle:a.circle.name,status:arabicAttendance[a.status]??a.status,note:a.note??''})), recitations:student.recitations.map(r=>({date:r.date,circle:r.circle.name,teacher:r.teacher.user.fullName,type:r.type,from:`${r.fromSurah}:${r.fromAyah}`,to:`${r.toSurah}:${r.toAyah}`,pages:r.pagesCount??0,verses:r.versesCount??0,points:r.points,evaluation:r.evaluation??''})), exams:student.exams.map(e=>({date:e.scheduledAt,section:e.section.name,examiner:e.examiner?.fullName??'',status:e.status,score:e.score??'',result:e.result??'',evaluation:e.evaluation??''})), stats:{attendance:student.attendance.length,recitations:student.recitations.length,exams:student.exams.length,points:student.totalPoints} };
     }
     const courseScope: Prisma.CourseWhereInput = { deletedAt: null, ...(user.role === Role.TEACHER ? { instructorId: user.id } : {}), ...(q.courseId ? { id: q.courseId } : {}) };
     if (['courses', 'courseStudents', 'courseAttendance'].includes(type)) {
@@ -141,14 +142,14 @@ export class ReportsService {
       if (!course) throw new BadRequestException('الدورة غير موجودة أو لا تملك صلاحية الوصول إليها');
       if (type === 'courseStudents') {
         const enrollments = await this.prisma.courseEnrollment.findMany({ where: { courseId: course.id, student: { deletedAt: null } }, include: { student: { select: { code: true, fullName: true, nationalId: true, birthDate: true, phone: true, status: true, guardianName: true, guardianPhone: true } } }, orderBy: { student: { fullName: 'asc' } }, take: 10000 });
-        const rows = enrollments.map(e => ({ 'الدورة': course.name, 'اسم الطالب': e.student.fullName, 'رقم الطالب': e.student.code, 'رقم الهوية': e.student.nationalId ?? '', 'تاريخ الميلاد': e.student.birthDate ?? '', 'الهاتف': e.student.phone ?? '', 'ولي الأمر': e.student.guardianName ?? '', 'هاتف ولي الأمر': e.student.guardianPhone ?? '', 'الحالة': e.student.status, 'تاريخ التسجيل بالدورة': e.enrolledAt, 'تاريخ الانسحاب': e.endedAt ?? '', 'التسجيل الحالي': e.endedAt ? 'لا' : 'نعم' }));
+        const rows = enrollments.map(e => ({ 'الدورة': course.name, 'اسم الطالب': e.student.fullName, 'رقم الطالب': studentCode(e.student.code), 'رقم الهوية': e.student.nationalId ?? '', 'تاريخ الميلاد': e.student.birthDate ?? '', 'الهاتف': e.student.phone ?? '', 'ولي الأمر': e.student.guardianName ?? '', 'هاتف ولي الأمر': e.student.guardianPhone ?? '', 'الحالة': e.student.status, 'تاريخ التسجيل بالدورة': e.enrolledAt, 'تاريخ الانسحاب': e.endedAt ?? '', 'التسجيل الحالي': e.endedAt ? 'لا' : 'نعم' }));
         return { type, rows, stats: { total: rows.length, active: enrollments.filter(e=>!e.endedAt).length } };
       }
       const records = await this.prisma.courseAttendance.findMany({ where: { courseId: course.id, student: { deletedAt: null }, ...(from || to ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}) }, include: { student: { select: { code: true, fullName: true } }, course: { select: { name: true } } }, orderBy: [{ date: 'desc' }, { student: { fullName: 'asc' } }], take: 10000 });
       const dates = [...new Set(records.map(a => a.date.toISOString().slice(0, 10)))].sort((a, b) => b.localeCompare(a));
       const matrix = new Map<string, Record<string, unknown>>();
       for (const a of records) {
-        if (!matrix.has(a.studentId)) matrix.set(a.studentId, { 'رقم الطالب': a.student.code, 'الطالب': a.student.fullName, 'الدورة': a.course.name });
+        if (!matrix.has(a.studentId)) matrix.set(a.studentId, { 'رقم الطالب': studentCode(a.student.code), 'الطالب': a.student.fullName, 'الدورة': a.course.name });
         matrix.get(a.studentId)![a.date.toISOString().slice(0, 10)] = arabicAttendance[a.status] ?? a.status;
       }
       const matrixRows = [...matrix.values()].map(row => Object.fromEntries([...Object.entries(row).slice(0, 3), ...dates.map(date => [date, row[date] ?? '—'])]));

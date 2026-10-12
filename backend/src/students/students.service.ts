@@ -22,6 +22,7 @@ import {
   QueryStudentsDto,
   SetEvaluationDto,
   StudentTrack,
+  StudentRegistrationTrack,
   SurahCompletionDto,
   UpdateStudentDto,
 } from './dto/student.dto';
@@ -473,6 +474,11 @@ export class StudentsService {
   }
 
   async create(actor: AuthUser, dto: CreateStudentDto) {
+    const registrationTrack = dto.registrationTrack ?? StudentRegistrationTrack.CIRCLE;
+    if (actor.role === Role.TEACHER && registrationTrack !== StudentRegistrationTrack.CIRCLE) throw new ForbiddenException('يمكن للمعلم تسجيل الطلاب في حلقات التحفيظ فقط');
+    if (registrationTrack === StudentRegistrationTrack.ACTIVITY) { dto.status = StudentStatus.ACTIVITY; dto.circleId = undefined; dto.courseId = undefined; }
+    if (registrationTrack === StudentRegistrationTrack.COURSE) { dto.circleId = undefined; if (!dto.courseId) throw new BadRequestException('اختر الدورة'); const course = await this.prisma.course.findFirst({ where: { id: dto.courseId, deletedAt: null, isActive: true }, select: { id: true, capacity: true, _count: { select: { enrollments: { where: { endedAt: null } } } } } }); if (!course) throw new BadRequestException('الدورة المحددة غير موجودة أو غير مفعّلة'); if (course._count.enrollments >= course.capacity) throw new BadRequestException('الدورة مكتملة العدد'); dto.status = StudentStatus.ACTIVE; }
+    if (registrationTrack === StudentRegistrationTrack.CIRCLE && !dto.circleId) throw new BadRequestException('اختر حلقة التحفيظ');
     // A teacher may register a student, but only straight into a circle they
     // actually teach — they have no way to choose another one.
     if (actor.role === Role.TEACHER) {
@@ -489,7 +495,7 @@ export class StudentsService {
       delete (dto as Partial<CreateStudentDto>).status;
     }
 
-    if (dto.circleId) {
+    if (registrationTrack === StudentRegistrationTrack.CIRCLE && dto.circleId) {
       await this.acl.assertCircleAccess(actor, dto.circleId);
       await this.assertCircleHasRoom(dto.circleId);
     }
@@ -510,7 +516,7 @@ export class StudentsService {
         if (usernameTaken) throw new ConflictException('رقم الهوية مستخدم كاسم دخول لحساب آخر');
       }
     }
-    const code = dto.code?.trim() || (await this.nextCode());
+    const code = registrationTrack === StudentRegistrationTrack.CIRCLE ? (dto.code?.trim() || await this.nextCode()) : await this.nextTrackCode(registrationTrack === StudentRegistrationTrack.COURSE ? '2' : '3');
     if (!/^\d{1,9}$/.test(code)) {
       throw new BadRequestException('رقم الطالب يجب أن يحتوي على أرقام فقط وبحد أقصى 9 أرقام');
     }
@@ -541,7 +547,7 @@ export class StudentsService {
           guardianRelation: dto.guardianRelation || null,
           // A student registered straight into the activity programme joins no
           // circle, whatever the form sent.
-          circleId: this.circleForStatus(dto.status, dto.circleId),
+          circleId: registrationTrack === StudentRegistrationTrack.CIRCLE ? dto.circleId || null : null,
           enrollmentDate: dto.enrollmentDate ? new Date(dto.enrollmentDate) : new Date(),
           status: dto.status ?? StudentStatus.ACTIVE,
           memorizedParts: dto.memorizedParts ?? 0,
@@ -551,11 +557,12 @@ export class StudentsService {
         },
       });
 
-      if (dto.circleId && dto.status !== StudentStatus.ACTIVITY) {
+      if (registrationTrack === StudentRegistrationTrack.CIRCLE && dto.circleId && dto.status !== StudentStatus.ACTIVITY) {
         await tx.circleMembership.create({
           data: { studentId: created.id, circleId: dto.circleId, reason: 'تسجيل جديد' },
         });
       }
+      if (registrationTrack === StudentRegistrationTrack.COURSE && dto.courseId) await tx.courseEnrollment.create({ data: { studentId: created.id, courseId: dto.courseId } });
       return created;
     });
 
@@ -1000,6 +1007,16 @@ export class StudentsService {
     if (circle._count.students >= circle.capacity) {
       throw new BadRequestException(`الحلقة "${circle.name}" مكتملة العدد (${circle.capacity})`);
     }
+  }
+
+  private async nextTrackCode(prefix: '2' | '3') {
+    const year = new Date().getFullYear();
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const suffix = String(Number.parseInt(randomBytes(2).toString('hex'), 16) % 10000).padStart(4, '0');
+      const code = prefix + year + suffix;
+      if (!(await this.prisma.student.findUnique({ where: { code } }))) return code;
+    }
+    throw new ConflictException('تعذر توليد رقم طالب فريد، حاول مرة أخرى');
   }
 
   private async nextCode() {

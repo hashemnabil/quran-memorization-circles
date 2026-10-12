@@ -266,7 +266,7 @@ export default function StudentDetailsPage() {
               <Button variant="secondary" size="sm" icon={<IconPause size={15} />} onClick={() => setModal('suspend')}>
                 طلب إيقاف
               </Button>
-              <Button size="sm" icon={<IconAward size={15} />} onClick={() => setTab('exams')}>
+              <Button size="sm" icon={<IconAward size={15} />} onClick={() => { setTab('exams'); setModal('exam'); }}>
                 طلب اختبار
               </Button>
             </>
@@ -437,6 +437,7 @@ export default function StudentDetailsPage() {
       {modal === 'transfer' && <TransferModal student={student} onClose={() => setModal(null)} />}
       {modal === 'suspend' && <SuspendModal student={student} onClose={() => setModal(null)} />}
       {modal === 'edit' && <EditStudentModal student={student} onClose={() => setModal(null)} />}
+      {modal === 'exam' && <StudentExamRequestModal student={student} onClose={() => setModal(null)} />}
     </>
   );
 }
@@ -1757,6 +1758,84 @@ function PreparationModal({ student, onClose }: { student: Student; onClose: () 
         value={form.note}
         onChange={(e) => set('note', e.target.value)}
       />
+    </Modal>
+  );
+}
+
+
+function StudentExamRequestModal({ student, onClose }: { student: Student; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [sectionIds, setSectionIds] = useState<string[]>([]);
+  const [note, setNote] = useState('');
+
+  const eligibilityQuery = useQuery({
+    queryKey: ['exams', 'eligibility', student.id],
+    queryFn: async () => (await api.get<ExamEligibility>(`/exams/eligibility/${student.id}`)).data,
+  });
+
+  const progression = eligibilityQuery.data?.progression ?? [];
+  const firstAvailable = progression.findIndex((item) => item.eligible);
+  const remaining = firstAvailable < 0 ? [] : progression.slice(firstAvailable);
+  const nextBlockEnd = remaining.findIndex((item) => item.isPassed || item.hasOpenRequest);
+  const selectable = nextBlockEnd < 0 ? remaining : remaining.slice(0, nextBlockEnd);
+
+  const mutation = useMutation({
+    mutationFn: () => api.post('/exams/requests', {
+      studentId: student.id,
+      sectionIds,
+      note: note || undefined,
+    }),
+    onSuccess: async () => {
+      toast.success('تم تقديم طلب الاختبار وحفظه');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['exams'] }),
+        queryClient.invalidateQueries({ queryKey: ['students', student.id] }),
+        queryClient.invalidateQueries({ queryKey: ['students', student.id, 'history'] }),
+      ]);
+      onClose();
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`طلب اختبار — ${student.fullName}`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>إلغاء</Button>
+          <Button
+            loading={mutation.isPending}
+            disabled={!sectionIds.length || eligibilityQuery.isLoading || !selectable.length}
+            onClick={() => mutation.mutate()}
+          >
+            تقديم الطلب ({sectionIds.length})
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-sm text-slate-500">اختر المقررات المطلوبة. سيُحفظ الطلب ويظهر في طلبات الاختبار بملف الطالب وقسم الاختبارات.</p>
+        {eligibilityQuery.isLoading ? <LoadingState rows={3} /> : !selectable.length ? (
+          <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">لا توجد مقررات متاحة للطلب حالياً. تحقق من تسلسل الاختبارات أو من وجود طلب قائم.</p>
+        ) : (
+          <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2">
+            {selectable.map((item) => (
+              <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={sectionIds.includes(item.id)}
+                  onChange={(event) => setSectionIds((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))}
+                />
+                <span>{item.name}</span>
+                <span className="mr-auto text-xs text-slate-400">{item.kind === 'HIZB' ? 'حزب' : 'جزء'}</span>
+              </label>
+            ))}
+          </div>
+        )}
+        <Textarea label="ملاحظات (اختياري)" value={note} onChange={(event) => setNote(event.target.value)} />
+      </div>
     </Modal>
   );
 }

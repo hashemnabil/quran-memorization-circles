@@ -55,6 +55,7 @@ export class ReportsService {
         where: {
           ...studentScope,
           deletedAt: null,
+          ...(from || to ? { enrollmentDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
           ...(q.status ? { status: q.status as any } : {}),
           ...(q.evaluation ? { evaluation: q.evaluation as any } : {}),
           ...(q.circleId ? { circleId: q.circleId } : {}),
@@ -134,7 +135,7 @@ export class ReportsService {
     const courseScope: Prisma.CourseWhereInput = { deletedAt: null, ...(user.role === Role.TEACHER ? { instructorId: user.id } : {}), ...(q.courseId ? { id: q.courseId } : {}) };
     if (['courses', 'courseStudents', 'courseAttendance'].includes(type)) {
       if (type === 'courses') {
-        const courses = await this.prisma.course.findMany({ where: courseScope, include: { instructor: { select: { fullName: true } }, _count: { select: { enrollments: true, attendance: true } } }, orderBy: { name: 'asc' }, take: 5000 });
+        const courses = await this.prisma.course.findMany({ where: { ...courseScope, ...(from || to ? { startDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}) }, include: { instructor: { select: { fullName: true } }, _count: { select: { enrollments: true, attendance: true } } }, orderBy: { name: 'asc' }, take: 5000 });
         const rows = courses.map(c => ({ 'الدورة': c.name, 'رمز الدورة': c.code, 'النوع': c.type === 'SHARIA' ? 'شرعية' : 'تجويد', 'المحاضر': c.instructor?.fullName ?? c.instructorName ?? '', 'الموقع': c.location ?? '', 'تاريخ البداية': c.startDate ?? '', 'تاريخ النهاية': c.endDate ?? '', 'عدد المسجلين': c._count.enrollments, 'سجلات الحضور': c._count.attendance, 'مفعّلة': c.isActive ? 'نعم' : 'لا' }));
         return { type, rows, stats: { total: rows.length, students: courses.reduce((n,c)=>n+c._count.enrollments,0), attendance: courses.reduce((n,c)=>n+c._count.attendance,0) } };
       }
@@ -142,7 +143,7 @@ export class ReportsService {
       const course = await this.prisma.course.findFirst({ where: courseScope, select: { id: true, name: true } });
       if (!course) throw new BadRequestException('الدورة غير موجودة أو لا تملك صلاحية الوصول إليها');
       if (type === 'courseStudents') {
-        const enrollments = await this.prisma.courseEnrollment.findMany({ where: { courseId: course.id, student: { deletedAt: null } }, include: { student: { select: { code: true, fullName: true, nationalId: true, birthDate: true, phone: true, status: true, guardianName: true, guardianPhone: true } } }, orderBy: { student: { fullName: 'asc' } }, take: 10000 });
+        const enrollments = await this.prisma.courseEnrollment.findMany({ where: { courseId: course.id, student: { deletedAt: null }, ...(from || to ? { enrolledAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}) }, include: { student: { select: { code: true, fullName: true, nationalId: true, birthDate: true, phone: true, status: true, guardianName: true, guardianPhone: true } } }, orderBy: { student: { fullName: 'asc' } }, take: 10000 });
         const rows = enrollments.map(e => ({ 'الدورة': course.name, 'اسم الطالب': e.student.fullName, 'رقم الطالب': studentCode(e.student.code), 'رقم الهوية': e.student.nationalId ?? '', 'تاريخ الميلاد': e.student.birthDate ?? '', 'الهاتف': e.student.phone ?? '', 'ولي الأمر': e.student.guardianName ?? '', 'هاتف ولي الأمر': e.student.guardianPhone ?? '', 'الحالة': e.student.status, 'تاريخ التسجيل بالدورة': e.enrolledAt, 'تاريخ الانسحاب': e.endedAt ?? '', 'التسجيل الحالي': e.endedAt ? 'لا' : 'نعم' }));
         return { type, rows, stats: { total: rows.length, active: enrollments.filter(e=>!e.endedAt).length } };
       }
@@ -157,7 +158,7 @@ export class ReportsService {
       return { type, dates, rows: matrixRows, stats: { total: records.length, present: records.filter(a=>a.status==='PRESENT').length, absent: records.filter(a=>a.status==='ABSENT').length, excused: records.filter(a=>a.status==='EXCUSED').length } };
     }
 
-    const circles = await this.prisma.circle.findMany({ where:{deletedAt:null,...(allowed===null?{}:{id:{in:allowed}}),...(q.circleId?{id:q.circleId}:{})}, include:{_count:{select:{students:true,attendance:true,recitations:true}},teachers:{where:{endedAt:null},include:{teacher:{include:{user:{select:{fullName:true}}}}}}},orderBy:{name:'asc'},take:5000 });
+    const circles = await this.prisma.circle.findMany({ where:{deletedAt:null,...(from||to?{createdAt:{...(from?{gte:from}:{}),...(to?{lte:to}:{})}}:{}),...(allowed===null?{}:{id:{in:allowed}}),...(q.circleId?{id:q.circleId}:{})}, include:{_count:{select:{students:true,attendance:true,recitations:true}},teachers:{where:{endedAt:null},include:{teacher:{include:{user:{select:{fullName:true}}}}}}},orderBy:{name:'asc'},take:5000 });
     return { type, rows:circles.map(c=>({'الحلقة':c.name,'رمز الحلقة':c.code,'عدد الطلاب':c._count.students,'سجلات الحضور':c._count.attendance,'سجلات التسميع':c._count.recitations,'المعلمون':c.teachers.map(t=>t.teacher.user.fullName).join('، '),'السعة الاستيعابية':c.capacity,'مفعّلة':c.isActive?'نعم':'لا'})), stats:{circles:circles.length,students:circles.reduce((n,c)=>n+c._count.students,0),attendance:circles.reduce((n,c)=>n+c._count.attendance,0),recitations:circles.reduce((n,c)=>n+c._count.recitations,0)} };
   }
 

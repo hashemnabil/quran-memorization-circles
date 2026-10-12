@@ -546,7 +546,6 @@ function StudentFormModal({
     // Empty strings would fail the API's UUID / date validation.
     const values = { ...form, registrationTrack, courseId: registrationTrack === 'COURSE' ? courseId : '', circleId: registrationTrack === 'CIRCLE' ? form.circleId : '' };
     const payload = Object.fromEntries(Object.entries(values).filter(([, value]) => value !== '' && value !== null && value !== undefined));
-    if (registrationTrack !== 'CIRCLE') delete (payload as Record<string, unknown>).code;
     create.mutate(payload);
   };
 
@@ -582,16 +581,16 @@ function StudentFormModal({
           error={errors.fullName}
           className="sm:col-span-2"
         />
-        {canChooseTrack && <div className="sm:col-span-2"><Select label="مسار تسجيل الطالب" value={registrationTrack} onChange={(e) => { setRegistrationTrack(e.target.value as 'CIRCLE' | 'COURSE' | 'ACTIVITY'); set('circleId', ''); setCourseId(''); }}><option value="CIRCLE">التحفيظ</option><option value="COURSE">الدورات</option><option value="ACTIVITY">النشاط</option></Select></div>}
+        {canChooseTrack && <div className="sm:col-span-2"><Select label="مسار تسجيل الطالب" value={registrationTrack} onChange={(e) => { setRegistrationTrack(e.target.value as 'CIRCLE' | 'COURSE' | 'ACTIVITY'); set('circleId', ''); setCourseId(''); set('code', ''); }}><option value="CIRCLE">التحفيظ</option><option value="COURSE">الدورات</option><option value="ACTIVITY">النشاط</option></Select></div>}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-700">رقم الطالب</label>
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
-              <Input value={registrationTrack === 'COURSE' ? '2' + new Date().getFullYear() + 'xxxx' : registrationTrack === 'ACTIVITY' ? '3' + new Date().getFullYear() + 'xxxx' : form.code} onChange={(e) => set('code', e.target.value.replace(/\D/g, '').slice(0, 9))} error={errors.code} dir="ltr" disabled={registrationTrack !== 'CIRCLE'} />
+              <Input value={form.code || `${registrationTrack === 'COURSE' ? '2' : registrationTrack === 'ACTIVITY' ? '3' : '1'}${new Date().getFullYear()}xxxx`} onChange={(e) => set('code', e.target.value.replace(/\D/g, '').slice(0, 9))} error={errors.code} dir="ltr" />
             </div>
-            {registrationTrack === 'CIRCLE' && <Button type="button" variant="secondary" size="sm" onClick={() => set('code', `1${new Date().getFullYear()}${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`)}>توليد رقم طالب</Button>}
+            <Button type="button" variant="secondary" size="sm" onClick={() => set('code', `${registrationTrack === 'COURSE' ? '2' : registrationTrack === 'ACTIVITY' ? '3' : '1'}${new Date().getFullYear()}${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`)}>توليد رقم</Button>
           </div>
-          <p className="mt-1 text-xs text-slate-500">{registrationTrack === 'COURSE' ? 'سيُولّد رقم يبدأ بـ 2 مثل 220261234.' : registrationTrack === 'ACTIVITY' ? 'سيُولّد رقم يبدأ بـ 3 مثل 320261234.' : 'مثال: 120261234. إذا تركته فارغاً، سيتم توليده تلقائياً عند التسجيل.'}</p>
+          <p className="mt-1 text-xs text-slate-500">{registrationTrack === 'COURSE' ? 'رقم الدورات يبدأ بـ 2 ثم سنة التسجيل ثم 4 أرقام عشوائية، مثال: 220261234.' : registrationTrack === 'ACTIVITY' ? 'رقم النشاط يبدأ بـ 3 ثم سنة التسجيل ثم 4 أرقام عشوائية، مثال: 320261234.' : 'رقم التحفيظ يبدأ بـ 1 ثم سنة التسجيل ثم 4 أرقام عشوائية، وإذا تركته كما هو سيتم توليده تلقائياً عند التسجيل.'}</p>
         </div>
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
         <Input label={form.createAccount ? 'رقم الهوية (سيُستخدم اسمًا للمستخدم)' : 'رقم الهوية (اختياري)'} required={form.createAccount} value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />

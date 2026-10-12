@@ -516,7 +516,8 @@ export class StudentsService {
         if (usernameTaken) throw new ConflictException('رقم الهوية مستخدم كاسم دخول لحساب آخر');
       }
     }
-    const code = registrationTrack === StudentRegistrationTrack.CIRCLE ? (dto.code?.trim() || await this.nextCode()) : await this.nextTrackCode(registrationTrack === StudentRegistrationTrack.COURSE ? '2' : '3');
+    const trackPrefix = registrationTrack === StudentRegistrationTrack.CIRCLE ? '1' : registrationTrack === StudentRegistrationTrack.COURSE ? '2' : '3';
+    const code = dto.code?.trim() || (registrationTrack === StudentRegistrationTrack.CIRCLE ? await this.nextCode() : await this.nextTrackCode(trackPrefix));
     if (!/^\d{1,9}$/.test(code)) {
       throw new BadRequestException('رقم الطالب يجب أن يحتوي على أرقام فقط وبحد أقصى 9 أرقام');
     }

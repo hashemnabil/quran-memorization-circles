@@ -578,7 +578,7 @@ export class StudentsService {
     const profile = await this.findOne(actor, student.id);
     // Temporary credentials are returned only when an account was explicitly requested.
     return temporaryPassword
-      ? { ...profile, accountCredentials: { username: dto.nationalId, temporaryPassword } }
+      ? { ...profile, accountCredentials: { username: code, temporaryPassword } }
       : profile;
   }
 

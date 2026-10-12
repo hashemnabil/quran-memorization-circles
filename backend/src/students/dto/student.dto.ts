@@ -16,6 +16,7 @@ import {
   IsUUID,
   Max,
   MaxLength,
+  Matches,
   Min,
 } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
@@ -31,7 +32,8 @@ export class CreateStudentDto {
   @ApiPropertyOptional({ description: 'رمز الطالب، يُولَّد تلقائياً إذا تُرك فارغاً' })
   @IsOptional()
   @IsString()
-  @MaxLength(20)
+  @MaxLength(9)
+  @Matches(/^\d{1,9}$/, { message: 'رقم الطالب يجب أن يحتوي على أرقام فقط وبحد أقصى 9 أرقام' })
   code?: string;
 
   @ApiPropertyOptional()

@@ -458,6 +458,8 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
       <Card title="البيانات الشخصية" className="lg:col-span-1">
         <InfoRow label="رقم الطالب" value={<span className="numeric">{student.code}</span>} />
         <InfoRow label="تاريخ الميلاد" value={formatDate(student.birthDate)} />
+        <InfoRow label="البريد الإلكتروني" value={student.parentProfile?.user.email} />
+        <InfoRow label="اسم المستخدم" value={student.parentProfile?.user.username} />
         <InfoRow label="العمر" value={calcAge(student.birthDate)} />
         <InfoRow label="رقم الهوية" value={<span className="numeric" dir="ltr">{student.nationalId}</span>} />
         <InfoRow label="العنوان" value={student.address} />
@@ -504,8 +506,6 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
         <InfoRow label="صلة القرابة" value={student.guardianRelation} />
         <InfoRow label="المهنة" value={student.parentProfile?.occupation} />
         <InfoRow label="العنوان" value={student.parentProfile?.address} />
-        <InfoRow label="البريد الإلكتروني" value={student.parentProfile?.user.email} />
-        <InfoRow label="اسم المستخدم" value={student.parentProfile?.user.username} />
       </Card>
 
       <Card title="المستوى والتقييم" className="lg:col-span-1">
@@ -1251,6 +1251,7 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
 
   const [form, setForm] = useState({
     fullName: student.fullName,
+    code: student.code.replace(/\D/g, ''),
     birthDate: student.birthDate?.slice(0, 10) ?? '',
     nationalId: student.nationalId ?? '',
     fatherNationalId: student.fatherNationalId ?? '',
@@ -1301,6 +1302,7 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
 
   const submit = () => {
     const next: Record<string, string> = {};
+    if (!/^\d{1,9}$/.test(form.code)) next.code = 'رقم الطالب أرقام فقط وبحد أقصى 9 أرقام';
     const phoneErr = phoneError(form.phone);
     if (phoneErr) next.phone = phoneErr;
     setErrors(next);
@@ -1338,6 +1340,7 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
           disabled={!isAdmin}
           className="sm:col-span-2"
         />
+        <Input label="رقم الطالب" value={form.code} onChange={(e) => set('code', e.target.value.replace(/\D/g, '').slice(0, 9))} error={errors.code} disabled={!isAdmin} dir="ltr" />
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} disabled={!isAdmin} />
         <Input label="رقم الهوية" value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} disabled={!isAdmin} dir="ltr" />
         {isAdmin && (

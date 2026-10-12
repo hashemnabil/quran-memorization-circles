@@ -510,6 +510,11 @@ export class StudentsService {
       }
     }
     const code = dto.code?.trim() || (await this.nextCode());
+    if (!/^\d{1,9}$/.test(code)) {
+      throw new BadRequestException('رقم الطالب يجب أن يحتوي على أرقام فقط وبحد أقصى 9 أرقام');
+    }
+    const existingCode = await this.prisma.student.findUnique({ where: { code } });
+    if (existingCode) throw new ConflictException('رقم الطالب مستخدم مسبقاً');
 
     const temporaryPassword = dto.createAccount ? randomBytes(9).toString('base64url') : undefined;
     const passwordHash = temporaryPassword ? await bcrypt.hash(temporaryPassword, 12) : undefined;
@@ -670,6 +675,16 @@ export class StudentsService {
       }
     }
 
+    if (dto.code !== undefined) {
+      const code = dto.code.trim();
+      if (!/^\d{1,9}$/.test(code)) {
+        throw new BadRequestException('رقم الطالب يجب أن يحتوي على أرقام فقط وبحد أقصى 9 أرقام');
+      }
+      const duplicateCode = await this.prisma.student.findFirst({ where: { code, id: { not: id } } });
+      if (duplicateCode) throw new ConflictException('رقم الطالب مستخدم مسبقاً');
+      dto.code = code;
+    }
+
     if (dto.nationalId && dto.nationalId !== undefined) {
       const dup = await this.prisma.student.findFirst({
         where: { nationalId: dto.nationalId, deletedAt: null, id: { not: id } },
@@ -711,6 +726,7 @@ export class StudentsService {
         where: { id },
         data: {
           fullName: dto.fullName,
+          code: dto.code,
           birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
           gender: dto.gender,
           nationalId: dto.nationalId === '' ? null : dto.nationalId,
@@ -941,15 +957,15 @@ export class StudentsService {
   }
 
   private async nextCode() {
-    const count = await this.prisma.student.count();
-    let n = count + 1;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const code = `ST-${String(n).padStart(4, '0')}`;
+    const year = new Date().getFullYear();
+    // Format: 1 + registration year (4 digits) + 4 random digits = 9 digits.
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const suffix = String(Number.parseInt(randomBytes(2).toString('hex'), 16) % 10000).padStart(4, '0');
+      const code = `1${year}${suffix}`;
       const exists = await this.prisma.student.findUnique({ where: { code } });
       if (!exists) return code;
-      n += 1;
     }
+    throw new ConflictException('تعذر توليد رقم طالب فريد، حاول مرة أخرى');
   }
 
   private evaluationLabel(evaluation: Evaluation) {

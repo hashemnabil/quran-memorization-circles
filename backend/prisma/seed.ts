@@ -429,7 +429,7 @@ async function main() {
       const parent = parents[studentIndex % parents.length];
       const student = await prisma.student.create({
         data: {
-          code: `ST-${String(studentIndex).padStart(4, '0')}`,
+          code: String(studentIndex).padStart(4, '0'),
           fullName: `${pick(FIRST_NAMES, studentIndex)} ${parent.user.fullName.split(' ')[0]} ${pick(
             FAMILY_NAMES,
             studentIndex,
@@ -1035,7 +1035,7 @@ async function main() {
   for (let i = 0; i < 6; i++) {
     const student = await prisma.student.create({
       data: {
-        code: `ST-${String(9000 + i)}`,
+        code: String(9000 + i),
         fullName: `${pick(FIRST_NAMES, i + 3)} ${pick(FAMILY_NAMES, i + 5)}`,
         birthDate: new Date(2011 + (i % 4), i % 12, 5 + (i % 20)),
         nationalId: `20${String(2000000 + i)}`,

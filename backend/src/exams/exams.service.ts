@@ -389,25 +389,63 @@ export class ExamsService {
     }
     const student = await this.prisma.student.findFirst({ where: { id: studentId, deletedAt: null }, select: { id: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
-    const section = await this.prisma.examSection.findFirst({ where: { id: sectionId, isActive: true }, select: { id: true } });
+    const section = await this.prisma.examSection.findFirst({ where: { id: sectionId, isActive: true } });
     if (!section) throw new NotFoundException('مقرر الاختبار غير موجود');
-    const saved = await this.prisma.examMilestoneRecord.upsert({
-      where: { studentId_sectionId: { studentId, sectionId } },
-      create: {
-        studentId, sectionId, status: dto.status, result: null, score: dto.score ?? null,
-        requestedAt: dto.requestedAt ? this.parseDate(dto.requestedAt) : null,
-        examDate: dto.examDate ? this.parseDate(dto.examDate) : null,
-        examinerName: dto.examinerName ?? null, note: dto.note ?? null, updatedById: actor.id,
-      },
-      update: {
-        status: dto.status, result: null, score: dto.score ?? null,
-        requestedAt: dto.requestedAt ? this.parseDate(dto.requestedAt) : null,
-        examDate: dto.examDate ? this.parseDate(dto.examDate) : null,
-        examinerName: dto.examinerName ?? null, note: dto.note ?? null, updatedById: actor.id,
-      },
-      include: { section: true },
+
+    // A manual "completed" milestone must be reflected in the official exam
+    // history as well as the progression/profile aggregates.
+    const completedScore = dto.status === 'COMPLETED' ? (dto.score ?? section.minScore) : null;
+    const completedResult = completedScore === null
+      ? null
+      : completedScore >= section.minScore ? ExamResult.PASSED : ExamResult.FAILED;
+    const examDate = dto.examDate ? this.parseDate(dto.examDate) : new Date();
+
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const milestone = await tx.examMilestoneRecord.upsert({
+        where: { studentId_sectionId: { studentId, sectionId } },
+        create: {
+          studentId, sectionId, status: dto.status, result: completedResult, score: completedScore,
+          requestedAt: dto.requestedAt ? this.parseDate(dto.requestedAt) : null,
+          examDate: dto.examDate ? this.parseDate(dto.examDate) : null,
+          examinerName: dto.examinerName ?? null, note: dto.note ?? null, updatedById: actor.id,
+        },
+        update: {
+          status: dto.status, result: completedResult, score: completedScore,
+          requestedAt: dto.requestedAt ? this.parseDate(dto.requestedAt) : null,
+          examDate: dto.examDate ? this.parseDate(dto.examDate) : null,
+          examinerName: dto.examinerName ?? null, note: dto.note ?? null, updatedById: actor.id,
+        },
+        include: { section: true },
+      });
+
+      if (dto.status === 'COMPLETED' && completedScore !== null && completedResult !== null) {
+        const existingManualExam = await tx.exam.findFirst({
+          where: { studentId, sectionId, requestId: null },
+          orderBy: { scheduledAt: 'desc' },
+        });
+        const examData = {
+          scheduledAt: examDate,
+          status: ExamStatus.COMPLETED,
+          score: completedScore,
+          evaluation: evaluationFromScore(completedScore),
+          result: completedResult,
+          notes: dto.note ?? null,
+          gradedById: actor.id,
+          gradedAt: new Date(),
+        };
+        if (existingManualExam) {
+          await tx.exam.update({ where: { id: existingManualExam.id }, data: examData });
+        } else {
+          await tx.exam.create({
+            data: { studentId, sectionId, ...examData },
+          });
+        }
+      }
+
+      await this.updateStudentMemorization(tx, studentId);
+      return milestone;
     });
-    await this.updateStudentMemorization(this.prisma, studentId);
+
     this.clearCache();
     await this.activity.log({
       userId: actor.id, action: 'EXAM_MILESTONE_OVERRIDE',

@@ -25,14 +25,13 @@ function sequence() {
   return rows;
 }
 
-export function ExamProgressionTable({ eligibility, exams, loading, studentId, canEditMilestones = false, canRequest = false, onRequestSection }: {
+export function ExamProgressionTable({ eligibility, exams, loading, studentId, canEditMilestones = false, canRequest = false }: {
   eligibility?: ExamEligibility;
   exams: ExamRow[];
   loading?: boolean;
   studentId?: string;
   canEditMilestones?: boolean;
   canRequest?: boolean;
-  onRequestSection?: (sectionId: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<string | null>(null);
@@ -49,6 +48,18 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
     queryFn: async () => (await api.get<{ data: ExamRequestRow[] }>('/exams/requests', { params: { studentId, limit: 100 } })).data,
   });
   const requests = requestsQuery.data?.data ?? [];
+  const submitSectionRequest = useMutation({
+    mutationFn: (sectionId: string) => api.post('/exams/requests', { studentId, sectionIds: [sectionId] }),
+    onSuccess: async () => {
+      toast.success('تم تقديم طلب الاختبار وتحديث حالة المقرر');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['exams'] }),
+        queryClient.invalidateQueries({ queryKey: ['students', studentId] }),
+        queryClient.invalidateQueries({ queryKey: ['students', studentId, 'history'] }),
+      ]);
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
   const saveRecord = useMutation({
     mutationFn: async (sectionId: string) => (await api.patch(`/exams/milestones/${studentId}/${sectionId}`, {
       status: draft.status,
@@ -107,7 +118,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
       </div>
       <div className="table-wrap border-0 shadow-none">
         <table className="table">
-          <thead><tr><th>التسلسل</th><th>الحالة</th><th>العلامة</th><th>تاريخ الاختبار</th><th>الممتحن</th>{canRequest && <th>طلب اختبار</th>}{canEditMilestones && <th>إدارة</th>}</tr></thead>
+          <thead><tr><th>التسلسل</th><th>الحالة</th><th>العلامة</th><th>تاريخ الاختبار</th><th>الممتحن</th>{canRequest && !canEditMilestones && <th>طلب اختبار</th>}{canEditMilestones && <th>إدارة</th>}</tr></thead>
           <tbody>
             {rows.map((row) => {
               const record = row.record;
@@ -121,8 +132,10 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
                 <td className="numeric">{score == null ? '—' : score}</td>
                 <td className="numeric">{row.related?.scheduledAt ? formatDateShort(row.related.scheduledAt) : record?.examDate ? formatDateShort(record.examDate) : record?.requestedAt ? formatDateShort(record.requestedAt) : '—'}</td>
                 <td>{row.related?.examiner?.fullName || row.related?.gradedBy?.fullName || record?.examinerName || '—'}</td>
-                {canRequest && <td>{row.section && row.unlocked && !row.passed && !row.pending && !row.requested ? <button className="btn btn-primary btn-sm" onClick={() => onRequestSection?.(row.section!.id)}>طلب اختبار</button> : <span className="text-xs text-slate-400">{row.passed ? 'مجتاز' : row.pending || row.requested ? 'طلب قائم' : 'حسب التسلسل'}</span>}</td>}
+                {canRequest && !canEditMilestones && <td>{row.section && row.unlocked && !row.passed && !row.pending && !row.requested ? <button className="btn btn-primary btn-sm" disabled={submitSectionRequest.isPending} onClick={() => submitSectionRequest.mutate(row.section!.id)}>طلب اختبار</button> : <span className="text-xs text-slate-400">{row.passed ? 'مجتاز' : row.pending || row.requested ? 'طلب قائم' : 'حسب التسلسل'}</span>}</td>}
                 {canEditMilestones && <td>
+                  <div className="flex flex-wrap items-start gap-1">
+                  {canRequest && row.section && row.unlocked && !row.passed && !row.pending && !row.requested && <button className="btn btn-primary btn-sm" disabled={submitSectionRequest.isPending} onClick={() => submitSectionRequest.mutate(row.section!.id)}>طلب</button>}
                   {editing === row.key ? (
                     <div className="min-w-56 space-y-1">
                       <select className="form-input w-full" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}>
@@ -135,6 +148,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
                       <div className="flex gap-1"><button className="btn btn-primary btn-sm" disabled={saveRecord.isPending} onClick={() => saveRecord.mutate(row.section?.id || record?.sectionId || '')}>حفظ</button><button className="btn btn-secondary btn-sm" onClick={() => setEditing(null)}>إلغاء</button></div>
                     </div>
                   ) : <button className="btn btn-secondary btn-sm" onClick={() => { setEditing(row.key); setDraft({ status: record?.status ?? (row.pending ? 'SCHEDULED' : row.passed ? 'COMPLETED' : 'NOT_REQUESTED'), score: score == null ? '' : String(score), requestedAt: (record?.requestedAt ?? '').slice(0, 10), examDate: (record?.examDate ?? row.related?.scheduledAt ?? '').slice(0, 10), examinerName: record?.examinerName ?? row.related?.examiner?.fullName ?? '' }); }}>تعديل</button>}
+                  </div>
                 </td>}
               </tr>;
             })}

@@ -101,13 +101,14 @@ export default function DashboardPage() {
         }
       />
 
-      <section className="relative mb-5 overflow-hidden rounded-2xl border border-primary-800/10 bg-gradient-to-l from-primary-900 via-primary-800 to-primary-700 px-5 py-6 text-white shadow-card sm:px-7 sm:py-7">
+      <section className="relative mb-6 overflow-hidden rounded-[1.5rem] border border-primary-800/10 border-b-4 border-b-gold-400 bg-gradient-to-l from-primary-950 via-primary-900 to-primary-700 px-5 py-7 text-white shadow-card sm:px-8 sm:py-8">
         <div className="pointer-events-none absolute -left-8 -top-10 h-40 w-40 rounded-full border-[24px] border-white/5" aria-hidden />
+        <div className="pointer-events-none absolute -bottom-16 right-[42%] h-40 w-40 rounded-full border border-gold-300/15" aria-hidden />
         <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
           <div className="max-w-2xl">
-            <p className="mb-2 text-xs font-bold tracking-wide text-primary-200">نظام إدارة حلقات تحفيظ القرآن الكريم</p>
-            <h2 className="text-xl font-extrabold leading-relaxed sm:text-2xl">أهلاً وسهلاً، {user.fullName}</h2>
-            <p className="mt-1.5 text-sm leading-6 text-primary-100/90">من هون بتقدر تتابع أهم المعلومات وتوصل بسرعة للأقسام اللي بتستخدمها.</p>
+            <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-gold-200/25 bg-gold-200/10 px-3 py-1.5 text-xs font-bold tracking-wide text-gold-100"><span className="h-1.5 w-1.5 rounded-full bg-gold-300" /> نظام إدارة حلقات تحفيظ القرآن الكريم</p>
+            <h2 className="text-2xl font-extrabold leading-relaxed sm:text-3xl">أهلاً وسهلاً، {user.fullName}</h2>
+            <p className="mt-2 max-w-xl text-sm leading-7 text-primary-100/90">كل ما تحتاجه لمتابعة حلقات التحفيظ والمهام اليومية، مرتب أمامك في مكان واحد.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link to="/support" className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-bold transition hover:bg-white/20"><IconLifeBuoy size={17} /> الدعم الفني</Link>

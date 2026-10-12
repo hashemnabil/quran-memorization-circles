@@ -36,7 +36,33 @@ export async function enqueueOfflineOperation(
   operation: Omit<OutboxOperation, 'id' | 'createdAt' | 'attempts' | 'state'>,
 ): Promise<OutboxOperation> {
   if (!operation.accountId.trim()) throw new Error('يلزم تحديد الحساب قبل حفظ التعديل');
+  // Fail closed: the replay handler currently supports exactly one domain operation.
+  // Do not allow future callers to queue arbitrary writes that would later be rejected
+  // or, worse, accidentally replayed without a conflict/idempotency policy.
+  if (
+    operation.resource !== 'attendance-sheet' ||
+    operation.method !== 'POST' ||
+    operation.path !== '/attendance'
+  ) {
+    throw new Error('هذا النوع من التعديلات غير مفعّل للمزامنة دون اتصال');
+  }
   if (!operation.path.startsWith('/')) throw new Error('مسار الطلب يجب أن يبدأ بـ /');
+  const payload = operation.payload as {
+    circleId?: unknown;
+    date?: unknown;
+    entries?: unknown;
+  } | null;
+  if (
+    !payload ||
+    typeof payload.circleId !== 'string' ||
+    !payload.circleId.trim() ||
+    typeof payload.date !== 'string' ||
+    !/^\\d{4}-\\d{2}-\\d{2}$/.test(payload.date) ||
+    !Array.isArray(payload.entries) ||
+    payload.entries.length === 0
+  ) {
+    throw new Error('بيانات كشف الحضور غير مكتملة ولا يمكن حفظها للمزامنة');
+  }
   const item: OutboxOperation = { ...operation, id: makeId(), createdAt: Date.now(), attempts: 0, state: 'pending' };
   const db = await openDb();
   try {

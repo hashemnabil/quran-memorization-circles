@@ -581,7 +581,7 @@ function StudentFormModal({
           error={errors.fullName}
           className="sm:col-span-2"
         />
-        {canChooseTrack && <div className="sm:col-span-2"><Select label="مسار تسجيل الطالب" value={registrationTrack} onChange={(e) => { setRegistrationTrack(e.target.value as 'CIRCLE' | 'COURSE' | 'ACTIVITY'); set('circleId', ''); setCourseId(''); }}><option value="CIRCLE">التحفيظ</option><option value="COURSE">الدورات</option><option value="ACTIVITY">النشاط</option></Select></div>}
+        {canChooseTrack && <div className="sm:col-span-2"><Select label="مسار تسجيل الطالب" value={registrationTrack} onChange={(e) => { setRegistrationTrack(e.target.value as 'CIRCLE' | 'COURSE' | 'ACTIVITY'); set('circleId', ''); setCourseId(''); set('code', ''); }}><option value="CIRCLE">التحفيظ</option><option value="COURSE">الدورات</option><option value="ACTIVITY">النشاط</option></Select></div>}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-700">رقم الطالب</label>
           <div className="flex items-start gap-2">

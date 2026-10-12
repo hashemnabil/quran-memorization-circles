@@ -58,6 +58,7 @@ export class ReportsService {
           ...(q.status ? { status: q.status as any } : {}),
           ...(q.evaluation ? { evaluation: q.evaluation as any } : {}),
           ...(q.circleId ? { circleId: q.circleId } : {}),
+          ...(q.track === 'CIRCLE' ? { circleId: { not: null } } : {}),
           ...(q.search ? { OR: [
             { fullName: { contains: q.search, mode: 'insensitive' } },
             { code: { contains: q.search, mode: 'insensitive' } },

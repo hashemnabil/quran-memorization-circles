@@ -44,6 +44,7 @@ type Draft = Record<string, { status: AttendanceStatus; note?: string }>;
 export default function AttendancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const accountId = useAuthStore((s) => s.user?.id ?? '');
 
   const [tab, setTab] = useState('record');
   const [circleId, setCircleId] = useState(searchParams.get('circleId') ?? '');

@@ -2,6 +2,8 @@
  * This is infrastructure only: do not replay arbitrary API mutations. Queue
  * only endpoints with server-side idempotency and a domain-specific conflict policy.
  */
+import { validateAttendancePayload } from './attendance-validation.js';
+
 export type OutboxOperation = {
   id: string; accountId: string; resource: string;
   method: 'POST' | 'PATCH' | 'PUT' | 'DELETE'; path: string; payload: unknown;
@@ -47,22 +49,8 @@ export async function enqueueOfflineOperation(
     throw new Error('هذا النوع من التعديلات غير مفعّل للمزامنة دون اتصال');
   }
   if (!operation.path.startsWith('/')) throw new Error('مسار الطلب يجب أن يبدأ بـ /');
-  const payload = operation.payload as {
-    circleId?: unknown;
-    date?: unknown;
-    entries?: unknown;
-  } | null;
-  if (
-    !payload ||
-    typeof payload.circleId !== 'string' ||
-    !payload.circleId.trim() ||
-    typeof payload.date !== 'string' ||
-    !/^\\d{4}-\\d{2}-\\d{2}$/.test(payload.date) ||
-    !Array.isArray(payload.entries) ||
-    payload.entries.length === 0
-  ) {
-    throw new Error('بيانات كشف الحضور غير مكتملة ولا يمكن حفظها للمزامنة');
-  }
+  const validationError = validateAttendancePayload(operation.payload);
+  if (validationError) throw new Error(validationError);
   const item: OutboxOperation = { ...operation, id: makeId(), createdAt: Date.now(), attempts: 0, state: 'pending' };
   const db = await openDb();
   try {

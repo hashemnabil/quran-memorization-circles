@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -72,12 +72,14 @@ function describeRequest(r: ExamRequest): string {
 // ============================================================================
 
 export default function ExamsPage() {
+  const location = useLocation();
+  const requestStudent = (location.state as { requestStudent?: Student } | null)?.requestStudent ?? null;
   const user = useAuthStore((s) => s.user)!;
   const canManage = user.role === 'ADMIN' || user.role === 'EXAM_COMMITTEE';
   const canRequest = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(user.role);
 
   const [tab, setTab] = useState<'requests' | 'scheduled' | 'history' | 'progression'>('requests');
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(!!requestStudent);
   const [progressSearch, setProgressSearch] = useState('');
   const debouncedProgressSearch = useDebounce(progressSearch);
   const [progressStudent, setProgressStudent] = useState<Student | null>(null);
@@ -160,7 +162,7 @@ export default function ExamsPage() {
         </div>
       )}
 
-      {creating && <CreateRequestModal onClose={() => setCreating(false)} />}
+      {creating && <CreateRequestModal initialStudent={requestStudent} onClose={() => setCreating(false)} />}
     </>
   );
 }
@@ -723,11 +725,11 @@ function EditExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
   );
 }
 
-function CreateRequestModal({ onClose }: { onClose: () => void }) {
+function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Student | null; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const debounced = useDebounce(search);
-  const [student, setStudent] = useState<Student | null>(null);
+  const [student, setStudent] = useState<Student | null>(initialStudent ?? null);
   const [sectionIds, setSectionIds] = useState<string[]>([]);
   const [note, setNote] = useState('');
 

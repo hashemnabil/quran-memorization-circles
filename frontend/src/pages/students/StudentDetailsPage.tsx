@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -110,6 +110,7 @@ function getStatusLabel(status: string): string {
 
 export default function StudentDetailsPage() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -266,7 +267,7 @@ export default function StudentDetailsPage() {
               <Button variant="secondary" size="sm" icon={<IconPause size={15} />} onClick={() => setModal('suspend')}>
                 طلب إيقاف
               </Button>
-              <Button size="sm" icon={<IconAward size={15} />} onClick={() => setModal('exam')}>
+              <Button size="sm" icon={<IconAward size={15} />} onClick={() => navigate('/exams', { state: { requestStudent: student } })}>
                 طلب اختبار
               </Button>
             </>
@@ -436,7 +437,6 @@ export default function StudentDetailsPage() {
       {modal === 'note' && <NoteModal studentId={id} onClose={() => setModal(null)} />}
       {modal === 'transfer' && <TransferModal student={student} onClose={() => setModal(null)} />}
       {modal === 'suspend' && <SuspendModal student={student} onClose={() => setModal(null)} />}
-      {modal === 'exam' && <ExamRequestModal student={student} onClose={() => setModal(null)} />}
       {modal === 'edit' && <EditStudentModal student={student} onClose={() => setModal(null)} />}
     </>
   );
@@ -1212,85 +1212,6 @@ function SuspendModal({ student, onClose }: { student: Student; onClose: () => v
         onChange={(e) => setReason(e.target.value)}
         placeholder="مثال: الطالب لا يقرأ بعد ويحتاج تهيئة قبل الالتحاق بحلقة"
       />
-    </Modal>
-  );
-}
-
-function ExamRequestModal({ student, onClose }: { student: Student; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [sectionIds, setSectionIds] = useState<string[]>([]);
-  const [note, setNote] = useState('');
-
-  const eligibility = useQuery({
-    queryKey: ['exams', 'eligibility', student.id],
-    queryFn: async () => (await api.get<ExamEligibility>(`/exams/eligibility/${student.id}`)).data,
-  });
-  const progression = eligibility.data?.progression ?? [];
-  const firstAvailable = progression.findIndex((item) => item.eligible);
-  const remaining = firstAvailable < 0 ? [] : progression.slice(firstAvailable);
-  const nextBlocked = remaining.findIndex((item) => item.isPassed || item.hasOpenRequest);
-  const selectable = nextBlocked < 0 ? remaining : remaining.slice(0, nextBlocked);
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      api.post('/exams/requests', {
-        studentId: student.id,
-        sectionIds,
-        note: note.trim() || undefined,
-      }),
-    onSuccess: () => {
-      toast.success('تم إرسال طلب الاختبار إلى لجنة الاختبارات');
-      queryClient.invalidateQueries({ queryKey: ['exams'] });
-      queryClient.invalidateQueries({ queryKey: ['students', student.id] });
-      onClose();
-    },
-    onError: (error) => toast.error(apiError(error)),
-  });
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="طلب اختبار"
-      size="sm"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>إلغاء</Button>
-          <Button onClick={() => mutation.mutate()} loading={mutation.isPending}
-            disabled={!sectionIds.length || eligibility.isLoading || !selectable.length}>
-            تقديم الطلب ({sectionIds.length})
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-3">
-        <p className="rounded-xl bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-500">
-          اختر الجزء أو الأحزاب التي تريد اختبار الطالب فيها. يمكنك تحديد أكثر من مقرر لإرسالها في طلب مجمّع واحد؛ يجب أن تكون المقررات متتابعة حسب التسلسل.
-        </p>
-        {eligibility.isLoading ? <LoadingState rows={4} /> : eligibility.isError ? (
-          <ErrorState message="تعذر تحميل الأجزاء المتاحة للاختبار" onRetry={() => eligibility.refetch()} />
-        ) : !selectable.length ? (
-          <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">لا توجد مقررات متاحة للطلب حالياً.</p>
-        ) : (
-          <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-slate-100 p-2">
-            {selectable.map((item) => (
-              <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-slate-50">
-                <input
-                  type="checkbox"
-                  checked={sectionIds.includes(item.id)}
-                  onChange={(event) => setSectionIds((current) =>
-                    event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id)
-                  )}
-                />
-                <span>{item.name}</span>
-                <span className="mr-auto text-xs text-slate-400">{item.kind === 'HIZB' ? 'حزب' : 'جزء'}</span>
-              </label>
-            ))}
-          </div>
-        )}
-        <Textarea label="ملاحظة (اختياري)" rows={3} value={note} onChange={(e) => setNote(e.target.value)}
-          placeholder="أي ملاحظة تريد إرسالها للجنة الاختبارات" />
-      </div>
     </Modal>
   );
 }

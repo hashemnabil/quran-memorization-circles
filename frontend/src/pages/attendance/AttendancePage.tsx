@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import axios from 'axios';
+import { enqueueOfflineOperation } from '@/lib/offline/outbox';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import {
@@ -42,6 +44,7 @@ type Draft = Record<string, { status: AttendanceStatus; note?: string }>;
 export default function AttendancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const accountId = useAuthStore((s) => s.user?.id ?? '');
 
   const [tab, setTab] = useState('record');
   const [circleId, setCircleId] = useState(searchParams.get('circleId') ?? '');
@@ -111,7 +114,37 @@ export default function AttendancePage() {
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
-    onError: (error) => toast.error(apiError(error)),
+    onError: async (error) => {
+      const isNetworkFailure = !navigator.onLine || (axios.isAxiosError(error) && !error.response);
+      if (isNetworkFailure && accountId && circleId && date) {
+        try {
+          const payload = {
+            circleId,
+            date,
+            entries: Object.entries(draft).map(([studentId, value]) => ({
+              studentId,
+              status: value.status,
+              note: value.status === 'EXCUSED' ? value.note || undefined : undefined,
+            })),
+          };
+          await enqueueOfflineOperation({
+            accountId,
+            resource: 'attendance-sheet',
+            method: 'POST',
+            path: '/attendance',
+            payload,
+          });
+          setJustSaved({ circleId, date });
+          window.dispatchEvent(new Event('quran-circles:outbox-changed'));
+          toast.success('حُفظ كشف الحضور على هذا الجهاز، وسنحاول مزامنته عند عودة الاتصال');
+          return;
+        } catch {
+          toast.error('تعذر حفظ كشف الحضور محلياً؛ انسخ البيانات قبل مغادرة الصفحة');
+          return;
+        }
+      }
+      toast.error(apiError(error));
+    },
   });
 
   const counts = useMemo(() => {
@@ -331,6 +364,7 @@ function StatusPicker({
 function AttendanceHistory({ circles }: { circles: Pick<Circle, 'id' | 'name' | 'code'>[] }) {
   const queryClient = useQueryClient();
   const canEdit = useAuthStore((s) => s.hasRole('ADMIN', 'SUPERVISOR', 'TEACHER'));
+  const accountId = useAuthStore((s) => s.user?.id ?? '');
   const [circleId, setCircleId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');

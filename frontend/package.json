@@ -6,8 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test:offline": "node --test src/lib/offline/attendance-validation.test.mjs",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "mobile:sync": "cap sync",
+    "mobile:android": "cap open android",
+    "mobile:ios": "cap open ios",
+    "mobile:add:android": "cap add android",
+    "mobile:add:ios": "cap add ios"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.7",
@@ -22,7 +28,10 @@
     "socket.io-client": "^4.8.1",
     "zustand": "^5.0.2",
     "pdf-lib": "^1.17.1",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/ios": "^6.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
@@ -33,6 +42,7 @@
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "@capacitor/cli": "^6.2.0"
   }
 }

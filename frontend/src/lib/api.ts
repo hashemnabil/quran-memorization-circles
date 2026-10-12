@@ -1,6 +1,9 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
+import { Capacitor } from '@capacitor/core';
 
-const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const IS_NATIVE = Capacitor.isNativePlatform();
+const CONFIGURED_API_URL = import.meta.env.VITE_API_URL?.trim();
+const BASE_URL = CONFIGURED_API_URL || '/api';
 
 export const ACCESS_TOKEN_KEY = 'qc.accessToken';
 export const REFRESH_TOKEN_KEY = 'qc.refreshToken';
@@ -25,6 +28,12 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
+  // A Capacitor WebView has its own origin; relative /api URLs point back to
+  // the device, not to the deployed NestJS server. Fail clearly instead of
+  // silently sending requests to the wrong host.
+  if (IS_NATIVE && !CONFIGURED_API_URL) {
+    return Promise.reject(new Error('اضبط VITE_API_URL على عنوان خادم NestJS قبل بناء تطبيق الجوال'));
+  }
   const token = tokenStore.access();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;

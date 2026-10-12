@@ -56,6 +56,7 @@ export default function StudentsPage() {
   const [track, setTrack] = useState<StudentTrack | ''>('');
   const [showForm, setShowForm] = useState(false);
   const [returning, setReturning] = useState<Student | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const debouncedSearch = useDebounce(search);
   // A teacher may register a student too — the backend pins them to the
@@ -150,6 +151,53 @@ export default function StudentsPage() {
         }
         action={
           <div className="flex flex-wrap gap-2">
+            {user.role === 'ADMIN' && !bulk.active && (
+              <>
+                <Button variant="secondary" onClick={async () => {
+                  try {
+                    const response = await api.get('/students/import-template', { responseType: 'blob' });
+                    const url = URL.createObjectURL(response.data);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = 'students-import-template.xlsx';
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  } catch (error) { toast.error(apiError(error)); }
+                }}>تنزيل قالب Excel</Button>
+                <Button variant="secondary" loading={importing} onClick={() => document.getElementById('students-excel-import')?.click()}>
+                  استيراد Excel
+                </Button>
+                <input id="students-excel-import" type="file" accept=".xlsx,.xls" className="hidden" disabled={importing}
+                  onChange={async (event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (!file) return;
+                    const form = new FormData();
+                    form.append('file', file);
+                    setImporting(true);
+                    try {
+                      const response = await api.post('/students/import-excel', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+                      const result = response.data as { imported: number; failed: number; results: Array<{ row: number; fullName: string; error?: string }>; credentials: Array<{ fullName: string; code?: string; username: string; temporaryPassword: string }> };
+                      if (result.credentials.length) {
+                        const exportResponse = await api.post('/students/credentials-export', { credentials: result.credentials }, { responseType: 'blob' });
+                        const url = URL.createObjectURL(exportResponse.data);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = 'student-login-credentials.xlsx';
+                        link.click();
+                        URL.revokeObjectURL(url);
+                      }
+                      queryClient.invalidateQueries({ queryKey: ['students'] });
+                      queryClient.invalidateQueries({ queryKey: ['student-accounts'] });
+                      if (result.failed) {
+                        const errors = result.results.filter((row) => row.error).map((row) => `صف ${row.row} (${row.fullName}): ${row.error}`).join('\n');
+                        toast.error(`تم استيراد ${result.imported} طالب، وتعذر استيراد ${result.failed}. ${errors}`, { duration: 10000 });
+                      } else toast.success(`تم استيراد ${result.imported} طالب وإنشاء حساباتهم، وتم تنزيل ملف بيانات الدخول`);
+                    } catch (error) { toast.error(apiError(error)); }
+                    finally { setImporting(false); }
+                  }} />
+              </>
+            )}
             {user.role === 'ADMIN' && !bulk.active && (
               <Button variant="secondary" icon={<IconTrash size={16} />} onClick={bulk.enable}>
                 حذف جماعي

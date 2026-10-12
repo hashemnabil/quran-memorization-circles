@@ -32,7 +32,7 @@ export default function AppLayout() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ الرئيسية: true, 'شؤون إدارية': false, 'شؤون الطلبة': false, المستندات: false, التواصل: false, 'نظام المدرسة': false, 'الملف الشخصي': true });
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ 'شؤون إدارية': false, 'شؤون الطلبة': false, المستندات: false, التواصل: false, 'نظام المدرسة': false });
   // The collapsed rail is a desktop-only preference, remembered between visits.
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
 
@@ -141,7 +141,7 @@ export default function AppLayout() {
           <div key={group.title} className="mb-5">
             {rail ? (
               <div className="mx-auto mb-2 h-px w-8 bg-white/10" aria-hidden />
-            ) : (
+            ) : group.title === 'الرئيسية' || group.title === 'الملف الشخصي' ? null : (
               <button
                 type="button"
                 className="mb-2 flex w-full items-center justify-between rounded-lg px-3 py-2 text-right text-[11px] font-bold tracking-wide text-primary-300/90 transition hover:bg-white/5 hover:text-white"
@@ -153,7 +153,7 @@ export default function AppLayout() {
               </button>
             )}
 
-            {(rail || expandedGroups[group.title]) && <ul className="space-y-0.5">
+            {(rail || group.title === 'الرئيسية' || group.title === 'الملف الشخصي' || expandedGroups[group.title]) && <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const count = item.badge ? badges[item.badge] : 0;
                 return (

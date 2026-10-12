@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
@@ -20,7 +21,7 @@ const reports: {id:ReportType;title:string;description:string}[] = [
  {id:'recitations',title:'التسميع اليومي',description:'مقدار التسميع والتقييم والأخطاء والنقاط'},
  {id:'exams',title:'الاختبارات والنتائج',description:'الاختبارات المجدولة والدرجات والنتائج'},
  {id:'student',title:'الملف الشامل للطالب',description:'بيانات الطالب وسجل الحضور والتسميع والاختبارات'},
- {id:'circles',title:'إحصائيات الحلقات والمعلمين',description:'أعداد الطلاب وسجلات النشاط والمعلمون المسندون'},
+ {id:'circles',title:'إحصائية الحلقات والمحفظين',description:'أعداد الطلاب وسجلات الحضور والتسميع والمحفظون المسندون'},
  {id:'students',title:'سجل الطلاب',description:'كل الطلاب مع رقم الهوية وتاريخ الميلاد وتصدير Excel'},
  {id:'courses',title:'حلقات الدورات',description:'قائمة الدورات والمحاضرين وأعداد المسجلين والحضور'},
  {id:'courseStudents',title:'طلاب الدورات',description:'تصدير المسجلين في دورة محددة وبياناتهم الأساسية'},
@@ -28,7 +29,10 @@ const reports: {id:ReportType;title:string;description:string}[] = [
 ];
 export default function ReportsPage() {
  const user=useAuthStore(s=>s.user);
- const [type,setType]=useState<ReportType>('attendance');
+ const [searchParams]=useSearchParams();
+ const initialType=searchParams.get('type') as ReportType | null;
+ const validTypes: ReportType[]=['attendance','recitations','exams','student','circles','students','courses','courseStudents','courseAttendance'];
+ const [type,setType]=useState<ReportType>(initialType && validTypes.includes(initialType)?initialType:'attendance');
  const [from,setFrom]=useState('');
  const [to,setTo]=useState('');
  const [circleId,setCircleId]=useState('');
@@ -36,7 +40,8 @@ export default function ReportsPage() {
  const [teacherId,setTeacherId]=useState('');
  const [studentId,setStudentId]=useState('');
  const [search,setSearch]=useState('');
- const [status,setStatus]=useState('');
+ const [status,setStatus]=useState(searchParams.get('status') ?? '');
+ const [track]=useState(searchParams.get('track') ?? '');
  const [evaluation,setEvaluation]=useState('');
  const [refresh,setRefresh]=useState(0);
  const {data:circles=[]}=useQuery({queryKey:['reports','circles-options'],queryFn:async()=> (await api.get<any[]>('/circles/options')).data});
@@ -45,7 +50,7 @@ export default function ReportsPage() {
  const coursesErrorMessage=apiError(coursesQueryError,'تعذّر تحميل قائمة الدورات.');
  const {data:students}=useQuery({queryKey:['reports','students'],queryFn:async()=> (await api.get<any>('/students',{params:{limit:100}})).data});
  const {data:teachers}=useQuery({queryKey:['reports','teachers'],queryFn:async()=> (await api.get<any>('/teachers',{params:{limit:100}})).data,enabled:user?.role==='ADMIN'||user?.role==='SUPERVISOR'});
- const params=useMemo(()=>({type,from:from||undefined,to:to||undefined,circleId:circleId||undefined,courseId:courseId||undefined,teacherId:teacherId||undefined,studentId:studentId||undefined,search:search||undefined,status:status||undefined,evaluation:evaluation||undefined,_refresh:refresh}),[type,from,to,circleId,courseId,teacherId,studentId,search,status,evaluation,refresh]);
+ const params=useMemo(()=>({type,from:from||undefined,to:to||undefined,circleId:circleId||undefined,courseId:courseId||undefined,teacherId:teacherId||undefined,studentId:studentId||undefined,search:search||undefined,status:status||undefined,track:track||undefined,evaluation:evaluation||undefined,_refresh:refresh}),[type,from,to,circleId,courseId,teacherId,studentId,search,status,track,evaluation,refresh]);
  const {data,isLoading,isError,error}=useQuery({queryKey:['reports',params],queryFn:async()=> (await api.get<ReportData>('/reports',{params})).data, enabled:(type!=='student'||!!studentId)&&(!['courseStudents','courseAttendance'].includes(type)||!!courseId)});
  const reportError=(()=>{const err=error as {response?:{status?:number;data?:{message?:string|string[]}};message?:string}|null; const message=err?.response?.data?.message; if(Array.isArray(message)) return message.join('، '); if(message) return message; if(err?.response?.status) return `فشل تحميل التقرير (HTTP ${err.response.status}).`; return 'تعذّر الاتصال بالخادم. تحقق من الاتصال وحاول مجددًا.';})();
  const statLabels: Record<string,string> = { total:'إجمالي السجلات', present:'الحضور', absent:'الغياب', excused:'الغياب بعذر', pages:'مجموع الصفحات', points:'مجموع النقاط', students:'عدد الطلاب', passed:'ناجح', failed:'راسب', average:'متوسط العلامات', circles:'عدد الحلقات', attendance:'سجلات الحضور', recitations:'سجلات التسميع', active:'منتظمون', suspended:'موقوفون', activity:'برنامج النشاط' };
@@ -91,11 +96,11 @@ export default function ReportsPage() {
   }
  };
  return <div dir="rtl" className="space-y-6">
-  <PageHeader title="التقارير" subtitle="تقارير موثوقة من قاعدة بيانات المدرسة مع تصدير Excel." />
+  <PageHeader title={status==='SUSPENDED'?'سجل طلاب المفصولين':status==='ACTIVITY'?'سجل طلاب النشاط':track==='CIRCLE'?'سجل طلاب التحفيظ':status==='ACTIVE'?'سجل طلاب التحفيظ':'التقارير والمستندات'} subtitle="حدد الفترة والفلاتر المطلوبة، ثم اعرض التقرير أو صدّره إلى Excel." />
   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{reports.map(r=><button key={r.id} onClick={()=>setType(r.id)} className={`rounded-2xl border p-4 text-right transition hover:-translate-y-0.5 hover:shadow-md ${type===r.id?'border-primary-700 bg-primary-50 ring-1 ring-primary-700':'border-slate-200 bg-white'}`}><span className="mb-2 inline-flex rounded-xl bg-primary-100 p-2 text-primary-800"><IconClipboard size={20}/></span><div className="font-bold text-slate-900">{r.title}</div><p className="mt-1 text-sm text-slate-500">{r.description}</p></button>)}</div>
   <Card><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-   {!['circles','students','courses','courseStudents'].includes(type)&&<label className="text-sm font-semibold text-slate-700">من تاريخ<input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-2.5"/></label>}
-   {!['circles','students','courses','courseStudents'].includes(type)&&<label className="text-sm font-semibold text-slate-700">إلى تاريخ<input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-2.5"/></label>}
+   {<label className="text-sm font-semibold text-slate-700">من تاريخ<input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-2.5"/></label>}
+   {<label className="text-sm font-semibold text-slate-700">إلى تاريخ<input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-2.5"/></label>}
    {['attendance','recitations','exams','students'].includes(type)&&<label className="text-sm font-semibold text-slate-700">الحلقة<Select value={circleId} onChange={e=>setCircleId(e.target.value)}><option value="">كل الحلقات المتاحة</option>{circles.map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}</Select></label>}
    {['courseStudents','courseAttendance'].includes(type)&&<label className="text-sm font-semibold text-slate-700">الدورة<Select value={courseId} onChange={e=>setCourseId(e.target.value)}><option value="">اختر الدورة</option>{courses.map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}</Select>{coursesLoading&&<p className="mt-1 text-xs text-slate-500">جارٍ تحميل الدورات…</p>}{coursesIsError&&<div className="mt-1 text-xs text-red-600">{coursesErrorMessage} <button type="button" className="underline font-semibold" onClick={()=>refetchCourses()}>إعادة المحاولة</button></div>}{!coursesLoading&&!coursesIsError&&courses.length===0&&<p className="mt-1 text-xs text-amber-700">لم يتم العثور على دورات متاحة.</p>}</label>}
       {type==='students'&&<label className="text-sm font-semibold text-slate-700">بحث الطالب<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="الاسم أو رقم الطالب أو الهوية" className="mt-1 w-full rounded-xl border border-slate-300 p-2.5"/></label>}
@@ -106,7 +111,7 @@ export default function ReportsPage() {
    <div className="flex items-end gap-2"><Button onClick={()=>setRefresh(v=>v+1)}>تحديث التقرير</Button><Button variant="secondary" onClick={exportReport} disabled={(type==='student'&&!studentId)||(['courseStudents','courseAttendance'].includes(type)&&!courseId)}>تصدير Excel</Button></div>
   </div></Card>
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{statEntries.map(([key,value])=><StatCard key={key} label={key} value={value}/>)}</div>
-  <Card><div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-bold text-slate-900">{reports.find(r=>r.id===type)?.title}</h2><span className="text-sm text-slate-500">{rows.length} سجل</span></div>
+  <Card><div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-bold text-slate-900">{status==='SUSPENDED'?'سجل طلاب المفصولين':status==='ACTIVITY'?'سجل طلاب النشاط':status==='ACTIVE'?'سجل طلاب التحفيظ':reports.find(r=>r.id===type)?.title}</h2><span className="text-sm text-slate-500">{rows.length} سجل</span></div>
    {isLoading?<p className="p-8 text-center text-slate-500">جارٍ تحميل التقرير…</p>:isError?<p className="p-8 text-center text-red-600">{reportError}</p>:type==='student'&&!studentId?<p className="p-8 text-center text-slate-500">اختر طالبًا لعرض ملفه الشامل.</p>:(['courseStudents','courseAttendance'].includes(type)&&!courseId)?<p className="p-8 text-center text-slate-500">اختر الدورة أولاً لعرض التقرير.</p>:!rows.length?<p className="p-8 text-center text-slate-500">لا توجد نتائج للفلاتر المحددة.</p>:<div className="overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="bg-slate-50 text-right">{columns.map(c=><th key={c} className="whitespace-nowrap px-4 py-3 font-bold text-slate-600">{formatReportValue(c)}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i} className="border-t border-slate-100">{columns.map(c=><td key={c} className="whitespace-nowrap px-4 py-3 text-slate-700">{formatReportValue(row[c])}</td>)}</tr>)}</tbody></table></div>}
   </Card>
  </div>;

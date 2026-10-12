@@ -181,15 +181,6 @@ export default function StudentDetailsPage() {
   });
 
   // Exam Requests mutations
-  const approveRequest = useMutation({
-    mutationFn: (requestId: string) => api.patch(`/exams/requests/${requestId}/approve`),
-    onSuccess: () => {
-      toast.success('تمت الموافقة على طلب الاختبار');
-      queryClient.invalidateQueries({ queryKey: ['exams'] });
-    },
-    onError: (error) => toast.error(apiError(error)),
-  });
-
   const rejectRequest = useMutation({
     mutationFn: ({ requestId, reason }: { requestId: string; reason: string }) =>
       api.patch(`/exams/requests/${requestId}/reject`, { reviewNote: reason }),
@@ -377,12 +368,11 @@ export default function StudentDetailsPage() {
           student={student}
           eligibility={eligibility} 
           exams={exams?.data ?? []} 
-          canManage={canManage}
-          onApprove={approveRequest.mutate}
+          canManage={['ADMIN', 'EXAM_COMMITTEE'].includes(user.role)}
           onReject={(requestId, reason) => rejectRequest.mutate({ requestId, reason })}
           onDelete={deleteExam.mutate}
           canEditMilestones={user.role === 'ADMIN'}
-          isPending={approveRequest.isPending || rejectRequest.isPending || deleteExam.isPending}
+          isPending={rejectRequest.isPending || deleteExam.isPending}
         />
       )}
       {tab === 'points' && <PointsTab student={student} canManage={canManage} />}
@@ -642,7 +632,6 @@ function ExamsTabComponent({
   exams, 
   canManage,
   canEditMilestones,
-  onApprove,
   onReject,
   onDelete,
   isPending
@@ -653,7 +642,6 @@ function ExamsTabComponent({
   exams: any[];
   canManage: boolean;
   canEditMilestones: boolean;
-  onApprove: (id: string) => void;
   onReject: (id: string, reason: string) => void;
   onDelete: (id: string) => void;
   isPending: boolean;
@@ -773,15 +761,6 @@ function ExamsTabComponent({
                       {canManage && request.status === 'PENDING' && (
                         <td>
                           <div className="flex items-center gap-1">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-emerald-600 hover:bg-emerald-50"
-                              onClick={() => onApprove(request.id)}
-                              loading={isPending}
-                            >
-                              <IconCheck size={16} />
-                            </Button>
                             <Button
                               size="sm"
                               variant="ghost"

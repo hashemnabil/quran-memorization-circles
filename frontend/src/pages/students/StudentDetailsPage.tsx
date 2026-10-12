@@ -110,6 +110,7 @@ function getStatusLabel(status: string): string {
 
 export default function StudentDetailsPage() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
   const confirm = useConfirm();

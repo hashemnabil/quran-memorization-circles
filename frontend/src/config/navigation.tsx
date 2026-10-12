@@ -78,7 +78,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/reports?type=student', label: 'الملف الشامل للطالب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/reports?type=circles', label: 'إحصائية الحلقات والمحفظين', icon: <IconCircleGroup size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/reports?type=students', label: 'سجل الطلاب', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/reports?type=students&status=ACTIVE', label: 'سجل طلاب التحفيظ', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
+      { to: '/reports?type=students&track=CIRCLE', label: 'سجل طلاب التحفيظ', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/reports?type=students&status=ACTIVITY', label: 'سجل طلاب النشاط', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/reports?type=students&status=SUSPENDED', label: 'سجل طلاب المفصولين', icon: <IconPause size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/reports?type=courseStudents', label: 'سجل طلاب الدورات', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },

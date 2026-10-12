@@ -42,48 +42,38 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'الرئيسية',
     items: [
-      { to: '/', label: 'لوحة التحكم', icon: <IconDashboard size={19} />, roles: ALL },
+      { to: '/', label: 'الرئيسية', icon: <IconDashboard size={19} />, roles: ALL },
+    ],
+  },
+  {
+    title: 'شؤون إدارية',
+    items: [
       { to: '/circles', label: 'الحلقات', icon: <IconCircleGroup size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/courses', label: 'الدورات', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-    ],
-  },
-  {
-    title: 'إدارة',
-    items: [
-      { to: '/students', label: 'الطلاب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
+      { to: '/media-activities', label: 'سجل الإعلام', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
+      { to: '/staff/attendance', label: 'حضور الكادر', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
+      { to: '/staff', label: 'دليل الكادر', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
       { to: '/teachers', label: 'المعلمين', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
       { to: '/supervisors', label: 'المشرفين', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
-      { to: '/staff', label: 'دليل الكادر', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
     ],
   },
   {
-    title: 'المتابعة اليومية',
+    title: 'شؤون الطلبة',
     items: [
-      { to: '/staff/attendance', label: 'حضور الكادر', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
+      { to: '/students', label: 'الطلاب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/attendance', label: 'الحضور والغياب', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/recitations', label: 'التسميع اليومي', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-    ],
-  },
-  {
-    title: 'الملفات',
-    items: [
-      { to: '/reports', label: 'التقارير', icon: <IconClipboard size={19} />, roles: ['ADMIN'] },
       { to: '/student-accounts', label: 'حسابات الطلاب', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
-      { to: '/certificates-admin', label: 'الشهادات والتقارير', icon: <IconAward size={19} />, roles: ['ADMIN'] },
-      { to: '/media-activities', label: 'سجل الإعلام', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
-    ],
-  },
-  {
-    title: 'الطلبات',
-    items: [
-      { to: '/exams', label: 'الاختبارات', icon: <IconAward size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE'] },
+      { to: '/exams', label: 'الاختبارات والنتائج', icon: <IconAward size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE'] },
       { to: '/transfers', label: 'نقل الطالب', icon: <IconExchange size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/suspensions', label: 'إيقاف الطالب', icon: <IconPause size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
+      { to: '/suspensions', label: 'فصل الطالب', icon: <IconPause size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
     ],
   },
   {
-    title: 'حساب الطالب',
+    title: 'المستندات',
     items: [
+      { to: '/reports', label: 'التقارير والإحصائيات', icon: <IconClipboard size={19} />, roles: ['ADMIN'] },
+      { to: '/certificates-admin', label: 'الشهادات', icon: <IconAward size={19} />, roles: ['ADMIN'] },
       { to: '/student', label: 'ملفي الدراسي', icon: <IconGraduation size={19} />, roles: ['STUDENT'] },
       { to: '/my-files', label: 'ملفاتي', icon: <IconClipboard size={19} />, roles: ['STUDENT'] },
     ],
@@ -105,7 +95,7 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: 'نظام',
+    title: 'الملف الشخصي',
     items: [
       { to: '/profile', label: 'الملف الشخصي', icon: <IconUser size={19} />, roles: ALL },
     ],

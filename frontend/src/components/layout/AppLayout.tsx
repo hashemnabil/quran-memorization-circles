@@ -32,6 +32,7 @@ export default function AppLayout() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ الرئيسية: true, 'شؤون إدارية': false, 'شؤون الطلبة': false, المستندات: false, التواصل: false, 'نظام المدرسة': false, 'الملف الشخصي': true });
   // The collapsed rail is a desktop-only preference, remembered between visits.
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
 
@@ -141,12 +142,18 @@ export default function AppLayout() {
             {rail ? (
               <div className="mx-auto mb-2 h-px w-8 bg-white/10" aria-hidden />
             ) : (
-              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-wider text-primary-300/80">
-                {group.title}
-              </p>
+              <button
+                type="button"
+                className="mb-2 flex w-full items-center justify-between rounded-lg px-3 py-2 text-right text-[11px] font-bold tracking-wide text-primary-300/90 transition hover:bg-white/5 hover:text-white"
+                onClick={() => setExpandedGroups((current) => ({ ...current, [group.title]: !current[group.title] }))}
+                aria-expanded={!!expandedGroups[group.title]}
+              >
+                <span>{group.title}</span>
+                {expandedGroups[group.title] ? <IconChevronLeft size={15} /> : <IconChevronRight size={15} />}
+              </button>
             )}
 
-            <ul className="space-y-0.5">
+            {(rail || expandedGroups[group.title]) && <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const count = item.badge ? badges[item.badge] : 0;
                 return (
@@ -197,7 +204,7 @@ export default function AppLayout() {
                   </li>
                 );
               })}
-            </ul>
+            </ul>}
           </div>
         ))}
       </nav>

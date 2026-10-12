@@ -539,7 +539,7 @@ function StudentFormModal({
     if (registrationTrack === 'COURSE' && !courseId) nextErrors.courseId = 'اختر الدورة';
     if (form.code && !/^\d{1,9}$/.test(form.code)) nextErrors.code = 'رقم الطالب أرقام فقط وبحد أقصى 9 أرقام';
     if (!form.fullName.trim()) nextErrors.fullName = 'اسم الطالب مطلوب';
-    if (form.createAccount && !form.nationalId.trim()) nextErrors.nationalId = 'رقم الهوية مطلوب لإنشاء حساب الدخول';
+    
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
@@ -593,14 +593,14 @@ function StudentFormModal({
           <p className="mt-1 text-xs text-slate-500">{registrationTrack === 'COURSE' ? 'رقم الدورات يبدأ بـ 2 ثم سنة التسجيل ثم 4 أرقام عشوائية، مثال: 220261234.' : registrationTrack === 'ACTIVITY' ? 'رقم النشاط يبدأ بـ 3 ثم سنة التسجيل ثم 4 أرقام عشوائية، مثال: 320261234.' : 'رقم التحفيظ يبدأ بـ 1 ثم سنة التسجيل ثم 4 أرقام عشوائية، وإذا تركته كما هو سيتم توليده تلقائياً عند التسجيل.'}</p>
         </div>
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
-        <Input label={form.createAccount ? 'رقم الهوية (سيُستخدم اسمًا للمستخدم)' : 'رقم الهوية (اختياري)'} required={form.createAccount} value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
+        <Input label="رقم الهوية (اختياري، لا يُستخدم لتسجيل الدخول)" value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
         <Input label="اسم ولي الأمر" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />
         <Input label="رقم هوية الأب" value={form.fatherNationalId} onChange={(e) => set('fatherNationalId', e.target.value)} dir="ltr" />
         <Input label="رقم جوال ولي الأمر" value={form.guardianPhone} onChange={(e) => set('guardianPhone', e.target.value)} dir="ltr" />
         <Input label="صلة القرابة" value={form.guardianRelation} onChange={(e) => set('guardianRelation', e.target.value)} />
         <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <input type="checkbox" checked={form.createAccount} onChange={(e) => set('createAccount', e.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-400" />
-          <span><span className="block text-sm font-bold text-slate-800">إنشاء حساب دخول للطالب</span><span className="mt-1 block text-xs leading-5 text-slate-500">فعّل الخيار لإنشاء اسم مستخدم وكلمة مرور مؤقتة تلقائيًا. إذا تركته بدون تحديد، سيتم تسجيل بيانات الطالب فقط ويمكن إنشاء حساب له لاحقًا.</span></span>
+          <span><span className="block text-sm font-bold text-slate-800">إنشاء حساب دخول للطالب</span><span className="mt-1 block text-xs leading-5 text-slate-500">فعّل الخيار لإنشاء اسم مستخدم يساوي رقم الطالب الذي يولّده النظام تلقائيًا، مع كلمة مرور مؤقتة. رقم الهوية اختياري ولا يُستخدم لتسجيل الدخول.</span></span>
         </label>
         <Input label="العنوان" value={form.address} onChange={(e) => set('address', e.target.value)} />
 

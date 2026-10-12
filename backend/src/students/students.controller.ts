@@ -199,7 +199,7 @@ export class StudentsController {
     const worksheet = XLSX.utils.json_to_sheet(rows.map((r) => ({
       'اسم الطالب': r.fullName,
       'رقم الطالب': r.code ?? '',
-      'اسم المستخدم (رقم الهوية)': r.username,
+      'اسم المستخدم (رقم الطالب)': r.username,
       'كلمة المرور المؤقتة': r.temporaryPassword,
     })));
     XLSX.utils.book_append_sheet(workbook, worksheet, 'بيانات دخول الطلاب');

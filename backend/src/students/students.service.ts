@@ -499,22 +499,12 @@ export class StudentsService {
       await this.acl.assertCircleAccess(actor, dto.circleId);
       await this.assertCircleHasRoom(dto.circleId);
     }
-    if (dto.createAccount && !dto.nationalId?.trim()) {
-      throw new BadRequestException('رقم هوية الطالب مطلوب لإنشاء حساب الدخول');
-    }
     dto.nationalId = dto.nationalId?.trim() || undefined;
     if (dto.nationalId) {
       const dup = await this.prisma.student.findFirst({
         where: { nationalId: dto.nationalId, deletedAt: null },
       });
       if (dup) throw new ConflictException('رقم الهوية مسجل مسبقاً لطالب آخر');
-      if (dto.createAccount) {
-        const usernameTaken = await this.prisma.user.findFirst({
-          where: { username: dto.nationalId.toLowerCase(), deletedAt: null },
-          select: { id: true },
-        });
-        if (usernameTaken) throw new ConflictException('رقم الهوية مستخدم كاسم دخول لحساب آخر');
-      }
     }
     const trackPrefix = registrationTrack === StudentRegistrationTrack.CIRCLE ? '1' : registrationTrack === StudentRegistrationTrack.COURSE ? '2' : '3';
     const code = dto.code?.trim() || (registrationTrack === StudentRegistrationTrack.CIRCLE ? await this.nextCode() : await this.nextTrackCode(registrationTrack === StudentRegistrationTrack.COURSE ? '2' : '3'));
@@ -526,13 +516,20 @@ export class StudentsService {
     }
     const existingCode = await this.prisma.student.findUnique({ where: { code } });
     if (existingCode) throw new ConflictException('رقم الطالب مستخدم مسبقاً');
+    if (dto.createAccount) {
+      const usernameTaken = await this.prisma.user.findFirst({
+        where: { username: code.toLowerCase(), deletedAt: null },
+        select: { id: true },
+      });
+      if (usernameTaken) throw new ConflictException('رقم الطالب مستخدم كاسم دخول لحساب آخر');
+    }
 
     const temporaryPassword = dto.createAccount ? randomBytes(9).toString('base64url') : undefined;
     const passwordHash = temporaryPassword ? await bcrypt.hash(temporaryPassword, 12) : undefined;
     const student = await this.prisma.$transaction(async (tx) => {
       const user = dto.createAccount
         ? await tx.user.create({
-            data: { username: dto.nationalId!.toLowerCase(), passwordHash: passwordHash!, fullName: dto.fullName, role: Role.STUDENT, isActive: true, mustChangePassword: true },
+            data: { username: code.toLowerCase(), passwordHash: passwordHash!, fullName: dto.fullName, role: Role.STUDENT, isActive: true, mustChangePassword: true },
           })
         : null;
       const created = await tx.student.create({
@@ -581,7 +578,7 @@ export class StudentsService {
     const profile = await this.findOne(actor, student.id);
     // Temporary credentials are returned only when an account was explicitly requested.
     return temporaryPassword
-      ? { ...profile, accountCredentials: { username: dto.nationalId, temporaryPassword } }
+      ? { ...profile, accountCredentials: { username: code, temporaryPassword } }
       : profile;
   }
 
@@ -593,7 +590,7 @@ export class StudentsService {
       const row = rows[index];
       try {
         if (!row.fullName) throw new BadRequestException('اسم الطالب مطلوب');
-        if (!row.nationalId) throw new BadRequestException('رقم هوية الطالب مطلوب لإنشاء اسم المستخدم');
+        
         if (row.gender && !['MALE', 'FEMALE'].includes(row.gender)) throw new BadRequestException('الجنس يجب أن يكون MALE أو FEMALE');
         let circleId: string | undefined;
         if (row.circleCode) {
@@ -649,11 +646,9 @@ export class StudentsService {
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (student.userId) throw new ConflictException('الطالب لديه حساب دخول بالفعل');
-    const nationalId = student.nationalId?.trim();
-    if (!nationalId) throw new BadRequestException('أضف رقم هوية الطالب أولاً من صفحة تعديل بياناته');
-    const username = nationalId.toLowerCase();
+    const username = student.code.toLowerCase();
     const taken = await this.prisma.user.findFirst({ where: { username, deletedAt: null }, select: { id: true } });
-    if (taken) throw new ConflictException('رقم الهوية مستخدم كاسم دخول لحساب آخر');
+    if (taken) throw new ConflictException('رقم الطالب مستخدم كاسم دخول لحساب آخر');
     const temporaryPassword = randomBytes(9).toString('base64url');
     const user = await this.prisma.user.create({ data: {
       username, passwordHash: await bcrypt.hash(temporaryPassword, 12), fullName: student.fullName,

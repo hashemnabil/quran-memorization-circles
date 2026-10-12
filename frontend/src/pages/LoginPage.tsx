@@ -159,10 +159,10 @@ function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser
 
         <div className="relative">
           <Input
-            label="اسم المستخدم"
+            label="اسم المستخدم (رقم الطالب للطلاب)"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="ahmed2026"
+            placeholder="رقم الطالب أو اسم المستخدم"
             autoComplete="username"
             autoFocus
             dir="ltr"

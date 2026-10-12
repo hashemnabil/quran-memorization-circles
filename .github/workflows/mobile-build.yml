@@ -25,8 +25,8 @@ jobs:
       - name: Build web assets for native wrapper
         run: npm --prefix frontend run build
         env:
-          VITE_API_URL: https://api.example.invalid
-          VITE_SOCKET_URL: https://api.example.invalid
+          VITE_API_URL: https://quran-memorization-circles.onrender.com/api
+          VITE_SOCKET_URL: https://quran-memorization-circles.onrender.com
       - name: Generate Android project
         working-directory: frontend
         run: npx cap add android

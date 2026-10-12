@@ -492,6 +492,11 @@ function StudentFormModal({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user)!;
+  const canChooseTrack = user.role === 'ADMIN' || user.role === 'SUPERVISOR';
+  const [registrationTrack, setRegistrationTrack] = useState<'CIRCLE' | 'COURSE' | 'ACTIVITY'>('CIRCLE');
+  const [courseId, setCourseId] = useState('');
+  const { data: courses } = useQuery({ queryKey: ['courses', 'student-registration'], queryFn: async () => (await api.get('/courses', { params: { limit: 100, isActive: true } })).data.data as Array<{ id: string; name: string; code: string; isActive: boolean }>, enabled: canChooseTrack });
   const [form, setForm] = useState({
     fullName: '',
     code: '',
@@ -530,6 +535,8 @@ function StudentFormModal({
 
   const submit = () => {
     const nextErrors: Record<string, string> = {};
+    if (registrationTrack === 'CIRCLE' && !form.circleId) nextErrors.circleId = 'اختر حلقة التحفيظ';
+    if (registrationTrack === 'COURSE' && !courseId) nextErrors.courseId = 'اختر الدورة';
     if (form.code && !/^\d{1,9}$/.test(form.code)) nextErrors.code = 'رقم الطالب أرقام فقط وبحد أقصى 9 أرقام';
     if (!form.fullName.trim()) nextErrors.fullName = 'اسم الطالب مطلوب';
     if (form.createAccount && !form.nationalId.trim()) nextErrors.nationalId = 'رقم الهوية مطلوب لإنشاء حساب الدخول';
@@ -537,9 +544,9 @@ function StudentFormModal({
     if (Object.keys(nextErrors).length) return;
 
     // Empty strings would fail the API's UUID / date validation.
-    const payload = Object.fromEntries(
-      Object.entries(form).filter(([, value]) => value !== '' && value !== null),
-    );
+    const values = { ...form, registrationTrack, courseId: registrationTrack === 'COURSE' ? courseId : '', circleId: registrationTrack === 'CIRCLE' ? form.circleId : '' };
+    const payload = Object.fromEntries(Object.entries(values).filter(([, value]) => value !== '' && value !== null && value !== undefined));
+    if (registrationTrack !== 'CIRCLE') delete (payload as Record<string, unknown>).code;
     create.mutate(payload);
   };
 
@@ -575,15 +582,16 @@ function StudentFormModal({
           error={errors.fullName}
           className="sm:col-span-2"
         />
+        {canChooseTrack && <div className="sm:col-span-2"><Select label="مسار تسجيل الطالب" value={registrationTrack} onChange={(e) => { setRegistrationTrack(e.target.value as 'CIRCLE' | 'COURSE' | 'ACTIVITY'); set('circleId', ''); setCourseId(''); }}><option value="CIRCLE">التحفيظ</option><option value="COURSE">الدورات</option><option value="ACTIVITY">النشاط</option></Select></div>}
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">رقم الطالب (اختياري)</label>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">رقم الطالب</label>
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
-              <Input value={form.code} onChange={(e) => set('code', e.target.value.replace(/\D/g, '').slice(0, 9))} error={errors.code} dir="ltr" />
+              <Input value={registrationTrack === 'COURSE' ? '2' + new Date().getFullYear() + 'xxxx' : registrationTrack === 'ACTIVITY' ? '3' + new Date().getFullYear() + 'xxxx' : form.code} onChange={(e) => set('code', e.target.value.replace(/\D/g, '').slice(0, 9))} error={errors.code} dir="ltr" disabled={registrationTrack !== 'CIRCLE'} />
             </div>
-            <Button type="button" variant="secondary" size="sm" onClick={() => set('code', `1${new Date().getFullYear()}${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`)}>توليد رقم طالب</Button>
+            {registrationTrack === 'CIRCLE' && <Button type="button" variant="secondary" size="sm" onClick={() => set('code', `1${new Date().getFullYear()}${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`)}>توليد رقم طالب</Button>}
           </div>
-          <p className="mt-1 text-xs text-slate-500">مثال: 120261234. إذا تركته فارغاً، سيتم توليده تلقائياً عند التسجيل.</p>
+          <p className="mt-1 text-xs text-slate-500">{registrationTrack === 'COURSE' ? 'سيُولّد رقم يبدأ بـ 2 مثل 220261234.' : registrationTrack === 'ACTIVITY' ? 'سيُولّد رقم يبدأ بـ 3 مثل 320261234.' : 'مثال: 120261234. إذا تركته فارغاً، سيتم توليده تلقائياً عند التسجيل.'}</p>
         </div>
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
         <Input label={form.createAccount ? 'رقم الهوية (سيُستخدم اسمًا للمستخدم)' : 'رقم الهوية (اختياري)'} required={form.createAccount} value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
@@ -597,14 +605,16 @@ function StudentFormModal({
         </label>
         <Input label="العنوان" value={form.address} onChange={(e) => set('address', e.target.value)} />
 
-        <Select label="الحلقة" value={form.circleId} onChange={(e) => set('circleId', e.target.value)}>
+        {registrationTrack === 'CIRCLE' && <Select label="حلقة التحفيظ" value={form.circleId} onChange={(e) => set('circleId', e.target.value)}>
           <option value="">بدون حلقة</option>
           {circles.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name} ({c.code})
             </option>
           ))}
-        </Select>
+        </Select>}
+        {registrationTrack === 'COURSE' && <Select label="الدورة" value={courseId} onChange={(e) => setCourseId(e.target.value)}><option value="">اختر الدورة</option>{(courses ?? []).filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}</Select>}
+        {registrationTrack === 'CIRCLE' && <>
         <Input
           label="الأجزاء المحفوظة"
           type="number"
@@ -616,6 +626,7 @@ function StudentFormModal({
           onChange={(e) => set('memorizedParts', Number(e.target.value))}
         />
         <Input label="السورة الحالية" value={form.currentSurah} onChange={(e) => set('currentSurah', e.target.value)} />
+        </>}
         <Textarea
           label="ملاحظات"
           value={form.notes}

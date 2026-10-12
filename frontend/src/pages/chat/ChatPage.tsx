@@ -330,9 +330,7 @@ export default function ChatPage() {
                         ? `${active?.memberCount ?? 0} أعضاء`
                         : active?.isOnline
                           ? 'متصل الآن'
-                          : otherMember?.lastReadAt
-                            ? `آخر ظهور مسجل: ${timeAgo(otherMember.lastReadAt)}`
-                            : 'غير متصل'}
+                          : 'غير متصل'}
                   </p>
                 </div>
 

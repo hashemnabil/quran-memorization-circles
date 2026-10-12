@@ -605,7 +605,7 @@ export class StudentsService {
           createAccount: true,
         } as CreateStudentDto);
         results.push({ row: index + 2, fullName: created.fullName, code: created.code,
-          username: created.accountCredentials?.username, temporaryPassword: created.accountCredentials?.temporaryPassword });
+          username: (created as any).accountCredentials?.username, temporaryPassword: (created as any).accountCredentials?.temporaryPassword });
       } catch (error: any) {
         const message = error?.response?.message || error?.message || 'تعذر استيراد الصف';
         results.push({ row: index + 2, fullName: row.fullName || '(بدون اسم)', error: Array.isArray(message) ? message.join('، ') : message });

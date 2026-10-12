@@ -70,8 +70,13 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
     })).data,
     onSuccess: () => {
       toast.success('تم حفظ سجل المقرر');
+      // Keep every exam screen and the student's progression in sync after an
+      // administrative status change, including request/scheduled/completed.
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
       queryClient.invalidateQueries({ queryKey: ['exams', 'milestones', studentId] });
       queryClient.invalidateQueries({ queryKey: ['exams', 'eligibility', studentId] });
+      queryClient.invalidateQueries({ queryKey: ['students', studentId] });
+      queryClient.invalidateQueries({ queryKey: ['students', studentId, 'history'] });
       setEditing(null);
     },
     onError: (error) => toast.error(apiError(error)),
@@ -79,7 +84,9 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
   const rows = useMemo(() => {
     const progression = eligibility?.progression ?? [];
     const all = sequence();
-    let unlocked = true;
+    // Unlock strictly in sequence: only passing the current required item
+    // unlocks the next one. A request or scheduled date does not count as a pass.
+    let previousRequiredPassed = true;
     return all.map((item) => {
       const section = progression.find((s) => s.code === item.key);
       const related = exams.filter((exam) =>
@@ -104,8 +111,9 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
         (!related && request?.status !== 'PENDING' && record?.status === 'SCHEDULED');
       const requested = !pending && !liveCompleted &&
         (request?.status === 'PENDING' || (!request && record?.status === 'REQUESTED'));
-      const currentUnlocked = unlocked || passed || pending || requested;
-      if (!passed) unlocked = false;
+      const currentUnlocked = previousRequiredPassed;
+      // The next row is available only when this row has actually been passed.
+      previousRequiredPassed = passed;
       return { ...item, section, related, record, request, passed, pending, requested, unlocked: currentUnlocked };
     });
   }, [eligibility, exams, records, requests]);

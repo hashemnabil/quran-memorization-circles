@@ -1,5 +1,5 @@
 /* Keep the last working offline shell until every asset of the new build is cached. */
-const CACHE_NAME = 'quran-circles-shell-v3';
+const CACHE_NAME = 'quran-circles-shell-v4';
 const APP_SHELL = '/';
 const CACHE_PREFIX = 'quran-circles-shell-';
 
@@ -17,8 +17,11 @@ self.addEventListener('install', (event) => {
           .map((url) => url.href),
       )];
 
-      // A shell without its JS/CSS cannot start offline. Fail the installation
-      // rather than activating a partial cache and deleting the previous version.
+      // Never activate a shell that has no discoverable JS/CSS assets.
+      if (assets.length === 0) throw new Error('No application assets found in shell');
+
+      // Use a new cache version for every install attempt. On failure, deleting
+      // this incomplete cache must never delete the active worker's last-good cache.
       const assetResponses = await Promise.all(assets.map(async (asset) => {
         const assetResponse = await fetch(asset, { cache: 'reload' });
         if (!assetResponse.ok) throw new Error(`Unable to cache app asset: ${asset}`);

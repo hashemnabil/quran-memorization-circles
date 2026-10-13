@@ -66,13 +66,15 @@ api.interceptors.response.use(
         const token = await refreshPromise;
         original.headers = { ...original.headers, Authorization: `Bearer ${token}` };
         return api(original);
-      } catch {
-        // Do not destroy a locally restorable session merely because token
-        // refresh failed due to network/server trouble. A real 401 from the
-        // refresh endpoint is handled by the next online login validation.
-        if (error.response) tokenStore.clear();
-        if (error.response && !window.location.pathname.startsWith('/login')) {
-          window.location.href = '/login';
+      } catch (refreshError) {
+        // A timeout or network outage must not erase the offline session.
+        // Clear it only when the refresh endpoint explicitly rejects the token.
+        const refreshStatus = axios.isAxiosError(refreshError) ? refreshError.response?.status : undefined;
+        if (refreshStatus === 400 || refreshStatus === 401 || refreshStatus === 403) {
+          tokenStore.clear();
+          if (!window.location.pathname.startsWith('/login')) {
+            window.location.href = '/login';
+          }
         }
         return Promise.reject(error);
       }

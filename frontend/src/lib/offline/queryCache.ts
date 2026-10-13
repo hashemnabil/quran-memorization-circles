@@ -21,7 +21,6 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-/** Restore only the signed-in account's own query snapshot. Cached results remain stale. */
 export async function restoreQueryCache(accountId: string): Promise<boolean> {
   if (!accountId) return false;
   const db = await openDb();
@@ -32,22 +31,15 @@ export async function restoreQueryCache(accountId: string): Promise<boolean> {
       request.onerror = () => reject(request.error ?? new Error('Could not read query cache'));
     });
     if (!snapshot || snapshot.accountId !== accountId) return false;
-    if (Date.now() - snapshot.savedAt > MAX_AGE) {
-      await clearPersistedQueryCache(accountId);
-      return false;
-    }
+    if (Date.now() - snapshot.savedAt > MAX_AGE) { await clearPersistedQueryCache(accountId); return false; }
     hydrate(queryClient, snapshot.state);
     return true;
-  } finally {
-    db.close();
-  }
+  } finally { db.close(); }
 }
 
 export async function persistQueryCache(accountId: string): Promise<void> {
   if (!accountId) return;
-  const state = dehydrate(queryClient, {
-    shouldDehydrateQuery: (query) => query.state.status === 'success' && query.state.data !== undefined,
-  });
+  const state = dehydrate(queryClient, { shouldDehydrateQuery: (query) => query.state.status === 'success' && query.state.data !== undefined });
   const snapshot: Snapshot = { accountId, savedAt: Date.now(), state };
   const db = await openDb();
   try {
@@ -58,9 +50,7 @@ export async function persistQueryCache(accountId: string): Promise<void> {
       tx.onerror = () => reject(tx.error ?? new Error('Could not save query cache'));
       tx.onabort = () => reject(tx.error ?? new Error('Query cache save aborted'));
     });
-  } finally {
-    db.close();
-  }
+  } finally { db.close(); }
 }
 
 export async function clearPersistedQueryCache(accountId: string): Promise<void> {
@@ -73,7 +63,5 @@ export async function clearPersistedQueryCache(accountId: string): Promise<void>
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error ?? new Error('Could not clear query cache'));
     });
-  } finally {
-    db.close();
-  }
+  } finally { db.close(); }
 }

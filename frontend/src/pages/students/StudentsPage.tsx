@@ -69,7 +69,7 @@ export default function StudentsPage() {
       try {
         return (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data;
       } catch (error) {
-        if (typeof navigator !== 'undefined' && navigator.onLine) throw error;
+        if ((error as { response?: unknown } | null)?.response) throw error;
         const snapshot = queryClient.getQueryData<{
           accountId: string; complete: boolean;
           circles: Array<Pick<Circle, 'id' | 'name' | 'code'>>;
@@ -98,7 +98,7 @@ export default function StudentsPage() {
         return data;
       } catch (error) {
         const hasFilters = Boolean(debouncedSearch || status || evaluation || circleId || track);
-        if ((typeof navigator !== 'undefined' && navigator.onLine) || page !== 1 || hasFilters) throw error;
+        if ((error as { response?: unknown } | null)?.response || page !== 1 || hasFilters) throw error;
         const snapshot = queryClient.getQueryData<{
           accountId: string; complete: boolean;
           students: Array<{

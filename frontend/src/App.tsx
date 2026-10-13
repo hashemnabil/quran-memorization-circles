@@ -63,6 +63,9 @@ export default function App() {
     let unsubscribe: (() => void) | undefined;
     void restoreQueryCache(currentUser.id).catch(() => false).finally(() => {
       if (!active) return;
+      // Signal that this account's durable snapshot has been restored before
+      // background refreshes can replace cached reads with network responses.
+      window.dispatchEvent(new CustomEvent('qc:offline-cache-restored', { detail: { accountId: currentUser.id } }));
       unsubscribe = queryClient.getQueryCache().subscribe(() => {
         if (timer) clearTimeout(timer);
         timer = setTimeout(() => {

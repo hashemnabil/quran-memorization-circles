@@ -38,6 +38,8 @@ queryClient = new QueryClient({
         return failureCount < 2;
       },
       staleTime: 30_000,
+      // Keep inactive query definitions available for background offline refresh.
+      gcTime: 7 * 24 * 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     },
   },

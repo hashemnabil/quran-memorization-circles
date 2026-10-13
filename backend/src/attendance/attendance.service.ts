@@ -29,6 +29,52 @@ export class AttendanceService {
     private readonly notifications: NotificationsService,
   ) {}
 
+  /**
+   * A small, permission-scoped bootstrap for offline attendance.
+   * Student rows are cursor-paginated so large schools never silently truncate.
+   * Only roster fields needed to prepare an attendance sheet are returned.
+   */
+  async offlineBundle(user: AuthUser, cursor?: string, requestedLimit = 500) {
+    const limit = Math.min(500, Math.max(1, Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 500));
+    const allowed = await this.acl.accessibleCircleIds(user);
+    const circleWhere: Prisma.CircleWhereInput = {
+      deletedAt: null,
+      isActive: true,
+      ...(allowed !== null ? { id: { in: allowed } } : {}),
+    };
+    const circles = await this.prisma.circle.findMany({
+      where: circleWhere,
+      select: { id: true, name: true, code: true, scheduleDays: true, startTime: true },
+      orderBy: { id: 'asc' },
+    });
+    const circleIds = circles.map((circle) => circle.id);
+    const rows = circleIds.length
+      ? await this.prisma.student.findMany({
+          where: {
+            circleId: { in: circleIds },
+            deletedAt: null,
+            status: { in: ['ACTIVE', 'SUSPENDED'] },
+          },
+          select: { id: true, circleId: true, code: true, fullName: true, status: true, evaluation: true },
+          orderBy: { id: 'asc' },
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+          take: limit + 1,
+        })
+      : [];
+    const hasMore = rows.length > limit;
+    const students = hasMore ? rows.slice(0, limit) : rows;
+    return {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      accountId: user.id,
+      circles,
+      students,
+      nextCursor: hasMore ? students[students.length - 1]?.id ?? null : null,
+      complete: !hasMore,
+      pageSize: limit,
+    };
+  }
+
   /** The roster for a circle on a date, pre-filled with whatever was already recorded. */
   async sheet(user: AuthUser, query: AttendanceSheetQueryDto) {
     await this.acl.assertCircleAccess(user, query.circleId);

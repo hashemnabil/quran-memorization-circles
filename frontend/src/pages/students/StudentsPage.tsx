@@ -65,24 +65,68 @@ export default function StudentsPage() {
 
   const { data: circles } = useQuery({
     queryKey: ['circles', 'options'],
-    queryFn: async () => (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data,
+    queryFn: async () => {
+      try {
+        return (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data;
+      } catch (error) {
+        if (typeof navigator !== 'undefined' && navigator.onLine) throw error;
+        const snapshot = queryClient.getQueryData<{
+          accountId: string; complete: boolean;
+          circles: Array<Pick<Circle, 'id' | 'name' | 'code'>>;
+        }>(['offline', 'bootstrap', user.id]);
+        if (!snapshot?.complete || snapshot.accountId !== user.id) throw error;
+        return snapshot.circles.map(({ id, name, code }) => ({ id, name, code }));
+      }
+    },
   });
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['students', { page, debouncedSearch, status, evaluation, circleId, track }],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<Student>>('/students', {
-        params: {
-          page,
-          limit: 20,
-          search: debouncedSearch || undefined,
-          status: status || undefined,
-          evaluation: evaluation || undefined,
-          circleId: circleId || undefined,
-          track: track || undefined,
-        },
-      });
-      return data;
+      try {
+        const { data } = await api.get<PaginatedResponse<Student>>('/students', {
+          params: {
+            page,
+            limit: 20,
+            search: debouncedSearch || undefined,
+            status: status || undefined,
+            evaluation: evaluation || undefined,
+            circleId: circleId || undefined,
+            track: track || undefined,
+          },
+        });
+        return data;
+      } catch (error) {
+        // The bootstrap is an unfiltered core snapshot, not a substitute for
+        // filtered server queries. Only use it for the first, unfiltered page.
+        const hasFilters = Boolean(debouncedSearch || status || evaluation || circleId || track);
+        if ((typeof navigator !== 'undefined' && navigator.onLine) || page !== 1 || hasFilters) throw error;
+        const snapshot = queryClient.getQueryData<{
+          accountId: string; complete: boolean;
+          students: Array<{
+            id: string; code: string; fullName: string; status: StudentStatus;
+            evaluation?: Evaluation | null; memorizedParts: number;
+            currentSurah?: string | null; currentPage?: number | null; circleId?: string | null;
+            updatedAt?: string;
+          }>;
+        }>(['offline', 'bootstrap', user.id]);
+        if (!snapshot?.complete || snapshot.accountId !== user.id) throw error;
+        const students = snapshot.students.map((student) => ({
+          ...student,
+          gender: 'MALE' as const,
+          totalPoints: 0,
+          enrollmentDate: student.updatedAt ?? '',
+          createdAt: student.updatedAt ?? '',
+        })) as Student[];
+        return {
+          data: students.slice(0, 20),
+          meta: {
+            total: students.length, page: 1, limit: 20,
+            totalPages: Math.max(1, Math.ceil(students.length / 20)),
+            hasNextPage: students.length > 20, hasPreviousPage: false,
+          },
+        };
+      }
     },
   });
 

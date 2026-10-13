@@ -41,6 +41,14 @@ import type {
 
 type Draft = Record<string, { status: AttendanceStatus; note?: string }>;
 
+function mayUseOfflineAttendanceFallback(error: unknown): boolean {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
+  if (!axios.isAxiosError(error)) return false;
+  if (!error.response) return true;
+  const status = error.response.status;
+  return status === 408 || status === 429 || status >= 500;
+}
+
 export default function AttendancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -59,6 +67,7 @@ export default function AttendancePage() {
       try {
         return (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data;
       } catch (error) {
+        if (!mayUseOfflineAttendanceFallback(error)) throw error;
         const bundle = queryClient.getQueryData<{
           accountId: string;
           circles: Pick<Circle, 'id' | 'name' | 'code'>[];
@@ -95,6 +104,7 @@ export default function AttendancePage() {
       try {
         return (await api.get<AttendanceSheet>('/attendance/sheet', { params: { circleId, date } })).data;
       } catch (error) {
+        if (!mayUseOfflineAttendanceFallback(error)) throw error;
         const bundle = queryClient.getQueryData<{
           accountId: string;
           circles: Array<Pick<Circle, 'id' | 'name' | 'code' | 'scheduleDays' | 'startTime'>>;

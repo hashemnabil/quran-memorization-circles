@@ -113,7 +113,7 @@ export default function StudentsPage() {
           ...student, gender: 'MALE' as const, totalPoints: 0,
           enrollmentDate: student.updatedAt ?? '', createdAt: student.updatedAt ?? '',
         })) as Student[];
-        return { data: students.slice(0, 20), meta: {
+        return { offlineSnapshot: true, data: students.slice(0, 20), meta: {
           total: students.length, page: 1, limit: 20,
           totalPages: Math.max(1, Math.ceil(students.length / 20)),
           hasNextPage: students.length > 20, hasPreviousPage: false,
@@ -141,6 +141,7 @@ export default function StudentsPage() {
     onError: (error) => toast.error(apiError(error)),
   });
 
+  const isOfflineSnapshot = Boolean((data as (PaginatedResponse<Student> & { offlineSnapshot?: boolean }) | undefined)?.offlineSnapshot);
   const rows = data?.data ?? [];
   // Off by default: the checkbox column appears only once "حذف جماعي" is pressed.
   const bulk = useBulkSelect(rows);
@@ -247,6 +248,12 @@ export default function StudentsPage() {
           </div>
         }
       />
+
+      {isOfflineSnapshot && (
+        <Card className="mb-5 border-amber-300 bg-amber-50">
+          <p className="text-sm font-semibold text-amber-900">أنت تعرض نسخة محفوظة دون اتصال. قد تكون بعض التفاصيل غير متاحة أو غير محدّثة؛ تحقّق من اتصال الإنترنت قبل اتخاذ قرارات أو إجراء تعديلات.</p>
+        </Card>
+      )}
 
       <Card className="mb-5">
         {/* The track chips are the unified record's main lens: one record set,

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { queryClient } from '@/lib/queryClient';
+import { api } from '@/lib/api';
 import { persistQueryCache } from '@/lib/offline/queryCache';
 import { useAuthStore } from '@/store/auth';
 import { IconDownload } from '@/components/ui/Icons';
@@ -33,7 +34,7 @@ export default function OfflineDownloadButton() {
   const accountId = useAuthStore((state) => state.user?.id ?? '');
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<{ saved: number; failed: number; total: number } | null>(null);
+  const [result, setResult] = useState<{ saved: number; failed: number; total: number; bundle?: { circles: number; students: number; complete: boolean } } | null>(null);
   const [error, setError] = useState('');
 
   const cachedQueries = queryClient.getQueryCache().getAll();
@@ -61,7 +62,44 @@ export default function OfflineDownloadButton() {
     const queries = queryClient.getQueryCache().getAll();
     let saved = 0;
     let failed = 0;
+    let bundleSummary: { circles: number; students: number; complete: boolean } | undefined;
     try {
+      // Download the server-authorized attendance roster, following every cursor page.
+      const bundleCircles = new Map<string, any>();
+      const bundleStudents = new Map<string, any>();
+      const seenCursors = new Set<string>();
+      let cursor: string | undefined;
+      let complete = false;
+      for (let page = 0; page < 1000; page += 1) {
+        const response = await api.get('/attendance/offline-bundle', {
+          params: { limit: 500, ...(cursor ? { cursor } : {}) },
+        });
+        const data = response.data as {
+          accountId: string; circles: Array<{ id: string; [key: string]: unknown }>;
+          students: Array<{ id: string; [key: string]: unknown }>;
+          nextCursor: string | null; complete: boolean;
+        };
+        if (data.accountId !== accountId) throw new Error('Account mismatch in offline bundle');
+        for (const circle of data.circles ?? []) bundleCircles.set(circle.id, circle);
+        for (const student of data.students ?? []) bundleStudents.set(student.id, student);
+        complete = data.complete === true;
+        if (complete) break;
+        if (!data.nextCursor || seenCursors.has(data.nextCursor)) throw new Error('Invalid offline bundle cursor');
+        seenCursors.add(data.nextCursor);
+        cursor = data.nextCursor;
+      }
+      if (!complete) throw new Error('Offline bundle pagination limit reached');
+      const bundle = {
+        version: 1,
+        accountId,
+        downloadedAt: new Date().toISOString(),
+        circles: [...bundleCircles.values()],
+        students: [...bundleStudents.values()],
+        complete: true,
+      };
+      queryClient.setQueryData(['offline', 'attendance-bundle', accountId], bundle);
+      bundleSummary = { circles: bundle.circles.length, students: bundle.students.length, complete: bundle.complete };
+
       // Refresh queries registered by pages the current account has visited.
       for (const query of queries) {
         if (!query.options.queryFn || query.state.fetchStatus === 'fetching') continue;
@@ -75,7 +113,7 @@ export default function OfflineDownloadButton() {
         }
       }
       await persistQueryCache(accountId);
-      setResult({ saved, failed, total: queries.length });
+      setResult({ saved, failed, total: queries.length, bundle: bundleSummary });
     } catch {
       setError('تعذر حفظ البيانات على هذا الجهاز. تأكد من مساحة التخزين ثم حاول مجدداً.');
     } finally {
@@ -140,10 +178,10 @@ export default function OfflineDownloadButton() {
             )}
 
             <div className="rounded-xl bg-amber-50 p-3 text-sm leading-6 text-amber-900">
-              مهم: هذا الإصدار يحدّث ويحفظ الاستعلامات التي سجّلها التطبيق من الأقسام التي زرتها فقط، وليس كل سجلات الموقع أو كل الصفحات تلقائياً. افتح كل قسم وصفحات البيانات المطلوبة، ثم أعد التحميل. الأقسام غير الظاهرة لم تُفحص بعد.
+              مهم: يتم الآن تنزيل حزمة الحضور المصرّح بها من الخادم على صفحات، إضافةً إلى تحديث الاستعلامات التي سبق تسجيلها من الأقسام التي زرتها. هذا لا ينزّل كل أقسام الموقع ولا يفعّل التعديل دون اتصال إلا للعمليات المدعومة صراحةً.
             </div>
             {running && <p className="mt-4 text-sm font-semibold text-emerald-700" role="status">جارٍ تحديث البيانات وحفظها على الجهاز…</p>}
-            {result && <div className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-900">اكتملت العملية. استعلامات فيها بيانات بعد المحاولة: <strong>{result.saved}</strong>. استعلامات بدون بيانات: <strong>{result.failed}</strong>. إجمالي الاستعلامات التي كانت موجودة عند البدء: {result.total}.</div>}
+            {result && <div className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-900">اكتملت العملية. استعلامات فيها بيانات بعد المحاولة: <strong>{result.saved}</strong>. استعلامات بدون بيانات: <strong>{result.failed}</strong>. إجمالي الاستعلامات التي كانت موجودة عند البدء: {result.total}. {result.bundle && <>وحُفظت حزمة الحضور المصرّح بها: <strong>{result.bundle.circles}</strong> حلقة و<strong>{result.bundle.students}</strong> طالب.</>}</div>}
             {error && <p className="mt-4 text-sm text-red-700" role="alert">{error}</p>}
             <div className="mt-5 flex gap-2">
               <button type="button" onClick={() => void downloadAvailableData()} disabled={running} className="flex-1 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">{running ? 'جارٍ التحميل…' : 'تحديث وحفظ البيانات المتاحة'}</button>

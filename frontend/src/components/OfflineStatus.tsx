@@ -4,6 +4,7 @@ import { replayOfflineOperation } from '@/lib/offline/replay';
 import { syncPendingSupport } from '@/lib/offline/pendingSupport';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
+import { queryClient } from '@/lib/queryClient';
 
 const OUTBOX_CHANGED = 'quran-circles:outbox-changed';
 
@@ -35,7 +36,11 @@ export default function OfflineStatus() {
       if (navigator.onLine && accountId) {
         void syncOfflineOperations(accountId, replayOfflineOperation).then(async (report) => {
           if (report.applied > 0) {
-            // invalidate queries are handled elsewhere; keep UI simple here
+            // A successful replay changes server data; refresh affected reads.
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ['attendance'] }),
+              queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+            ]);
           }
           await refresh();
         }).catch(() => { void refresh(); });
@@ -48,9 +53,11 @@ export default function OfflineStatus() {
     const onOnline = () => { setOnline(true); sync(); };
     const onOffline = () => { setOnline(false); void refresh(); };
     const onOutboxChanged = () => { void refresh(); };
+    const onFocus = () => sync();
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     window.addEventListener(OUTBOX_CHANGED, onOutboxChanged);
+    window.addEventListener('focus', onFocus);
     void refresh();
     sync();
     return () => {
@@ -58,6 +65,7 @@ export default function OfflineStatus() {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
       window.removeEventListener(OUTBOX_CHANGED, onOutboxChanged);
+      window.removeEventListener('focus', onFocus);
     };
   }, [accountId, refreshOutbox]);
 

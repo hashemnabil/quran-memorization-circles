@@ -8,6 +8,7 @@ import { navigationFor } from '@/config/navigation';
 import { ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { Avatar, Badge, cx } from '@/components/ui';
 import AnnouncementBar from '@/components/AnnouncementBar';
+import OfflineDownloadButton from '@/components/OfflineDownloadButton';
 import {
   IconBell,
   IconChat,
@@ -288,6 +289,8 @@ export default function AppLayout() {
               <p className="truncate text-sm font-bold text-slate-700">مرحباً، {user.fullName}</p>
               <p className="text-[11px] text-slate-400">{ROLE_LABELS[user.role]}</p>
             </div>
+
+            <OfflineDownloadButton />
 
             <NavLink
               to="/chat"

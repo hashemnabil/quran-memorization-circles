@@ -17,7 +17,8 @@
     "db:reset": "prisma migrate reset --force",
     "db:wipe": "ts-node -P tsconfig.seed.json prisma/reset.ts --force",
     "db:fresh": "prisma migrate reset --force --skip-seed && npm run bootstrap",
-    "db:setup": "node scripts/db-setup.mjs"
+    "db:setup": "node scripts/db-setup.mjs",
+    "test:offline-sync": "node --test -r ts-node/register src/offline-sync/offline-sync.service.test.ts"
   },
   "prisma": {
     "seed": "ts-node -P tsconfig.seed.json prisma/seed.ts"

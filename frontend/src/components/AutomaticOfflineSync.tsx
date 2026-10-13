@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { api } from '@/lib/api';
 import { queryClient } from '@/lib/queryClient';
 import { persistQueryCache } from '@/lib/offline/queryCache';
-import type { User } from '@/types';
+import type { Role } from '@/types';
 
 const AUTO_SYNC_INTERVAL = 5 * 60 * 1000;
 const ATTENDANCE_ROLES = new Set(['ADMIN', 'SUPERVISOR', 'TEACHER']);
@@ -65,7 +65,7 @@ async function refreshAttendanceBundle(accountId: string): Promise<void> {
  * the server-authorized attendance roster. It never fetches another account's
  * data and never treats a failed request as a successful write.
  */
-export default function AutomaticOfflineSync({ accountId, role }: { accountId: string; role: User['role'] }) {
+export default function AutomaticOfflineSync({ accountId, role }: { accountId: string; role: Role }) {
   useEffect(() => {
     if (!accountId) return;
     let running = false;

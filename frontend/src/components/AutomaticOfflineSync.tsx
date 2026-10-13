@@ -21,6 +21,58 @@ async function refreshKnownQueries(): Promise<void> {
   }
 }
 
+const BOOTSTRAP_REFRESH_AGE = 30 * 60 * 1000;
+
+async function refreshOfflineBootstrap(accountId: string): Promise<void> {
+  const key = ['offline', 'bootstrap', accountId] as const;
+  const cached = queryClient.getQueryData<{ downloadedAt?: string; complete?: boolean }>(key);
+  const cachedAt = cached?.downloadedAt ? Date.parse(cached.downloadedAt) : 0;
+  if (cached?.complete && Number.isFinite(cachedAt) && Date.now() - cachedAt < BOOTSTRAP_REFRESH_AGE) return;
+
+  const circles = new Map<string, Record<string, unknown> & { id: string }>();
+  const students = new Map<string, Record<string, unknown> & { id: string }>();
+  const seenCursors = new Set<string>();
+  let cursor: string | undefined;
+  let complete = false;
+
+  for (let page = 0; page < 1000; page += 1) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    const response = await api.get('/offline-sync/bootstrap', {
+      params: { limit: 200, ...(cursor ? { cursor } : {}) },
+    });
+    const data = response.data as {
+      version: number;
+      accountId: string;
+      circles?: Array<Record<string, unknown> & { id: string }>;
+      students?: Array<Record<string, unknown> & { id: string }>;
+      nextCursor: string | null;
+      complete: boolean;
+    };
+    if (data.accountId !== accountId || data.version !== 1) {
+      throw new Error('Offline bootstrap account or version mismatch');
+    }
+    for (const circle of data.circles ?? []) circles.set(circle.id, circle);
+    for (const student of data.students ?? []) students.set(student.id, student);
+    complete = data.complete === true;
+    if (complete) break;
+    if (!data.nextCursor || seenCursors.has(data.nextCursor)) {
+      throw new Error('Invalid offline bootstrap cursor');
+    }
+    seenCursors.add(data.nextCursor);
+    cursor = data.nextCursor;
+  }
+
+  if (!complete) throw new Error('Offline bootstrap pagination limit reached');
+  queryClient.setQueryData(key, {
+    version: 1,
+    accountId,
+    downloadedAt: new Date().toISOString(),
+    circles: [...circles.values()],
+    students: [...students.values()],
+    complete: true,
+  });
+}
+
 async function refreshAttendanceBundle(accountId: string): Promise<void> {
   const circles = new Map<string, Record<string, unknown>>();
   const students = new Map<string, Record<string, unknown>>();
@@ -100,6 +152,13 @@ export default function AutomaticOfflineSync({ accountId, role }: { accountId: s
           }
         });
         await refreshKnownQueries();
+        if (!disposed) {
+          try {
+            await refreshOfflineBootstrap(accountId);
+          } catch {
+            // Keep the previous complete snapshot if the new download is interrupted.
+          }
+        }
         if (!disposed && ATTENDANCE_ROLES.has(role)) {
           try {
             await refreshAttendanceBundle(accountId);

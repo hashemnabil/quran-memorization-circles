@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import AppLaunchGate from '@/components/AppLaunchGate';
 import { Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth';
 import { startHeartbeat } from '@/lib/session';
@@ -84,7 +85,8 @@ export default function App() {
   useEffect(() => startHeartbeat(), []);
 
   return (
-    <Routes>
+    <AppLaunchGate>
+      <Routes>
       <Route path="/register" element={<RegistryLoginPage />} />
       <Route path="/register/data" element={<RegistryDataPage />} />
       <Route
@@ -295,6 +297,7 @@ export default function App() {
         <Route path="forbidden" element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
-    </Routes>
+      </Routes>
+    </AppLaunchGate>
   );
 }

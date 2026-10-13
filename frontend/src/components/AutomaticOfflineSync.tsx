@@ -11,7 +11,7 @@ const ATTENDANCE_ROLES = new Set(['ADMIN', 'SUPERVISOR', 'TEACHER']);
 async function refreshKnownQueries(): Promise<void> {
   const queries = queryClient.getQueryCache().getAll();
   for (const query of queries) {
-    if (!query.options.queryFn || query.options.enabled === false || query.state.fetchStatus === 'fetching') continue;
+    if (!query.options.queryFn || query.state.fetchStatus === 'fetching' || query.state.status === 'pending') continue;
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     try {
       await query.fetch();

@@ -44,15 +44,32 @@ export default function CirclesPage() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['circles', { page, debouncedSearch, isActive }],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<Circle>>('/circles', {
-        params: {
-          page,
-          limit: 12,
-          search: debouncedSearch || undefined,
-          isActive: isActive === '' ? undefined : isActive,
-        },
-      });
-      return data;
+      try {
+        const { data } = await api.get<PaginatedResponse<Circle>>('/circles', {
+          params: {
+            page, limit: 12, search: debouncedSearch || undefined,
+            isActive: isActive === '' ? undefined : isActive,
+          },
+        });
+        return data;
+      } catch (error) {
+        if ((typeof navigator !== 'undefined' && navigator.onLine) ||
+            page !== 1 || Boolean(debouncedSearch) || isActive !== '') throw error;
+        const snapshot = queryClient.getQueryData<{
+          accountId: string; complete: boolean;
+          circles: Array<Pick<Circle, 'id' | 'name' | 'code' | 'scheduleDays' | 'startTime' | 'isActive'>>;
+        }>(['offline', 'bootstrap', user.id]);
+        if (!snapshot?.complete || snapshot.accountId !== user.id) throw error;
+        const circles = snapshot.circles.map((circle) => ({
+          ...circle, capacity: 1, endTime: null, studentsCount: 0,
+          assistantTeachers: [], primaryTeacher: null, supervisor: null,
+        })) as Circle[];
+        return { data: circles.slice(0, 12), meta: {
+          total: circles.length, page: 1, limit: 12,
+          totalPages: Math.max(1, Math.ceil(circles.length / 12)),
+          hasNextPage: circles.length > 12, hasPreviousPage: false,
+        }};
+      }
     },
   });
 

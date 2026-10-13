@@ -53,7 +53,7 @@ export default function CirclesPage() {
         });
         return data;
       } catch (error) {
-        if ((typeof navigator !== 'undefined' && navigator.onLine) ||
+        if ((error as { response?: unknown } | null)?.response ||
             page !== 1 || Boolean(debouncedSearch) || isActive !== '') throw error;
         const snapshot = queryClient.getQueryData<{
           accountId: string; complete: boolean;

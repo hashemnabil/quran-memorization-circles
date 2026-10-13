@@ -64,7 +64,7 @@ export default function CirclesPage() {
           ...circle, capacity: 1, endTime: null, studentsCount: 0,
           assistantTeachers: [], primaryTeacher: null, supervisor: null,
         })) as Circle[];
-        return { data: circles.slice(0, 12), meta: {
+        return { offlineSnapshot: true, data: circles.slice(0, 12), meta: {
           total: circles.length, page: 1, limit: 12,
           totalPages: Math.max(1, Math.ceil(circles.length / 12)),
           hasNextPage: circles.length > 12, hasPreviousPage: false,
@@ -91,6 +91,8 @@ export default function CirclesPage() {
     if (ok) remove.mutate(circle.id);
   };
 
+  const isOfflineSnapshot = Boolean((data as (PaginatedResponse<Circle> & { offlineSnapshot?: boolean }) | undefined)?.offlineSnapshot);
+
   return (
     <>
       <PageHeader
@@ -104,6 +106,12 @@ export default function CirclesPage() {
           )
         }
       />
+
+      {isOfflineSnapshot && (
+        <Card className="mb-5 border-amber-300 bg-amber-50">
+          <p className="text-sm font-semibold text-amber-900">أنت تعرض نسخة محفوظة دون اتصال. سعة الحلقة وعدد الطلاب وتفاصيل إسناد المعلمين غير متاحة في هذه النسخة؛ قد تظهر قيم غير مكتملة. اتصل بالإنترنت للتحقق من التفاصيل قبل اتخاذ قرارات.</p>
+        </Card>
+      )}
 
       <Card className="mb-5">
         <div className="grid gap-3 sm:grid-cols-3">

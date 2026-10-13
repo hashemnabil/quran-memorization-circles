@@ -34,7 +34,6 @@ function readOfflineUser(): AuthUser | null {
   } catch { return null; }
 }
 
-
 interface AuthState {
   user: AuthUser | null;
   status: 'idle' | 'loading' | 'authenticated' | 'unauthenticated';
@@ -72,12 +71,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   async loadSession() {
-    // A session left behind by a closed browser is discarded before it is used.
     expireStaleSession();
-    if (!tokenStore.access()) {
+    const accessToken = tokenStore.access();
+    if (!accessToken) {
       set({ status: 'unauthenticated', user: null });
       return;
     }
+
+    // On a cold launch in airplane mode, restore the previously authenticated
+    // identity immediately. Do not wait for an impossible /auth/me request.
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const offlineUser = readOfflineUser();
+      set(offlineUser
+        ? { user: offlineUser, status: 'authenticated' }
+        : { user: null, status: 'unauthenticated' });
+      return;
+    }
+
     set({ status: 'loading' });
     try {
       const { data } = await api.get('/auth/me');
@@ -89,13 +99,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const isTemporaryFailure = !isAxios || !error.response || status === 408 || status === 429 || (status !== undefined && status >= 500);
       const offlineUser = isTemporaryFailure ? readOfflineUser() : null;
       if (offlineUser) {
-        // Allow cached reads to render while offline. Protected writes still go
-        // through the API and must pass normal server-side authentication.
+        // Cached reads may render offline; writes still require server authorization.
         set({ user: offlineUser, status: 'authenticated' });
         return;
       }
-      tokenStore.clear();
-      try { localStorage.removeItem(OFFLINE_USER_KEY); } catch { /* ignore */ }
+      // Preserve tokens after temporary network failures; only an explicit
+      // authentication rejection should force a fresh sign-in.
+      if (status === 401 || status === 403) tokenStore.clear();
       set({ user: null, status: 'unauthenticated' });
     }
   },
@@ -116,12 +126,9 @@ async function adoptSession(
   data: { accessToken: string; refreshToken: string },
   set: (partial: Partial<AuthState>) => void,
 ) {
-  // Signing in on a tab that already held a session must not inherit its
-  // cache: an admin's announcement list, for one, has none of the notices
-  // addressed to the parent who just signed in.
+  // Signing in on a tab that already held a session must not inherit its cache.
   resetQueryCache();
   tokenStore.set(data.accessToken, data.refreshToken);
-  // /auth/me returns the richer profile (teacher / parent links, counts).
   const me = await api.get('/auth/me');
   cacheOfflineUser(me.data as AuthUser);
   set({ user: me.data, status: 'authenticated' });

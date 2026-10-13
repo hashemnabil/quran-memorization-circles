@@ -124,7 +124,12 @@ export default function LoginPage() {
 function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser) => void }) {
   const login = useAuthStore((s) => s.login);
 
-  const [username, setUsername] = useState('');
+  const [rememberUsername, setRememberUsername] = useState(() => {
+    try { return localStorage.getItem('qc.rememberUsername') !== '0'; } catch { return true; }
+  });
+  const [username, setUsername] = useState(() => {
+    try { return localStorage.getItem('qc.savedUsername') || ''; } catch { return ''; }
+  });
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -141,7 +146,14 @@ function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser
 
     setLoading(true);
     try {
-      onAuthenticated(await login(username.trim().toLowerCase(), password));
+      const normalizedUsername = username.trim().toLowerCase();
+      const user = await login(normalizedUsername, password);
+      try {
+        if (rememberUsername) localStorage.setItem('qc.savedUsername', normalizedUsername);
+        else localStorage.removeItem('qc.savedUsername');
+        localStorage.setItem('qc.rememberUsername', rememberUsername ? '1' : '0');
+      } catch { /* Remembering a username is optional if storage is unavailable. */ }
+      onAuthenticated(user);
     } catch (err) {
       setError(apiError(err, 'تعذر تسجيل الدخول'));
     } finally {
@@ -193,6 +205,11 @@ function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser
             {showPassword ? 'إخفاء' : 'إظهار'}
           </button>
         </div>
+
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" checked={rememberUsername} onChange={(e) => setRememberUsername(e.target.checked)} className="h-4 w-4 rounded border-slate-300 accent-emerald-700" />
+          تذكّر اسم المستخدم على هذا الجهاز
+        </label>
 
         <Button type="submit" loading={loading} className="w-full">
           دخول

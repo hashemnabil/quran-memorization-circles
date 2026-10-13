@@ -8,7 +8,7 @@ import { navigationFor } from '@/config/navigation';
 import { ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { Avatar, Badge, cx } from '@/components/ui';
 import AnnouncementBar from '@/components/AnnouncementBar';
-import OfflineDownloadButton from '@/components/OfflineDownloadButton';
+import AutomaticOfflineSync from '@/components/AutomaticOfflineSync';
 import {
   IconBell,
   IconChat,
@@ -290,7 +290,7 @@ export default function AppLayout() {
               <p className="text-[11px] text-slate-400">{ROLE_LABELS[user.role]}</p>
             </div>
 
-            <OfflineDownloadButton />
+            <AutomaticOfflineSync accountId={user.id} role={user.role} />
 
             <NavLink
               to="/chat"

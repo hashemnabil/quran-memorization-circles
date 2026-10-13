@@ -2,57 +2,78 @@
 
 ## Goal
 
-Keep the existing PostgreSQL database and REST API as the authoritative shared system. Each device stores a permission-scoped local working set, records supported offline edits in a durable outbox, and synchronizes when the server is reachable.
+Keep PostgreSQL and the existing REST API as the authoritative shared system. Each device should automatically download the current user's permitted working set, retain it durably for offline use, queue supported edits, and synchronize safely when connectivity returns.
 
-## Current implementation audit (2026-10)
+## Current implementation audit (2026-10-13)
 
-- The frontend persists successful React Query data in IndexedDB, scoped by account ID, with a seven-day snapshot age limit.
-- The download dialog can refresh and persist only queries already registered by pages visited in the current session. It is not a full-site download.
-- An IndexedDB outbox exists, but automatic replay is intentionally restricted to POST /attendance and validates its payload.
-- Attendance replay relies on the server's existing duplicate-sheet protection; conflicting sheets are blocked for review.
-- Socket.IO currently documents its scope as chat and notifications, not general CRUD invalidation.
-- Explicit logout removes the offline identity, tokens, in-memory query cache, and that account's persisted query snapshot. Therefore a user cannot safely expect to sign in again while offline after explicit logout.
-- The backend already has role/access-control checks and must remain the authority for every synchronized write.
+### Implemented
+
+- Successful React Query data is persisted in IndexedDB in an account-scoped snapshot, with a seven-day age limit.
+- The app restores a cached session on launch without connectivity when a prior session/token and cached identity remain. Explicit logout clears that identity and the account's persisted query snapshot; offline login after explicit logout is intentionally not supported.
+- Automatic sync runs after cache restoration, on reconnect/focus, and periodically. It refreshes queries already registered in the current app session.
+- `GET /offline-sync/bootstrap` returns a versioned, cursor-paginated core dataset scoped from the authenticated identity and server-side access-control rules.
+- The frontend downloads and stores the complete bootstrap snapshot per account, and the students/circles screens use it as a first-page fallback on network failure. Those screens show a warning because the bootstrap intentionally omits some fields and filtered/later pages are not fully offline-capable.
+- Staff attendance roles can automatically download a permission-scoped attendance roster bundle.
+- An IndexedDB outbox persists attendance-sheet submissions. Replay is limited to `POST /attendance`, validates the payload, runs sequentially per account, retries transient failures, and blocks conflicts/rejections rather than silently dropping them.
+
+### Not yet full offline-first
+
+- This is not a complete dataset for every screen. Query refresh only covers queries already registered by the app, and the bootstrap only includes a minimal set of circles/students.
+- Most filtered searches, detail views, reports, history pages, and other domains remain online-only unless their successful query data was previously cached.
+- Offline writes beyond attendance are not enabled. Attendance replay relies on existing server-side duplicate/conflict behavior; generalized client-generated operation IDs and durable server-side idempotency records have not been implemented.
+- There is no general authorized change-feed cursor/tombstone mechanism yet, so other users' changes are not guaranteed to propagate incrementally to every device.
+- Automated authorization/pagination coverage for the bootstrap and comprehensive offline end-to-end tests remain outstanding.
 
 ## Rollout phases
 
 ### Phase 1 — make offline behavior explicit and safe
-- Keep PostgreSQL and existing API contracts intact.
-- Separate app restart/offline restoration from explicit logout.
-- Do not persist raw passwords or treat a cached role as server authorization.
-- Preserve account-scoped pending writes until the same account can safely reconcile them; never replay one account's writes under another account.
-- Make download status accurately distinguish downloaded data from pages not yet visited.
+
+- [x] Separate app restart/offline restoration from explicit logout.
+- [x] Avoid persisting raw passwords or treating a cached role as server authorization for writes.
+- [x] Keep pending writes account-scoped and never replay them under another account.
+- [x] Warn users when student/circle fallback data may be incomplete.
+- [ ] Show reliable cache freshness and download completeness for every offline-capable screen.
 
 ### Phase 2 — permission-scoped initial download
-- [In progress] Add `GET /offline-sync/bootstrap`, a versioned, cursor-paginated core-data bundle derived from the authenticated user and existing access-control service. The first slice returns permitted circles for staff roles and a minimal student working set for admin/staff, parent, and student roles; it deliberately excludes exam-committee/support browsing and does not yet cover every domain.
-- Remaining: connect the frontend to consume and persist this bundle, add automated authorization/pagination tests, and extend it domain-by-domain.
-- Build the bundle from existing services/access-control rules, not from client-supplied role or user IDs.
-- Paginate/chunk large datasets and expose a server cursor/version.
-- Store normalized domain records in IndexedDB, rather than relying only on React Query snapshots.
-- Do not cache secrets, refresh tokens, or data the user cannot view online.
+
+- [x] Add `GET /offline-sync/bootstrap`, using the authenticated server identity and existing access-control service.
+- [x] Download and persist the complete paginated bootstrap snapshot per account.
+- [x] Use the snapshot as a limited fallback in the students/circles screens.
+- [ ] Add automated backend tests for role scopes, inaccessible cursors, page boundaries, and complete pagination.
+- [ ] Extend the bootstrap in small domain-specific slices (for example, recitation lists/progress and the detail data required by each role).
+- [ ] Avoid placeholder values being treated as real domain values; prefer explicit offline view models and UI fields that are unavailable in the snapshot.
+- [ ] Add an incremental refresh contract so the app need not repeatedly download every bootstrap record.
 
 ### Phase 3 — durable writes and idempotent replay
-- Add client-generated operation IDs and server-side idempotency records for each supported mutation.
-- Start with attendance, then add recitation and other domains only after each has validation, permission checks, duplicate handling, and conflict behavior.
-- Keep rejected/conflicting operations visible for manual resolution; never silently discard them.
-- Make each domain write transactional on the server.
+
+- [x] Provide a durable IndexedDB outbox for attendance writes with strict endpoint allowlisting and payload validation.
+- [x] Replay queued attendance writes sequentially, account-scoped, and preserve transient failures/conflicts.
+- [ ] Add client-generated operation IDs and server-side idempotency records; ensure each mutation and its idempotency result commit transactionally.
+- [ ] Add outbox inspection/status so users can identify pending, retrying, and blocked edits.
+- [ ] Only then enable offline corrections, recitation, or other writes, each with validation, authorization, duplicate handling, and conflict rules.
+- [ ] Test the ambiguous case where the server commits a write but the response is lost before the client receives it.
 
 ### Phase 4 — incremental sync and cross-user updates
-- Add a server change feed/cursor for records the authenticated user is allowed to see.
-- Return tombstones/deletions as well as inserts/updates.
-- Pull changes after successful outbox replay and on reconnect/app focus.
-- Use Socket.IO as a notification that new changes may exist; fetch authorized changes over the API rather than broadcasting private records to broad rooms.
-- Add backoff, pagination, schema versioning, and telemetry without logging sensitive student data.
+
+- [ ] Add a server change feed/cursor for records the authenticated user is allowed to see.
+- [ ] Include tombstones/deletions as well as inserts/updates.
+- [ ] Pull authorized changes after successful outbox replay and on reconnect/app focus.
+- [ ] Use Socket.IO as a notification that changes may exist; fetch authorized records through the API instead of broadcasting private data to broad rooms.
+- [ ] Add bounded pagination, backoff, schema versioning, and telemetry without logging sensitive student data.
 
 ### Phase 5 — verification
-- Test airplane-mode launch, expired/revoked sessions, explicit logout, account switching, storage quota errors, interrupted writes, duplicate retries, concurrent edits, and reconnect.
-- Verify that teacher/parent/student accounts receive only their permitted data.
-- Run frontend typecheck/build, offline tests, backend tests, and database migration checks before merging.
 
-## Important authentication decision
+- [ ] Test airplane-mode launch, expired/revoked sessions, explicit logout, account switching, storage quota errors, interrupted downloads/writes, duplicate retries, concurrent edits, and reconnect.
+- [ ] Verify teacher/parent/student accounts receive only the data they may view online.
+- [ ] Run frontend typecheck/build, offline tests, backend tests, and database migration checks before merging.
 
-"Close the app and reopen offline" and "explicitly log out, then sign in offline" are different security actions. The current explicit logout intentionally clears the local identity and private cache. Supporting offline sign-in after logout needs a separately designed local unlock credential (for example, an opt-in device PIN/passkey) and a clear shared-device data-retention policy. It must not be implemented by keeping server tokens alive or storing the user's password.
+## Security and product decisions
 
-## Current status
+- A cached role is only for rendering the previously signed-in app shell; every synchronized write must still be authenticated and authorized by the server.
+- Never cache passwords or reuse one account's pending writes under another account.
+- "Close the app and reopen offline" differs from "explicitly log out, then sign in offline." Offline login after explicit logout requires a separately designed local unlock mechanism and shared-device data-retention policy; do not solve it by keeping server tokens alive or storing passwords.
+- Do not advertise full offline capability until the relevant data is downloaded, freshness is visible, and edits have domain-specific idempotency/conflict handling.
 
-This document is a rollout plan, not a claim that full offline-first synchronization is already implemented. The bootstrap API is only the first backend slice; the client does not yet consume it automatically, it is not an incremental change feed, and it is not a complete offline dataset.
+## Recommended next engineering slice
+
+Before enabling additional offline writes, add automated backend tests for the existing bootstrap endpoint and make its pagination/role-scope contract robust. Then implement server-side idempotency for attendance retries, followed by a small additional read-only domain bundle. This reduces the risk of data leakage or duplicate records while expanding offline coverage.

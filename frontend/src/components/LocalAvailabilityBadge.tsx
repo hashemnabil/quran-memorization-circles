@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 
 /**
- * Shows whether there is a local snapshot of the app (query cache) so the
- * user can open the site when offline. This is a best-effort UI: it checks
- * the query cache IndexedDB used by the app and reports existence.
+ * Best-effort indicator that at least one query-cache snapshot exists locally.
+ * This does not guarantee offline sign-in or that every page's data is available.
  */
 export default function LocalAvailabilityBadge() {
   const [hasSnapshot, setHasSnapshot] = useState<boolean | null>(null);
@@ -54,7 +53,7 @@ export default function LocalAvailabilityBadge() {
   if (!hasSnapshot) {
     return (
       <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-100">
-        لا توجد نسخة مخزنة محلياً حالياً — الاتصال مطلوب لعرض أحدث البيانات.
+        لا توجد نسخة بيانات محفوظة محلياً. يلزم الاتصال لتنزيل البيانات.
       </div>
     );
   }
@@ -63,8 +62,8 @@ export default function LocalAvailabilityBadge() {
     <div className="mt-3 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 ring-1 ring-emerald-100">
       <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-600" />
       <div>
-        <div>التطبيق قابل للتشغيل دون إنترنت — نسخة محفوظة محلياً.</div>
-        <div className="text-xs font-normal text-emerald-700">سيُستأنف رفع التغييرات تلقائياً عند عودة الاتصال.</div>
+        <div>توجد نسخة بيانات محلية لبعض الصفحات.</div>
+        <div className="text-xs font-normal text-emerald-700">هذا لا يضمن إمكانية تسجيل الدخول بعد تسجيل الخروج أو توفر جميع الصفحات دون اتصال.</div>
       </div>
     </div>
   );

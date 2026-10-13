@@ -71,9 +71,10 @@ export default function AutomaticOfflineSync({ accountId, role }: { accountId: s
     if (!accountId) return;
     let running = false;
     let disposed = false;
+    let cacheReady = false;
 
     const synchronize = async () => {
-      if (running || disposed || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+      if (!cacheReady || running || disposed || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
       running = true;
       try {
         // Replay durable local attendance writes before refreshing server reads.
@@ -112,16 +113,23 @@ export default function AutomaticOfflineSync({ accountId, role }: { accountId: s
       }
     };
 
+    const onCacheRestored = (event: Event) => {
+      const detail = (event as CustomEvent<{ accountId?: string }>).detail;
+      if (detail?.accountId !== accountId) return;
+      cacheReady = true;
+      void synchronize();
+    };
     const onOnline = () => { void synchronize(); };
     const onFocus = () => { void synchronize(); };
+    window.addEventListener('qc:offline-cache-restored', onCacheRestored);
     window.addEventListener('online', onOnline);
     window.addEventListener('focus', onFocus);
-    void synchronize();
     const interval = window.setInterval(() => { void synchronize(); }, AUTO_SYNC_INTERVAL);
 
     return () => {
       disposed = true;
       window.clearInterval(interval);
+      window.removeEventListener('qc:offline-cache-restored', onCacheRestored);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('focus', onFocus);
     };

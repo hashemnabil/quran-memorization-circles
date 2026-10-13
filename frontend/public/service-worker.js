@@ -1,30 +1,47 @@
-/* Cache the complete same-origin app shell so a previously opened app can boot offline. */
-const CACHE_NAME = 'quran-circles-shell-v2';
+/* Keep the last working offline shell until every asset of the new build is cached. */
+const CACHE_NAME = 'quran-circles-shell-v3';
 const APP_SHELL = '/';
+const CACHE_PREFIX = 'quran-circles-shell-';
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
-    const response = await fetch(APP_SHELL, { cache: 'reload' });
-    if (!response.ok) throw new Error('Unable to cache application shell');
-    await cache.put(APP_SHELL, response.clone());
-    const html = await response.text();
-    const assets = [...html.matchAll(/(?:src|href)="([^"]+\/assets\/[^"]+)"/g)]
-      .map((match) => new URL(match[1], self.location.origin).href);
-    await Promise.all(assets.map(async (asset) => {
-      try {
+    try {
+      const response = await fetch(APP_SHELL, { cache: 'reload' });
+      if (!response.ok) throw new Error('Unable to cache application shell');
+      const html = await response.clone().text();
+      const assets = [...new Set(
+        [...html.matchAll(/(?:src|href)="([^"]*\/assets\/[^"]+)"/g)]
+          .map((match) => new URL(match[1], self.location.origin))
+          .filter((url) => url.origin === self.location.origin)
+          .map((url) => url.href),
+      )];
+
+      // A shell without its JS/CSS cannot start offline. Fail the installation
+      // rather than activating a partial cache and deleting the previous version.
+      const assetResponses = await Promise.all(assets.map(async (asset) => {
         const assetResponse = await fetch(asset, { cache: 'reload' });
-        if (assetResponse.ok) await cache.put(asset, assetResponse);
-      } catch { /* Optional asset. */ }
-    }));
-    await self.skipWaiting();
+        if (!assetResponse.ok) throw new Error(`Unable to cache app asset: ${asset}`);
+        return [asset, assetResponse];
+      }));
+
+      await cache.put(APP_SHELL, response);
+      await Promise.all(assetResponses.map(([asset, assetResponse]) => cache.put(asset, assetResponse)));
+      await self.skipWaiting();
+    } catch (error) {
+      await caches.delete(CACHE_NAME);
+      throw error;
+    }
   })());
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key.startsWith('quran-circles-shell-') && key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(
+        keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
+          .map((key) => caches.delete(key)),
+      ))
       .then(() => self.clients.claim()),
   );
 });

@@ -1,6 +1,7 @@
-import { enqueueOfflineOperation, listOfflineOperations, syncOfflineOperations } from '@/lib/offline/outbox';
+import { listOfflineOperations } from '@/lib/offline/outbox';
+import { syncOfflineOperations } from '@/lib/offline/sync';
 import { replayOfflineOperation } from '@/lib/offline/replay';
-import { listPendingSupport, syncPendingSupport } from '@/lib/offline/pendingSupport';
+import { syncPendingSupport } from '@/lib/offline/pendingSupport';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 

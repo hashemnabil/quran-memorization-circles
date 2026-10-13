@@ -28,6 +28,7 @@ import { RegistryModule } from './registry/registry.module';
 import { ReportsModule } from './reports/reports.module';
 import { CertificatesModule } from './certificates/certificates.module';
 import { MediaActivitiesModule } from './media-activities/media-activities.module';
+import { OfflineSyncModule } from './offline-sync/offline-sync.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { MediaActivitiesModule } from './media-activities/media-activities.modul
     ReportsModule,
     CertificatesModule,
     MediaActivitiesModule,
+    OfflineSyncModule,
   ],
 })
 export class AppModule {}

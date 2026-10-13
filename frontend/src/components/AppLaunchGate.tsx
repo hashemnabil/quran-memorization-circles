@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { api } from '@/lib/api';
 import type { SchoolSettings } from '@/types';
 
@@ -12,7 +12,7 @@ function readCachedBranding(): Branding {
   catch { return {}; }
 }
 
-export default function AppLaunchGate({ children }: { children: React.ReactNode }) {
+export default function AppLaunchGate({ children }: { children: ReactNode }) {
   const [onboardingDone, setOnboardingDone] = useState(() => {
     try { return localStorage.getItem('qc.onboarding.completed') === '1'; } catch { return false; }
   });

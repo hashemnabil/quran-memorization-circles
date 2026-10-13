@@ -55,7 +55,18 @@ export default function AttendancePage() {
 
   const { data: circles } = useQuery({
     queryKey: ['circles', 'options'],
-    queryFn: async () => (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data,
+    queryFn: async () => {
+      try {
+        return (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data;
+      } catch (error) {
+        const bundle = queryClient.getQueryData<{
+          accountId: string;
+          circles: Pick<Circle, 'id' | 'name' | 'code'>[];
+        }>(['offline', 'attendance-bundle', accountId]);
+        if (bundle?.accountId === accountId && bundle.circles.length) return bundle.circles;
+        throw error;
+      }
+    },
   });
 
   // Default to the first circle the user can access.
@@ -80,8 +91,34 @@ export default function AttendancePage() {
     refetch,
   } = useQuery({
     queryKey: ['attendance', 'sheet', circleId, date],
-    queryFn: async () =>
-      (await api.get<AttendanceSheet>('/attendance/sheet', { params: { circleId, date } })).data,
+    queryFn: async () => {
+      try {
+        return (await api.get<AttendanceSheet>('/attendance/sheet', { params: { circleId, date } })).data;
+      } catch (error) {
+        const bundle = queryClient.getQueryData<{
+          accountId: string;
+          circles: Array<Pick<Circle, 'id' | 'name' | 'code' | 'scheduleDays' | 'startTime'>>;
+          students: Array<{ id: string; circleId: string | null; code: string; fullName: string; status: string; evaluation: string }>;
+        }>(['offline', 'attendance-bundle', accountId]);
+        if (bundle?.accountId !== accountId) throw error;
+        const circle = bundle.circles.find((item) => item.id === circleId);
+        if (!circle) throw error;
+        const students = bundle.students.filter((student) => student.circleId === circleId);
+        if (!students.length) throw error;
+        // A roster is sufficient to prepare a draft, but not to prove the server
+        // has not already recorded this date. The UI warns before the user queues it.
+        return {
+          circle,
+          date,
+          alreadyRecorded: false,
+          canSubmit: true,
+          submittedAt: null,
+          submittedBy: null,
+          offlineFallback: true,
+          students: students.map((student) => ({ ...student, attendance: null })),
+        } as AttendanceSheet;
+      }
+    },
     enabled: !!circleId && !!date,
   });
 
@@ -204,6 +241,12 @@ export default function AttendancePage() {
               )}
             </div>
           </Card>
+
+          {sheet && (sheet as AttendanceSheet & { offlineFallback?: boolean }).offlineFallback && !submitted && (
+            <div role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+              أنت تعمل من نسخة الحضور المحفوظة محلياً. لا يمكن التأكد دون اتصال إن كان كشف هذا اليوم قد سُجّل مسبقاً؛ عند عودة الإنترنت سيتحقق الخادم من التكرار أو التعارض قبل اعتماد التعديل.
+            </div>
+          )}
 
           {!circleId ? (
             <Card>

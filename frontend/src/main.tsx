@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { Capacitor } from '@capacitor/core';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
@@ -9,7 +10,10 @@ import { ConfirmProvider } from '@/components/ui';
 import { queryClient } from '@/lib/queryClient';
 import './index.css';
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+// Capacitor APKs ship the built web assets locally. Do not register the PWA
+// service worker inside the native WebView: it can interfere with startup and
+// plugin bridge injection. The browser build still uses the service worker.
+if (!Capacitor.isNativePlatform() && import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     void navigator.serviceWorker.register('/service-worker.js').catch(() => {
       // The app remains usable online if service workers are unavailable.

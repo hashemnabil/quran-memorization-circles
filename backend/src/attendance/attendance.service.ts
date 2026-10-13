@@ -133,81 +133,86 @@ export class AttendanceService {
       throw new BadRequestException('لا يمكن تسجيل الحضور لتاريخ مستقبلي');
     }
 
-    // One submission per circle per day. The form disappears in the UI too, but
-    // this is the check that actually prevents a duplicate — a correction after
-    // the fact goes through `updateRecord`, one student at a time.
-    const existing = await this.prisma.attendance.findMany({
-      where: { circleId: dto.circleId, date },
-      select: { studentId: true, status: true, note: true },
-    });
-    if (existing.length > 0) {
-      // A mobile client may lose the HTTP response after the transaction commits.
-      // Treat an exact replay of the same complete sheet as success, but never
-      // silently overwrite a sheet that has since changed.
-      const submitted = new Map(dto.entries.map((entry) => [
-        entry.studentId,
-        { status: entry.status, note: entry.status === AttendanceStatus.EXCUSED ? entry.note ?? null : null },
-      ]));
-      const identical =
-        existing.length === dto.entries.length &&
-        submitted.size === dto.entries.length &&
-        existing.every((row) => {
-          const candidate = submitted.get(row.studentId);
-          return !!candidate && candidate.status === row.status && candidate.note === row.note;
-        });
-      if (identical) {
-        return {
-          message: 'كشف الحضور محفوظ مسبقاً بنفس البيانات',
-          date: dto.date,
-          circleId: dto.circleId,
-          count: existing.length,
-          idempotentReplay: true,
-        };
-      }
-      throw new BadRequestException(
-        'تم حفظ كشف حضور هذه الحلقة لهذا اليوم ببيانات مختلفة، ويمكن تعديل حضور أي طالب من سجل الحضور',
-      );
+    // Concurrent submissions from different accounts are serialized per circle/day.
+    // PRESENT wins over either absence state, regardless of which request arrives first.
+    // Other conflicting non-present states keep the first saved value; use history corrections
+    // when an authorized staff member needs to change a saved record deliberately.
+    const studentIds = dto.entries.map((entry) => entry.studentId);
+    if (new Set(studentIds).size !== studentIds.length) {
+      throw new BadRequestException('يوجد طالب مكرر في كشف الحضور');
     }
-
-    // Every student in the payload must actually belong to this circle.
-    const studentIds = dto.entries.map((e) => e.studentId);
     const students = await this.prisma.student.findMany({
       where: { id: { in: studentIds }, circleId: dto.circleId, deletedAt: null },
       select: { id: true, fullName: true, parentId: true, parentProfile: { select: { userId: true } } },
     });
-    if (students.length !== new Set(studentIds).size) {
+    if (students.length !== studentIds.length) {
       throw new BadRequestException('بعض الطلاب المحددين لا ينتمون إلى هذه الحلقة');
     }
 
-    await this.prisma.$transaction(
-      dto.entries.map((entry) =>
-        this.prisma.attendance.upsert({
-          where: { studentId_date: { studentId: entry.studentId, date } },
-          create: {
-            studentId: entry.studentId,
-            circleId: dto.circleId,
-            date,
-            status: entry.status,
-            // The reason only belongs to an excused absence.
-            note: entry.status === AttendanceStatus.EXCUSED ? entry.note ?? null : null,
-            recordedById: actor.id,
-          },
-          update: {
-            status: entry.status,
-            circleId: dto.circleId,
-            note: entry.status === AttendanceStatus.EXCUSED ? entry.note ?? null : null,
-            recordedById: actor.id,
-          },
-        }),
-      ),
-    );
+    const newlyAbsentIds: string[] = [];
+    let changedCount = 0;
+    await this.prisma.$transaction(async (tx) => {
+      // PostgreSQL transaction-scoped lock prevents two accounts from both observing
+      // an empty sheet and then racing to overwrite each other's attendance statuses.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${dto.circleId}), hashtext(${date.toISOString()}))`;
+      const saved = await tx.attendance.findMany({
+        where: { circleId: dto.circleId, date },
+        select: { studentId: true, status: true, note: true },
+      });
+      const byStudent = new Map(saved.map((row) => [row.studentId, row]));
+
+      for (const entry of dto.entries) {
+        const current = byStudent.get(entry.studentId);
+        if (current?.status === AttendanceStatus.PRESENT) {
+          // A later offline ABSENT/EXCUSED replay must never downgrade PRESENT.
+          continue;
+        }
+        if (current && entry.status !== AttendanceStatus.PRESENT) {
+          // Keep the first non-present state unless a PRESENT report upgrades it.
+          continue;
+        }
+
+        const note = entry.status === AttendanceStatus.EXCUSED ? entry.note ?? null : null;
+        if (current) {
+          await tx.attendance.update({
+            where: { studentId_date: { studentId: entry.studentId, date } },
+            data: { status: AttendanceStatus.PRESENT, note: null, recordedById: actor.id },
+          });
+        } else {
+          await tx.attendance.create({
+            data: {
+              studentId: entry.studentId,
+              circleId: dto.circleId,
+              date,
+              status: entry.status,
+              note,
+              recordedById: actor.id,
+            },
+          });
+          if (entry.status === AttendanceStatus.ABSENT) newlyAbsentIds.push(entry.studentId);
+        }
+        byStudent.set(entry.studentId, {
+          studentId: entry.studentId,
+          status: entry.status,
+          note,
+        });
+        changedCount += 1;
+      }
+    });
+
+    // Replays that changed nothing must not duplicate notifications or activity logs.
+    if (changedCount === 0) {
+      return {
+        message: 'تمت معالجة كشف الحضور؛ الحالة المحفوظة هي المعتمدة',
+        date: dto.date,
+        circleId: dto.circleId,
+        count: dto.entries.length,
+        idempotentReplay: true,
+      };
+    }
 
     // Let parents know about an unexcused absence the same day.
-    const absentIds = dto.entries
-      .filter((e) => e.status === AttendanceStatus.ABSENT)
-      .map((e) => e.studentId);
-
-    for (const student of students.filter((s) => absentIds.includes(s.id))) {
+    for (const student of students.filter((s) => newlyAbsentIds.includes(s.id))) {
       if (student.parentProfile?.userId) {
         await this.notifications.notify({
           userId: student.parentProfile.userId,
@@ -232,6 +237,7 @@ export class AttendanceService {
       date: dto.date,
       circleId: dto.circleId,
       count: dto.entries.length,
+      presentWinsConflicts: true,
     };
   }
 

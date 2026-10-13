@@ -28,7 +28,7 @@ export const tokenStore = {
 export const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 12000,
+  timeout: 45000,
 });
 
 api.interceptors.request.use((config) => {
@@ -46,7 +46,7 @@ async function refreshAccessToken(): Promise<string> {
   const refreshToken = tokenStore.refresh();
   if (!refreshToken) throw new Error('no refresh token');
 
-  const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken }, { timeout: 12000 });
+  const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken }, { timeout: 45000 });
   tokenStore.set(data.accessToken, data.refreshToken);
   return data.accessToken;
 }

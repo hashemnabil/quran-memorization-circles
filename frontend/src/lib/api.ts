@@ -76,6 +76,13 @@ api.interceptors.response.use(
             window.location.href = '/login';
           }
         }
+        // Preserve a transport failure from refresh so offline outbox replay
+        // can retry instead of misclassifying the original 401 as a permanent
+        // authorization rejection. Explicit refresh-token rejection still
+        // returns the original 401 after clearing the local session above.
+        if (axios.isAxiosError(refreshError) && !refreshError.response) {
+          return Promise.reject(refreshError);
+        }
         return Promise.reject(error);
       }
     }

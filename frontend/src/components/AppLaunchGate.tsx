@@ -44,17 +44,20 @@ export default function AppLaunchGate({ children }: { children: ReactNode }) {
     <>
       {children}
       {showSplash && (
-        <div dir="rtl" role="status" aria-label="بدء التطبيق" className="fixed inset-0 z-[190] flex items-center justify-center bg-gradient-to-b from-emerald-950 via-emerald-900 to-emerald-800 px-6 text-center text-white">
-          <div className="flex max-w-sm flex-col items-center">
+        <div dir="rtl" role="status" aria-label="بدء التطبيق" className="fixed inset-0 z-[190] flex items-center justify-center overflow-hidden bg-[#f5f7f2] px-6 text-center text-slate-900">
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-2 bg-gradient-to-l from-emerald-800 via-emerald-600 to-amber-400" />
+          <div aria-hidden className="pointer-events-none absolute -top-28 -left-20 h-72 w-72 rounded-full bg-emerald-100/80 blur-3xl" />
+          <div aria-hidden className="pointer-events-none absolute -bottom-28 -right-20 h-72 w-72 rounded-full bg-amber-100/80 blur-3xl" />
+          <div className="relative flex w-full max-w-sm flex-col items-center rounded-[2rem] border border-emerald-900/10 bg-white/85 px-7 py-10 shadow-xl shadow-emerald-950/10">
             {branding.logoUrl ? (
-              <img src={branding.logoUrl} alt={branding.name || 'شعار المدرسة'} className="mb-6 h-28 w-28 rounded-3xl bg-white p-3 object-contain shadow-2xl" />
+              <img src={branding.logoUrl} alt={branding.name || 'شعار المدرسة'} className="mb-6 h-28 w-28 rounded-3xl border border-emerald-900/10 bg-white p-3 object-contain shadow-lg shadow-emerald-950/10" />
             ) : (
-              <div className="mb-6 grid h-28 w-28 place-items-center rounded-3xl border border-amber-200/40 bg-white/10 text-5xl shadow-2xl">🕌</div>
+              <div className="mb-6 grid h-28 w-28 place-items-center rounded-3xl border border-emerald-900/10 bg-emerald-50 text-5xl shadow-lg shadow-emerald-950/10">🕌</div>
             )}
-            <h1 className="text-xl font-extrabold leading-relaxed">{branding.name || branding.mosqueName || 'عبدالله بن عمر'}</h1>
-            <div className="my-5 h-px w-20 bg-amber-300/80" />
-            <p className="text-lg font-bold text-amber-200">{APP_NAME}</p>
-            <p className="mt-5 text-xs tracking-widest text-emerald-100/70">جاري تجهيز التطبيق</p>
+            <h1 className="text-xl font-extrabold leading-relaxed text-emerald-950">{branding.name || branding.mosqueName || 'عبدالله بن عمر'}</h1>
+            <div className="my-5 h-1 w-16 rounded-full bg-gradient-to-l from-emerald-700 to-amber-400" />
+            <p className="text-lg font-extrabold text-emerald-800">{APP_NAME}</p>
+            <p className="mt-5 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-800"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-600" />جاري تجهيز التطبيق</p>
           </div>
         </div>
       )}

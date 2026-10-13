@@ -1,9 +1,23 @@
 /* Offline app-shell cache. API calls are deliberately never cached here. */
 const CACHE_NAME = 'quran-circles-shell-v1';
-const APP_SHELL = ['/'];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const response = await fetch('/');
+    if (response.ok) {
+      await cache.put('/', response.clone());
+      const html = await response.clone().text();
+      const assets = [...html.matchAll(/(?:src|href)="([^"]+\/assets\/[^"]+)"/g)].map((match) => match[1]);
+      await Promise.all(assets.map(async (asset) => {
+        try {
+          const assetResponse = await fetch(asset);
+          if (assetResponse.ok) await cache.put(asset, assetResponse);
+        } catch { /* A single optional asset must not prevent installation. */ }
+      }));
+    }
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {

@@ -24,7 +24,8 @@ Keep the existing PostgreSQL database and REST API as the authoritative shared s
 - Make download status accurately distinguish downloaded data from pages not yet visited.
 
 ### Phase 2 — permission-scoped initial download
-- Add a server endpoint that returns a versioned initial sync bundle for the authenticated user.
+- [In progress] Add `GET /offline-sync/bootstrap`, a versioned, cursor-paginated core-data bundle derived from the authenticated user and existing access-control service. The first slice returns permitted circles for staff roles and a minimal student working set for admin/staff, parent, and student roles; it deliberately excludes exam-committee/support browsing and does not yet cover every domain.
+- Remaining: connect the frontend to consume and persist this bundle, add automated authorization/pagination tests, and extend it domain-by-domain.
 - Build the bundle from existing services/access-control rules, not from client-supplied role or user IDs.
 - Paginate/chunk large datasets and expose a server cursor/version.
 - Store normalized domain records in IndexedDB, rather than relying only on React Query snapshots.
@@ -54,4 +55,4 @@ Keep the existing PostgreSQL database and REST API as the authoritative shared s
 
 ## Current status
 
-This document is a rollout plan, not a claim that full offline-first synchronization is already implemented. Phase 2 requires careful backend permission mapping before bulk downloading private student data.
+This document is a rollout plan, not a claim that full offline-first synchronization is already implemented. The bootstrap API is only the first backend slice; the client does not yet consume it automatically, it is not an incremental change feed, and it is not a complete offline dataset.

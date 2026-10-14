@@ -1,3 +1,4 @@
+import BlockedWriteReview from './BlockedWriteReview';
 import { listOfflineOperations } from '@/lib/offline/outbox';
 import { syncOfflineOperations } from '@/lib/offline/sync';
 import { replayOfflineOperation } from '@/lib/offline/replay';
@@ -47,6 +48,8 @@ export default function OfflineStatus() {
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: ['attendance'] }),
               queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+              queryClient.invalidateQueries({ queryKey: ['recitations'] }),
+              queryClient.invalidateQueries({ queryKey: ['students'] }),
             ]);
           }
           await refresh();
@@ -94,7 +97,7 @@ export default function OfflineStatus() {
               <div className="font-semibold">تحتاج بعض التعديلات إلى مراجعة ({blockedOperations.length})</div>
               <ul className="mt-1 list-disc pr-5">
                 {blockedOperations.slice(0, 3).map((operation: any) => (
-                  <li key={operation.id}>{operation.lastError || 'تعذر تطبيق التعديل؛ راجع البيانات قبل المحاولة مجدداً'}</li>
+                  <li key={operation.id}><p>{operation.lastError || 'تعذر تطبيق التعديل؛ راجع البيانات قبل المحاولة مجدداً'}</p><BlockedWriteReview operation={operation} /></li>
                 ))}
               </ul>
               {blockedOperations.length > 3 && <div className="mt-1 text-xs">وتوجد تعديلات أخرى تحتاج إلى مراجعة.</div>}

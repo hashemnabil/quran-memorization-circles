@@ -308,6 +308,7 @@ export interface AttendanceSheet {
 
 export interface Recitation {
   id: string;
+  updatedAt: string;
   date: string;
   type: RecitationType;
   fromSurah: string;

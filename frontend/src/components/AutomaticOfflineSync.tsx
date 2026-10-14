@@ -56,6 +56,7 @@ async function preloadOfflineNavigation(role: Role, accountId: string): Promise<
       { key: ['reports', 'circles-options'], path: '/circles/options' },
       { key: ['reports', 'courses-options'], path: '/courses?limit=200' },
       { key: ['recitations', 'surahs'], path: '/recitations/surahs' },
+      { key: ['recitations', 'history', { circleId: '', type: '', from: '', to: '', page: 1 }], path: '/recitations/history?page=1&limit=15' },
       { key: ['suspensions', 'active'], path: '/suspensions/active' },
     ] : []),
     ...(management ? [

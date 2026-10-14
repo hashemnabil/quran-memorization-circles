@@ -119,3 +119,37 @@ test('offline attendance survives a lost committed response and replays with the
   expect(sheet.students.filter((student: any) => student.id === fixtures.student.id)).toHaveLength(1);
   expect(sheet.students.find((student: any) => student.id === fixtures.student.id).attendance.status).toBe('ABSENT');
 });
+
+test('memorization and review can be saved offline and survive a page reload before reconnect', async ({ page, context }) => {
+  test.setTimeout(75000);
+  await login(page, 'TEACHER'); await page.goto('/recitations');
+  // Wait for the durable core roster, not an arbitrary delay.
+  await expect.poll(() => page.evaluate(async studentId => new Promise<boolean>(resolve => {
+    const open = indexedDB.open('quran-circles-change-feed', 1);
+    open.onsuccess = () => {
+      const db = open.result; if (!db.objectStoreNames.contains('rows')) { db.close(); resolve(false); return; }
+      const read = db.transaction('rows').objectStore('rows').getAll();
+      read.onsuccess = () => { db.close(); resolve(read.result.some(row => row.id === studentId && !row.accountId.endsWith(':snapshot'))); };
+    };
+  }), fixtures.student.id)).toBe(true);
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  await context.setOffline(true);
+  await page.getByRole('button', { name: 'تسجيل تسميع', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('الطالب', { exact: false }).selectOption(fixtures.student.id);
+  await dialog.getByLabel('من سورة', { exact: false }).selectOption({ label: 'الفاتحة' });
+  await dialog.getByLabel('إلى سورة', { exact: false }).selectOption({ label: 'الفاتحة' });
+  await dialog.getByLabel('من آية', { exact: false }).fill('1');
+  await dialog.getByLabel('إلى آية', { exact: false }).fill('7');
+  await dialog.getByLabel('نوع التسميع').selectOption('MINOR_REVIEW');
+  await dialog.getByRole('button', { name: 'حفظ', exact: true }).click();
+  await expect(page.getByTestId('queued-recitation')).toHaveCount(1);
+  await page.reload();
+  await expect(page.getByTestId('queued-recitation')).toHaveCount(1);
+  const response = page.waitForResponse(response => response.url().endsWith('/api/sync/push') && response.ok());
+  await context.setOffline(false);
+  const result = (await (await response).json()).results[0];
+  expect(result.status).toBe('applied'); expect(result.data.type).toBe('MINOR_REVIEW'); expect(result.data.points).toBe(7);
+  await expect(page.getByTestId('queued-recitation')).toHaveCount(0);
+});

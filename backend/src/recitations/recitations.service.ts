@@ -12,6 +12,7 @@ import { AuthUser } from '../common/decorators';
 import { paginate } from '../common/dto/pagination.dto';
 import { SURAHS, countVerses, findSurah } from '../common/quran';
 import { calculatePoints, pointsBreakdown } from '../common/points';
+import { recalculateStudentPoints } from '../students/student-points';
 import { StudentsService } from '../students/students.service';
 import {
   CreateRecitationDto,
@@ -239,7 +240,8 @@ export class RecitationsService {
     return recitation;
   }
 
-  async create(actor: AuthUser, dto: CreateRecitationDto) {
+  async create(actor: AuthUser, dto: CreateRecitationDto, insideTransaction = false) {
+    if (!insideTransaction) return atomicRecitationWrite(this.prisma, service => service.create(actor, dto, true));
     const student = await this.acl.assertStudentWriteAccess(actor, dto.studentId);
     if (!student.circleId) throw new BadRequestException('الطالب غير مسجل في حلقة');
 
@@ -285,13 +287,8 @@ export class RecitationsService {
 
     await this.students.recalculatePoints(dto.studentId);
 
-    // Keep the student's "current position" in sync with the latest memorization.
-    if (dto.type === undefined || dto.type === 'MEMORIZATION') {
-      await this.prisma.student.update({
-        where: { id: dto.studentId },
-        data: { currentSurah: dto.toSurah.trim() },
-      });
-    }
+    // A backdated offline record must not replace a newer memorization position.
+    await refreshRecitationPosition(this.prisma, dto.studentId);
 
     await this.activity.log({
       userId: actor.id,
@@ -304,7 +301,8 @@ export class RecitationsService {
     return { ...recitation, breakdown: pointsBreakdown({ versesCount: verses, mistakes: dto.mistakes, warnings: dto.warnings }) };
   }
 
-  async update(actor: AuthUser, id: string, dto: UpdateRecitationDto) {
+  async update(actor: AuthUser, id: string, dto: UpdateRecitationDto, insideTransaction = false) {
+    if (!insideTransaction) return atomicRecitationWrite(this.prisma, service => service.update(actor, id, dto, true));
     const recitation = await this.prisma.recitation.findFirst({
       where: { id, deletedAt: null },
     });
@@ -360,13 +358,15 @@ export class RecitationsService {
     });
 
     await this.students.recalculatePoints(recitation.studentId);
+    await refreshRecitationPosition(this.prisma, recitation.studentId);
     return {
       ...updated,
       breakdown: pointsBreakdown({ versesCount: verses, mistakes, warnings }),
     };
   }
 
-  async remove(actor: AuthUser, id: string) {
+  async remove(actor: AuthUser, id: string, insideTransaction = false) {
+    if (!insideTransaction) return atomicRecitationWrite(this.prisma, service => service.remove(actor, id, true));
     const recitation = await this.prisma.recitation.findFirst({ where: { id, deletedAt: null } });
     if (!recitation) throw new NotFoundException('سجل التسميع غير موجود');
     await this.acl.assertStudentWriteAccess(actor, recitation.studentId);
@@ -377,6 +377,7 @@ export class RecitationsService {
     await this.prisma.recitation.update({ where: { id }, data: { deletedAt: new Date() } });
     // The deleted session's points must come back off the running total.
     await this.students.recalculatePoints(recitation.studentId);
+    await refreshRecitationPosition(this.prisma, recitation.studentId);
     return { message: 'تم حذف سجل التسميع' };
   }
 
@@ -516,4 +517,26 @@ export class RecitationsService {
     d.setMonth(d.getMonth() - n);
     return new Date(Date.UTC(d.getFullYear(), d.getMonth(), 1));
   }
+}
+
+/** Keep domain rules in the existing service while binding every database effect to one transaction. */
+export function transactionalRecitations(tx: Prisma.TransactionClient) {
+  const db = tx as PrismaService;
+  const balances = { recalculatePoints: (id: string) => recalculateStudentPoints(tx, id) } as StudentsService;
+  return new RecitationsService(db, new AccessControlService(db), new ActivityService(db), balances);
+}
+async function atomicRecitationWrite<T>(db: PrismaService, apply: (service: RecitationsService) => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try { return await db.$transaction(tx => apply(transactionalRecitations(tx)), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15000 }); }
+    catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034' && attempt < 2) continue;
+      throw error;
+    }
+  }
+}
+
+async function refreshRecitationPosition(db: Pick<Prisma.TransactionClient, 'recitation' | 'student'>, studentId: string) {
+  const latest = await db.recitation.findFirst({ where: { studentId, deletedAt: null, type: 'MEMORIZATION' }, orderBy: [{ date: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }], select: { toSurah: true } });
+  // If no memorization remains, preserve the manually recorded baseline.
+  if (latest) await db.student.update({ where: { id: studentId }, data: { currentSurah: latest.toSurah } });
 }

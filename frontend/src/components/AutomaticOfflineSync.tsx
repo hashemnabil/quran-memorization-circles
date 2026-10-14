@@ -21,6 +21,63 @@ async function refreshKnownQueries(): Promise<void> {
   }
 }
 
+
+// These stable, list-level queries are fetched even when their screens have
+// never been opened. API authorization remains the source of truth for access.
+async function preloadOfflineNavigation(role: Role): Promise<void> {
+  const common: Array<{ key: readonly unknown[]; path: string; select?: (data: any) => unknown }> = [
+    // The dashboard is the landing screen for most roles; preloading it means
+    // an account can reopen the app offline without first visiting the page online.
+    { key: ['dashboard', 'overview'], path: '/dashboard/overview' },
+    { key: ['settings', 'public'], path: '/settings/public' },
+    { key: ['announcements', 'active'], path: '/announcements/active' },
+    { key: ['notifications', 'unread'], path: '/notifications/unread-count', select: (data: any) => data.count },
+    { key: ['chat', 'unread'], path: '/chat/unread-count', select: (data: any) => data.count },
+    // Seed the first notifications page using the exact key/shape consumed by
+    // NotificationsPage. The API still scopes results to the authenticated user.
+    { key: ['notifications', { tab: 'all', page: 1 }], path: '/notifications?limit=25&page=1' },
+  ];
+  const staff = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role);
+  const management = ['ADMIN', 'SUPERVISOR'].includes(role);
+  const admin = role === 'ADMIN';
+  const resources: Array<{ key: readonly unknown[]; path: string; select?: (data: any) => unknown }> = [
+    ...common,
+    ...(staff ? [
+      { key: ['circles', 'options'], path: '/circles/options' },
+      { key: ['reports', 'circles-options'], path: '/circles/options' },
+      { key: ['reports', 'courses-options'], path: '/courses?limit=200' },
+      { key: ['recitations', 'surahs'], path: '/recitations/surahs' },
+      { key: ['suspensions', 'active'], path: '/suspensions/active' },
+    ] : []),
+    ...(management ? [
+      { key: ['teachers', { limit: 100 }], path: '/teachers?limit=100&isActive=true', select: (data: any) => data.data },
+      { key: ['media-activities'], path: '/media-activities' },
+    ] : []),
+    ...(role === 'STUDENT' ? [
+      { key: ['student-files', 'requests'], path: '/certificates/requests/mine' },
+      { key: ['student-files', 'certificates'], path: '/certificates/mine' },
+    ] : []),
+    ...(admin ? [
+      { key: ['settings'], path: '/settings' },
+      { key: ['users', 'stats'], path: '/users/stats' },
+      { key: ['exams', 'stats'], path: '/exams/stats' },
+      { key: ['courses', 'stats'], path: '/courses/stats' },
+      { key: ['reports', 'students'], path: '/students?limit=100' },
+      { key: ['reports', 'teachers'], path: '/teachers?limit=100', select: (data: any) => data.data },
+    ] : []),
+  ];
+  for (const resource of resources) {
+    if (!navigator.onLine) return;
+    try {
+      const response = await api.get(resource.path);
+      queryClient.setQueryData(resource.key, resource.select ? resource.select(response.data) : response.data);
+    } catch {
+      // A missing permission or temporarily unavailable endpoint must not
+      // prevent the remaining resources from being cached.
+    }
+  }
+}
+
 const BOOTSTRAP_REFRESH_AGE = 30 * 60 * 1000;
 
 async function refreshOfflineBootstrap(accountId: string): Promise<void> {
@@ -114,7 +171,7 @@ async function refreshAttendanceBundle(accountId: string): Promise<void> {
 }
 
 /**
- * Automatically refreshes data already registered by the signed-in app and
+ * Automatically refreshes the offline bootstrap and the role-scoped data registered by the signed-in app and
  * the server-authorized attendance roster. It never fetches another account's
  * data and never treats a failed request as a successful write.
  */
@@ -152,6 +209,7 @@ export default function AutomaticOfflineSync({ accountId, role }: { accountId: s
           }
         });
         await refreshKnownQueries();
+        if (!disposed) await preloadOfflineNavigation(role);
         if (!disposed) {
           try {
             await refreshOfflineBootstrap(accountId);

@@ -200,8 +200,10 @@ export class UsersService {
       select: USER_SELECT,
     });
 
+    if (dto.password) await this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+
     if (dto.avatarUrl !== undefined) {
-      await this.uploads.removeIfReplaced(current.avatarUrl, user.avatarUrl);
+      await this.uploads.removeIfReplaced(current.avatarUrl, user.avatarUrl, '*');
     }
 
     await this.activity.log({

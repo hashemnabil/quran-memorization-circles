@@ -106,7 +106,7 @@ export default function SettingsPage() {
             <input
               ref={fileRef}
               type="file"
-              accept=".png,.jpg,.jpeg,.webp,.svg"
+              accept=".png,.jpg,.jpeg,.webp,.gif"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];

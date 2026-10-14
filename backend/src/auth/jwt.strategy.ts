@@ -1,4 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -9,6 +10,7 @@ export interface JwtPayload {
   sub: string;
   username: string;
   role: string;
+  sid?: string;
 }
 
 @Injectable()
@@ -44,6 +46,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
 
     if (!user) throw new UnauthorizedException('المستخدم غير موجود');
+    if (user.role === Role.PARENT) throw new UnauthorizedException('تم إيقاف بوابة ولي الأمر؛ يرجى استخدام حساب الطالب');
+    if (typeof payload.sid !== 'string') throw new UnauthorizedException('يلزم تجديد الجلسة');
+    const session = await this.prisma.refreshToken.findFirst({
+      where: { id: payload.sid, userId: user.id, revokedAt: null, expiresAt: { gt: new Date() } },
+      select: { id: true },
+    });
+    if (!session) throw new UnauthorizedException('الجلسة منتهية أو ملغاة؛ يرجى تسجيل الدخول مجدداً');
+    if (user.role === Role.TEACHER && (!user.teacher || !user.teacher.isActive || user.teacher.deletedAt)) throw new UnauthorizedException('ملف المعلم غير متاح');
     if (!user.isActive) throw new UnauthorizedException('تم إيقاف هذا الحساب، يرجى مراجعة الإدارة');
 
     return {
@@ -52,7 +62,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       email: user.email ?? null,
       fullName: user.fullName,
       role: user.role,
-      teacherId: user.teacher && !user.teacher.deletedAt ? user.teacher.id : null,
+      teacherId: user.teacher && user.teacher.isActive && !user.teacher.deletedAt ? user.teacher.id : null,
       parentId: user.parent && !user.parent.deletedAt ? user.parent.id : null,
     };
   }

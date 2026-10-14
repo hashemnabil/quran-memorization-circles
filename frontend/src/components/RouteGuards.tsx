@@ -1,3 +1,4 @@
+import { canVisitStudentRoute } from '@/lib/student-route-policy.js';
 import { Navigate, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useAuthStore } from '@/store/auth';
@@ -22,7 +23,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   if (status === 'idle' || status === 'loading') return <FullScreenLoader />;
   if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
-  if (user.role === 'STUDENT' && location.pathname !== '/' && location.pathname !== '/student') {
+  if (user.role === 'STUDENT' && !canVisitStudentRoute(location.pathname, user.mustChangePassword)) {
     return <Navigate to="/student" replace />;
   }
 

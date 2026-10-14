@@ -21,6 +21,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
+      NODE_ENV: test
+      JWT_ACCESS_SECRET: test-only-key-for-ci-with-no-production-access-123456789
       DATABASE_URL: postgresql://postgres@localhost:5432/quran_test?schema=public
       DIRECT_URL: postgresql://postgres@localhost:5432/quran_test?schema=public
     steps:
@@ -36,10 +38,12 @@ jobs:
       - run: npm ci --prefix frontend
       - run: npm --prefix frontend run test:offline
       - run: backend/node_modules/.bin/prisma generate --schema backend/prisma/schema.prisma
+      - run: npm --prefix backend run test:security
       - run: npm --prefix backend run test:offline-sync
       - run: npm --prefix backend run test:sync-protocol
       - run: npm --prefix backend run test:attendance-replay
       - run: npm --prefix backend run prisma:deploy
+      - run: npm --prefix backend run test:api-integration
       - run: npm --prefix backend run test:sync-push-integration
       - run: npm --prefix backend run test:attendance-lock-integration
       - run: npm --prefix backend run build

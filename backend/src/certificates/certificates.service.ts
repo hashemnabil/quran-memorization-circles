@@ -1,3 +1,4 @@
+import { assertSafeFileUrl } from '../common/validators/safe-url';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CertificateKind, Role, StudentFileRequestKind, StudentFileRequestStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -29,6 +30,7 @@ export class CertificatesService {
     if (!body.name?.trim() || !Object.values(CertificateKind).includes(body.kind as CertificateKind)) {
       throw new BadRequestException('اسم القالب ونوع الشهادة مطلوبان');
     }
+    if (body.fileUrl) assertSafeFileUrl(body.fileUrl);
     const sourceType = body.sourceType === 'BUILDER' ? 'BUILDER' : 'UPLOAD';
     return this.prisma.certificateTemplate.create({
       data: {
@@ -164,6 +166,7 @@ export class CertificatesService {
     }
     const request = await this.prisma.studentFileRequest.findUnique({ where: { id } });
     if (!request) throw new NotFoundException('الطلب غير موجود');
+    if (body.fileUrl) assertSafeFileUrl(body.fileUrl);
     if (body.status === StudentFileRequestStatus.READY && !body.fileUrl?.trim()) {
       throw new BadRequestException('يجب توفير رابط الملف قبل نشره للطالب');
     }
@@ -188,6 +191,7 @@ export class CertificatesService {
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
       throw new BadRequestException('فترة التقرير غير صحيحة');
     }
+    assertSafeFileUrl(body.fileUrl);
     const student = await this.prisma.student.findFirst({ where: { id: body.studentId, deletedAt: null }, select: { id: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     return this.prisma.studentFileRequest.create({
@@ -210,6 +214,7 @@ export class CertificatesService {
     if (!body.studentId || !body.title?.trim() || !body.fileUrl?.trim() || !Object.values(CertificateKind).includes(body.kind as CertificateKind)) {
       throw new BadRequestException('الطالب ونوع الشهادة وعنوانها وملف PDF مطلوبة');
     }
+    assertSafeFileUrl(body.fileUrl);
     const student = await this.prisma.student.findFirst({ where: { id: body.studentId, deletedAt: null }, select: { id: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (body.templateId) {

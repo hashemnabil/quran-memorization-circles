@@ -252,6 +252,8 @@ export class TeachersService {
       include: TEACHER_INCLUDE,
     });
 
+    if (dto.password) await this.prisma.refreshToken.updateMany({ where: { userId: teacher.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+
     await this.activity.log({
       userId: actor.id,
       action: 'TEACHER_UPDATE',

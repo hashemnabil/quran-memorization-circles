@@ -52,8 +52,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
           status = HttpStatus.BAD_REQUEST;
           message = 'لا يمكن تنفيذ العملية لوجود سجلات مرتبطة';
           break;
+        case 'P2034':
+        case 'P2024':
+        case 'P1001':
+        case 'P1002':
+          status = HttpStatus.SERVICE_UNAVAILABLE;
+          message = 'الخادم مشغول مؤقتاً؛ أعد المحاولة';
+          break;
         default:
-          status = HttpStatus.BAD_REQUEST;
+          status = HttpStatus.INTERNAL_SERVER_ERROR;
           message = 'خطأ في قاعدة البيانات';
       }
     } else if (exception instanceof Prisma.PrismaClientValidationError) {

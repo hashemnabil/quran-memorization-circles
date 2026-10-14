@@ -895,10 +895,9 @@ export PORT=3000
 
 ```bash
 cd backend
-npm ci --omit=dev
-npx prisma generate
-npx prisma migrate deploy      # يطبّق الهجرات دون إنشاء هجرات جديدة
-npm run build
+npm ci                       # أدوات البناء مطلوبة أثناء هذه المرحلة
+npm run build                # يولّد Prisma Client ويبني NestJS
+npx prisma migrate deploy    # بعد نسخة احتياطية وفحص الهجرات في بيئة تجريبية
 node dist/main.js
 ```
 
@@ -1024,3 +1023,5 @@ pg_isready -h localhost -p 5432
 ## المزامنة دون اتصال — حالة التنفيذ
 
 يحتوي `docs/SYNC_PROTOCOL.md` على عقد المزامنة المقترح وسياسات التعارض وخطة التحقق اليدوي، وتحدد `docs/OFFLINE_SYNC_RELEASE_CHECKLIST.md` بوابات الأمان المطلوبة قبل الإطلاق. ما يزال دعم الطابور الحالي محدوداً بكشف الحضور؛ لا تفترض أن جميع الكيانات أو الصفحات تعمل دون اتصال حتى تُنفذ اختبارات القبول ويُعلن اكتمال change feed والمخازن المحلية العامة. لا تستخدم أي قاعدة إنتاج لتجارب الترحيل أو الاختبارات.
+
+دليل النشر والنسخ الاحتياطي والاستعادة والتراجع: [docs/PRODUCTION_RUNBOOK.md](docs/PRODUCTION_RUNBOOK.md). نجاح البناء لا يثبت اكتمال اختبارات القبول أو نجاح نشر نسخة محددة.

@@ -17,8 +17,7 @@ export class SettingsService {
 
   /** The settings row is a singleton; it is created on first read. */
   async get() {
-    const existing = await this.prisma.schoolSettings.findUnique({ where: { id: SETTINGS_ID } });
-    const row = existing ?? (await this.prisma.schoolSettings.create({ data: { id: SETTINGS_ID } }));
+    const row = await this.prisma.schoolSettings.upsert({ where: { id: SETTINGS_ID }, create: { id: SETTINGS_ID }, update: {} });
     return { ...row, logoUrl: this.absoluteLogo(row.logoUrl) };
   }
 

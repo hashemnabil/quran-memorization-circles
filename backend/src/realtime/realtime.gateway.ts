@@ -56,6 +56,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
       if (!user) throw new Error('user unavailable');
 
+      if (user.role === 'PARENT' || typeof payload.sid !== 'string') throw new Error('session unavailable');
+      const session = await this.prisma.refreshToken.findFirst({ where: { id: payload.sid, userId: user.id, revokedAt: null, expiresAt: { gt: new Date() } }, select: { id: true } });
+      if (!session) throw new Error('session revoked');
+      client.data.sessionId = payload.sid;
+      client.data.tokenExpiresAt = payload.exp * 1000;
       client.data.user = user;
 
       // Personal room: notifications are addressed to `user:<id>`.
@@ -118,9 +123,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @SubscribeMessage('typing')
-  typing(@ConnectedSocket() client: Socket, @MessageBody() body: { conversationId: string; isTyping: boolean }) {
+  async typing(@ConnectedSocket() client: Socket, @MessageBody() body: { conversationId: string; isTyping: boolean }) {
     const user = client.data?.user;
     if (!user || !body?.conversationId) return;
+    const member = await this.prisma.conversationMember.findFirst({ where: { conversationId: body.conversationId, userId: user.id, leftAt: null }, select: { id: true } });
+    if (!member) return;
     client.to(`conversation:${body.conversationId}`).emit('typing', {
       conversationId: body.conversationId,
       userId: user.id,

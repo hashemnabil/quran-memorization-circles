@@ -54,7 +54,23 @@ async function refreshAccessToken(): Promise<string> {
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
+    const original = error.config as AxiosRequestConfig & { _retried?: boolean; _networkRetryCount?: number };
+
+    // Read-only requests can safely retry transient transport/server failures.
+    // Never automatically retry writes: a timed-out POST may already have
+    // committed on the server and must be replayed through the offline outbox.
+    const method = (original?.method ?? 'get').toLowerCase();
+    const status = error.response?.status;
+    const retryable = !error.response || status === 408 || status === 429 || (status !== undefined && status >= 500);
+    const retries = original?._networkRetryCount ?? 0;
+    if (original && method === 'get' && retryable && retries < 2) {
+      original._networkRetryCount = retries + 1;
+      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** retries));
+      return api(original);
+    }
+
     const original = error.config as AxiosRequestConfig & { _retried?: boolean };
+
     const status = error.response?.status;
 
     const isAuthCall = original?.url?.includes('/auth/login') || original?.url?.includes('/auth/refresh');

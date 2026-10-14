@@ -4,7 +4,17 @@
 
 PostgreSQL and the authenticated NestJS REST API are the only authority. IndexedDB is a per-account cache and durable outbox, never an authorization source. A cached role is presentation-only. The server must derive account identity and role from the authenticated request and apply the existing AccessControlService scopes on every read and write. Unknown entities, invalid cursors, inaccessible records, and unsupported operations fail closed.
 
-## Proposed feed contract
+## Implemented in this branch
+
+- `GET /offline-sync/bootstrap` remains a permission-scoped, bounded initial roster read.
+- `GET /offline-sync/changes` now returns bounded student/circle updates with independent opaque cursors and includes soft-deleted students as tombstones. Access scopes are derived from the authenticated server identity.
+- The frontend persists those student/circle feed rows and cursors in account-scoped IndexedDB, pulls on reconnect/focus, and clears that replica and the account's queued attendance operations on explicit logout.
+- The existing attendance `POST /attendance` is state-idempotent for retries: already-recorded PRESENT values are not downgraded, duplicate non-present values are ignored, and no-op replays do not repeat notifications/activity logs. This is **not** a persisted `(accountId, opId)` idempotency ledger.
+- The existing query cache is persisted separately and remains the UI's offline rendering cache. The new feed replica is not yet wired as a generalized replacement for all screen queries.
+
+The feed is currently limited to students and circles. A transactionally consistent cross-entity snapshot, a persisted change sequence/retention policy, keyed push ledger, scope-exit tombstones for every role, realtime notifications, and general conflict UI remain incomplete.
+
+## Target feed/push contract
 
 - `GET /sync/snapshot?entity=&cursor=&limit=`: return full permitted records in bounded pages and a stable `snapshotSeq` captured before pagination starts. The client must persist all pages before advancing its feed cursor to that snapshot sequence.
 - `GET /sync/changes?since=&limit=`: return ordered feed entries after the cursor, with full permitted records for UPSERT and identifiers for DELETE tombstones. Include `nextSeq` and `hasMore`. A cursor older than retained history must return `410 RESYNC_REQUIRED`.

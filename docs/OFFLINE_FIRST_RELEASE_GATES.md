@@ -25,8 +25,8 @@ This checklist is the repository's source of truth. Checked means the code path 
 - [x] Courses retains cached list data when a refresh fails.
 - [x] Students and circles have an offline fallback for their unfiltered first page.
 - [x] Students and circles keep already-cached results visible when a background refresh fails, and show a stale-data warning.
-- [x] Attendance has an offline roster/read path.
-- [ ] Audit exact query keys and response shapes for every preload against its consuming screen (this pass found and fixed the default CoursesPage query-key/request-scope mismatch; full audit remains).
+- [x] Attendance has an offline roster/read path, including an explicit empty-roster state when the cached circle has no students.
+- [ ] Audit exact query keys and response shapes for every preload against its consuming screen (the default CoursesPage key/request scope and attendance circles-options key have been checked; full screen-by-screen audit remains).
 - [ ] Support offline search, filters, pagination, and detail pages with explicit limits and clear stale-data warnings.
 - [ ] Add explicit offline data contracts/fallbacks for Users, Teachers, Parents, Transfers, Suspensions, Exams, Support, Chat, Settings, Announcements, Staff Attendance, Preparations, Registry, Reports, Certificates, and Media Activities.
 - [ ] Verify each screen for each authorized role with network disabled; do not infer coverage from a cached app shell.
@@ -52,12 +52,14 @@ This checklist is the repository's source of truth. Checked means the code path 
 
 - [x] Document offline-first gaps and release safety requirements.
 - [x] PR #133 bootstrap-contract changes merged into main.
-- [x] PR #134 preload/default-list changes opened for review.
-- [ ] Run frontend build and test suites and record the actual result.
-- [ ] Run backend tests and record the actual result.
+- [x] PR #134 preload/default-list changes merged into main.
+- [x] PR #137 default CoursesPage query-key/request-scope fix merged into main.
+- [x] GitHub Actions build workflow passed on PR #138 head: frontend offline tests/build and backend offline-sync, attendance replay, attendance lock integration tests/build.
+- [x] GitHub Actions Android debug build passed on PR #138 head.
+- [x] GitHub Actions iOS simulator build passed on PR #138 head.
 - [ ] Test interrupted bootstrap, cursor loops, storage quota, schema upgrade, and partial network loss.
 - [ ] Run browser tests with network disabled and restored.
-- [ ] Run Android and iOS device tests with network disabled and restored.
+- [ ] Run Android and iOS device acceptance tests with network disabled and restored (CI build success does not verify airplane-mode behavior).
 - [ ] Close all role/screen/security gates before claiming production readiness.
 
 ## Known limitations

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
+import { listOfflineSnapshot } from '@/lib/offline/changeFeed';
 
 import { useAuthStore } from '@/store/auth';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -74,8 +75,16 @@ export default function StudentsPage() {
           accountId: string; complete: boolean;
           circles: Array<Pick<Circle, 'id' | 'name' | 'code'>>;
         }>(['offline', 'bootstrap', user.id]);
-        if (!snapshot?.complete || snapshot.accountId !== user.id) throw error;
-        return snapshot.circles.map(({ id, name, code }) => ({ id, name, code }));
+        if (snapshot?.complete && snapshot.accountId === user.id) {
+          return snapshot.circles.map(({ id, name, code }) => ({ id, name, code }));
+        }
+        // Use the account-scoped IndexedDB replica if the app was reloaded offline
+        // and the in-memory bootstrap query has not been restored.
+        const local = await listOfflineSnapshot(user.id, 'circle');
+        if (local.length) return local
+          .filter((circle) => circle.deletedAt == null)
+          .map((circle) => ({ id: circle.id, name: String(circle.name ?? ''), code: String(circle.code ?? '') }));
+        throw error;
       }
     },
   });
@@ -108,11 +117,19 @@ export default function StudentsPage() {
             updatedAt?: string;
           }>;
         }>(['offline', 'bootstrap', user.id]);
-        if (!snapshot?.complete || snapshot.accountId !== user.id) throw error;
-        const students = snapshot.students.map((student) => ({
-          ...student, gender: 'MALE' as const, totalPoints: 0,
-          enrollmentDate: student.updatedAt ?? '', createdAt: student.updatedAt ?? '',
-        })) as Student[];
+        let cachedStudents = snapshot?.accountId === user.id ? snapshot.students : [];
+        if (!cachedStudents.length) {
+          // IndexedDB survives a reload; query cache does not. Never mix replicas
+          // between accounts, and only use this path for the unfiltered first page.
+          cachedStudents = await listOfflineSnapshot(user.id, 'student') as typeof cachedStudents;
+        }
+        if (!cachedStudents.length) throw error;
+        const students = cachedStudents
+          .filter((student) => (student as { deletedAt?: string | null }).deletedAt == null)
+          .map((student) => ({
+            ...student, gender: 'MALE' as const, totalPoints: 0,
+            enrollmentDate: student.updatedAt ?? '', createdAt: student.updatedAt ?? '',
+          })) as Student[];
         return { offlineSnapshot: true, data: students.slice(0, 20), meta: {
           total: students.length, page: 1, limit: 20,
           totalPages: Math.max(1, Math.ceil(students.length / 20)),

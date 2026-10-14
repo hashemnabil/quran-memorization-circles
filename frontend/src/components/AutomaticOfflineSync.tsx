@@ -38,17 +38,26 @@ async function preloadOfflineNavigation(role: Role): Promise<void> {
     ...common,
     ...(staff ? [
       { key: ['circles', 'options'], path: '/circles/options' },
+      { key: ['reports', 'circles-options'], path: '/circles/options' },
+      { key: ['reports', 'courses-options'], path: '/courses?limit=200' },
       { key: ['recitations', 'surahs'], path: '/recitations/surahs' },
       { key: ['suspensions', 'active'], path: '/suspensions/active' },
     ] : []),
     ...(management ? [
       { key: ['teachers', { limit: 100 }], path: '/teachers?limit=100&isActive=true', select: (data: any) => data.data },
+      { key: ['media-activities'], path: '/media-activities' },
+    ] : []),
+    ...(role === 'STUDENT' ? [
+      { key: ['student-files', 'requests'], path: '/certificates/requests/mine' },
+      { key: ['student-files', 'certificates'], path: '/certificates/mine' },
     ] : []),
     ...(admin ? [
       { key: ['settings'], path: '/settings' },
       { key: ['users', 'stats'], path: '/users/stats' },
       { key: ['exams', 'stats'], path: '/exams/stats' },
       { key: ['courses', 'stats'], path: '/courses/stats' },
+      { key: ['reports', 'students'], path: '/students?limit=100' },
+      { key: ['reports', 'teachers'], path: '/teachers?limit=100', select: (data: any) => data.data },
     ] : []),
   ];
   for (const resource of resources) {

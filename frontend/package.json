@@ -6,14 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test:offline": "node --test src/lib/pdf-download.test.mjs src/lib/student-route-policy.test.mjs src/lib/offline/attendance-validation.test.mjs src/lib/offline/retry-policy.test.mjs && node --import tsx --test src/lib/offline/outbox-sync.test.ts",
+    "test:offline": "node --test src/lib/service-worker.test.mjs src/lib/pdf-download.test.mjs src/lib/student-route-policy.test.mjs src/lib/offline/attendance-validation.test.mjs src/lib/offline/retry-policy.test.mjs && node --import tsx --test src/lib/offline/outbox-sync.test.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "mobile:sync": "cap sync",
-    "mobile:android": "cap open android",
-    "mobile:ios": "cap open ios",
-    "mobile:add:android": "cap add android",
-    "mobile:add:ios": "cap add ios"
+    "mobile:sync": "node scripts/capacitor-cli.mjs sync",
+    "mobile:android": "node scripts/capacitor-cli.mjs open android",
+    "mobile:ios": "node scripts/capacitor-cli.mjs open ios",
+    "mobile:add:android": "node scripts/capacitor-cli.mjs add android",
+    "mobile:add:ios": "node scripts/capacitor-cli.mjs add ios",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",
@@ -27,13 +28,14 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.4.1",
-    "react-router-dom": "^6.28.0",
+    "react-router-dom": "^7.18.4",
     "recharts": "^2.14.1",
     "socket.io-client": "^4.8.1",
     "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.2.0",
+    "@playwright/test": "^1.64.0",
     "@types/node": "^20.19.43",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
@@ -45,5 +47,11 @@
     "tsx": "^4.23.15",
     "typescript": "^5.6.3",
     "vite": "^5.4.11"
+  },
+  "overrides": {
+    "tar": "^7.5.21"
+  },
+  "engines": {
+    "node": ">=22 <25"
   }
 }

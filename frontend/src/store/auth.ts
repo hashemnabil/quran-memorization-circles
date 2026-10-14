@@ -9,7 +9,7 @@ import { clearOfflineReplica } from '@/lib/offline/changeFeed';
 import type { AuthUser, Role } from '@/types';
 
 const OFFLINE_USER_KEY = 'qc.offlineUser';
-const allowedRoles: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'PARENT', 'STUDENT', 'SUPPORT'];
+const allowedRoles: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'STUDENT', 'SUPPORT'];
 
 function cacheOfflineUser(user: AuthUser) {
   // Store only the minimum identity needed to render the signed-in shell offline.

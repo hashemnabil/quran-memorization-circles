@@ -114,7 +114,7 @@ export default function AttendancePage() {
         const circle = bundle.circles.find((item) => item.id === circleId);
         if (!circle) throw error;
         const students = bundle.students.filter((student) => student.circleId === circleId);
-        if (!students.length) throw error;
+        // A cached empty circle is a valid roster; render the empty state.
         // A roster is sufficient to prepare a draft, but not to prove the server
         // has not already recorded this date. The UI warns before the user queues it.
         return {
@@ -145,6 +145,9 @@ export default function AttendancePage() {
   }, [sheet]);
 
   const save = useMutation({
+    // TanStack must run the handler offline so it can persist the durable outbox.
+    // Default online mode pauses the mutation in memory and never reaches onError.
+    networkMode: 'always',
     mutationFn: () =>
       api.post('/attendance', {
         circleId,

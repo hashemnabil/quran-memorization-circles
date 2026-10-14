@@ -121,7 +121,7 @@ export default function StudentsPage() {
         if (!cachedStudents.length) {
           // IndexedDB survives a reload; query cache does not. Never mix replicas
           // between accounts, and only use this path for the unfiltered first page.
-          cachedStudents = await listOfflineSnapshot(user.id, 'student') as typeof cachedStudents;
+          cachedStudents = await listOfflineSnapshot(user.id, 'student') as unknown as typeof cachedStudents;
         }
         if (!cachedStudents.length) throw error;
         const students = cachedStudents

@@ -13,6 +13,7 @@ This checklist is the repository's source of truth. Checked means the code path 
 - [x] Refresh cached queries when online, on focus, and periodically; persist the resulting cache.
 - [x] Preload common dashboard, public settings, active announcements, unread counters, and first notifications pages.
 - [x] Preload default first-page circles and students for staff roles.
+- [x] Preload the exact default paginated courses query for staff, with the same query key and role-scoped instructor filter as CoursesPage.
 - [x] Preload role-specific reference data already wired in AutomaticOfflineSync.
 - [ ] Create a server-owned, versioned resource manifest per role with field minimization, row ACL, payload limits, and offline read/write policy.
 - [ ] Add visible download progress, partial-failure reporting, and last-successful-sync time.
@@ -25,7 +26,7 @@ This checklist is the repository's source of truth. Checked means the code path 
 - [x] Students and circles have an offline fallback for their unfiltered first page.
 - [x] Students and circles keep already-cached results visible when a background refresh fails, and show a stale-data warning.
 - [x] Attendance has an offline roster/read path.
-- [ ] Audit exact query keys and response shapes for every preload against its consuming screen (initial audit fixed the students/circles cached-error rendering; full audit remains).
+- [ ] Audit exact query keys and response shapes for every preload against its consuming screen (this pass found and fixed the default CoursesPage query-key/request-scope mismatch; full audit remains).
 - [ ] Support offline search, filters, pagination, and detail pages with explicit limits and clear stale-data warnings.
 - [ ] Add explicit offline data contracts/fallbacks for Users, Teachers, Parents, Transfers, Suspensions, Exams, Support, Chat, Settings, Announcements, Staff Attendance, Preparations, Registry, Reports, Certificates, and Media Activities.
 - [ ] Verify each screen for each authorized role with network disabled; do not infer coverage from a cached app shell.

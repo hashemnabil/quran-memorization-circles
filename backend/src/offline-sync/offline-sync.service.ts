@@ -1,3 +1,4 @@
+import { pushValidatedOperations } from './sync-push';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Role, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -250,12 +251,11 @@ export class OfflineSyncService {
   }
 
   /**
-   * General writes stay fail-closed until each entity has a reviewed mutation
-   * schema, conflict policy and atomic domain transaction. This prevents a generic
-   * sync endpoint from becoming an ACL bypass or arbitrary Prisma write surface.
+   * Only explicit domain operations can be dispatched. Each mutation validates its
+   * schema and ACL and commits its result alongside the idempotency ledger.
    */
-  async pushOperations(_user: AuthUser, body: unknown) {
-    if (!body || typeof body !== 'object' || !Array.isArray((body as { operations?: unknown }).operations)) {
+  async pushOperations(user: AuthUser, body: unknown) {
+    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some((key) => key !== 'operations') || !Array.isArray((body as { operations?: unknown }).operations)) {
       throw new BadRequestException('صيغة العمليات غير صالحة');
     }
     const operations = (body as { operations: unknown[] }).operations;
@@ -278,8 +278,7 @@ export class OfflineSyncService {
         throw new BadRequestException('نوع الكيان غير صالح');
       }
     }
-    // Validation is not authorization: never dispatch arbitrary mutations here.
-    throw new BadRequestException('عمليات الكتابة العامة غير مفعّلة بعد؛ استخدم المسارات المدعومة ذات سياسات التعارض وidempotency');
+    return pushValidatedOperations(this.prisma, user, operations as Array<{ opId: string; entity: string }>);
   }
 
   private async readableCircles(user: AuthUser) {

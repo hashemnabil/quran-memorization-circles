@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { queryClient } from '@/lib/queryClient';
 import { persistQueryCache } from '@/lib/offline/queryCache';
-import { syncOfflineOperations, type ReplayResult } from '@/lib/offline/sync';
+import { syncOfflineOperations } from '@/lib/offline/sync';
+import { replayOfflineOperation } from '@/lib/offline/replay';
 import { api } from '@/lib/api';
 import type { Role } from '@/types';
 
@@ -194,27 +195,7 @@ export default function AutomaticOfflineSync({ accountId, role }: { accountId: s
       running = true;
       try {
         // Replay durable local attendance writes before refreshing server reads.
-        await syncOfflineOperations(accountId, async (operation): Promise<ReplayResult> => {
-          if (operation.accountId !== accountId ||
-              operation.resource !== 'attendance-sheet' ||
-              operation.method !== 'POST' ||
-              operation.path !== '/attendance') {
-            return { kind: 'rejected', reason: 'نوع التعديل لا يطابق سياسة المزامنة الحالية' };
-          }
-          try {
-            await api.post(operation.path, operation.payload);
-            return { kind: 'applied' };
-          } catch (error) {
-            const status = (error as { response?: { status?: number } })?.response?.status;
-            if (!status || status === 408 || status === 429 || status >= 500) {
-              return { kind: 'retry', reason: 'تعذر الاتصال بالخادم؛ ستتم إعادة المحاولة تلقائياً' };
-            }
-            if (status === 409) {
-              return { kind: 'conflict', reason: 'يوجد تعارض في كشف الحضور؛ يلزم مراجعته قبل المتابعة' };
-            }
-            return { kind: 'rejected', reason: 'رفض الخادم التعديل؛ راجع الصلاحيات والبيانات' };
-          }
-        });
+        await syncOfflineOperations(accountId, replayOfflineOperation);
         await refreshKnownQueries();
         if (!disposed) await preloadOfflineNavigation(role, accountId);
         if (!disposed) {

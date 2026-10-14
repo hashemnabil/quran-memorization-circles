@@ -32,13 +32,15 @@ jobs:
           cache-dependency-path: |
             backend/package-lock.json
             frontend/package-lock.json
-      - run: npm install --prefix backend
-      - run: npm install --prefix frontend
+      - run: npm ci --prefix backend
+      - run: npm ci --prefix frontend
       - run: npm --prefix frontend run test:offline
       - run: backend/node_modules/.bin/prisma generate --schema backend/prisma/schema.prisma
       - run: npm --prefix backend run test:offline-sync
       - run: npm --prefix backend run test:sync-protocol
       - run: npm --prefix backend run test:attendance-replay
+      - run: npm --prefix backend run prisma:deploy
+      - run: npm --prefix backend run test:sync-push-integration
       - run: npm --prefix backend run test:attendance-lock-integration
       - run: npm --prefix backend run build
       - run: npm --prefix frontend run build

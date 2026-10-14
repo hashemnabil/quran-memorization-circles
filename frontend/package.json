@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test:offline": "node --test src/lib/offline/attendance-validation.test.mjs src/lib/offline/retry-policy.test.mjs",
+    "test:offline": "node --test src/lib/offline/attendance-validation.test.mjs src/lib/offline/retry-policy.test.mjs && node --import tsx --test src/lib/offline/outbox-sync.test.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "mobile:sync": "cap sync",
@@ -16,32 +16,34 @@
     "mobile:add:ios": "cap add ios"
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/ios": "^6.2.0",
     "@tanstack/react-query": "^5.62.7",
     "axios": "^1.7.9",
     "date-fns": "^4.1.0",
+    "jszip": "^3.10.1",
+    "pdf-lib": "^1.17.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.4.1",
     "react-router-dom": "^6.28.0",
     "recharts": "^2.14.1",
     "socket.io-client": "^4.8.1",
-    "zustand": "^5.0.2",
-    "pdf-lib": "^1.17.1",
-    "jszip": "^3.10.1",
-    "@capacitor/core": "^6.2.0",
-    "@capacitor/android": "^6.2.0",
-    "@capacitor/ios": "^6.2.0"
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
     "@types/node": "^20.19.43",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "fake-indexeddb": "^6.2.5",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.23.15",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11",
-    "@capacitor/cli": "^6.2.0"
+    "vite": "^5.4.11"
   }
 }

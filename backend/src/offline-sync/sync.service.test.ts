@@ -34,10 +34,9 @@ test('push bounds batch size before rejecting unsupported mutations', async () =
 });
 
 test('push fails closed for validly shaped but unsupported operations', async () => {
-  await assert.rejects(
-    serviceWith().pushOperations(user, { operations: [{ opId: 'op-1', entity: 'student', data: {} }] }),
-    (error: unknown) => error instanceof BadRequestException && error.message.includes('غير مفعّلة'),
-  );
+  const result = await serviceWith().pushOperations(user, { operations: [{ opId: 'op-1', entity: 'student', data: {} }] });
+  assert.equal(result.results[0].status, 'rejected');
+  assert.equal(result.results[0].code, 'UNSUPPORTED_OPERATION');
 });
 
 test('sequence feed projects circle fields from an allowlist and never returns raw journal payload', async () => {

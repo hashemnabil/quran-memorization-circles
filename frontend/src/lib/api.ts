@@ -61,7 +61,7 @@ api.interceptors.response.use(
     // committed on the server and must be replayed through the offline outbox.
     const method = (original?.method ?? 'get').toLowerCase();
     const status = error.response?.status;
-    const retryable = !error.response || status === 408 || status === 429 || (status !== undefined && status >= 500);
+    const retryable = error.code !== 'ERR_CANCELED' && (!error.response || status === 408 || status === 429 || (status !== undefined && status >= 500));
     const retries = original?._networkRetryCount ?? 0;
     if (original && method === 'get' && retryable && retries < 2) {
       original._networkRetryCount = retries + 1;

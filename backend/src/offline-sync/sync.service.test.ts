@@ -64,3 +64,38 @@ test('sequence feed skips circles outside the authenticated user scope while adv
   assert.equal(result.changes.length, 0);
   assert.equal(result.nextSeq, '8');
 });
+
+test('sequence feed never leaks student journal secrets and preserves safe fields', async () => {
+  const svc = serviceWith({ visibleStudent: { id: 'student-1' }, journal: [{
+    seq: 12n, entity: 'students', entityId: 'student-1', operation: 'UPSERT',
+    changedAt: new Date(), payload: {
+      circleId: 'circle-1', code: 'S1', fullName: 'Student', status: 'ACTIVE',
+      evaluation: null, memorizedParts: 2, currentSurah: 'Al-Fatiha', currentPage: 1,
+      updatedAt: '2026-01-01T00:00:00.000Z', passwordHash: 'secret', privateNotes: 'secret',
+    },
+  }] });
+  const result = await svc.syncChanges(user, 0n, 10);
+  assert.equal(result.changes.length, 1);
+  assert.equal((result.changes[0].data as any).fullName, 'Student');
+  assert.equal(JSON.stringify(result).includes('secret'), false);
+});
+
+test('sequence feed denies student events outside live ACL and still advances cursor', async () => {
+  const svc = serviceWith({ visibleStudent: null, journal: [{
+    seq: 13n, entity: 'students', entityId: 'student-1', operation: 'UPSERT',
+    changedAt: new Date(), payload: { circleId: 'circle-1', fullName: 'Hidden' },
+  }] });
+  const result = await svc.syncChanges(user, 0n, 10);
+  assert.equal(result.changes.length, 0);
+  assert.equal(result.nextSeq, '13');
+});
+
+test('sequence feed rejects historical student events from an inaccessible circle', async () => {
+  const svc = serviceWith({ visibleStudent: { id: 'student-1' }, circleIds: ['circle-1'], journal: [{
+    seq: 14n, entity: 'students', entityId: 'student-1', operation: 'UPSERT',
+    changedAt: new Date(), payload: { circleId: 'circle-private', fullName: 'Hidden' },
+  }] });
+  const result = await svc.syncChanges(user, 0n, 10);
+  assert.equal(result.changes.length, 0);
+  assert.equal(result.nextSeq, '14');
+});

@@ -24,7 +24,7 @@ async function refreshKnownQueries(): Promise<void> {
 
 // These stable, list-level queries are fetched even when their screens have
 // never been opened. API authorization remains the source of truth for access.
-async function preloadOfflineNavigation(role: Role): Promise<void> {
+async function preloadOfflineNavigation(role: Role, accountId: string): Promise<void> {
   const common: Array<{ key: readonly unknown[]; path: string; select?: (data: any) => unknown }> = [
     // The dashboard is the landing screen for most roles; preloading it means
     // an account can reopen the app offline without first visiting the page online.
@@ -49,6 +49,8 @@ async function preloadOfflineNavigation(role: Role): Promise<void> {
       // first page immediately after an offline reload, without visiting online.
       { key: ['circles', { page: 1, debouncedSearch: '', isActive: '' }], path: '/circles?page=1&limit=12' },
       { key: ['students', { page: 1, debouncedSearch: '', status: '', evaluation: '', circleId: '', track: '' }], path: '/students?page=1&limit=20' },
+      // Match CoursesPage's exact default query key and role-scoped request.
+      { key: ['courses', { debounced: '', type: '', page: 1 }], path: role === 'ADMIN' ? '/courses?page=1&limit=12' : `/courses?page=1&limit=12&instructorId=${encodeURIComponent(accountId)}` },
       { key: ['reports', 'circles-options'], path: '/circles/options' },
       { key: ['reports', 'courses-options'], path: '/courses?limit=200' },
       { key: ['recitations', 'surahs'], path: '/recitations/surahs' },
@@ -214,7 +216,7 @@ export default function AutomaticOfflineSync({ accountId, role }: { accountId: s
           }
         });
         await refreshKnownQueries();
-        if (!disposed) await preloadOfflineNavigation(role);
+        if (!disposed) await preloadOfflineNavigation(role, accountId);
         if (!disposed) {
           try {
             await refreshOfflineBootstrap(accountId);

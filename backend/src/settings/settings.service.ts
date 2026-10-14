@@ -17,7 +17,13 @@ export class SettingsService {
 
   /** The settings row is a singleton; it is created on first read. */
   async get() {
-    const row = await this.prisma.schoolSettings.upsert({ where: { id: SETTINGS_ID }, create: { id: SETTINGS_ID }, update: {} });
+    let row = await this.prisma.schoolSettings.findUnique({ where: { id: SETTINGS_ID } });
+    if (!row) {
+      // Prisma can emulate an upsert with empty update as read-then-insert.
+      // Native ON CONFLICT DO NOTHING keeps concurrent first requests safe.
+      await this.prisma.schoolSettings.createMany({ data: [{ id: SETTINGS_ID }], skipDuplicates: true });
+      row = await this.prisma.schoolSettings.findUniqueOrThrow({ where: { id: SETTINGS_ID } });
+    }
     return { ...row, logoUrl: this.absoluteLogo(row.logoUrl) };
   }
 

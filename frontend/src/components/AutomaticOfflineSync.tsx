@@ -26,10 +26,16 @@ async function refreshKnownQueries(): Promise<void> {
 // never been opened. API authorization remains the source of truth for access.
 async function preloadOfflineNavigation(role: Role): Promise<void> {
   const common: Array<{ key: readonly unknown[]; path: string; select?: (data: any) => unknown }> = [
+    // The dashboard is the landing screen for most roles; preloading it means
+    // an account can reopen the app offline without first visiting the page online.
+    { key: ['dashboard', 'overview'], path: '/dashboard/overview' },
     { key: ['settings', 'public'], path: '/settings/public' },
     { key: ['announcements', 'active'], path: '/announcements/active' },
     { key: ['notifications', 'unread'], path: '/notifications/unread-count', select: (data: any) => data.count },
     { key: ['chat', 'unread'], path: '/chat/unread-count', select: (data: any) => data.count },
+    // Seed the first notifications page using the exact key/shape consumed by
+    // NotificationsPage. The API still scopes results to the authenticated user.
+    { key: ['notifications', { tab: 'all', page: 1 }], path: '/notifications?limit=25&page=1' },
   ];
   const staff = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role);
   const management = ['ADMIN', 'SUPERVISOR'].includes(role);

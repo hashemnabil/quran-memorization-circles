@@ -25,9 +25,9 @@ for (const [role, paths] of Object.entries(destinations)) {
     await login(page, role);
     for (const path of paths) {
       await page.goto(path);
-      await expect(page).toHaveURL(new RegExp(`${path}$`));
+      await expect(page).toHaveURL(url => url.pathname === path);
       await expect(page.getByRole('status', { name: 'بدء التطبيق' })).not.toBeVisible();
-      await expect(page.locator('h1').first()).toBeVisible();
+      await expect(page.locator('main h1').first()).toBeVisible();
       await expect(page.locator('main')).not.toContainText('تعذر تحميل');
     }
     expect(errors).toEqual([]);

@@ -54,11 +54,12 @@ This checklist is the repository's source of truth. Checked means the code path 
 - [x] PR #133 bootstrap-contract changes merged into main.
 - [x] PR #134 preload/default-list changes merged into main.
 - [x] PR #137 default CoursesPage query-key/request-scope fix merged into main.
-- [ ] Run frontend build and test suites and record the actual result.
-- [ ] Run backend tests and record the actual result.
+- [x] GitHub Actions build workflow passed on PR #138 head: frontend offline tests/build and backend offline-sync, attendance replay, attendance lock integration tests/build.
+- [x] GitHub Actions Android debug build passed on PR #138 head.
+- [x] GitHub Actions iOS simulator build passed on PR #138 head.
 - [ ] Test interrupted bootstrap, cursor loops, storage quota, schema upgrade, and partial network loss.
 - [ ] Run browser tests with network disabled and restored.
-- [ ] Run Android and iOS device tests with network disabled and restored.
+- [ ] Run Android and iOS device acceptance tests with network disabled and restored (CI build success does not verify airplane-mode behavior).
 - [ ] Close all role/screen/security gates before claiming production readiness.
 
 ## Known limitations

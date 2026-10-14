@@ -67,3 +67,53 @@ test('student can reload the cached shell and file screen in airplane mode and r
   await context.setOffline(false);
   await expect(page.getByText('أنت غير متصل بالإنترنت.', { exact: false })).not.toBeVisible();
 });
+
+async function readTeacherOutbox(page: Page): Promise<Array<{ id: string; attempts: number }>> {
+  return page.evaluate(accountId => new Promise(resolve => {
+    const open = indexedDB.open('quran-circles-offline', 1);
+    open.onsuccess = () => {
+      const db = open.result;
+      if (!db.objectStoreNames.contains('outbox')) { db.close(); resolve([]); return; }
+      const read = db.transaction('outbox').objectStore('outbox').index('accountId').getAll(accountId);
+      read.onsuccess = () => { db.close(); resolve(read.result); };
+      read.onerror = () => { db.close(); resolve([]); };
+    };
+    open.onerror = () => resolve([]);
+  }), fixtures.accounts.TEACHER.id);
+}
+
+test('offline attendance survives a lost committed response and replays with the same operation ID', async ({ page, context }) => {
+  test.setTimeout(75000);
+  await login(page, 'TEACHER');
+  await page.goto(`/attendance?circleId=${fixtures.circle.id}`);
+  await expect(page.getByText(fixtures.student.fullName, { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'تعيين الكل غائب', exact: true }).click();
+  await context.setOffline(true);
+  await page.getByRole('button', { name: 'حفظ الكشف', exact: true }).first().click();
+  await expect.poll(async () => (await readTeacherOutbox(page)).length).toBe(1);
+  const originalId = (await readTeacherOutbox(page))[0].id;
+  let committedResponse: any;
+  let loseFirstResponse = true;
+  await page.route('**/api/sync/push', async route => {
+    if (!loseFirstResponse) { await route.continue(); return; }
+    loseFirstResponse = false;
+    const response = await route.fetch();
+    committedResponse = await response.json();
+    await route.abort('connectionreset');
+  });
+  await context.setOffline(false);
+  await expect.poll(() => committedResponse?.results?.[0]?.status).toBe('applied');
+  await expect.poll(async () => (await readTeacherOutbox(page))[0]?.attempts).toBeGreaterThan(0);
+  expect((await readTeacherOutbox(page))[0].id).toBe(originalId);
+  const replay = page.waitForResponse(response => response.url().endsWith('/api/sync/push') && response.ok());
+  await page.reload();
+  expect((await (await replay).json()).results[0].opId).toBe(originalId);
+  await expect.poll(async () => (await readTeacherOutbox(page)).length).toBe(0);
+  const token = await page.evaluate(() => localStorage.getItem('qc.accessToken'));
+  const date = new Date().toISOString().slice(0, 10);
+  const response = await page.request.get(`http://127.0.0.1:3000/api/attendance/sheet?circleId=${fixtures.circle.id}&date=${date}`, { headers: { Authorization: `Bearer ${token}` } });
+  expect(response.ok()).toBe(true);
+  const sheet = await response.json();
+  expect(sheet.students.filter((student: any) => student.id === fixtures.student.id)).toHaveLength(1);
+  expect(sheet.students.find((student: any) => student.id === fixtures.student.id).attendance.status).toBe('ABSENT');
+});

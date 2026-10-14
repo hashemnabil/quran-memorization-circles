@@ -58,7 +58,7 @@ export default function LoginPage() {
             'متابعة الحضور والتسميع اليومي',
             'إدارة الحلقات والدورات التعليمية',
             'اختبارات متسلسلة للأجزاء والأحزاب',
-            'بوابة خاصة لأولياء الأمور',
+            'ملفات وشهادات الطالب',
           ].map((item) => (
             <li key={item} className="flex items-center gap-1.5 rounded-xl bg-white/5 px-2.5 py-2 text-primary-100/90 ring-1 ring-white/10">
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gold-400" />

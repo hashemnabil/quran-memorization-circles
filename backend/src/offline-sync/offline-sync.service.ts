@@ -260,6 +260,25 @@ export class OfflineSyncService {
     }
     const operations = (body as { operations: unknown[] }).operations;
     if (operations.length > 100) throw new BadRequestException('الحد الأقصى 100 عملية');
+    if (operations.length === 0) throw new BadRequestException('يجب إرسال عملية واحدة على الأقل');
+    const seen = new Set<string>();
+    for (const operation of operations) {
+      if (!operation || typeof operation !== 'object' || Array.isArray(operation)) {
+        throw new BadRequestException('صيغة العملية غير صالحة');
+      }
+      const record = operation as Record<string, unknown>;
+      if (typeof record.opId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(record.opId)) {
+        throw new BadRequestException('معرّف العملية غير صالح');
+      }
+      if (seen.has(record.opId)) {
+        throw new BadRequestException('معرّف العملية مكرر داخل الحزمة');
+      }
+      seen.add(record.opId);
+      if (typeof record.entity !== 'string' || !record.entity.trim()) {
+        throw new BadRequestException('نوع الكيان غير صالح');
+      }
+    }
+    // Validation is not authorization: never dispatch arbitrary mutations here.
     throw new BadRequestException('عمليات الكتابة العامة غير مفعّلة بعد؛ استخدم المسارات المدعومة ذات سياسات التعارض وidempotency');
   }
 

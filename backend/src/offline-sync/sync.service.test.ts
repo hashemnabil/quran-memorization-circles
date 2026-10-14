@@ -99,3 +99,28 @@ test('sequence feed rejects historical student events from an inaccessible circl
   assert.equal(result.changes.length, 0);
   assert.equal(result.nextSeq, '14');
 });
+
+test('push rejects empty batches and duplicate operation identifiers', async () => {
+  await assert.rejects(
+    serviceWith().pushOperations(user, { operations: [] }),
+    (error: unknown) => error instanceof BadRequestException && error.message.includes('واحدة'),
+  );
+  await assert.rejects(
+    serviceWith().pushOperations(user, { operations: [
+      { opId: 'same-id', entity: 'student' },
+      { opId: 'same-id', entity: 'student' },
+    ] }),
+    (error: unknown) => error instanceof BadRequestException && error.message.includes('مكرر'),
+  );
+});
+
+test('push rejects invalid operation identities and malformed records', async () => {
+  for (const operation of [null, [], { opId: '', entity: 'student' },
+    { opId: 'bad id', entity: 'student' }, { opId: 'x'.repeat(129), entity: 'student' },
+    { opId: 'valid-id', entity: '' }]) {
+    await assert.rejects(
+      serviceWith().pushOperations(user, { operations: [operation] }),
+      (error: unknown) => error instanceof BadRequestException,
+    );
+  }
+});

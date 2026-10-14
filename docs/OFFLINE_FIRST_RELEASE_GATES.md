@@ -23,8 +23,9 @@ This checklist is the repository's source of truth. Checked means the code path 
 - [x] Notifications retains cached list data when a refresh fails.
 - [x] Courses retains cached list data when a refresh fails.
 - [x] Students and circles have an offline fallback for their unfiltered first page.
+- [x] Students and circles keep already-cached results visible when a background refresh fails, and show a stale-data warning.
 - [x] Attendance has an offline roster/read path.
-- [ ] Audit exact query keys and response shapes for every preload against its consuming screen.
+- [ ] Audit exact query keys and response shapes for every preload against its consuming screen (initial audit fixed the students/circles cached-error rendering; full audit remains).
 - [ ] Support offline search, filters, pagination, and detail pages with explicit limits and clear stale-data warnings.
 - [ ] Add explicit offline data contracts/fallbacks for Users, Teachers, Parents, Transfers, Suspensions, Exams, Support, Chat, Settings, Announcements, Staff Attendance, Preparations, Registry, Reports, Certificates, and Media Activities.
 - [ ] Verify each screen for each authorized role with network disabled; do not infer coverage from a cached app shell.

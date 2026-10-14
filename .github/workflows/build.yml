@@ -21,10 +21,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-<<<<<<< HEAD
       CORS_ORIGINS: http://127.0.0.1:4173
-=======
->>>>>>> fix/runtime-database-config
       NODE_ENV: test
       JWT_ACCESS_SECRET: test-only-key-for-ci-with-no-production-access-123456789
       DATABASE_URL: postgresql://postgres@localhost:5432/quran_test?schema=public

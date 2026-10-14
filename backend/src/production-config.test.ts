@@ -12,12 +12,6 @@ test('development stays backwards compatible', () => { assert.deepEqual(validate
 test('production rejects missing secrets, weak secrets, wildcard CORS and insecure browser origins', () => {
   for (const changes of [
     { JWT_ACCESS_SECRET: undefined }, { JWT_ACCESS_SECRET: 'change-me-access-secret' }, { DATABASE_URL: 'https://db.example/quran' },
-<<<<<<< HEAD
-    { DIRECT_URL: '' }, { PUBLIC_URL: 'http://api.school.example' }, { CORS_ORIGINS: '*' },
-    { CORS_ORIGINS: 'http://school.example' }, { CORS_ORIGINS: 'https://school.example/path' },
-  ]) assert.throws(() => validateEnvironment({ ...production, ...changes }));
-});
-=======
     { DIRECT_URL: 'https://db.example/quran' }, { PUBLIC_URL: 'http://api.school.example' }, { CORS_ORIGINS: '*' },
     { CORS_ORIGINS: 'http://school.example' }, { CORS_ORIGINS: 'https://school.example/path' },
   ]) assert.throws(() => validateEnvironment({ ...production, ...changes }));
@@ -28,4 +22,3 @@ test('Render runtime accepts missing migration and public URL configuration', ()
   assert.deepEqual(validateEnvironment(env), env);
   assert.throws(() => validateEnvironment({ ...env, RENDER_EXTERNAL_URL: 'http://api.example.com' }));
 });
->>>>>>> fix/runtime-database-config

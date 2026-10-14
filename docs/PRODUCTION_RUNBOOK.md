@@ -4,11 +4,7 @@ This runbook does not certify the hosted application. Use a staging database res
 
 ## Build the existing project
 
-<<<<<<< HEAD
 Use Node 22 (the supported package range is 22–24) and the committed lockfiles:
-=======
-Use Node 20 and the committed lockfiles:
->>>>>>> fix/runtime-database-config
 
 ```sh
 npm ci --prefix backend
@@ -47,11 +43,7 @@ Create an **empty isolated** restore database; set `RESTORE_DATABASE_URL` throug
 npm run restore -- --backup /secure-backups/quran-release-YYYYMMDD --confirm-database quran_restore_test
 ```
 
-<<<<<<< HEAD
 Restore verifies the dump digest, refuses databases containing application tables, and uses a single transaction. It never drops existing data. Verify the upload archive digest against the manifest, extract into a separate staging volume, and compare record counts, student/circle assignments, attendance, exams, certificates and session behavior. Backup creation alone is not proof of recoverability. CI rehearses backup and restoration against a disposable PostgreSQL database and checks record counts and refusal to overwrite existing tables. These scripts have not been run against the production host.
-=======
-Restore verifies the dump digest, refuses databases containing application tables, and uses a single transaction. It never drops existing data. Verify the upload archive digest against the manifest, extract into a separate staging volume, and compare record counts, student/circle assignments, attendance, exams, certificates and session behavior. Backup creation alone is not proof of recoverability. These scripts have not been run against the production host.
->>>>>>> fix/runtime-database-config
 
 ## Migration/release order
 
@@ -74,10 +66,7 @@ Keep the previous immutable API/frontend artifacts and configuration. Roll back 
 - Typed offline handlers/local screens for domains beyond attendance; conflict review UI for corrections.
 - Commit-ordered global sync journal, historic hard-delete handling, and cache invalidation after access revocation.
 - Dependency vulnerability remediation, ingress rate limiting and performance checks under realistic school data volume.
-<<<<<<< HEAD
-=======
 
 ### Runtime configuration compatibility
 
 DIRECT_URL is required for migration commands when the provider uses a separate direct connection, not for application startup. Do not substitute pooled migration connections blindly. DATABASE_URL and a strong JWT_ACCESS_SECRET remain required at runtime. Supplied URLs and CORS origins remain validated. Render uploads fall back to RENDER_EXTERNAL_URL when PUBLIC_URL is absent. Missing CORS configuration keeps the existing restrictive localhost defaults; configure the actual HTTPS frontend origin for browser access. This fix does not run migrations or modify production data.
->>>>>>> fix/runtime-database-config

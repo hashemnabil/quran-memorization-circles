@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { queryClient } from '@/lib/queryClient';
 import { persistQueryCache } from '@/lib/offline/queryCache';
+import { pullOfflineChanges } from '@/lib/offline/changeFeed';
 import { syncOfflineOperations } from '@/lib/offline/sync';
 import { replayOfflineOperation } from '@/lib/offline/replay';
 import { api } from '@/lib/api';
@@ -194,6 +195,8 @@ export default function AutomaticOfflineSync({ accountId, role }: { accountId: s
       if (!cacheReady || running || disposed || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
       running = true;
       try {
+        // Check live read scopes before refreshing cached navigation.
+        await pullOfflineChanges(accountId).catch(() => undefined);
         // Replay durable local attendance writes before refreshing server reads.
         await syncOfflineOperations(accountId, replayOfflineOperation);
         await refreshKnownQueries();

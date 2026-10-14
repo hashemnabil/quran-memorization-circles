@@ -22,6 +22,7 @@
     "test:sync-protocol": "node --test -r ts-node/register src/offline-sync/sync.service.test.ts src/offline-sync/sync.controller.test.ts",
     "test:attendance-replay": "node --test -r ts-node/register src/attendance/attendance.service.test.ts",
     "test:attendance-lock-integration": "node --test -r ts-node/register src/attendance/attendance-lock.integration.test.ts",
+    "test:journal-order-integration": "node --test -r ts-node/register src/offline-sync/journal-order.integration.test.ts",
     "test:sync-push-integration": "node --test -r ts-node/register src/offline-sync/sync-push.integration.test.ts",
     "test:security": "node --test -r ts-node/register src/production-config.test.ts src/auth/jwt.strategy.test.ts src/common/validators/safe-url.test.ts src/uploads/uploads.service.test.ts",
     "test:api-integration": "node --test -r ts-node/register src/api.integration.test.ts",

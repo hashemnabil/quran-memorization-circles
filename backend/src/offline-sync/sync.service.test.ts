@@ -123,3 +123,22 @@ test('push rejects invalid operation identities and malformed records', async ()
     );
   }
 });
+
+test('push refuses an envelope for a different authenticated account', async () => {
+  await assert.rejects(serviceWith().pushOperations(user, { accountId: 'someone-else', operations: [{ opId: 'op-1', entity: 'student' }] }));
+});
+test('deleted student emits only a tombstone in a trustworthy historical circle scope', async () => {
+  const journal = [{ seq: 15n, entity: 'students', entityId: 'student-1', operation: 'DELETE', payload: { circleId: 'circle-1', fullName: 'must-not-leak' } }];
+  const result = await serviceWith({ journal }).syncChanges(user, 0n, 10);
+  assert.equal(result.changes.length, 1); assert.equal(result.changes[0].data, null);
+  const hidden = await serviceWith({ journal, circleIds: ['other-circle'] }).syncChanges(user, 0n, 10);
+  assert.equal(hidden.changes.length, 0);
+});
+test('snapshot captures its sequence fence before reading the rows', async () => {
+  const order: string[] = [];
+  const service = new OfflineSyncService({ $queryRaw: async () => { order.push('fence'); return [{ seq: 9007199254740993n }]; } } as any, {} as any);
+  service.bootstrap = async () => { order.push('rows'); return { version: 1, accountId: user.id } as any; };
+  service.scope = async () => ({ version: 1, accountId: user.id, scopeVersion: 'a'.repeat(64) });
+  assert.equal((await service.snapshot(user)).asOfSeq, '9007199254740993');
+  assert.deepEqual(order, ['fence', 'rows']);
+});

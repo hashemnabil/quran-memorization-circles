@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { pushValidatedOperations } from './sync-push';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Role, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
@@ -16,6 +17,29 @@ export class OfflineSyncService {
     private readonly prisma: PrismaService,
     private readonly acl: AccessControlService,
   ) {}
+
+  async scope(user: AuthUser) {
+    const canReadCircles = CIRCLE_ROLES.has(user.role);
+    const allowed = canReadCircles ? await this.acl.accessibleCircleIds(user) : [];
+    const circles = canReadCircles ? await this.prisma.circle.findMany({
+      where: { deletedAt: null, ...(allowed !== null ? { id: { in: allowed } } : {}) }, select: { id: true }, orderBy: { id: 'asc' },
+    }) : [];
+    const studentScope = STUDENT_ROLES.has(user.role) ? await this.acl.studentScope(user) : { id: '__sync_no_access__' };
+    const students = STUDENT_ROLES.has(user.role) ? await this.prisma.student.findMany({
+      where: { AND: [studentScope, { deletedAt: null }, ...(canReadCircles && allowed !== null ? [{ circleId: { in: allowed } }] : [])] },
+      select: { id: true, circleId: true }, orderBy: { id: 'asc' },
+    }) : [];
+    const scopeVersion = createHash('sha256').update(JSON.stringify({ role: user.role, circles, students })).digest('hex');
+    return { version: 1, accountId: user.id, scopeVersion };
+  }
+
+  async snapshot(user: AuthUser, cursor?: string, limit = 200) {
+    // Fence before reading rows: replay all later committed changes after the full snapshot.
+    const watermark = await this.prisma.$queryRaw<Array<{ seq: bigint }>>`SELECT COALESCE(MAX("seq"), 0)::bigint AS "seq" FROM "sync_changes"`;
+    const page = await this.bootstrap(user, cursor, limit);
+    const scope = await this.scope(user);
+    return { ...page, asOfSeq: watermark[0].seq.toString(), scopeVersion: scope.scopeVersion };
+  }
 
   async bootstrap(user: AuthUser, cursor?: string, requestedLimit = 200) {
     const limit = Math.min(200, Math.max(1, Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 200));
@@ -234,9 +258,17 @@ export class OfflineSyncService {
           where: { AND: [{ id: row.entityId }, studentScope] },
           select: { id: true },
         });
-        if (!visible) continue;
         const circleId = typeof payload.circleId === 'string' ? payload.circleId : null;
-        if (circleId && circleIds !== null && !circleIds.includes(circleId)) continue;
+        if (!visible) {
+          // Only IDs in a trustworthy historical scope may be tombstoned.
+          const deletedInScope = row.operation === 'DELETE' && (
+            user.role === Role.ADMIN ||
+            (CIRCLE_ROLES.has(user.role) && !!circleId && circleIds !== null && circleIds.includes(circleId)) ||
+            (user.role === Role.STUDENT && payload.userId === user.id)
+          );
+          if (!deletedInScope) continue;
+        }
+        if (circleId && circleIds !== null && !circleIds.includes(circleId) && user.role !== Role.STUDENT) continue;
         changes.push({ seq: row.seq.toString(), entity: 'student', id: row.entityId, operation: row.operation,
           data: row.operation === 'DELETE' ? null : {
             id: row.entityId, circleId, code: payload.code, fullName: payload.fullName,
@@ -255,9 +287,11 @@ export class OfflineSyncService {
    * schema and ACL and commits its result alongside the idempotency ledger.
    */
   async pushOperations(user: AuthUser, body: unknown) {
-    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some((key) => key !== 'operations') || !Array.isArray((body as { operations?: unknown }).operations)) {
+    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some((key) => !['operations', 'accountId'].includes(key)) || !Array.isArray((body as { operations?: unknown }).operations)) {
       throw new BadRequestException('صيغة العمليات غير صالحة');
     }
+    const accountId = (body as { accountId?: unknown }).accountId;
+    if (accountId !== undefined && accountId !== user.id) throw new ForbiddenException('الحزمة لا تخص الحساب الحالي');
     const operations = (body as { operations: unknown[] }).operations;
     if (operations.length > 100) throw new BadRequestException('الحد الأقصى 100 عملية');
     if (operations.length === 0) throw new BadRequestException('يجب إرسال عملية واحدة على الأقل');
@@ -295,6 +329,7 @@ export class OfflineSyncService {
         scheduleDays: true,
         startTime: true,
         isActive: true,
+        updatedAt: true,
       },
       orderBy: { id: 'asc' },
     });

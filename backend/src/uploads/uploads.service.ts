@@ -59,7 +59,7 @@ export class UploadsService {
    * LAN) can actually fetch.
    */
   publicBaseUrl(): string {
-    const configured = this.config.get<string>('PUBLIC_URL');
+    const configured = this.config.get<string>('PUBLIC_URL') || this.config.get<string>('RENDER_EXTERNAL_URL');
     if (configured) return configured.replace(/\/+$/, '');
     const port = this.config.get<string>('PORT') || '4000';
     return `http://localhost:${port}`;

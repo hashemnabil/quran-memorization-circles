@@ -66,3 +66,7 @@ Keep the previous immutable API/frontend artifacts and configuration. Roll back 
 - Typed offline handlers/local screens for domains beyond attendance; conflict review UI for corrections.
 - Commit-ordered global sync journal, historic hard-delete handling, and cache invalidation after access revocation.
 - Dependency vulnerability remediation, ingress rate limiting and performance checks under realistic school data volume.
+
+### Runtime configuration compatibility
+
+DIRECT_URL is required for migration commands when the provider uses a separate direct connection, not for application startup. Do not substitute pooled migration connections blindly. DATABASE_URL and a strong JWT_ACCESS_SECRET remain required at runtime. Supplied URLs and CORS origins remain validated. Render uploads fall back to RENDER_EXTERNAL_URL when PUBLIC_URL is absent. Missing CORS configuration keeps the existing restrictive localhost defaults; configure the actual HTTPS frontend origin for browser access. This fix does not run migrations or modify production data.

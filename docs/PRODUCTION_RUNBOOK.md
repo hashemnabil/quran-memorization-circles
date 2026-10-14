@@ -4,7 +4,7 @@ This runbook does not certify the hosted application. Use a staging database res
 
 ## Build the existing project
 
-Use Node 20 and the committed lockfiles:
+Use Node 22 (the supported package range is 22–24) and the committed lockfiles:
 
 ```sh
 npm ci --prefix backend
@@ -43,7 +43,7 @@ Create an **empty isolated** restore database; set `RESTORE_DATABASE_URL` throug
 npm run restore -- --backup /secure-backups/quran-release-YYYYMMDD --confirm-database quran_restore_test
 ```
 
-Restore verifies the dump digest, refuses databases containing application tables, and uses a single transaction. It never drops existing data. Verify the upload archive digest against the manifest, extract into a separate staging volume, and compare record counts, student/circle assignments, attendance, exams, certificates and session behavior. Backup creation alone is not proof of recoverability. These scripts have not been run against the production host.
+Restore verifies the dump digest, refuses databases containing application tables, and uses a single transaction. It never drops existing data. Verify the upload archive digest against the manifest, extract into a separate staging volume, and compare record counts, student/circle assignments, attendance, exams, certificates and session behavior. Backup creation alone is not proof of recoverability. CI rehearses backup and restoration against a disposable PostgreSQL database and checks record counts and refusal to overwrite existing tables. These scripts have not been run against the production host.
 
 ## Migration/release order
 

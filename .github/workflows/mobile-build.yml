@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - uses: actions/setup-java@v4
@@ -21,7 +21,7 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Install frontend dependencies
-        run: npm install --prefix frontend
+        run: npm ci --prefix frontend
       - name: Build web assets for native wrapper
         run: npm --prefix frontend run build
 
@@ -31,10 +31,10 @@ jobs:
 
       - name: Generate Android project
         working-directory: frontend
-        run: npx cap add android
+        run: npm run mobile:add:android
       - name: Sync Capacitor assets
         working-directory: frontend
-        run: npx cap sync android
+        run: npm run mobile:sync -- android
       - name: Assemble debug APK
         working-directory: frontend/android
         run: ./gradlew assembleDebug

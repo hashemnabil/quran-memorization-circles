@@ -3,3 +3,7 @@ dist
 .env
 .env.local
 *.log
+
+e2e/.accounts.json
+playwright-report/
+test-results/

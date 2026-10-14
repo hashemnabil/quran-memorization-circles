@@ -28,13 +28,13 @@ async function preloadOfflineNavigation(role: Role): Promise<void> {
   const common: Array<{ key: readonly unknown[]; path: string }> = [
     { key: ['settings', 'public'], path: '/settings/public' },
     { key: ['announcements', 'active'], path: '/announcements/active' },
-    { key: ['notifications', 'unread'], path: '/notifications/unread-count' },
-    { key: ['chat', 'unread'], path: '/chat/unread-count' },
+    { key: ['notifications', 'unread'], path: '/notifications/unread-count', select: (data: any) => data.count },
+    { key: ['chat', 'unread'], path: '/chat/unread-count', select: (data: any) => data.count },
   ];
   const staff = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role);
   const management = ['ADMIN', 'SUPERVISOR'].includes(role);
   const admin = role === 'ADMIN';
-  const resources = [
+  const resources: Array<{ key: readonly unknown[]; path: string; select?: (data: any) => unknown }> = [
     ...common,
     ...(staff ? [
       { key: ['circles', 'options'], path: '/circles/options' },
@@ -42,7 +42,7 @@ async function preloadOfflineNavigation(role: Role): Promise<void> {
       { key: ['suspensions', 'active'], path: '/suspensions/active' },
     ] : []),
     ...(management ? [
-      { key: ['teachers', { limit: 100 }], path: '/teachers?limit=100&isActive=true' },
+      { key: ['teachers', { limit: 100 }], path: '/teachers?limit=100&isActive=true', select: (data: any) => data.data },
     ] : []),
     ...(admin ? [
       { key: ['settings'], path: '/settings' },
@@ -55,7 +55,7 @@ async function preloadOfflineNavigation(role: Role): Promise<void> {
     if (!navigator.onLine) return;
     try {
       const response = await api.get(resource.path);
-      queryClient.setQueryData(resource.key, response.data);
+      queryClient.setQueryData(resource.key, resource.select ? resource.select(response.data) : response.data);
     } catch {
       // A missing permission or temporarily unavailable endpoint must not
       // prevent the remaining resources from being cached.

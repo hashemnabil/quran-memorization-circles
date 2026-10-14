@@ -1,32 +1,70 @@
-# Offline-first implementation status and release gates
+# Offline-first implementation checklist and release gates
 
-This document is intentionally explicit: offline support is not complete merely because the application shell or one data bundle loads offline.
+This checklist is the repository's source of truth. Checked means the code path exists; it does **not** mean end-to-end tests passed. Keep unchecked items open until verified.
 
-## Currently implemented paths
+## Foundation and data download
 
-- Account-scoped persistence of successful React Query results in IndexedDB (7-day maximum age).
-- Role-aware initial bootstrap for circles and students, with bounded pagination and server-side access checks.
-- Incremental student/circle change feed with independent cursors and student deletion tombstones.
-- Initial attendance roster download for ADMIN, SUPERVISOR, and TEACHER roles.
-- Durable outbox/replay framework with a deliberately narrow attendance-write handler.
-- Best-effort refresh when connectivity returns, the window gains focus, or the periodic sync runs.
+- [x] Persist successful React Query cache snapshots in account-scoped IndexedDB (7-day maximum age).
+- [x] Restore the signed-in account's cached query data on app startup.
+- [x] Bootstrap circles and students with bounded pagination, account/version validation, cursor-loop protection, and server-side access checks.
+- [x] Replicate student/circle changes incrementally with independent cursors and deletion tombstones.
+- [x] Download attendance roster bundle for ADMIN, SUPERVISOR, and TEACHER.
+- [x] Replay durable outbox operations through the explicitly supported attendance-write handler.
+- [x] Refresh cached queries when online, on focus, and periodically; persist the resulting cache.
+- [x] Preload common dashboard, public settings, active announcements, unread counters, and first notifications pages.
+- [x] Preload default first-page circles and students for staff roles.
+- [x] Preload role-specific reference data already wired in AutomaticOfflineSync.
+- [ ] Create a server-owned, versioned resource manifest per role with field minimization, row ACL, payload limits, and offline read/write policy.
+- [ ] Add visible download progress, partial-failure reporting, and last-successful-sync time.
 
-## Known gaps — do not represent as finished
+## Screens and read-only behavior
 
-- Bootstrap does **not** download every resource needed by every screen. It covers circles/students, and the attendance bundle covers the roster; the rest of the query cache only contains queries the user has already opened successfully.
-- Incremental change feed currently covers only students and circles. Changes to other resources are not replicated through this feed.
-- Offline write/replay is not a general-purpose write path. Only the explicitly accepted attendance operation is replayed; other writes must remain online until they have domain-specific validation, conflict rules, and idempotency.
+- [x] Dashboard retains cached overview data when a refresh fails.
+- [x] Notifications retains cached list data when a refresh fails.
+- [x] Courses retains cached list data when a refresh fails.
+- [x] Students and circles have an offline fallback for their unfiltered first page.
+- [x] Attendance has an offline roster/read path.
+- [ ] Audit exact query keys and response shapes for every preload against its consuming screen.
+- [ ] Support offline search, filters, pagination, and detail pages with explicit limits and clear stale-data warnings.
+- [ ] Add explicit offline data contracts/fallbacks for Users, Teachers, Parents, Transfers, Suspensions, Exams, Support, Chat, Settings, Announcements, Staff Attendance, Preparations, Registry, Reports, Certificates, and Media Activities.
+- [ ] Verify each screen for each authorized role with network disabled; do not infer coverage from a cached app shell.
+
+## Authentication, authorization, and privacy
+
+- [x] Store minimal account identity after a successful online login to reopen the local app shell offline.
+- [ ] Verify first login requires connectivity and that invalid/expired credentials cannot establish a new offline session.
+- [ ] Test account switching, logout cache deletion, role downgrade, expired credentials, and re-login.
+- [ ] Verify access revocation removes cached data that is no longer authorized.
+- [ ] Verify every server sync endpoint re-checks authenticated identity and row-level access; never trust a client-supplied role.
+
+## Writes, replay, and conflicts
+
+- [x] Keep offline write support deliberately narrow; attendance is the only replay handler.
+- [x] Persist queued operations locally and classify replay outcomes as applied, retry, conflict, or rejected.
+- [ ] Add server-enforced durable idempotency for attendance operation IDs before relying on replay in production.
+- [ ] Add conflict/rejection resolution UI and verify duplicate replay and reconnect races.
+- [ ] Add domain-specific outbox contracts, validation, and conflict rules before enabling any other offline mutation.
+- [ ] Extend incremental change feeds only for explicitly approved resources, including deletion and access-revocation semantics.
+
+## Validation and release
+
+- [x] Document offline-first gaps and release safety requirements.
+- [x] PR #133 bootstrap-contract changes merged into main.
+- [x] PR #134 preload/default-list changes opened for review.
+- [ ] Run frontend build and test suites and record the actual result.
+- [ ] Run backend tests and record the actual result.
+- [ ] Test interrupted bootstrap, cursor loops, storage quota, schema upgrade, and partial network loss.
+- [ ] Run browser tests with network disabled and restored.
+- [ ] Run Android and iOS device tests with network disabled and restored.
+- [ ] Close all role/screen/security gates before claiming production readiness.
+
+## Known limitations
+
+- The bootstrap covers circles/students; the attendance bundle covers the roster. Other preloaded resources are a bounded set of explicit queries, not a complete all-screen manifest.
+- The change feed currently covers only students and circles.
+- Offline write/replay is not general-purpose. Other writes must remain online until their domain-specific validation, conflict rules, and idempotency are implemented.
 - There is no server-side durable idempotency ledger for attendance replay request IDs.
 - A passing build or unit test is not proof of end-to-end offline behavior on web, Android, and iOS.
-
-## Required work before claiming production-ready offline operation
-
-1. Define a server-owned resource manifest per role, including field-level data minimization, row-level ACL, maximum payload sizes, and whether a resource is readable or writable offline.
-2. Implement bounded, resumable bootstrap and incremental changes for each approved resource, including deletion/access-revocation handling. Do not dump whole database tables or trust a client-supplied role.
-3. Add a screen-to-resource inventory and proactively fetch every approved dataset after authentication; show download progress, partial failures, and the last successful sync time.
-4. Route each supported offline mutation through a durable outbox with a stable operation ID, server-enforced idempotency, authorization re-checks, and explicit conflict/rejection UI.
-5. Verify account switching, role downgrade, logout, expired credentials, interrupted downloads, storage quota, schema upgrades, duplicate replay, and reconnect races.
-6. Run backend and frontend test suites plus real browser/device tests with network disabled and restored. Record actual results and only then enable the feature for production.
 
 ## Release safety
 

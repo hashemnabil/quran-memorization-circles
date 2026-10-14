@@ -25,7 +25,7 @@ This checklist is the repository's source of truth. Checked means the code path 
 - [x] Courses retains cached list data when a refresh fails.
 - [x] Students and circles have an offline fallback for their unfiltered first page.
 - [x] Students and circles keep already-cached results visible when a background refresh fails, and show a stale-data warning.
-- [x] Attendance has an offline roster/read path.
+- [x] Attendance has an offline roster/read path, including empty cached circles.
 - [ ] Audit exact query keys and response shapes for every preload against its consuming screen (this pass found and fixed the default CoursesPage query-key/request-scope mismatch; full audit remains).
 - [ ] Support offline search, filters, pagination, and detail pages with explicit limits and clear stale-data warnings.
 - [ ] Add explicit offline data contracts/fallbacks for Users, Teachers, Parents, Transfers, Suspensions, Exams, Support, Chat, Settings, Announcements, Staff Attendance, Preparations, Registry, Reports, Certificates, and Media Activities.
@@ -43,7 +43,7 @@ This checklist is the repository's source of truth. Checked means the code path 
 
 - [x] Keep offline write support deliberately narrow; attendance is the only replay handler.
 - [x] Persist queued operations locally and classify replay outcomes as applied, retry, conflict, or rejected.
-- [ ] Add server-enforced durable idempotency for attendance operation IDs before relying on replay in production.
+- [x] Server-enforced durable attendance operation receipts, payload fingerprints, transaction rollback and concurrent replay tests (#158).
 - [ ] Add conflict/rejection resolution UI and verify duplicate replay and reconnect races.
 - [ ] Add domain-specific outbox contracts, validation, and conflict rules before enabling any other offline mutation.
 - [ ] Extend incremental change feeds only for explicitly approved resources, including deletion and access-revocation semantics.
@@ -52,9 +52,9 @@ This checklist is the repository's source of truth. Checked means the code path 
 
 - [x] Document offline-first gaps and release safety requirements.
 - [x] PR #133 bootstrap-contract changes merged into main.
-- [x] PR #134 preload/default-list changes opened for review.
-- [ ] Run frontend build and test suites and record the actual result.
-- [ ] Run backend tests and record the actual result.
+- [x] PR #134 preload/default-list changes merged into main.
+- [x] Frontend build and offline unit/IndexedDB suites passed; final browser/native release checks are tracked in #160.
+- [x] Backend build, scope/security suites and PostgreSQL HTTP/sync/lock integration tests passed (#158, #159, #161).
 - [ ] Test interrupted bootstrap, cursor loops, storage quota, schema upgrade, and partial network loss.
 - [ ] Run browser tests with network disabled and restored.
 - [ ] Run Android and iOS device tests with network disabled and restored.
@@ -65,7 +65,7 @@ This checklist is the repository's source of truth. Checked means the code path 
 - The bootstrap covers circles/students; the attendance bundle covers the roster. Other preloaded resources are a bounded set of explicit queries, not a complete all-screen manifest.
 - The change feed currently covers only students and circles.
 - Offline write/replay is not general-purpose. Other writes must remain online until their domain-specific validation, conflict rules, and idempotency are implemented.
-- There is no server-side durable idempotency ledger for attendance replay request IDs.
+- Attendance receipts are durable and server-enforced; correction UI and other mutation domains are still online-only.
 - A passing build or unit test is not proof of end-to-end offline behavior on web, Android, and iOS.
 
 ## Release safety
@@ -73,3 +73,7 @@ This checklist is the repository's source of truth. Checked means the code path 
 - Keep changes on a review branch until CI and the release gates above pass.
 - Never log or commit credentials. If credentials were ever committed, rotate/revoke them; deleting a file from the latest revision does not erase repository history.
 - Do not advertise "all screens and all data work offline" until each supported role/resource/screen has been verified.
+
+## Current release evidence
+
+PR #161 fixes the Render runtime DIRECT_URL regression without running migrations. Production startup without DIRECT_URL/PUBLIC_URL has passed an actual HTTP/database rehearsal in #160 CI. Runtime dependency audit and isolated backup/restore checks also passed. Physical devices, all domain write flows, historical deletes and cache revocation remain unverified gates. See issue #166 for deployment access and the exact remaining blockers. A public health response of 404 does not establish deployment of the new revision.

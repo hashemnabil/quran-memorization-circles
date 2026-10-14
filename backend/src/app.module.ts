@@ -31,6 +31,7 @@ import { ReportsModule } from './reports/reports.module';
 import { CertificatesModule } from './certificates/certificates.module';
 import { MediaActivitiesModule } from './media-activities/media-activities.module';
 import { OfflineSyncModule } from './offline-sync/offline-sync.module';
+import { SchedulesModule } from './schedules/schedules.module';
 
 @Module({
   controllers: [HealthController],
@@ -69,6 +70,7 @@ import { OfflineSyncModule } from './offline-sync/offline-sync.module';
     CertificatesModule,
     MediaActivitiesModule,
     OfflineSyncModule,
+    SchedulesModule,
   ],
 })
 export class AppModule {}

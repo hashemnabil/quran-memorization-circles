@@ -103,7 +103,13 @@ test('offline attendance survives a lost committed response and replays with the
   });
   await context.setOffline(false);
   await expect.poll(() => committedResponse?.results?.[0]?.status).toBe('applied');
-  await expect.poll(async () => (await readTeacherOutbox(page))[0]?.attempts).toBeGreaterThan(0);
+  // A committed server write with a lost response must stay queued for replay.
+  // Wait for the actual outbox record (not only its retry counter), and make
+  // the failure actionable if another client-side sync consumed it first.
+  await expect.poll(async () => {
+    const queued = await readTeacherOutbox(page);
+    return queued.find(item => item.id === originalId)?.attempts ?? -1;
+  }, { timeout: 15000 }).toBeGreaterThan(0);
   expect((await readTeacherOutbox(page))[0].id).toBe(originalId);
   const replay = page.waitForResponse(response => response.url().endsWith('/api/sync/push') && response.ok());
   await page.reload();

@@ -57,6 +57,8 @@ jobs:
       - run: node scripts/runtime-start.integration.mjs
         working-directory: backend
       - run: npm --prefix frontend run build
+        env:
+          NODE_ENV: production
       - run: node backend/scripts/e2e-fixtures.mjs
       - run: npx --prefix frontend playwright install --with-deps chromium
       - run: npm --prefix frontend run test:e2e

@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useId,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -122,6 +123,7 @@ export function StatCard({
 // --- Form controls ----------------------------------------------------------
 
 interface FieldProps {
+  htmlFor?: string;
   label?: string;
   error?: string;
   hint?: string;
@@ -130,6 +132,7 @@ interface FieldProps {
 }
 
 export function Field({
+  htmlFor,
   label,
   error,
   hint,
@@ -140,7 +143,7 @@ export function Field({
   return (
     <div className={className}>
       {label && (
-        <label className="label">
+        <label htmlFor={htmlFor} className="label">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
@@ -159,9 +162,11 @@ export function Input({
   className,
   ...props
 }: FieldProps & InputHTMLAttributes<HTMLInputElement>) {
+  const generatedId = useId();
+  const controlId = props.id || generatedId;
   return (
-    <Field label={label} error={error} hint={hint} required={required} className={className}>
-      <input {...props} className={cx('input', error && 'border-red-300 focus:border-red-400')} />
+    <Field htmlFor={controlId} label={label} error={error} hint={hint} required={required} className={className}>
+      <input {...props} id={controlId} className={cx('input', error && 'border-red-300 focus:border-red-400')} />
     </Field>
   );
 }
@@ -174,11 +179,14 @@ export function Textarea({
   className,
   ...props
 }: FieldProps & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const generatedId = useId();
+  const controlId = props.id || generatedId;
   return (
-    <Field label={label} error={error} hint={hint} required={required} className={className}>
+    <Field htmlFor={controlId} label={label} error={error} hint={hint} required={required} className={className}>
       <textarea
         rows={3}
         {...props}
+        id={controlId}
         className={cx('input resize-y', error && 'border-red-300 focus:border-red-400')}
       />
     </Field>
@@ -194,9 +202,11 @@ export function Select({
   children,
   ...props
 }: FieldProps & SelectHTMLAttributes<HTMLSelectElement>) {
+  const generatedId = useId();
+  const controlId = props.id || generatedId;
   return (
-    <Field label={label} error={error} hint={hint} required={required} className={className}>
-      <select {...props} className={cx('input appearance-none pl-9 bg-left bg-no-repeat', error && 'border-red-300')}
+    <Field htmlFor={controlId} label={label} error={error} hint={hint} required={required} className={className}>
+      <select {...props} id={controlId} className={cx('input appearance-none pl-9 bg-left bg-no-repeat', error && 'border-red-300')}
         style={{
           backgroundImage:
             "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",

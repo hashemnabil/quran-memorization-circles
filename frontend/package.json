@@ -9,11 +9,11 @@
     "test:offline": "node --test src/lib/service-worker.test.mjs src/lib/pdf-download.test.mjs src/lib/student-route-policy.test.mjs src/lib/offline/attendance-validation.test.mjs src/lib/offline/retry-policy.test.mjs && node --import tsx --test src/lib/offline/outbox-sync.test.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "mobile:sync": "cap sync",
-    "mobile:android": "cap open android",
-    "mobile:ios": "cap open ios",
-    "mobile:add:android": "cap add android",
-    "mobile:add:ios": "cap add ios",
+    "mobile:sync": "node scripts/capacitor-cli.mjs sync",
+    "mobile:android": "node scripts/capacitor-cli.mjs open android",
+    "mobile:ios": "node scripts/capacitor-cli.mjs open ios",
+    "mobile:add:android": "node scripts/capacitor-cli.mjs add android",
+    "mobile:add:ios": "node scripts/capacitor-cli.mjs add ios",
     "test:e2e": "playwright test"
   },
   "dependencies": {

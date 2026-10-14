@@ -31,10 +31,10 @@ jobs:
 
       - name: Generate Android project
         working-directory: frontend
-        run: npx cap add android
+        run: npm run mobile:add:android
       - name: Sync Capacitor assets
         working-directory: frontend
-        run: npx cap sync android
+        run: npm run mobile:sync -- android
       - name: Assemble debug APK
         working-directory: frontend/android
         run: ./gradlew assembleDebug

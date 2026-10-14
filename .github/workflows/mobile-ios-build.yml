@@ -25,10 +25,10 @@ jobs:
           VITE_SOCKET_URL: https://quran-memorization-circles.onrender.com
       - name: Generate iOS project
         working-directory: frontend
-        run: npx cap add ios
+        run: npm run mobile:add:ios
       - name: Sync Capacitor assets
         working-directory: frontend
-        run: npx cap sync ios
+        run: npm run mobile:sync -- ios
       - name: Build for iOS Simulator (unsigned)
         working-directory: frontend/ios/App
         run: |

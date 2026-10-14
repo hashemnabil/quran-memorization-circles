@@ -69,10 +69,6 @@ api.interceptors.response.use(
       return api(original);
     }
 
-    const original = error.config as AxiosRequestConfig & { _retried?: boolean };
-
-    const status = error.response?.status;
-
     const isAuthCall = original?.url?.includes('/auth/login') || original?.url?.includes('/auth/refresh');
 
     if (status === 401 && original && !original._retried && !isAuthCall) {

@@ -12,7 +12,9 @@ export class SyncController {
   @Get('snapshot')
   @ApiOperation({ summary: 'لقطة أولية ضمن صلاحيات الحساب' })
   snapshot(@CurrentUser() user: AuthUser, @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
-    return this.service.bootstrap(user, cursor, limit === undefined ? 200 : Number(limit));
+    const size = limit === undefined ? 200 : Number(limit);
+    if (!Number.isInteger(size) || size < 1 || size > 200) throw new BadRequestException('حجم الصفحة غير صالح');
+    return this.service.bootstrap(user, cursor, size);
   }
 
   @Get('changes')

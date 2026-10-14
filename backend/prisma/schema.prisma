@@ -1293,3 +1293,34 @@ model MediaActivity {
   @@index([type, activityDate])
   @@map("media_activities")
 }
+
+
+// ---------------------------------------------------------------------------
+// Durable change log for cross-device synchronization. Never store credentials
+// or token material in this log; the database trigger uses a denylist as defense
+// in depth and sync APIs must still project entity-specific allowlists.
+// ---------------------------------------------------------------------------
+model SyncChange {
+  seq        BigInt   @id @default(autoincrement())
+  entity     String
+  entityId   String
+  operation  String
+  payload    Json?
+  changedAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([entity, entityId, seq])
+  @@index([seq])
+  @@map("sync_changes")
+}
+
+/// Server-side idempotency ledger. The composite key is scoped to the account.
+model ProcessedOperation {
+  opId       String   @db.VarChar(128)
+  accountId  String
+  result     Json?
+  processedAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([opId, accountId])
+  @@index([accountId, processedAt])
+  @@map("processed_operations")
+}

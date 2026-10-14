@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { Capacitor } from '@capacitor/core';
+import { shouldRetryReadRequest, readRetryDelayMs } from './offline/retry-policy.js';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
 const CONFIGURED_API_URL = import.meta.env.VITE_API_URL?.trim();
@@ -59,13 +60,16 @@ api.interceptors.response.use(
     // Read-only requests can safely retry transient transport/server failures.
     // Never automatically retry writes: a timed-out POST may already have
     // committed on the server and must be replayed through the offline outbox.
-    const method = (original?.method ?? 'get').toLowerCase();
-    const status = error.response?.status;
-    const retryable = error.code !== 'ERR_CANCELED' && (!error.response || status === 408 || status === 429 || (status !== undefined && status >= 500));
     const retries = original?._networkRetryCount ?? 0;
-    if (original && method === 'get' && retryable && retries < 2) {
+    if (original && shouldRetryReadRequest({
+      method: original.method,
+      status: error.response?.status,
+      hasResponse: Boolean(error.response),
+      code: error.code,
+      attempts: retries,
+    })) {
       original._networkRetryCount = retries + 1;
-      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** retries));
+      await new Promise((resolve) => setTimeout(resolve, readRetryDelayMs(retries)));
       return api(original);
     }
 

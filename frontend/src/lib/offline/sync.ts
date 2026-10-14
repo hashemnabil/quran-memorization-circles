@@ -39,6 +39,7 @@ export function syncOfflineOperations(
   if (existing) return existing;
   const run = drain(accountId, replay).finally(() => {
     activeRuns.delete(accountId);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('quran-circles:outbox-changed'));
   });
   activeRuns.set(accountId, run);
   return run;

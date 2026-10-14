@@ -142,3 +142,16 @@ test('snapshot captures its sequence fence before reading the rows', async () =>
   assert.equal((await service.snapshot(user)).asOfSeq, '9007199254740993');
   assert.deepEqual(order, ['fence', 'rows']);
 });
+
+test('recitation validation reuses the online DTO and rejects unsupported scoring fields', async () => {
+  const { validateRecitationOperation } = await import('./recitation-operation');
+  const op = { opId: 'test-recitation', entity: 'recitation', kind: 'create', data: { studentId: '11111111-1111-4111-8111-111111111111', date: '2026-01-01', fromSurah: 'الفاتحة', fromAyah: 1, toSurah: 'الفاتحة', toAyah: 7, evaluation: 'VERY_GOOD' } };
+  assert.equal(validateRecitationOperation(op).fromAyah, 1);
+  assert.throws(() => validateRecitationOperation({ ...op, data: { ...op.data, points: 999 } }));
+  assert.throws(() => validateRecitationOperation({ ...op, kind: 'delete', baseUpdatedAt: '2026-99-99T00:00:00.000Z', data: { id: op.data.studentId } }));
+});
+test('offline Quran references match the server reference exactly', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { SURAHS } = await import('../common/quran');
+  assert.deepEqual(JSON.parse(readFileSync('../frontend/src/data/surahs.json', 'utf8')), SURAHS);
+});

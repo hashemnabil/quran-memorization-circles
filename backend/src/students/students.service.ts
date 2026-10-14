@@ -10,6 +10,7 @@ import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
+import { recalculateStudentPoints } from './student-points';
 import { ActivityService } from '../common/services/activity.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { AuthUser } from '../common/decorators';
@@ -358,20 +359,7 @@ export class StudentsService {
    * incrementing means an edited or deleted session can never leave it adrift.
    */
   async recalculatePoints(studentId: string) {
-    const [recitations, surahs] = await Promise.all([
-      this.prisma.recitation.aggregate({
-        where: { studentId, deletedAt: null },
-        _sum: { points: true },
-      }),
-      this.prisma.surahCompletion.aggregate({
-        where: { studentId },
-        _sum: { points: true },
-      }),
-    ]);
-    const total =
-      Math.round(((recitations._sum.points ?? 0) + (surahs._sum.points ?? 0)) * 100) / 100;
-    await this.prisma.student.update({ where: { id: studentId }, data: { totalPoints: total } });
-    return total;
+    return recalculateStudentPoints(this.prisma, studentId);
   }
 
   /** Awards the surah-completion bonus. Unique per (student, surah). */

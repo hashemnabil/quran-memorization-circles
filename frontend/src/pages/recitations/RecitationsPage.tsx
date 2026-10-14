@@ -1,7 +1,11 @@
+import builtinSurahs from '@/data/surahs.json';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { saveOfflineWrite } from '@/lib/offline/save-write';
+import { listOfflineSnapshot } from '@/lib/offline/changeFeed';
+import QueuedRecitations, { useQueuedRecitations } from '@/components/QueuedRecitations';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import {
@@ -20,7 +24,7 @@ import {
   cx,
   useConfirm,
 } from '@/components/ui';
-import { IconBook, IconPlus, IconTrash } from '@/components/ui/Icons';
+import { IconBook, IconEdit, IconPlus, IconTrash } from '@/components/ui/Icons';
 import { EVALUATION_COLORS, EVALUATION_LABELS, RECITATION_TYPE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateShort, todayInput } from '@/lib/format';
 import type { Circle, PaginatedResponse, Recitation, RecitationDayDetail, RecitationDaySummary, Student } from '@/types';
@@ -52,6 +56,9 @@ export default function RecitationsPage() {
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Recitation | undefined>();
+  const queued = useQueuedRecitations();
+  const pendingIds = new Set(queued?.operations.filter(op => op.state === 'pending' && op.resource !== 'recitation-create').map(op => op.path.split('/').at(-1)) || []);
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [openCircle, setOpenCircle] = useState<{ date: string; circleId: string } | null>(null);
 
@@ -88,9 +95,10 @@ export default function RecitationsPage() {
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => api.delete(`/recitations/${id}`),
-    onSuccess: () => {
-      toast.success('تم حذف السجل');
+    networkMode: 'always',
+    mutationFn: ({ id, updatedAt }: { id: string; updatedAt: string }) => saveOfflineWrite({ resource: 'recitation-delete', method: 'DELETE', path: `/recitations/${id}`, payload: {}, baseUpdatedAt: updatedAt }),
+    onSuccess: (result) => {
+      toast.success(result.pending ? 'حُفظ طلب الحذف محليًا وسيُزامن عند عودة الاتصال' : 'تم حذف السجل');
       queryClient.invalidateQueries({ queryKey: ['recitations'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -102,7 +110,11 @@ export default function RecitationsPage() {
       message: 'سيتم حذف هذا السجل من سجل الطالب، وتُخصم نقاطه من رصيده.',
       confirmLabel: 'حذف',
     });
-    if (ok) remove.mutate(id);
+    if (ok) {
+      const record = detail?.students.flatMap(student => student.records).find(record => record.id === id);
+      if (!record?.updatedAt) { toast.error('يلزم تنزيل إصدار السجل قبل حذفه'); return; }
+      remove.mutate({ id, updatedAt: record.updatedAt });
+    }
   };
 
   const days = data?.data ?? [];
@@ -324,14 +336,18 @@ export default function RecitationsPage() {
                                                     {rec.teacher?.user.fullName}
                                                     {canRecord &&
                                                       (user.role !== 'TEACHER' ||
-                                                        rec.teacher?.id === user.teacherId) && (
-                                                        <button
+                                                        rec.teacher?.user.id === user.id) && (
+                                                        <>
+                                                        <button disabled={pendingIds.has(rec.id)} onClick={() => setEditing(rec)} title="تعديل سجل التسميع" aria-label="تعديل سجل التسميع" className="rounded p-1 text-slate-400 hover:bg-primary-50 disabled:opacity-40"><IconEdit size={14} /></button>
+                                                        <button disabled={pendingIds.has(rec.id)}
                                                           onClick={() => handleDelete(rec.id)}
                                                           className="rounded p-1 text-slate-300 transition hover:bg-red-50 hover:text-red-600"
                                                           title="حذف"
                                                         >
                                                           <IconTrash size={14} />
                                                         </button>
+                                                        {pendingIds.has(rec.id) && <Badge>بانتظار المزامنة</Badge>}
+                                                        </>
                                                       )}
                                                   </span>
                                                 </li>
@@ -366,28 +382,31 @@ export default function RecitationsPage() {
         )}
       </Card>
 
+      <QueuedRecitations />
+      {editing && <RecitationFormModal record={editing} onClose={() => setEditing(undefined)} />}
       {showForm && <RecitationFormModal defaultCircleId={circleId} onClose={() => setShowForm(false)} />}
     </>
   );
 }
 
-function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: string; onClose: () => void }) {
+function RecitationFormModal({ defaultCircleId, record, onClose }: { defaultCircleId?: string; record?: Recitation; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [circleId, setCircleId] = useState(defaultCircleId ?? '');
-  const [form, setForm] = useState({
-    studentId: '',
-    date: todayInput(),
-    type: 'MEMORIZATION',
-    fromSurah: 'النبأ',
-    fromAyah: 1,
-    toSurah: 'النبأ',
-    toAyah: 40,
-    pagesCount: 1,
-    mistakes: 0,
-    warnings: 0,
-    evaluation: 'VERY_GOOD',
-    notes: '',
-  });
+  const [circleId, setCircleId] = useState(record?.circle?.id ?? defaultCircleId ?? '');
+  const initialForm = {
+    studentId: record?.student?.id ?? '',
+    date: record?.date.slice(0, 10) ?? todayInput(),
+    type: record?.type ?? 'MEMORIZATION',
+    fromSurah: record?.fromSurah ?? 'النبأ',
+    fromAyah: record?.fromAyah ?? 1,
+    toSurah: record?.toSurah ?? 'النبأ',
+    toAyah: record?.toAyah ?? 40,
+    pagesCount: record?.pagesCount ?? 1,
+    mistakes: record?.mistakes ?? 0,
+    warnings: record?.warnings ?? 0,
+    evaluation: record?.evaluation ?? 'VERY_GOOD',
+    notes: record?.notes ?? '',
+  };
+  const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: circles } = useQuery({
@@ -397,15 +416,22 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
 
   const { data: surahs } = useQuery({
     queryKey: ['recitations', 'surahs'],
+    initialData: builtinSurahs,
     queryFn: async () => (await api.get<SurahInfo[]>('/recitations/surahs')).data,
     staleTime: Infinity,
   });
 
   const { data: students } = useQuery({
     queryKey: ['students', { circleId, limit: 200 }],
-    queryFn: async () =>
-      (await api.get<PaginatedResponse<Student>>('/students', { params: { circleId, limit: 200, status: 'ACTIVE' } })).data
-        .data,
+    networkMode: 'always',
+    queryFn: async () => {
+      try { return (await api.get<PaginatedResponse<Student>>('/students', { params: { circleId, limit: 200, status: 'ACTIVE' } })).data.data; }
+      catch (error) {
+        if (navigator.onLine && (error as { response?: unknown }).response) throw error;
+        const accountId = useAuthStore.getState().user?.id || '';
+        return (await listOfflineSnapshot(accountId, 'student')).filter(student => student.circleId === circleId && student.status === 'ACTIVE') as unknown as Student[];
+      }
+    },
     enabled: !!circleId,
   });
 
@@ -414,9 +440,10 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
   }, [circles, circleId]);
 
   const create = useMutation({
-    mutationFn: (payload: Record<string, unknown>) => api.post('/recitations', payload),
-    onSuccess: () => {
-      toast.success('تم تسجيل التسميع');
+    networkMode: 'always',
+    mutationFn: (payload: Record<string, unknown>) => saveOfflineWrite(record ? { resource: 'recitation-correct', method: 'PATCH', path: `/recitations/${record.id}`, payload, baseUpdatedAt: record.updatedAt } : { resource: 'recitation-create', method: 'POST', path: '/recitations', payload }),
+    onSuccess: (result) => {
+      toast.success(result.pending ? 'حُفظ التسميع محليًا وسيُزامن عند عودة الاتصال' : 'تم تسجيل التسميع');
       queryClient.invalidateQueries({ queryKey: ['recitations'] });
       onClose();
     },
@@ -445,9 +472,11 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
     return total + Math.max(0, Math.min(form.toAyah, toSurah.ayahs));
   })();
 
+  const rangeUnchanged = record && form.fromSurah === record.fromSurah && form.toSurah === record.toSurah && form.fromAyah === record.fromAyah && form.toAyah === record.toAyah;
+  const scoredVerses = rangeUnchanged ? record.versesCount ?? versesCount : versesCount;
   const earnedPoints =
     Math.round(
-      Math.max(0, versesCount - form.mistakes - form.warnings * 0.25) * 100,
+      Math.max(0, scoredVerses - form.mistakes - form.warnings * 0.25) * 100,
     ) / 100;
 
   const submit = () => {
@@ -459,7 +488,12 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    create.mutate({ ...form, notes: form.notes || undefined });
+    if (record) {
+      const patch = Object.fromEntries(Object.entries(form).filter(([key, value]) => key !== 'studentId' && value !== initialForm[key as keyof typeof initialForm]));
+      if (!Object.keys(patch).length) { toast('لا توجد تغييرات للحفظ'); return; }
+      if (['fromSurah', 'toSurah', 'fromAyah', 'toAyah'].some(key => key in patch)) patch.versesCount = versesCount;
+      create.mutate(patch);
+    } else create.mutate({ ...form, notes: form.notes || undefined });
   };
 
   const set = (key: string, value: unknown) => setForm((f) => ({ ...f, [key]: value }));
@@ -468,7 +502,7 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
     <Modal
       open
       onClose={onClose}
-      title="تسجيل تسميع"
+      title={record ? "تعديل سجل التسميع" : "تسجيل تسميع"}
       size="lg"
       footer={
         <>
@@ -484,6 +518,7 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
       <div className="grid gap-4 sm:grid-cols-2">
         <Select
           label="الحلقة"
+          disabled={!!record}
           value={circleId}
           onChange={(e) => {
             setCircleId(e.target.value);
@@ -497,9 +532,10 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
             </option>
           ))}
         </Select>
-        <Select label="الطالب" required value={form.studentId} onChange={(e) => set('studentId', e.target.value)} error={errors.studentId}>
+        <Select label="الطالب" disabled={!!record} required value={form.studentId} onChange={(e) => set('studentId', e.target.value)} error={errors.studentId}>
           <option value="">اختر الطالب</option>
-          {students?.map((s) => (
+          {record?.student && <option value={record.student.id}>{record.student.fullName} ({record.student.code})</option>}
+          {students?.filter(student => student.id !== record?.student?.id).map((s) => (
             <option key={s.id} value={s.id}>
               {s.fullName}
             </option>

@@ -2,12 +2,12 @@
  * This is infrastructure only: do not replay arbitrary API mutations. Queue
  * only endpoints with server-side idempotency and a domain-specific conflict policy.
  */
-import { validateAttendancePayload } from './attendance-validation.js';
+import { offlineOperationSpec } from './write-contracts.js';
 
 export type OutboxOperation = {
   id: string; accountId: string; resource: string;
   method: 'POST' | 'PATCH' | 'PUT' | 'DELETE'; path: string; payload: unknown;
-  createdAt: number; attempts: number; state: 'pending' | 'blocked'; lastError?: string;
+  baseUpdatedAt?: string; createdAt: number; attempts: number; state: 'pending' | 'blocked'; lastError?: string;
 };
 const DB_NAME = 'quran-circles-offline';
 const DB_VERSION = 1;
@@ -38,19 +38,7 @@ export async function enqueueOfflineOperation(
   operation: Omit<OutboxOperation, 'id' | 'createdAt' | 'attempts' | 'state'>,
 ): Promise<OutboxOperation> {
   if (!operation.accountId.trim()) throw new Error('يلزم تحديد الحساب قبل حفظ التعديل');
-  // Fail closed: the replay handler currently supports exactly one domain operation.
-  // Do not allow future callers to queue arbitrary writes that would later be rejected
-  // or, worse, accidentally replayed without a conflict/idempotency policy.
-  if (
-    operation.resource !== 'attendance-sheet' ||
-    operation.method !== 'POST' ||
-    operation.path !== '/attendance'
-  ) {
-    throw new Error('هذا النوع من التعديلات غير مفعّل للمزامنة دون اتصال');
-  }
-  if (!operation.path.startsWith('/')) throw new Error('مسار الطلب يجب أن يبدأ بـ /');
-  const validationError = validateAttendancePayload(operation.payload);
-  if (validationError) throw new Error(validationError);
+  offlineOperationSpec(operation);
   const item: OutboxOperation = { ...operation, id: makeId(), createdAt: Date.now(), attempts: 0, state: 'pending' };
   const db = await openDb();
   try {
@@ -142,4 +130,22 @@ export async function clearOfflineOperations(accountId: string): Promise<void> {
   } finally {
     db.close();
   }
+}
+
+/** Replace a reviewed blocked write atomically; never mutate/reuse a recorded opId. */
+export async function replaceBlockedOfflineOperation(id: string, accountId: string, baseUpdatedAt: string): Promise<OutboxOperation> {
+  const db = await openDb();
+  try { return await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite'); const store = tx.objectStore(STORE); const request = store.get(id);
+    let replacement: OutboxOperation;
+    request.onsuccess = () => {
+      const old = request.result as OutboxOperation | undefined;
+      if (!old || old.accountId !== accountId || old.state !== 'blocked' || !['recitation-correct', 'recitation-delete'].includes(old.resource)) { tx.abort(); return; }
+      replacement = { ...old, id: makeId(), baseUpdatedAt, state: 'pending', attempts: 0, lastError: undefined };
+      try { offlineOperationSpec(replacement); } catch { tx.abort(); return; }
+      store.delete(id); store.add(replacement);
+    };
+    tx.oncomplete = () => resolve(replacement);
+    tx.onerror = tx.onabort = () => reject(tx.error || new Error('تعذر استبدال التعديل؛ بقي محفوظًا كما هو'));
+  }); } finally { db.close(); }
 }

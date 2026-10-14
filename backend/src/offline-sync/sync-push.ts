@@ -1,3 +1,4 @@
+import { validateRecitationOperation, applyRecitationOperation } from './recitation-operation';
 import { BadRequestException, HttpException } from '@nestjs/common';
 import { AttendanceStatus, NotificationType, Prisma, Role } from '@prisma/client';
 import { createHash } from 'node:crypto';
@@ -126,16 +127,18 @@ async function apply(tx: Prisma.TransactionClient, user: AuthUser, op: Operation
 export async function pushValidatedOperations(prisma: PrismaService, user: AuthUser, operations: Operation[]) {
   const results: Outcome[] = [];
   for (const op of operations) {
-    if (op.entity !== 'attendance' || (op.kind !== 'record' && op.kind !== 'correct')) {
+    const attendance = op.entity === 'attendance' && ['record', 'correct'].includes(op.kind as string);
+    const recitation = op.entity === 'recitation' && ['create', 'correct', 'delete'].includes(op.kind as string);
+    if (!attendance && !recitation) {
       results.push({ opId: op.opId, status: 'rejected', code: 'UNSUPPORTED_OPERATION', message: 'نوع العملية غير مدعوم' });
       continue;
     }
     if (!staff.has(user.role)) {
-      results.push({ opId: op.opId, status: 'rejected', code: 'FORBIDDEN', message: 'لا تملك صلاحية تعديل الحضور' });
+      results.push({ opId: op.opId, status: 'rejected', code: 'FORBIDDEN', message: 'لا تملك صلاحية تعديل هذه البيانات' });
       continue;
     }
     try {
-      const payload = validate(op);
+      const payload = recitation ? validateRecitationOperation(op) : validate(op);
       const fingerprint = createHash('sha256').update(canonical(op)).digest('hex');
       let outcome: Outcome | undefined;
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -148,7 +151,7 @@ export async function pushValidatedOperations(prisma: PrismaService, user: AuthU
               if (stored?.fingerprint !== fingerprint || !stored.outcome) return { opId: op.opId, status: 'rejected' as const, code: 'OP_ID_REUSED', message: 'معرّف العملية مستخدم لبيانات مختلفة' };
               return { ...stored.outcome, replayed: true };
             }
-            const result = await apply(tx, user, op, payload);
+            const result = recitation ? await applyRecitationOperation(tx, user, op, payload) : await apply(tx, user, op, payload);
             await tx.processedOperation.create({ data: { opId: op.opId, accountId: user.id, result: { fingerprint, outcome: result } as unknown as Prisma.InputJsonValue } });
             return result;
           }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15000 });

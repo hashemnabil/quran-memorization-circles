@@ -83,7 +83,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (!data || (isError && !data)) {
+  if (!data) {
     return <ErrorState message="تعذر تحميل لوحة المعلومات" onRetry={() => refetch()} />;
   }
 

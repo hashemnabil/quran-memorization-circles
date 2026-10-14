@@ -40,6 +40,7 @@ import CoursesPage from '@/pages/courses/CoursesPage';
 import CourseDetailsPage from '@/pages/courses/CourseDetailsPage';
 import AnnouncementsPage from '@/pages/announcements/AnnouncementsPage';
 import SettingsPage from '@/pages/SettingsPage';
+import OfflineSettingsPage from '@/pages/OfflineSettingsPage';
 import ProfilePage from '@/pages/ProfilePage';
 import { ForbiddenPage, NotFoundPage } from '@/pages/ErrorPages';
 import RegistryLoginPage from '@/pages/RegistryLoginPage';
@@ -109,6 +110,7 @@ export default function App() {
           </RequireAuth>
         }
       >
+        <Route path="settings/offline" element={<OfflineSettingsPage />} />
         <Route index element={currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="reports" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><ReportsPage /></RequireRole>} />

@@ -9,6 +9,7 @@ import { ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { Avatar, Badge, cx } from '@/components/ui';
 import AnnouncementBar from '@/components/AnnouncementBar';
 import AutomaticOfflineSync from '@/components/AutomaticOfflineSync';
+import OfflineSystem from '@/components/OfflineSystem';
 import {
   IconBell,
   IconChat,
@@ -369,6 +370,7 @@ export default function AppLayout() {
         <AnnouncementBar />
 
         <main className="min-w-0 flex-1 p-4 sm:p-7 lg:p-8">
+          <OfflineSystem />
           <Outlet />
         </main>
 

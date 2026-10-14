@@ -31,6 +31,7 @@ queryClient = new QueryClient({
   queryCache,
   defaultOptions: {
     queries: {
+      networkMode: 'always',
       retry: (failureCount, error: any) => {
         // Never retry auth / permission failures.
         const status = error?.response?.status;
@@ -42,6 +43,7 @@ queryClient = new QueryClient({
       gcTime: 7 * 24 * 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     },
+    mutations: { networkMode: 'always' },
   },
 });
 

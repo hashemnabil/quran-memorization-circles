@@ -31,7 +31,7 @@ export async function restoreQueryCache(accountId: string): Promise<boolean> {
       request.onerror = () => reject(request.error ?? new Error('Could not read query cache'));
     });
     if (!snapshot || snapshot.accountId !== accountId) return false;
-    if (Date.now() - snapshot.savedAt > MAX_AGE) { await clearPersistedQueryCache(accountId); return false; }
+    if (navigator.onLine && Date.now() - snapshot.savedAt > MAX_AGE) { await clearPersistedQueryCache(accountId); return false; }
     hydrate(queryClient, snapshot.state);
     return true;
   } finally { db.close(); }

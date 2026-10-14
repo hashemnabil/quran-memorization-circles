@@ -1,6 +1,9 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { Capacitor } from '@capacitor/core';
 import { shouldRetryReadRequest, readRetryDelayMs } from './offline/retry-policy.js';
+import { configureOffline, accountId } from './offline-engine';
+import { db } from './db';
+import { localRead, localWrite, rememberRead, responseKey } from './local-api';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
 const CONFIGURED_API_URL = import.meta.env.VITE_API_URL?.trim();
@@ -31,6 +34,42 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
   timeout: 45000,
 });
+
+const networkAdapter = axios.getAdapter(api.defaults.adapter!);
+configureOffline(async (method, path, data) => {
+  const response = await api.request({ method, url: path, data, adapter: networkAdapter });
+  return response.data;
+}, () => {
+  try { return JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.id || ''; } catch { return ''; }
+});
+api.defaults.adapter = async (config) => {
+  const path = config.url || ''; const method = (config.method || 'get').toLowerCase();
+  // Authentication and sync are network boundaries, never optimistic local successes.
+  if (/^\/(auth|sync|offline-sync|registry)(\/|\?|$)/.test(path) || path.startsWith('/sync-all')) return networkAdapter(config);
+  let account: string;
+  try { account = accountId(); } catch { return networkAdapter(config); }
+  const response = (data: any) => ({ data, status: 200, statusText: 'Local', headers: {}, config });
+  if (method !== 'get' && !(config.data instanceof FormData) && config.responseType !== 'blob') {
+    const payload = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
+    const local = await localWrite(method, path, payload);
+    if (local !== undefined) return response(local);
+  }
+  if (method === 'get' && config.responseType !== 'blob') {
+    const downloaded = await db.meta.get(`${account}:downloadedAt`);
+    if (downloaded || !navigator.onLine) {
+      const local = await localRead(path, { ...config.params });
+      if (local !== undefined) return response(local);
+      const cached = await db.responses.get(responseKey(account, path, config.params));
+      if (cached && !navigator.onLine) return response(cached.data);
+    }
+    const result = await networkAdapter(config);
+    let data = result.data;
+    if (typeof data === 'string') { try { data = JSON.parse(data); } catch { /* Non-JSON responses are preserved verbatim. */ } }
+    await rememberRead(path, config.params, data);
+    return result;
+  }
+  return networkAdapter(config);
+};
 
 api.interceptors.request.use((config) => {
   const token = tokenStore.access();

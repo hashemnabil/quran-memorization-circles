@@ -13,6 +13,7 @@ import {
 import { createPortal } from 'react-dom';
 import { IconAlert, IconChevronLeft, IconChevronRight, IconSearch, IconX } from './Icons';
 import { initials } from '@/lib/format';
+import { useCachedImage } from '@/hooks/useCachedImage';
 
 export function cx(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(' ');
@@ -499,8 +500,9 @@ export function Avatar({
   // A broken or removed file falls back to the initials rather than leaving the
   // browser's torn-image placeholder in a circle.
   const [failed, setFailed] = useState(false);
+  const cachedSrc = useCachedImage(src);
   const [open, setOpen] = useState(false);
-  useEffect(() => setFailed(false), [src]);
+  useEffect(() => setFailed(false), [src, cachedSrc]);
 
   const showImage = !!src && !failed;
 
@@ -508,7 +510,7 @@ export function Avatar({
     <span className={cx('relative inline-block shrink-0', className)} style={{ width: size, height: size }}>
       {showImage ? (
         <img
-          src={src!}
+          src={cachedSrc!}
           alt={name ?? ''}
           loading="lazy"
           onError={() => setFailed(true)}
@@ -537,7 +539,7 @@ export function Avatar({
           style={{ width: size * 0.28, height: size * 0.28 }}
         />
       )}
-      {open && <Lightbox src={src!} alt={name ?? ''} onClose={() => setOpen(false)} />}
+      {open && <Lightbox src={cachedSrc!} alt={name ?? ''} onClose={() => setOpen(false)} />}
     </span>
   );
 }

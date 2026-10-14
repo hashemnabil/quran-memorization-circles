@@ -116,7 +116,7 @@ export default function NotificationsPage() {
       <Card padded={false}>
         {isLoading ? (
           <LoadingState />
-        ) : isError ? (
+        ) : isError && !data ? (
           <ErrorState message="تعذر تحميل الإشعارات" onRetry={() => refetch()} />
         ) : !data?.data.length ? (
           <EmptyState

@@ -194,6 +194,7 @@ export default function AutomaticOfflineSync({ accountId, role }: { accountId: s
           }
         });
         await refreshKnownQueries();
+        if (!disposed) await preloadOfflineNavigation(role);
         if (!disposed) {
           try {
             await refreshOfflineBootstrap(accountId);

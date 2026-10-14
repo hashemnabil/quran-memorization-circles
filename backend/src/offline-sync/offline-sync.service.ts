@@ -92,6 +92,107 @@ export class OfflineSyncService {
     };
   }
 
+
+  /**
+   * Incremental feed for offline replicas. Each resource has its own opaque
+   * (updatedAt,id) cursor so rows sharing the same timestamp cannot be skipped.
+   * Deleted students are returned as tombstones; clients must remove them locally.
+   */
+  async changes(
+    user: AuthUser,
+    studentCursor?: string,
+    circleCursor?: string,
+    requestedLimit = 200,
+  ) {
+    const limit = Math.min(200, Math.max(1, Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 200));
+    const decodeCursor = (value: string | undefined): { updatedAt: Date; id: string } | undefined => {
+      if (value === undefined) return undefined;
+      try {
+        const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+        const updatedAt = new Date(parsed.updatedAt);
+        if (typeof parsed.id !== 'string' || !parsed.id || Number.isNaN(updatedAt.getTime())) {
+          throw new Error('invalid cursor');
+        }
+        return { updatedAt, id: parsed.id };
+      } catch {
+        throw new BadRequestException('مؤشر المزامنة غير صالح');
+      }
+    };
+    const encodeCursor = (row: { updatedAt: Date; id: string }) =>
+      Buffer.from(JSON.stringify({ updatedAt: row.updatedAt.toISOString(), id: row.id })).toString('base64url');
+
+    const studentAfter = decodeCursor(studentCursor);
+    const circleAfter = decodeCursor(circleCursor);
+    const canReadCircles = CIRCLE_ROLES.has(user.role);
+    const allowedCircleIds = canReadCircles ? await this.acl.accessibleCircleIds(user) : [];
+    const studentScope = STUDENT_ROLES.has(user.role)
+      ? await this.acl.studentScope(user)
+      : ({ id: '__offline_sync_no_access__' } satisfies Prisma.StudentWhereInput);
+    const studentWhere: Prisma.StudentWhereInput = {
+      AND: [
+        studentScope,
+        ...(allowedCircleIds !== null && canReadCircles
+          ? [{ OR: [{ circleId: { in: allowedCircleIds } }, ...(user.role === Role.ADMIN ? [{ circleId: null }] : [])] } as Prisma.StudentWhereInput]
+          : []),
+        ...(studentAfter ? [{
+          OR: [
+            { updatedAt: { gt: studentAfter.updatedAt } },
+            { updatedAt: studentAfter.updatedAt, id: { gt: studentAfter.id } },
+          ],
+        } as Prisma.StudentWhereInput] : []),
+      ],
+    };
+    const circleWhere: Prisma.CircleWhereInput = {
+      ...(canReadCircles ? {} : { id: '__offline_sync_no_access__' }),
+      ...(allowedCircleIds !== null ? { id: { in: allowedCircleIds } } : {}),
+      ...(circleAfter ? {
+        OR: [
+          { updatedAt: { gt: circleAfter.updatedAt } },
+          { updatedAt: circleAfter.updatedAt, id: { gt: circleAfter.id } },
+        ],
+      } : {}),
+    };
+
+    const [studentRows, circleRows] = await Promise.all([
+      STUDENT_ROLES.has(user.role) ? this.prisma.student.findMany({
+        where: studentWhere,
+        select: {
+          id: true, circleId: true, code: true, fullName: true, status: true,
+          evaluation: true, memorizedParts: true, currentSurah: true, currentPage: true,
+          updatedAt: true, deletedAt: true,
+        },
+        orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
+        take: limit + 1,
+      }) : Promise.resolve([]),
+      canReadCircles ? this.prisma.circle.findMany({
+        where: circleWhere,
+        select: {
+          id: true, name: true, code: true, scheduleDays: true, startTime: true,
+          isActive: true, updatedAt: true, deletedAt: true,
+        },
+        orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
+        take: limit + 1,
+      }) : Promise.resolve([]),
+    ]);
+
+    const hasMoreStudents = studentRows.length > limit;
+    const hasMoreCircles = circleRows.length > limit;
+    const students = hasMoreStudents ? studentRows.slice(0, limit) : studentRows;
+    const circles = hasMoreCircles ? circleRows.slice(0, limit) : circleRows;
+    return {
+      version: 1,
+      accountId: user.id,
+      generatedAt: new Date().toISOString(),
+      students,
+      circles,
+      nextStudentCursor: hasMoreStudents && students.length ? encodeCursor(students[students.length - 1]) : null,
+      nextCircleCursor: hasMoreCircles && circles.length ? encodeCursor(circles[circles.length - 1]) : null,
+      hasMoreStudents,
+      hasMoreCircles,
+      pageSize: limit,
+    };
+  }
+
   private async readableCircles(user: AuthUser) {
     const allowed = await this.acl.accessibleCircleIds(user);
     return this.prisma.circle.findMany({

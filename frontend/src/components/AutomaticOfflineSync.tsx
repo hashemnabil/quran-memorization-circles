@@ -25,7 +25,7 @@ async function refreshKnownQueries(): Promise<void> {
 // These stable, list-level queries are fetched even when their screens have
 // never been opened. API authorization remains the source of truth for access.
 async function preloadOfflineNavigation(role: Role): Promise<void> {
-  const common: Array<{ key: readonly unknown[]; path: string }> = [
+  const common: Array<{ key: readonly unknown[]; path: string; select?: (data: any) => unknown }> = [
     { key: ['settings', 'public'], path: '/settings/public' },
     { key: ['announcements', 'active'], path: '/announcements/active' },
     { key: ['notifications', 'unread'], path: '/notifications/unread-count', select: (data: any) => data.count },

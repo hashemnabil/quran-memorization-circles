@@ -11,7 +11,7 @@ export async function replayAttendanceOperation(operation, currentAccountId, pos
   const validationError = validateAttendancePayload(operation.payload);
   if (validationError) return { kind: 'rejected', reason: validationError };
   try {
-    const { data } = await post('/sync/push', { operations: [{
+    const { data } = await post('/sync/push', { accountId: operation.accountId, operations: [{
       opId: operation.id, entity: 'attendance', kind: 'record', data: operation.payload,
     }] });
     const result = data?.results?.[0];

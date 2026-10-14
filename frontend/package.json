@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test:offline": "node --test src/lib/service-worker.test.mjs src/lib/pdf-download.test.mjs src/lib/student-route-policy.test.mjs src/lib/offline/attendance-validation.test.mjs src/lib/offline/retry-policy.test.mjs && node --import tsx --test src/lib/offline/outbox-sync.test.ts",
+    "test:offline": "node --test src/lib/service-worker.test.mjs src/lib/pdf-download.test.mjs src/lib/student-route-policy.test.mjs src/lib/offline/attendance-validation.test.mjs src/lib/offline/retry-policy.test.mjs && node --import tsx --test src/lib/offline/outbox-sync.test.ts src/lib/offline/feed-replica.test.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "mobile:sync": "node scripts/capacitor-cli.mjs sync",

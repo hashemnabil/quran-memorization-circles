@@ -39,3 +39,13 @@ Both frontend drain triggers use one replay handler and send the original durabl
 CI applies the complete Prisma migration history to a disposable PostgreSQL database before the push integration tests. These cover concurrent duplicates, changed-payload IDs, role/resource restrictions, resolved sheet conflicts, stale corrections, revocation and rollback when receipt storage fails. IndexedDB tests cover transport loss, reconnect, stable IDs, account isolation, concurrent drains and invalid acknowledgements.
 
 This is not full-application offline support. Other mutation domains, real-device airplane-mode acceptance, comprehensive end-to-end role workflows, historical hard-delete tombstones, scope-revocation cache invalidation and globally commit-ordered sequence delivery remain release gates. No production deployment or production-data migration is implied by CI success.
+
+## Commit-ordered core replica
+
+The core student/circle replica uses `/sync/scope`, `/sync/snapshot` and sequence-based `/sync/changes`. The first snapshot fence is captured before rows are read. Download pages are staged durably and can resume after a page budget or network failure; partial downloads never replace the visible replica. Page rows and cursors commit together. Sequence values remain strings, including values above JavaScript's safe integer range.
+
+Scope changes purge the core replica and persisted rendering reads, refresh the online identity, and trigger a fresh snapshot. Pending writes are retained. Logout also clears staged downloads. This scope version covers student/circle access; it is not a full resource manifest for other modules.
+
+Migration `20261014130000_commit_ordered_sync_journal` serializes journal sequence allocation across transactions with a transaction advisory lock. It replaces a trigger function without rewriting tables, receipts or historical records. This prevents a later committed transaction from making a client skip an earlier uncommitted sequence. The lock adds serialization to journal-producing writes; migration/transaction integration tests must pass before release, and production application still requires authorized migration access and backup verification.
+
+New deletion records retain only identity/scope fields. The server emits deletion IDs only in a trustworthy historical scope, never deleted private records. Old tombstones lacking safe scope fail closed; a fresh authoritative snapshot removes them locally. `/sync/push` optionally accepts `accountId` and rejects a different authenticated account; frontend batches bind it to the durable operation's owner.

@@ -48,6 +48,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'شؤون إدارية',
     items: [
+      { to: '/teacher-duties', label: 'جدول نظام المحفّظين', icon: <IconCalendar size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/circles', label: 'الحلقات', icon: <IconCircleGroup size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/courses', label: 'الدورات', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/staff/attendance', label: 'حضور الكادر', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
@@ -59,6 +60,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'الإعلام',
     items: [
+      { to: '/media-schedule', label: 'جدول الإعلام', icon: <IconCalendar size={19} />, roles: ['ADMIN'] },
       { to: '/media-activities', label: 'سجل الإعلام', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
       { to: '/announcements', label: 'الإعلانات', icon: <IconBell size={19} />, roles: ['ADMIN'] },
     ],

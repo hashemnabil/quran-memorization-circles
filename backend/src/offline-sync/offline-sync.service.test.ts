@@ -89,3 +89,42 @@ test('bootstrap does not query student or circle data for roles without browse a
   assert.equal(circleQueries, 0);
   assert.equal(aclQueries, 0);
 });
+
+
+test('changes returns stable independent cursors and includes student tombstones', async () => {
+  const timestamp = new Date('2026-10-01T12:00:00.000Z');
+  const studentRows = [
+    { id: 's1', updatedAt: timestamp, deletedAt: null },
+    { id: 's2', updatedAt: timestamp, deletedAt: timestamp },
+  ];
+  const circleRows = [
+    { id: 'c1', updatedAt: timestamp, deletedAt: null },
+  ];
+  const prisma = {
+    student: { findMany: async (args: any) => studentRows.slice(0, args.take) },
+    circle: { findMany: async (args: any) => circleRows.slice(0, args.take) },
+  };
+  const acl = {
+    studentScope: async () => ({}),
+    accessibleCircleIds: async () => ['c1'],
+  };
+  const service = new OfflineSyncService(prisma as any, acl as any);
+  const first = await service.changes(user, undefined, undefined, 1);
+  assert.equal(first.students.length, 1);
+  assert.equal(first.circles.length, 1);
+  assert.equal(first.hasMoreStudents, true);
+  assert.equal(first.hasMoreCircles, false);
+  assert.ok(first.nextStudentCursor);
+  assert.equal(first.nextCircleCursor, null);
+  const decoded = JSON.parse(Buffer.from(first.nextStudentCursor!, 'base64url').toString('utf8'));
+  assert.equal(decoded.id, 's1');
+  assert.equal(decoded.updatedAt, timestamp.toISOString());
+});
+
+test('changes rejects malformed cursors', async () => {
+  const { service } = makeService();
+  await assert.rejects(
+    service.changes(user, 'not-a-cursor', undefined, 20),
+    (error: unknown) => error instanceof BadRequestException,
+  );
+});

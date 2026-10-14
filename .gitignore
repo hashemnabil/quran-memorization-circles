@@ -3,7 +3,8 @@ dist
 build
 .env
 .env.local
-uploads
+/uploads/
+/backend/uploads/
 *.log
 .DS_Store
 Thumbs.db

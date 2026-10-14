@@ -1,3 +1,4 @@
+import { assertSafeHttpUrl } from '../common/validators/safe-url';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { MediaActivityType, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -47,7 +48,7 @@ export class MediaActivitiesService {
     const date = new Date(body.activityDate);
     if (Number.isNaN(date.getTime())) throw new BadRequestException('التاريخ غير صحيح');
     if (body.workUrl?.trim()) {
-      try { new URL(body.workUrl); } catch { throw new BadRequestException('رابط العمل غير صحيح'); }
+      assertSafeHttpUrl(body.workUrl.trim());
     }
     return this.prisma.mediaActivity.create({
       data: {

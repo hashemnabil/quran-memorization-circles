@@ -666,6 +666,7 @@ export class StudentsService {
     const temporaryPassword = randomBytes(9).toString('base64url');
     await this.prisma.user.update({ where: { id: student.user.id },
       data: { passwordHash: await bcrypt.hash(temporaryPassword, 12), mustChangePassword: true, isActive: true } });
+    await this.prisma.refreshToken.updateMany({ where: { userId: student.user.id, revokedAt: null }, data: { revokedAt: new Date() } });
     await this.activity.log({ userId: actor.id, action: 'STUDENT_ACCOUNT_PASSWORD_RESET', summary: `إعادة تعيين كلمة مرور الطالب: ${student.fullName}`, entityType: 'Student', entityId: id });
     return { studentId: id, fullName: student.fullName, username: student.user.username, temporaryPassword };
   }
@@ -701,7 +702,7 @@ export class StudentsService {
       select: { id: true, fullName: true, photoUrl: true },
     });
 
-    await this.uploads.removeIfReplaced(current.photoUrl, updated.photoUrl);
+    await this.uploads.removeIfReplaced(current.photoUrl, updated.photoUrl, actor.role === Role.ADMIN ? '*' : actor.id);
 
     await this.activity.log({
       userId: actor.id,

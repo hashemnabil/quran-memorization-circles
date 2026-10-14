@@ -1,3 +1,5 @@
+import { HealthController } from './health.controller';
+import { validateEnvironment } from './production-config';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
@@ -31,8 +33,9 @@ import { MediaActivitiesModule } from './media-activities/media-activities.modul
 import { OfflineSyncModule } from './offline-sync/offline-sync.module';
 
 @Module({
+  controllers: [HealthController],
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'] }),
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'], validate: validateEnvironment }),
 
     // Infrastructure (all global).
     PrismaModule,

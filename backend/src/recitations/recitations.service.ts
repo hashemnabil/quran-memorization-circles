@@ -187,10 +187,11 @@ export class RecitationsService {
   async historyDetail(user: AuthUser, date: string, circleId: string) {
     const real = circleId === 'none' ? null : circleId;
     if (real) await this.acl.assertCircleAccess(user, real);
+    const scope = await this.acl.studentScope(user);
     const day = toDateOnly(date);
 
     const records = await this.prisma.recitation.findMany({
-      where: { deletedAt: null, date: day, circleId: real },
+      where: { deletedAt: null, date: day, circleId: real, student: { AND: [scope, { deletedAt: null }] } },
       include: RECITATION_INCLUDE,
       orderBy: [{ student: { fullName: 'asc' } }, { createdAt: 'asc' }],
     });

@@ -79,12 +79,14 @@ Keep PostgreSQL and the existing REST API as the authoritative shared system. Ea
 Before enabling additional offline writes, add automated backend tests for the existing bootstrap endpoint and make its pagination/role-scope contract robust. Then implement server-side idempotency for attendance retries, followed by a small additional read-only domain bundle. This reduces the risk of data leakage or duplicate records while expanding offline coverage.
 
 
-## Security and generalized-sync branch status (2026-10-14)
+## Security and generalized-sync status (verified 2026-10-14)
 
-- [x] Removed the mistakenly tracked `backend/.evn` file from this branch and added environment-file ignore rules, retaining `.env.example`.
-- [x] Removed the self-referential `file:..` dependency from both application manifests and lockfiles.
-- [x] Increased API and refresh request timeouts to 45 seconds for cold-starting hosted services.
-- [x] Added `docs/SYNC_PROTOCOL.md` documenting the target cursor, idempotency, authorization, conflict, tombstone, retention, and manual acceptance contracts.
-- [ ] The generalized server change feed, triggers/migration, transactional idempotency, realtime invalidation, full local entity database, and generalized outbox are not implemented by this branch yet.
-- [ ] Build/typecheck and PostgreSQL integration tests must run in CI before this branch is considered ready. No production database was accessed.
-- [ ] The owner must rotate exposed database and Cloudinary credentials and clean the repository history independently; this branch intentionally does not rewrite history.
+The checklist above describes a mixture of existing capabilities and unfinished target work. Do not infer that the generalized implementation is complete from this roadmap.
+
+- The current API client timeout is 45 seconds.
+- The current outbox is intentionally restricted to attendance-sheet `POST /attendance`; other mutation types are rejected.
+- The existing incremental feed covers students and circles only. It is not a PostgreSQL-wide `SyncChange` feed and does not provide the target transactionally durable operation ledger.
+- Generalized snapshot/push endpoints, database triggers and retention, durable per-operation idempotency, full cross-domain local storage, realtime sync invalidation, and comprehensive end-to-end tests remain release blockers unless separately implemented and verified.
+- `docs/OFFLINE_FIRST_SECURITY_AND_RELEASE_CHECKLIST.md` records the required credential response and safe production rollout gates.
+- Do not run reset, wipe, seed, or destructive migration commands against production. Preserve `/offline-sync/bootstrap` and `POST /attendance` for existing mobile clients.
+- Credential rotation and Git-history cleanup are owner actions; no credentials should be printed in a PR, and no history rewrite should happen without owner approval.

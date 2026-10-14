@@ -107,7 +107,9 @@ test('offline attendance survives a lost committed response and replays with the
   expect((await readTeacherOutbox(page))[0].id).toBe(originalId);
   const replay = page.waitForResponse(response => response.url().endsWith('/api/sync/push') && response.ok());
   await page.reload();
-  expect((await (await replay).json()).results[0].opId).toBe(originalId);
+  const replayResult = (await (await replay).json()).results[0];
+  expect(replayResult.opId).toBe(originalId);
+  expect(replayResult.replayed).toBe(true);
   await expect.poll(async () => (await readTeacherOutbox(page)).length).toBe(0);
   const token = await page.evaluate(() => localStorage.getItem('qc.accessToken'));
   const date = new Date().toISOString().slice(0, 10);

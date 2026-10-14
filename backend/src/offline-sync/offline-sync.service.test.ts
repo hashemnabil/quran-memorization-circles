@@ -115,7 +115,9 @@ test('changes returns stable independent cursors and includes student tombstones
   assert.equal(first.hasMoreStudents, true);
   assert.equal(first.hasMoreCircles, false);
   assert.ok(first.nextStudentCursor);
-  assert.equal(first.nextCircleCursor, null);
+  assert.ok(first.nextCircleCursor);
+  const circleDecoded = JSON.parse(Buffer.from(first.nextCircleCursor!, 'base64url').toString('utf8'));
+  assert.equal(circleDecoded.id, 'c1');
   const decoded = JSON.parse(Buffer.from(first.nextStudentCursor!, 'base64url').toString('utf8'));
   assert.equal(decoded.id, 's1');
   assert.equal(decoded.updatedAt, timestamp.toISOString());

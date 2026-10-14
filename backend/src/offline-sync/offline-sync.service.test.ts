@@ -130,3 +130,45 @@ test('changes rejects malformed cursors', async () => {
     (error: unknown) => error instanceof BadRequestException,
   );
 });
+
+
+test('changes never queries private roster resources for roles without sync access', async () => {
+  let studentQueries = 0;
+  let circleQueries = 0;
+  const prisma = {
+    student: { findMany: async () => { studentQueries += 1; return []; } },
+    circle: { findMany: async () => { circleQueries += 1; return []; } },
+  };
+  const acl = {
+    studentScope: async () => { throw new Error('must not resolve scope for unsupported role'); },
+    accessibleCircleIds: async () => { throw new Error('must not resolve circles for unsupported role'); },
+  };
+  const service = new OfflineSyncService(prisma as any, acl as any);
+  const result = await service.changes({ id: 'support-1', role: Role.SUPPORT } as any);
+  assert.deepEqual(result.students, []);
+  assert.deepEqual(result.circles, []);
+  assert.equal(studentQueries, 0);
+  assert.equal(circleQueries, 0);
+});
+
+test('changes applies the decoded (updatedAt,id) cursor and retains tombstones', async () => {
+  const timestamp = new Date('2026-10-01T12:00:00.000Z');
+  let capturedStudentWhere: any;
+  let capturedCircleWhere: any;
+  const prisma = {
+    student: { findMany: async (args: any) => { capturedStudentWhere = args.where; return [{ id: 's2', updatedAt: timestamp, deletedAt: timestamp }]; } },
+    circle: { findMany: async (args: any) => { capturedCircleWhere = args.where; return []; } },
+  };
+  const acl = {
+    studentScope: async () => ({ id: 's2' }),
+    accessibleCircleIds: async () => ['c1'],
+  };
+  const service = new OfflineSyncService(prisma as any, acl as any);
+  const cursor = Buffer.from(JSON.stringify({ updatedAt: timestamp.toISOString(), id: 's1' })).toString('base64url');
+  const result = await service.changes(user, cursor, undefined, 10);
+  assert.equal(result.students.length, 1);
+  assert.equal(result.students[0].deletedAt, timestamp);
+  assert.ok(JSON.stringify(capturedStudentWhere).includes(timestamp.toISOString()));
+  assert.ok(JSON.stringify(capturedStudentWhere).includes('s1'));
+  assert.ok(capturedCircleWhere);
+});

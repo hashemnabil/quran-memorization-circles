@@ -114,7 +114,7 @@ async function refreshAttendanceBundle(accountId: string): Promise<void> {
 }
 
 /**
- * Automatically refreshes data already registered by the signed-in app and
+ * Automatically refreshes the offline bootstrap and the role-scoped data registered by the signed-in app and
  * the server-authorized attendance roster. It never fetches another account's
  * data and never treats a failed request as a successful write.
  */

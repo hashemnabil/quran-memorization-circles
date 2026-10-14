@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/auth';
 import { Button, Card, Input, LoadingState, PageHeader } from '@/components/ui';
 
 type Media = { id: string; date: string; day: string; activity: string; idea: string; content: string };
-type Duty = { id: string; date: string; day: string; note: string | null; assignments: { teacherUserId: string }[] };
+type Duty = { id: string; date: string; day: string; note: string | null; assignments: { teacherUserId: string; teacherName: string }[] };
 type Teacher = { id: string; fullName: string };
 const dateText = (s: string) => s.slice(0, 10);
 const escapeXml = (value: unknown) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
@@ -62,7 +62,7 @@ export function TeacherDutyPage() {
     onError: e => toast.error(apiError(e)) });
   const remove = useMutation({ mutationFn: (id: string) => api.delete('/schedules/duties/' + id),
     onSuccess: () => { toast.success('تم الحذف'); void qc.invalidateQueries({ queryKey: ['teacher-duties'] }); }, onError: e => toast.error(apiError(e)) });
-  const names = (d: Duty) => d.assignments.map(a => teachers.data?.find(t => t.id === a.teacherUserId)?.fullName || a.teacherUserId).join('، ');
+  const names = (d: Duty) => d.assignments.map(a => a.teacherName || teachers.data?.find(t => t.id === a.teacherUserId)?.fullName || a.teacherUserId).join('، ');
   return <div className="space-y-5" dir="rtl"><PageHeader title="جدول نظام المحفّظين" subtitle="تعيين أكثر من محفّظ في اليوم نفسه مع تذكير عند التعيين وقبل يوم وصباح الموعد" />
     {admin && <Card title={editing ? 'تعديل النظام' : 'تعيين نظام'}><form className="grid gap-3 md:grid-cols-2" onSubmit={e => { e.preventDefault(); save.mutate(); }}>
       <Input label="اليوم" required value={form.day} onChange={e => setForm({ ...form, day: e.target.value })} />

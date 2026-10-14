@@ -114,7 +114,8 @@ export default function AttendancePage() {
         const circle = bundle.circles.find((item) => item.id === circleId);
         if (!circle) throw error;
         const students = bundle.students.filter((student) => student.circleId === circleId);
-        if (!students.length) throw error;
+        // An empty cached roster is still a valid result: let the page show its
+        // empty-state message instead of turning a valid offline response into an error.
         // A roster is sufficient to prepare a draft, but not to prove the server
         // has not already recorded this date. The UI warns before the user queues it.
         return {

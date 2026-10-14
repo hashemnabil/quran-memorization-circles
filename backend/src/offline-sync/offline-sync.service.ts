@@ -193,6 +193,76 @@ export class OfflineSyncService {
     };
   }
 
+
+  /** Global sequence feed. Only entities with explicit safe projections are exposed. */
+  async syncChanges(user: AuthUser, since: bigint, requestedLimit = 200) {
+    const limit = Math.min(200, Math.max(1, Math.floor(requestedLimit)));
+    const canReadCircles = CIRCLE_ROLES.has(user.role);
+    const circleIds = canReadCircles ? await this.acl.accessibleCircleIds(user) : [];
+    const studentScope = STUDENT_ROLES.has(user.role)
+      ? await this.acl.studentScope(user)
+      : ({ id: '__sync_no_access__' } satisfies Prisma.StudentWhereInput);
+    const rows = await this.prisma.$queryRaw<Array<{
+      seq: bigint; entity: string; entityId: string; operation: string; payload: unknown; changedAt: Date;
+    }>>`SELECT "seq", "entity", "entityId", "operation", "payload", "changedAt"
+      FROM "sync_changes" WHERE "seq" > ${since} ORDER BY "seq" ASC LIMIT ${limit + 1}`;
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const changes: Array<Record<string, unknown>> = [];
+    let lastSeq = since;
+    for (const row of page) {
+      lastSeq = row.seq;
+      const payload = row.payload && typeof row.payload === 'object'
+        ? row.payload as Record<string, unknown> : null;
+      if (row.entity === 'circles') {
+        if (!canReadCircles) continue;
+        if (circleIds !== null && !circleIds.includes(row.entityId)) continue;
+        // Do not return arbitrary JSON from the journal; project approved fields only.
+        changes.push({ seq: row.seq.toString(), entity: 'circle', id: row.entityId, operation: row.operation,
+          data: row.operation === 'DELETE' || !payload ? null : {
+            id: row.entityId, name: payload.name, code: payload.code,
+            scheduleDays: payload.scheduleDays, startTime: payload.startTime,
+            isActive: payload.isActive, updatedAt: payload.updatedAt,
+          } });
+      } else if (row.entity === 'students') {
+        if (!STUDENT_ROLES.has(user.role)) continue;
+        // A journal record is only emitted if its student is in the caller's live ACL scope.
+        // Tombstones without a safely scoped historical payload fail closed.
+        if (!payload || !row.entityId) continue;
+        const visible = await this.prisma.student.findFirst({
+          where: { AND: [{ id: row.entityId }, studentScope] },
+          select: { id: true },
+        });
+        if (!visible) continue;
+        const circleId = typeof payload.circleId === 'string' ? payload.circleId : null;
+        if (circleId && circleIds !== null && !circleIds.includes(circleId)) continue;
+        changes.push({ seq: row.seq.toString(), entity: 'student', id: row.entityId, operation: row.operation,
+          data: row.operation === 'DELETE' ? null : {
+            id: row.entityId, circleId, code: payload.code, fullName: payload.fullName,
+            status: payload.status, evaluation: payload.evaluation,
+            memorizedParts: payload.memorizedParts, currentSurah: payload.currentSurah,
+            currentPage: payload.currentPage, updatedAt: payload.updatedAt,
+          } });
+      }
+    }
+    return { version: 1, accountId: user.id, since: since.toString(),
+      nextSeq: lastSeq.toString(), hasMore, changes };
+  }
+
+  /**
+   * General writes stay fail-closed until each entity has a reviewed mutation
+   * schema, conflict policy and atomic domain transaction. This prevents a generic
+   * sync endpoint from becoming an ACL bypass or arbitrary Prisma write surface.
+   */
+  async pushOperations(_user: AuthUser, body: unknown) {
+    if (!body || typeof body !== 'object' || !Array.isArray((body as { operations?: unknown }).operations)) {
+      throw new BadRequestException('صيغة العمليات غير صالحة');
+    }
+    const operations = (body as { operations: unknown[] }).operations;
+    if (operations.length > 100) throw new BadRequestException('الحد الأقصى 100 عملية');
+    throw new BadRequestException('عمليات الكتابة العامة غير مفعّلة بعد؛ استخدم المسارات المدعومة ذات سياسات التعارض وidempotency');
+  }
+
   private async readableCircles(user: AuthUser) {
     const allowed = await this.acl.accessibleCircleIds(user);
     return this.prisma.circle.findMany({

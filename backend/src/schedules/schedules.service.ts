@@ -60,12 +60,18 @@ export class SchedulesService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.user.findMany({ where: { role: Role.TEACHER, isActive: true, deletedAt: null },
       select: { id: true, fullName: true }, orderBy: { fullName: 'asc' } });
   }
-  duties(user: AuthUser) {
-    return this.prisma.teacherDuty.findMany({
+  async duties(user: AuthUser) {
+    const duties = await this.prisma.teacherDuty.findMany({
       where: user.role === Role.TEACHER ? { assignments: { some: { teacherUserId: user.id } } } : {},
       include: { assignments: { select: { teacherUserId: true } } },
       orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     });
+    const ids = [...new Set(duties.flatMap(d => d.assignments.map(a => a.teacherUserId)))];
+    const users = await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true } });
+    const names = new Map(users.map(u => [u.id, u.fullName]));
+    return duties.map(d => ({ ...d, assignments: d.assignments.map(a => ({
+      ...a, teacherName: names.get(a.teacherUserId) ?? 'محفّظ غير متاح',
+    })) }));
   }
   private async verifyTeachers(ids: string[]) {
     const count = await this.prisma.user.count({ where: { id: { in: ids }, role: Role.TEACHER, isActive: true, deletedAt: null } });

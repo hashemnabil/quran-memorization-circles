@@ -21,6 +21,48 @@ async function refreshKnownQueries(): Promise<void> {
   }
 }
 
+
+// These stable, list-level queries are fetched even when their screens have
+// never been opened. API authorization remains the source of truth for access.
+async function preloadOfflineNavigation(role: Role): Promise<void> {
+  const common: Array<{ key: readonly unknown[]; path: string }> = [
+    { key: ['settings', 'public'], path: '/settings/public' },
+    { key: ['announcements', 'active'], path: '/announcements/active' },
+    { key: ['notifications', 'unread'], path: '/notifications/unread-count' },
+    { key: ['chat', 'unread'], path: '/chat/unread-count' },
+  ];
+  const staff = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role);
+  const management = ['ADMIN', 'SUPERVISOR'].includes(role);
+  const admin = role === 'ADMIN';
+  const resources = [
+    ...common,
+    ...(staff ? [
+      { key: ['circles', 'options'], path: '/circles/options' },
+      { key: ['recitations', 'surahs'], path: '/recitations/surahs' },
+      { key: ['suspensions', 'active'], path: '/suspensions/active' },
+    ] : []),
+    ...(management ? [
+      { key: ['teachers', { limit: 100 }], path: '/teachers?limit=100&isActive=true' },
+    ] : []),
+    ...(admin ? [
+      { key: ['settings'], path: '/settings' },
+      { key: ['users', 'stats'], path: '/users/stats' },
+      { key: ['exams', 'stats'], path: '/exams/stats' },
+      { key: ['courses', 'stats'], path: '/courses/stats' },
+    ] : []),
+  ];
+  for (const resource of resources) {
+    if (!navigator.onLine) return;
+    try {
+      const response = await api.get(resource.path);
+      queryClient.setQueryData(resource.key, response.data);
+    } catch {
+      // A missing permission or temporarily unavailable endpoint must not
+      // prevent the remaining resources from being cached.
+    }
+  }
+}
+
 const BOOTSTRAP_REFRESH_AGE = 30 * 60 * 1000;
 
 async function refreshOfflineBootstrap(accountId: string): Promise<void> {

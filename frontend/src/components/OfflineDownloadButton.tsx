@@ -32,6 +32,7 @@ function sectionFor(queryKey: readonly unknown[]): string {
 
 export default function OfflineDownloadButton() {
   const accountId = useAuthStore((state) => state.user?.id ?? '');
+  const role = useAuthStore((state) => state.user?.role);
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ saved: number; failed: number; total: number; bundle?: { circles: number; students: number; complete: boolean } } | null>(null);
@@ -64,41 +65,73 @@ export default function OfflineDownloadButton() {
     let failed = 0;
     let bundleSummary: { circles: number; students: number; complete: boolean } | undefined;
     try {
-      // Download the server-authorized attendance roster, following every cursor page.
-      const bundleCircles = new Map<string, any>();
-      const bundleStudents = new Map<string, any>();
-      const seenCursors = new Set<string>();
-      let cursor: string | undefined;
-      let complete = false;
+      // Download the role-scoped bootstrap for every authenticated role, not only
+      // attendance staff. Each page is bounded and validated against the server identity.
+      const bootstrapCircles = new Map<string, any>();
+      const bootstrapStudents = new Map<string, any>();
+      const bootstrapCursors = new Set<string>();
+      let bootstrapCursor: string | undefined;
+      let bootstrapComplete = false;
       for (let page = 0; page < 1000; page += 1) {
-        const response = await api.get('/attendance/offline-bundle', {
-          params: { limit: 500, ...(cursor ? { cursor } : {}) },
+        if (!navigator.onLine) throw new Error('انقطع الاتصال أثناء تنزيل البيانات');
+        const response = await api.get('/offline-sync/bootstrap', {
+          params: { limit: 200, ...(bootstrapCursor ? { cursor: bootstrapCursor } : {}) },
         });
         const data = response.data as {
-          accountId: string; circles: Array<{ id: string; [key: string]: unknown }>;
-          students: Array<{ id: string; [key: string]: unknown }>;
+          version: number; accountId: string;
+          circles?: Array<{ id: string; [key: string]: unknown }>;
+          students?: Array<{ id: string; [key: string]: unknown }>;
           nextCursor: string | null; complete: boolean;
         };
-        if (data.accountId !== accountId) throw new Error('Account mismatch in offline bundle');
-        for (const circle of data.circles ?? []) bundleCircles.set(circle.id, circle);
-        for (const student of data.students ?? []) bundleStudents.set(student.id, student);
-        complete = data.complete === true;
-        if (complete) break;
-        if (!data.nextCursor || seenCursors.has(data.nextCursor)) throw new Error('Invalid offline bundle cursor');
-        seenCursors.add(data.nextCursor);
-        cursor = data.nextCursor;
+        if (data.accountId !== accountId || data.version !== 1) throw new Error('Account/version mismatch in offline bootstrap');
+        for (const circle of data.circles ?? []) bootstrapCircles.set(circle.id, circle);
+        for (const student of data.students ?? []) bootstrapStudents.set(student.id, student);
+        bootstrapComplete = data.complete === true;
+        if (bootstrapComplete) break;
+        if (!data.nextCursor || bootstrapCursors.has(data.nextCursor)) throw new Error('Invalid offline bootstrap cursor');
+        bootstrapCursors.add(data.nextCursor);
+        bootstrapCursor = data.nextCursor;
       }
-      if (!complete) throw new Error('Offline bundle pagination limit reached');
-      const bundle = {
-        version: 1,
-        accountId,
-        downloadedAt: new Date().toISOString(),
-        circles: [...bundleCircles.values()],
-        students: [...bundleStudents.values()],
-        complete: true,
-      };
-      queryClient.setQueryData(['offline', 'attendance-bundle', accountId], bundle);
-      bundleSummary = { circles: bundle.circles.length, students: bundle.students.length, complete: bundle.complete };
+      if (!bootstrapComplete) throw new Error('Offline bootstrap pagination limit reached');
+      queryClient.setQueryData(['offline', 'bootstrap', accountId], {
+        version: 1, accountId, downloadedAt: new Date().toISOString(),
+        circles: [...bootstrapCircles.values()], students: [...bootstrapStudents.values()], complete: true,
+      });
+
+      // Attendance has a separate roster contract and is only available to these roles.
+      if (role === 'ADMIN' || role === 'SUPERVISOR' || role === 'TEACHER') {
+        const bundleCircles = new Map<string, any>();
+        const bundleStudents = new Map<string, any>();
+        const seenCursors = new Set<string>();
+        let cursor: string | undefined;
+        let complete = false;
+        for (let page = 0; page < 1000; page += 1) {
+          if (!navigator.onLine) throw new Error('انقطع الاتصال أثناء تنزيل حزمة الحضور');
+          const response = await api.get('/attendance/offline-bundle', {
+            params: { limit: 500, ...(cursor ? { cursor } : {}) },
+          });
+          const data = response.data as {
+            accountId: string; circles: Array<{ id: string; [key: string]: unknown }>;
+            students: Array<{ id: string; [key: string]: unknown }>;
+            nextCursor: string | null; complete: boolean;
+          };
+          if (data.accountId !== accountId) throw new Error('Account mismatch in offline bundle');
+          for (const circle of data.circles ?? []) bundleCircles.set(circle.id, circle);
+          for (const student of data.students ?? []) bundleStudents.set(student.id, student);
+          complete = data.complete === true;
+          if (complete) break;
+          if (!data.nextCursor || seenCursors.has(data.nextCursor)) throw new Error('Invalid offline bundle cursor');
+          seenCursors.add(data.nextCursor);
+          cursor = data.nextCursor;
+        }
+        if (!complete) throw new Error('Offline bundle pagination limit reached');
+        const bundle = {
+          version: 1, accountId, downloadedAt: new Date().toISOString(),
+          circles: [...bundleCircles.values()], students: [...bundleStudents.values()], complete: true,
+        };
+        queryClient.setQueryData(['offline', 'attendance-bundle', accountId], bundle);
+        bundleSummary = { circles: bundle.circles.length, students: bundle.students.length, complete: bundle.complete };
+      }
 
       // Refresh queries registered by pages the current account has visited.
       for (const query of queries) {
@@ -144,7 +177,7 @@ export default function OfflineDownloadButton() {
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><IconDownload size={22} /></span>
               <div className="flex-1">
                 <h2 id="offline-download-title" className="text-lg font-extrabold text-slate-900">مركز البيانات دون إنترنت</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-600">افحص الأقسام التي سبق فتحها واحفظ آخر بياناتها على هذا الجهاز.</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">نزّل الحزمة الأساسية المصرّح بها لدورك، ثم حدّث الاستعلامات المسجّلة من الأقسام التي زرتها.</p>
               </div>
             </div>
 
@@ -178,7 +211,7 @@ export default function OfflineDownloadButton() {
             )}
 
             <div className="rounded-xl bg-amber-50 p-3 text-sm leading-6 text-amber-900">
-              مهم: يتم الآن تنزيل حزمة الحضور المصرّح بها من الخادم على صفحات، إضافةً إلى تحديث الاستعلامات التي سبق تسجيلها من الأقسام التي زرتها. هذا لا ينزّل كل أقسام الموقع ولا يفعّل التعديل دون اتصال إلا للعمليات المدعومة صراحةً.
+              تنزيل الحزمة الأساسية لا يعني أن كل أقسام الموقع أصبحت متاحة دون إنترنت؛ ما زالت البيانات التفصيلية للأقسام التي لم تُفتح سابقاً، والعمليات غير المدعومة دون اتصال، بحاجة إلى تنفيذ مستقل.
             </div>
             {running && <p className="mt-4 text-sm font-semibold text-emerald-700" role="status">جارٍ تحديث البيانات وحفظها على الجهاز…</p>}
             {result && <div className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-900">اكتملت العملية. استعلامات فيها بيانات بعد المحاولة: <strong>{result.saved}</strong>. استعلامات بدون بيانات: <strong>{result.failed}</strong>. إجمالي الاستعلامات التي كانت موجودة عند البدء: {result.total}. {result.bundle && <>وحُفظت حزمة الحضور المصرّح بها: <strong>{result.bundle.circles}</strong> حلقة و<strong>{result.bundle.students}</strong> طالب.</>}</div>}

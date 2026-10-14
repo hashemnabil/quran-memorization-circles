@@ -83,7 +83,8 @@ Before enabling additional offline writes, add automated backend tests for the e
 
 The checklist above describes a mixture of existing capabilities and unfinished target work. Do not infer that the generalized implementation is complete from this roadmap.
 
-- The current API client timeout is 45 seconds.
+- The current API client timeout is 45 seconds. Transient network/408/429/5xx failures on GET requests now use at most two delayed retries; mutations are deliberately not retried automatically because the server may have committed before a timeout. The retry policy has focused Node tests included in `npm run test:offline`.
+- This retry change is committed on `feat/offline-first-sync`; the existing PR #139 is closed and GitHub rejected reopening it, so these latest commits are not part of an open review.
 - The current outbox is intentionally restricted to attendance-sheet `POST /attendance`; other mutation types are rejected.
 - The existing incremental feed covers students and circles only. It is not a PostgreSQL-wide `SyncChange` feed and does not provide the target transactionally durable operation ledger.
 - Generalized snapshot/push endpoints, database triggers and retention, durable per-operation idempotency, full cross-domain local storage, realtime sync invalidation, and comprehensive end-to-end tests remain release blockers unless separately implemented and verified.

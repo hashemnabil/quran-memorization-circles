@@ -2,6 +2,7 @@ import { listOfflineOperations } from '@/lib/offline/outbox';
 import { syncOfflineOperations } from '@/lib/offline/sync';
 import { replayOfflineOperation } from '@/lib/offline/replay';
 import { syncPendingSupport } from '@/lib/offline/pendingSupport';
+import { pullOfflineChanges } from '@/lib/offline/changeFeed';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { queryClient } from '@/lib/queryClient';
@@ -34,6 +35,10 @@ export default function OfflineStatus() {
     };
     const sync = () => {
       if (navigator.onLine && accountId) {
+        // Keep a durable, permission-scoped local replica of student/circle changes.
+        // The existing query cache remains the rendering cache; this replica is
+        // available to offline-aware screens and never authorizes local writes.
+        void pullOfflineChanges(accountId).catch(() => null);
         void syncOfflineOperations(accountId, replayOfflineOperation).then(async (report) => {
           if (report.applied > 0) {
             // A successful replay changes server data; refresh affected reads.

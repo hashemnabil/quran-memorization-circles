@@ -6,25 +6,61 @@ import { Role } from '@prisma/client';
 import { OfflineSyncService } from './offline-sync.service';
 
 const user = { id: 'account-1', role: Role.TEACHER } as any;
-const service = new OfflineSyncService({} as any, {} as any);
+
+function serviceWith(overrides: { journal?: any[]; visibleStudent?: any; circleIds?: string[] | null } = {}) {
+  const prisma = {
+    $queryRaw: async () => overrides.journal ?? [],
+    student: { findFirst: async () => overrides.visibleStudent ?? null },
+  };
+  const acl = {
+    accessibleCircleIds: async () => overrides.circleIds ?? ['circle-1'],
+    studentScope: async () => ({ id: 'student-1' }),
+  };
+  return new OfflineSyncService(prisma as any, acl as any);
+}
 
 test('push rejects malformed envelopes', async () => {
   await assert.rejects(
-    service.pushOperations(user, { operations: 'not-an-array' }),
+    serviceWith().pushOperations(user, { operations: 'not-an-array' }),
     (error: unknown) => error instanceof BadRequestException,
   );
 });
 
 test('push bounds batch size before rejecting unsupported mutations', async () => {
   await assert.rejects(
-    service.pushOperations(user, { operations: Array.from({ length: 101 }, (_, i) => ({ opId: String(i) })) }),
+    serviceWith().pushOperations(user, { operations: Array.from({ length: 101 }, (_, i) => ({ opId: String(i) })) }),
     (error: unknown) => error instanceof BadRequestException && error.message.includes('100'),
   );
 });
 
 test('push fails closed for validly shaped but unsupported operations', async () => {
   await assert.rejects(
-    service.pushOperations(user, { operations: [{ opId: 'op-1', entity: 'student', data: {} }] }),
+    serviceWith().pushOperations(user, { operations: [{ opId: 'op-1', entity: 'student', data: {} }] }),
     (error: unknown) => error instanceof BadRequestException && error.message.includes('غير مفعّلة'),
   );
+});
+
+test('sequence feed projects circle fields from an allowlist and never returns raw journal payload', async () => {
+  const svc = serviceWith({ journal: [{
+    seq: 4n, entity: 'circles', entityId: 'circle-1', operation: 'UPSERT',
+    changedAt: new Date('2026-01-01T00:00:00.000Z'),
+    payload: { id: 'circle-1', name: 'Circle', code: 'C1', scheduleDays: [], startTime: '09:00',
+      isActive: true, passwordHash: 'must-not-leak', secretNote: 'must-not-leak' },
+  }] });
+  const result = await svc.syncChanges(user, 0n, 10);
+  assert.equal(result.nextSeq, '4');
+  assert.equal(result.changes.length, 1);
+  assert.equal((result.changes[0].data as any).name, 'Circle');
+  assert.equal(JSON.stringify(result).includes('must-not-leak'), false);
+  assert.equal(JSON.stringify(result).includes('secretNote'), false);
+});
+
+test('sequence feed skips circles outside the authenticated user scope while advancing cursor', async () => {
+  const svc = serviceWith({ circleIds: ['circle-allowed'], journal: [{
+    seq: 8n, entity: 'circles', entityId: 'circle-other', operation: 'UPSERT',
+    changedAt: new Date(), payload: { id: 'circle-other', name: 'Private' },
+  }] });
+  const result = await svc.syncChanges(user, 0n, 10);
+  assert.equal(result.changes.length, 0);
+  assert.equal(result.nextSeq, '8');
 });

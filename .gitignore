@@ -9,3 +9,8 @@ uploads
 Thumbs.db
 .idea
 .vscode
+
+# Environment files and local secrets
+.env*
+!.env.example
+.evn

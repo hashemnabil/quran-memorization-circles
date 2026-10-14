@@ -122,3 +122,24 @@ export async function recordOfflineRetry(id: string, accountId: string, reason: 
     });
   } finally { db.close(); }
 }
+
+
+/** Remove only this account's queued writes on explicit logout. */
+export async function clearOfflineOperations(accountId: string): Promise<void> {
+  if (!accountId || typeof indexedDB === 'undefined') return;
+  const db = await openDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      const request = tx.objectStore(STORE).index('accountId').openCursor(IDBKeyRange.only(accountId));
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (cursor) { cursor.delete(); cursor.continue(); }
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error('تعذر مسح التعديلات المحلية'));
+    });
+  } finally {
+    db.close();
+  }
+}

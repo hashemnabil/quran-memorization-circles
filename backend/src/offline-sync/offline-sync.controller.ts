@@ -9,6 +9,22 @@ import { OfflineSyncService } from './offline-sync.service';
 export class OfflineSyncController {
   constructor(private readonly service: OfflineSyncService) {}
 
+  @Get('changes')
+  @ApiOperation({ summary: 'تغييرات تدريجية مع مؤشرات منفصلة لكل نوع بيانات' })
+  changes(
+    @CurrentUser() user: AuthUser,
+    @Query('studentCursor') studentCursor?: string,
+    @Query('circleCursor') circleCursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.changes(
+      user,
+      studentCursor,
+      circleCursor,
+      limit === undefined ? 200 : Number(limit),
+    );
+  }
+
   @Get('bootstrap')
   @ApiOperation({ summary: 'حزمة أولية مجزأة ومحدودة بصلاحيات الحساب الحالي' })
   bootstrap(

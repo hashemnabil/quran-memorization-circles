@@ -4,6 +4,8 @@ import { api, tokenStore } from '@/lib/api';
 import { clearHeartbeat, expireStaleSession } from '@/lib/session';
 import { resetQueryCache } from '@/lib/queryClient';
 import { clearPersistedQueryCache } from '@/lib/offline/queryCache';
+import { clearOfflineOperations } from '@/lib/offline/outbox';
+import { clearOfflineReplica } from '@/lib/offline/changeFeed';
 import type { AuthUser, Role } from '@/types';
 
 const OFFLINE_USER_KEY = 'qc.offlineUser';
@@ -67,7 +69,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     resetQueryCache();
     set({ user: null, status: 'unauthenticated' });
     // Explicit logout removes cached private reads for this account from this device.
-    await clearPersistedQueryCache(accountId).catch(() => undefined);
+    await Promise.all([
+      clearPersistedQueryCache(accountId),
+      clearOfflineOperations(accountId),
+      clearOfflineReplica(accountId),
+    ]).catch(() => undefined);
   },
 
   async loadSession() {

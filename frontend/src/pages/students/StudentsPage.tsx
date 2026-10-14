@@ -266,9 +266,9 @@ export default function StudentsPage() {
         }
       />
 
-      {isOfflineSnapshot && (
+      {(isOfflineSnapshot || (isError && Boolean(data))) && (
         <Card className="mb-5 border-amber-300 bg-amber-50">
-          <p className="text-sm font-semibold text-amber-900">أنت تعرض نسخة محفوظة دون اتصال. قد تكون بعض التفاصيل غير متاحة أو غير محدّثة؛ تحقّق من اتصال الإنترنت قبل اتخاذ قرارات أو إجراء تعديلات.</p>
+          <p className="text-sm font-semibold text-amber-900">{isOfflineSnapshot ? 'أنت تعرض نسخة محفوظة دون اتصال. قد تكون بعض التفاصيل غير متاحة أو غير محدّثة؛ تحقّق من اتصال الإنترنت قبل اتخاذ قرارات أو إجراء تعديلات.' : 'تعذّر تحديث الطلاب؛ تعرض البيانات المحفوظة وقد تكون غير محدّثة.'}</p>
         </Card>
       )}
 
@@ -373,7 +373,7 @@ export default function StudentsPage() {
       <Card padded={false}>
         {isLoading ? (
           <LoadingState />
-        ) : isError ? (
+        ) : isError && !data ? (
           <ErrorState message="تعذر تحميل قائمة الطلاب" onRetry={() => refetch()} />
         ) : !data?.data.length ? (
           <EmptyState

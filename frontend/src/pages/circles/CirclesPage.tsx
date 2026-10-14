@@ -107,9 +107,9 @@ export default function CirclesPage() {
         }
       />
 
-      {isOfflineSnapshot && (
+      {(isOfflineSnapshot || (isError && Boolean(data))) && (
         <Card className="mb-5 border-amber-300 bg-amber-50">
-          <p className="text-sm font-semibold text-amber-900">أنت تعرض نسخة محفوظة دون اتصال. سعة الحلقة وعدد الطلاب وتفاصيل إسناد المعلمين غير متاحة في هذه النسخة؛ قد تظهر قيم غير مكتملة. اتصل بالإنترنت للتحقق من التفاصيل قبل اتخاذ قرارات.</p>
+          <p className="text-sm font-semibold text-amber-900">{isOfflineSnapshot ? 'أنت تعرض نسخة محفوظة دون اتصال. سعة الحلقة وعدد الطلاب وتفاصيل إسناد المعلمين غير متاحة في هذه النسخة؛ قد تظهر قيم غير مكتملة. اتصل بالإنترنت للتحقق من التفاصيل قبل اتخاذ قرارات.' : 'تعذّر تحديث الحلقات؛ تعرض البيانات المحفوظة وقد تكون غير محدّثة.'}</p>
         </Card>
       )}
 
@@ -140,7 +140,7 @@ export default function CirclesPage() {
 
       {isLoading ? (
         <LoadingState />
-      ) : isError ? (
+      ) : isError && !data ? (
         <ErrorState message="تعذر تحميل الحلقات" onRetry={() => refetch()} />
       ) : !data?.data.length ? (
         <Card>

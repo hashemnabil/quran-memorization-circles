@@ -36,6 +36,7 @@ async function preloadOfflineNavigation(role: Role): Promise<void> {
     // Seed the first notifications page using the exact key/shape consumed by
     // NotificationsPage. The API still scopes results to the authenticated user.
     { key: ['notifications', { tab: 'all', page: 1 }], path: '/notifications?limit=25&page=1' },
+    { key: ['notifications', { tab: 'unread', page: 1 }], path: '/notifications?limit=25&page=1&unreadOnly=true' },
   ];
   const staff = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role);
   const management = ['ADMIN', 'SUPERVISOR'].includes(role);
@@ -44,6 +45,10 @@ async function preloadOfflineNavigation(role: Role): Promise<void> {
     ...common,
     ...(staff ? [
       { key: ['circles', 'options'], path: '/circles/options' },
+      // Match the default list query keys so the main screens can render their
+      // first page immediately after an offline reload, without visiting online.
+      { key: ['circles', { page: 1, debouncedSearch: '', isActive: '' }], path: '/circles?page=1&limit=12' },
+      { key: ['students', { page: 1, debouncedSearch: '', status: '', evaluation: '', circleId: '', track: '' }], path: '/students?page=1&limit=20' },
       { key: ['reports', 'circles-options'], path: '/circles/options' },
       { key: ['reports', 'courses-options'], path: '/courses?limit=200' },
       { key: ['recitations', 'surahs'], path: '/recitations/surahs' },

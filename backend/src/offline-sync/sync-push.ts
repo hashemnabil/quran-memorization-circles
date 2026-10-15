@@ -1,3 +1,4 @@
+import { createAbsenceAlerts } from '../attendance/absence-alerts';
 import { BadRequestException, HttpException } from '@nestjs/common';
 import { AttendanceStatus, NotificationType, Prisma, Role } from '@prisma/client';
 import { createHash } from 'node:crypto';
@@ -84,14 +85,7 @@ async function apply(tx: Prisma.TransactionClient, user: AuthUser, op: Operation
     });
     if (students.length !== ids.length) throw new BadRequestException('بعض الطلاب لا ينتمون إلى هذه الحلقة');
     const result = await applyAttendanceEntries(tx, user, dto, date);
-    for (const student of students) {
-      if (result.newlyAbsentIds.includes(student.id) && student.parentProfile?.userId) {
-        await tx.notification.create({ data: {
-          userId: student.parentProfile.userId, type: NotificationType.ATTENDANCE,
-          title: 'تسجيل غياب', body: `تم تسجيل غياب الطالب ${student.fullName} بتاريخ ${dto.date}`, link: `/parent/children/${student.id}`,
-        } });
-      }
-    }
+    for (const id of [...result.newlyAbsentIds].sort()) await createAbsenceAlerts(tx, id, date);
     if (result.changedCount) await tx.activityLog.create({ data: {
       userId: user.id, action: 'ATTENDANCE_RECORD', summary: `تسجيل حضور ${dto.entries.length} طالب بتاريخ ${dto.date}`,
       entityType: 'Circle', entityId: circleId,
@@ -113,11 +107,7 @@ async function apply(tx: Prisma.TransactionClient, user: AuthUser, op: Operation
   });
   if (updated.count !== 1) return { opId: op.opId, status: 'conflict', code: 'STALE_VERSION' };
   if (payload.status === AttendanceStatus.ABSENT && current.status !== AttendanceStatus.ABSENT) {
-    const student = await tx.student.findUnique({ where: { id: studentId }, select: { fullName: true, parentProfile: { select: { userId: true } } } });
-    if (student?.parentProfile?.userId) await tx.notification.create({ data: {
-      userId: student.parentProfile.userId, type: NotificationType.ATTENDANCE, title: 'تعديل سجل الحضور',
-      body: `تم تسجيل غياب الطالب ${student.fullName} بتاريخ ${current.date.toISOString().slice(0, 10)}`, link: `/parent/children/${studentId}`,
-    } });
+    await createAbsenceAlerts(tx, studentId!, current.date);
   }
   await tx.activityLog.create({ data: { userId: user.id, action: 'ATTENDANCE_UPDATE', summary: 'تصحيح سجل حضور عبر المزامنة', entityType: 'Attendance', entityId: current.id } });
   return { opId: op.opId, status: 'applied', data: { id: current.id } };

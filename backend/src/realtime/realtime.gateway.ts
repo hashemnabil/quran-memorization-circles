@@ -42,7 +42,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (BigInt(revision) <= BigInt(this.dataRevision || '-1')) return;
     this.dataRevision = revision;
     // No record content is broadcast. Reads still enforce each account's scope.
-    this.server?.to(['role:ADMIN', 'role:SUPERVISOR', 'role:TEACHER', 'role:STUDENT', 'role:SUPPORT', 'role:EXAM_COMMITTEE']).emit('data:changed', { revision: this.dataRevision });
+    this.server?.to(['role:ADMIN', 'role:SUPERVISOR', 'role:TEACHER', 'role:STUDENT', 'role:PARENT', 'role:SUPPORT', 'role:EXAM_COMMITTEE']).emit('data:changed', { revision: this.dataRevision });
   }
 
   constructor(

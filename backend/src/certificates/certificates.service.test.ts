@@ -24,7 +24,8 @@ test('certificate request persists an administrator notification with its reques
   const request = await service.createRequest({ id: 'student-account', role: Role.STUDENT, fullName: 'Student' } as any,
     { kind: StudentFileRequestKind.CERTIFICATE, certificateKind: CertificateKind.JUZ_COMPLETION });
   assert.equal(request.id, 'request');
-  assert.equal(notices.length, 2); assert.equal(events.length, 2);
+  assert.equal(notices.length, 3); assert.equal(events.length, 3);
+  assert.equal(notices[2].userId, 'student-account'); assert.equal(notices[2].link, '/my-files');
   assert.equal(notices[0].link, '/certificates-admin');
   assert.deepEqual(notices[0].data, { requestId: 'request', studentId: 'student' });
   assert.equal(events[0][1], 'notification:new');

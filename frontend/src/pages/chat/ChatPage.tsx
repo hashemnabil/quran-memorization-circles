@@ -147,6 +147,10 @@ export default function ChatPage() {
     const onRead = () => {
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['chat', 'unread'] });
+    };
+    const onInbox = (event: { conversationId: string }) => {
+      if (event.conversationId === id && document.visibilityState === 'visible') markRead.mutate(id!);
     };
     const onConversationUpdated = () => {
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', id] });
@@ -156,11 +160,13 @@ export default function ChatPage() {
     socket.on('typing', onTyping);
     socket.on('chat:message-edited', onEdited);
     socket.on('chat:read', onRead);
+    socket.on('chat:inbox', onInbox);
     socket.on('chat:conversation-updated', onConversationUpdated);
     return () => {
       socket.off('typing', onTyping);
       socket.off('chat:message-edited', onEdited);
       socket.off('chat:read', onRead);
+      socket.off('chat:inbox', onInbox);
       socket.off('chat:conversation-updated', onConversationUpdated);
     };
   }, [id, user.id, queryClient]);

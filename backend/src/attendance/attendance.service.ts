@@ -1,6 +1,7 @@
+import { createAbsenceAlerts } from './absence-alerts';
 import { applyAttendanceEntries } from './attendance-write';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AttendanceStatus, NotificationType, Prisma } from '@prisma/client';
+import { AttendanceStatus, Notification, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { ActivityService } from '../common/services/activity.service';
@@ -151,6 +152,7 @@ export class AttendanceService {
     }
 
     const newlyAbsentIds: string[] = [];
+    const savedNotices: Notification[] = [];
     let changedCount = 0;
     await this.prisma.$transaction(async (tx) => {
       // PostgreSQL transaction-scoped lock prevents two accounts from both observing
@@ -159,7 +161,9 @@ export class AttendanceService {
       const applied = await applyAttendanceEntries(tx, actor, dto, date);
       newlyAbsentIds.push(...applied.newlyAbsentIds);
       changedCount = applied.changedCount;
-    });
+      for (const id of [...newlyAbsentIds].sort()) savedNotices.push(...await createAbsenceAlerts(tx, id, date));
+    }, { timeout: 30000 });
+    for (const notice of savedNotices) await this.notifications.deliver(notice);
 
     // Replays that changed nothing must not duplicate notifications or activity logs.
     if (changedCount === 0) {
@@ -170,19 +174,6 @@ export class AttendanceService {
         count: dto.entries.length,
         idempotentReplay: true,
       };
-    }
-
-    // Let parents know about an unexcused absence the same day.
-    for (const student of students.filter((s) => newlyAbsentIds.includes(s.id))) {
-      if (student.parentProfile?.userId) {
-        await this.notifications.notify({
-          userId: student.parentProfile.userId,
-          type: NotificationType.ATTENDANCE,
-          title: 'تسجيل غياب',
-          body: `تم تسجيل غياب الطالب ${student.fullName} بتاريخ ${dto.date}`,
-          link: `/parent/children/${student.id}`,
-        });
-      }
     }
 
     await this.activity.log({
@@ -221,7 +212,9 @@ export class AttendanceService {
     if (!record) throw new NotFoundException('سجل الحضور غير موجود');
     await this.acl.assertCircleWriteAccess(actor, record.circleId);
 
-    const updated = await this.prisma.attendance.update({
+    const savedNotices: Notification[] = [];
+    const updated = await this.prisma.$transaction(async tx => {
+      const updated = await tx.attendance.update({
       where: { id },
       data: {
         status: dto.status,
@@ -234,22 +227,12 @@ export class AttendanceService {
       },
     });
 
-    const dateLabel = record.date.toISOString().slice(0, 10);
+      if (dto.status === AttendanceStatus.ABSENT && record.status !== AttendanceStatus.ABSENT) savedNotices.push(...await createAbsenceAlerts(tx, record.studentId, record.date));
+      return updated;
+    });
+    for (const notice of savedNotices) await this.notifications.deliver(notice);
 
-    // Only a change *into* an unexcused absence is worth waking the family for.
-    if (
-      dto.status === AttendanceStatus.ABSENT &&
-      record.status !== AttendanceStatus.ABSENT &&
-      record.student.parentProfile?.userId
-    ) {
-      await this.notifications.notify({
-        userId: record.student.parentProfile.userId,
-        type: NotificationType.ATTENDANCE,
-        title: 'تعديل سجل الحضور',
-        body: `تم تسجيل غياب الطالب ${record.student.fullName} بتاريخ ${dateLabel}`,
-        link: `/parent/children/${record.student.id}`,
-      });
-    }
+    const dateLabel = record.date.toISOString().slice(0, 10);
 
     await this.activity.log({
       userId: actor.id,

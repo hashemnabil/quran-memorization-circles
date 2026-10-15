@@ -897,6 +897,8 @@ export class ExamsService {
       entityId: request.id,
     });
 
+    await this.notifications.notify({ userId: actor.id, type: NotificationType.EXAM_REQUEST, title: 'تم تقديم الطلب', body: 'الطلب بانتظار المراجعة', link: `/exams/requests/${request.id}` });
+    if (request.studentId) await this.notifications.notifyStudent(request.studentId, { type: NotificationType.EXAM_REQUEST, title: 'تم تقديم طلب بخصوصك', body: 'الطلب بانتظار المراجعة', data: { requestId: request.id } });
     return request;
   }
 
@@ -1037,6 +1039,7 @@ export class ExamsService {
       link: `/exams/requests/${id}`,
     });
 
+    await this.notifications.notifyStudent(request.studentId, { type: NotificationType.EXAM_REQUEST, title: 'تم رفض طلب الاختبار', body: dto.reviewNote, data: { requestId: id } });
     return updated;
   }
 
@@ -1065,7 +1068,7 @@ export class ExamsService {
       throw new ForbiddenException('يمكن إلغاء الطلب من قبل المعلم صاحب الطلب أو اللجنة');
     }
 
-    return this.prisma.examRequest.update({
+    const updated = await this.prisma.examRequest.update({
       where: { id },
       data: {
         status: ExamRequestStatus.CANCELLED,
@@ -1074,6 +1077,10 @@ export class ExamsService {
       },
       include: REQUEST_INCLUDE,
     });
+    await this.notifications.notifyMany([updated.teacher.user.id], { type: NotificationType.EXAM_REQUEST, title: 'تم إلغاء طلب الاختبار', link: `/exams/requests/${id}` });
+    await this.notifications.notifyRoles([Role.ADMIN, Role.EXAM_COMMITTEE], { type: NotificationType.EXAM_REQUEST, title: 'إلغاء طلب اختبار', link: `/exams/requests/${id}` });
+    await this.notifications.notifyStudent(updated.studentId, { type: NotificationType.EXAM_REQUEST, title: 'تم إلغاء طلب الاختبار' });
+    return updated;
   }
 
   // ==========================================================================
@@ -1248,11 +1255,17 @@ export class ExamsService {
       });
     }
 
-    if (dto.scheduledAt && updated.status === ExamStatus.SCHEDULED) {
-      const student = await this.prisma.student.findUnique({ where: { id: updated.studentId }, select: { userId: true } });
-      if (student?.userId) await this.notifications.notify({ userId: student.userId, type: NotificationType.EXAM_SCHEDULED,
-        title: 'تم تعديل موعد اختبارك', body: `موعد اختبارك الجديد: ${this.formatDateArabic(updated.scheduledAt)}`,
-        link: '/student', data: { examId: updated.id, scheduledAt: updated.scheduledAt.toISOString() } });
+    if (dto.status === ExamStatus.CANCELLED && exam.status !== ExamStatus.CANCELLED) {
+      await this.notifications.notifyStudent(updated.studentId, { type: NotificationType.EXAM_REQUEST,
+        title: 'تم إلغاء اختبارك', body: dto.notes, data: { examId: updated.id } });
+      if (updated.request?.teacher?.user?.id) await this.notifications.notify({ userId: updated.request.teacher.user.id,
+        type: NotificationType.EXAM_REQUEST, title: 'تم إلغاء الاختبار', link: `/exams/${id}` });
+    }
+
+    if ((dto.scheduledAt || dto.location !== undefined) && updated.status === ExamStatus.SCHEDULED) {
+      await this.notifications.notifyStudent(updated.studentId, { type: NotificationType.EXAM_SCHEDULED,
+        title: 'تم تعديل موعد اختبارك', body: `موعد اختبارك الجديد: ${this.formatDateArabic(updated.scheduledAt)}${updated.location ? ` — ${updated.location}` : ''}`,
+        data: { examId: updated.id, scheduledAt: updated.scheduledAt.toISOString() } });
     }
     return updated;
   }
@@ -1386,6 +1399,8 @@ export class ExamsService {
       });
     }
 
+    const studentAccount = await this.prisma.student.findUnique({ where: { id: exam.studentId }, select: { userId: true } });
+    if (studentAccount?.userId) recipients.push({ userId: studentAccount.userId, link: '/student' });
     const seen = new Set<string>();
     const notificationPromises: Promise<any>[] = [];
 
@@ -1542,6 +1557,8 @@ export class ExamsService {
       });
     }
 
+    await this.notifications.notifyStudent(exam.studentId, { type: NotificationType.EXAM_RESULT,
+      title: 'تم تسجيل غيابك عن الاختبار', data: { examId: id } });
     return updated;
   }
 

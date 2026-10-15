@@ -78,9 +78,12 @@ export async function localRead(path: string, params: Record<string, any> = {}):
       if (String(actual) !== String(value)) return false;
     }
     if (params.unreadOnly === true || params.unreadOnly === 'true') if (row.isRead) return false;
-    if (params.track === 'CIRCLE' && !(row.circleId || row.circle?.id)) return false;
+    if (params.track === 'CIRCLE' && (!(row.circleId || row.circle?.id) || row.status !== 'ACTIVE')) return false;
     if (params.track === 'ACTIVITY' && row.status !== 'ACTIVITY') return false;
     if (params.track === 'COURSE' && !row.courses?.length && !row.courseEnrollments?.length) return false;
+    if (params.courseId && ![...(row.courses || []), ...(row.courseEnrollments || [])].some((entry: any) =>
+      !entry.endedAt && (entry.courseId || entry.course?.id || entry.id) === params.courseId)) return false;
+    if (params.track === 'SUSPENDED' && row.status !== 'SUSPENDED') return false;
     const date = String(row.date || row.scheduledAt || row.createdAt || '').slice(0, 10);
     if ((params.from || params.fromDate) && date < (params.from || params.fromDate)) return false;
     if ((params.to || params.toDate) && date > (params.to || params.toDate)) return false;

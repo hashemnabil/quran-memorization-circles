@@ -15,6 +15,16 @@ beforeEach(async () => {
   configureOffline(async () => { throw new Error('offline'); }, () => 'account');
 });
 after(() => db.close());
+
+test('pending activity and course registrations appear in their own lists before sync', async () => {
+  const activity = await localWrite('post', '/students', { fullName: 'Activity student', registrationTrack: 'ACTIVITY' });
+  const course = await localWrite('post', '/students', { fullName: 'Course student', registrationTrack: 'COURSE', courseId: 'course-one' });
+  assert.deepEqual((await localRead('/students', { track: 'ACTIVITY' })).data.map((row: any) => row.id), [activity.id]);
+  assert.deepEqual((await localRead('/students', { track: 'COURSE', courseId: 'course-one' })).data.map((row: any) => row.id), [course.id]);
+  assert.equal((await localRead('/students', { track: 'COURSE', courseId: 'another-course' })).meta.total, 0);
+  assert.equal((await localRead('/students', { track: 'CIRCLE' })).meta.total, 0);
+  assert.equal((await db.queue.toArray())[1].data.courseId, 'course-one');
+});
 test('search, filters and pagination work without a previously cached query variant', async () => {
   await mergeRows('students', Array.from({ length: 45 }, (_, i) => ({ id: `student-${i}`, fullName: `طالب ${i}`, status: i % 2 ? 'ACTIVE' : 'SUSPENDED', circleId: 'circle', createdAt: `${i}` })));
   const page = await localRead('/students', { status: 'ACTIVE', page: 2, limit: 10 });

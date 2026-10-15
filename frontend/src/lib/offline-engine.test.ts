@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import assert from 'node:assert/strict';
 import { beforeEach, after, test } from 'node:test';
 import { db } from './db';
-import { configureOffline, save, get, update, remove, mergeRows, syncAll, initOffline, pullAll, refreshOffline, noteRemoteRevision, settleLocalWrite, exportLocal, importLocal, clearLocal } from './offline-engine';
+import { configureOffline, save, get, update, remove, mergeRows, syncAll, initOffline, pullAll, refreshOffline, reconcileAfterNetworkWrite, noteRemoteRevision, settleLocalWrite, exportLocal, importLocal, clearLocal } from './offline-engine';
 import { entityTables } from './db';
 import { getSyncProgress } from './sync-progress';
 
@@ -15,6 +15,40 @@ beforeEach(async () => {
   configureOffline(async () => { throw new Error('network unavailable'); }, () => account);
 });
 after(() => db.close());
+
+test('direct server writes refresh the local replica without a socket and recheck overlapping commits', async () => {
+  await db.meta.bulkPut([
+    { key: `${account}:downloadedAt`, value: 'ready' },
+    { key: `${account}:deltaCursor`, value: '10' },
+  ]);
+  await mergeRows('students', [{ id: 's1', fullName: 'Before' }]);
+  let release!: () => void; let started!: () => void;
+  const blocked = new Promise<void>(resolve => { release = resolve; });
+  const began = new Promise<void>(resolve => { started = resolve; });
+  let checks = 0; const paths: string[] = [];
+  configureOffline(async (_method, path) => {
+    paths.push(path);
+    if (path === '/sync-all/watermark') {
+      checks++;
+      if (checks === 1) { started(); await blocked; }
+      return { cursor: String(10 + checks) };
+    }
+    return { tables: { students: { data: [{ id: 's1', fullName: `Commit ${checks}` }], visibleIds: ['s1'] } }, changedEntities: ['students'], cursor: String(10 + checks), hasMore: false };
+  }, () => account);
+  online = true;
+  const first = reconcileAfterNetworkWrite();
+  await began;
+  const second = reconcileAfterNetworkWrite();
+  assert.equal(first, second);
+  release(); await first;
+  online = false;
+  assert.equal((await get('students'))[0].fullName, 'Commit 2');
+  assert.equal((await db.meta.get(`${account}:deltaCursor`))?.value, '12');
+  assert.equal(checks, 2);
+  assert.equal(paths.some(path => path.includes('?table=')), false);
+  await reconcileAfterNetworkWrite();
+  assert.equal(checks, 2);
+});
 
 test('opening online downloads every table without a manual action and coalesces concurrent pulls', async () => {
   const requested: string[] = [];
@@ -214,6 +248,32 @@ test('an explicit server rejection reaches the form; offline writes still succee
   online = true;
   await assert.rejects(settleLocalWrite(local), /رقم الطالب مستخدم/);
   assert.equal(await db.queue.count(), 1);
+});
+
+test('correcting a rejected registration replaces it in order and unblocks its dependents', async () => {
+  const draft = await save('students', { id: 'draft', fullName: 'Student', code: 'duplicate' });
+  await save('recitations', { id: 'dependent', studentId: 'draft' });
+  const old = await db.queue.where('opId').equals(draft._writeOpId).first();
+  await db.queue.update(old!.id!, { error: 'Duplicate code' });
+  const corrected = await update('students', 'draft', { code: '123' });
+  const queue = await db.queue.toArray();
+  assert.equal(queue.length, 2);
+  assert.equal(queue[0].action, 'create');
+  assert.equal(queue[0].data.fullName, 'Student');
+  assert.equal(queue[0].data.code, '123');
+  assert.notEqual(queue[0].opId, draft._writeOpId);
+  assert.equal(queue[0].opId, corrected._writeOpId);
+  assert.equal(queue[0].error, undefined);
+  const actions: string[] = [];
+  configureOffline(async (_method, _path, body) => ({ outcomes: body.operations.map((op: any) => {
+    actions.push(op.action);
+    return { opId: op.opId, status: 'applied', data: { ...op.data, id: op.entityId } };
+  }) }), () => account);
+  online = true;
+  await settleLocalWrite(corrected);
+  assert.deepEqual(actions, ['create', 'create']);
+  assert.equal(await db.queue.count(), 0);
+  assert.equal((await get('students'))[0].code, '123');
 });
 
 test('reopening, reconnecting and duplicate events share a silent check without resetting progress when nothing changed', async () => {

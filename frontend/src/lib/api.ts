@@ -1,7 +1,7 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { Capacitor } from '@capacitor/core';
 import { shouldRetryReadRequest, readRetryDelayMs } from './offline/retry-policy.js';
-import { configureOffline, accountId, settleLocalWrite } from './offline-engine';
+import { configureOffline, accountId, settleLocalWrite, reconcileAfterNetworkWrite } from './offline-engine';
 import { db } from './db';
 import { localRead, localWrite, rememberRead, responseKey } from './local-api';
 import { prefetchSections, readPrefetched } from './offline-prefetch';
@@ -86,7 +86,11 @@ api.defaults.adapter = async (config) => {
     await rememberRead(path, config.params, data);
     return result;
   }
-  return networkAdapter(config);
+  const result = await networkAdapter(config);
+  if (['post', 'patch', 'put', 'delete'].includes(method)) {
+    void reconcileAfterNetworkWrite().catch(() => undefined);
+  }
+  return result;
 };
 
 api.interceptors.request.use((config) => {

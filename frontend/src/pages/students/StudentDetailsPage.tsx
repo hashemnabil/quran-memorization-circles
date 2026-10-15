@@ -1285,8 +1285,8 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
           };
       return api.patch(`/students/${student.id}`, payload);
     },
-    onSuccess: () => {
-      toast.success('تم تحديث بيانات الطالب');
+    onSuccess: (response) => {
+      toast.success(response.data?.synced === 0 ? 'تم حفظ التعديل على الجهاز؛ بانتظار إرساله للخادم' : 'تم تحديث بيانات الطالب');
       queryClient.invalidateQueries({ queryKey: ['students'] });
       onClose();
     },

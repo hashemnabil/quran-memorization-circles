@@ -50,6 +50,7 @@ export class CreateStudentDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(({ value }) => value === '' ? undefined : value)
   @IsDateString({}, { message: 'تاريخ الميلاد غير صالح' })
   birthDate?: string;
 

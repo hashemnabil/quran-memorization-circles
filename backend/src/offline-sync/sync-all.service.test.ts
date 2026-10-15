@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { Role } from '@prisma/client';
 import { FullSyncService } from './sync-all.service';
+import { UpdateStudentDto } from '../students/dto/student.dto';
 
 const user = { id: randomUUID(), role: Role.ADMIN, fullName: 'Admin', username: 'admin', email: null };
 function fixture() {
@@ -21,6 +22,13 @@ function fixture() {
   return { service, calls: () => calls, receipts };
 }
 const operation = () => ({ opId: randomUUID(), entityId: randomUUID(), table: 'students', action: 'create', data: { fullName: 'طالب' } });
+
+test('student edits accept an unset optional birth date from the actual form', async () => {
+  const { service } = fixture();
+  const dto = await (service as any).dto(UpdateStudentDto, { fullName: 'طالب', birthDate: '', phone: '', guardianPhone: '', circleId: null });
+  assert.equal(dto.birthDate, undefined);
+  assert.equal(dto.fullName, 'طالب');
+});
 
 test('delta reads the durable journal and sends only affected authorized records', async () => {
   let args: any;

@@ -18,6 +18,8 @@ function Base({ size = 20, children, ...props }: IconProps) {
       strokeWidth={1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
+      className="app-icon"
+      focusable="false"
       aria-hidden="true"
       {...props}
     >

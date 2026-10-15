@@ -5,6 +5,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   const url = new URL(path, 'https://local.invalid');
   url.searchParams.forEach((value, key) => { params[key] ??= value; });
   const segments = url.pathname.split('/').filter(Boolean);
+  if (url.pathname === '/students/me') return (await get('students')).find(row => row.selfAccountId === accountId());
   if (segments[0] === 'schedules') {
     const table = { media: 'mediaPlans', duties: 'teacherDuties', teachers: 'dutyTeachers' }[segments[1]] as EntityTable | undefined;
     if (table && segments.length === 2) return (await get(table)).sort((a, b) => String(a.date || a.fullName).localeCompare(String(b.date || b.fullName)));
@@ -77,9 +78,12 @@ export async function localRead(path: string, params: Record<string, any> = {}):
       if (String(actual) !== String(value)) return false;
     }
     if (params.unreadOnly === true || params.unreadOnly === 'true') if (row.isRead) return false;
-    if (params.track === 'CIRCLE' && !(row.circleId || row.circle?.id)) return false;
+    if (params.track === 'CIRCLE' && (!(row.circleId || row.circle?.id) || row.status !== 'ACTIVE')) return false;
     if (params.track === 'ACTIVITY' && row.status !== 'ACTIVITY') return false;
     if (params.track === 'COURSE' && !row.courses?.length && !row.courseEnrollments?.length) return false;
+    if (params.courseId && ![...(row.courses || []), ...(row.courseEnrollments || [])].some((entry: any) =>
+      !entry.endedAt && (entry.courseId || entry.course?.id || entry.id) === params.courseId)) return false;
+    if (params.track === 'SUSPENDED' && row.status !== 'SUSPENDED') return false;
     const date = String(row.date || row.scheduledAt || row.createdAt || '').slice(0, 10);
     if ((params.from || params.fromDate) && date < (params.from || params.fromDate)) return false;
     if ((params.to || params.toDate) && date > (params.to || params.toDate)) return false;
@@ -106,6 +110,11 @@ export function responseKey(account: string, path: string, params: any) {
 }
 export async function localWrite(method: string, path: string, data: any): Promise<any | undefined> {
   const parts = path.split('/').filter(Boolean);
+  if (method === 'patch' && path === '/students/me/questionnaire') {
+    const student = (await get('students')).find(row => row.selfAccountId === accountId());
+    if (!student) throw Object.assign(new Error('افتح ملفك مع النت مرة واحدة قبل تعبئة الاستبيان بدون نت'), { localWriteRejected: true });
+    return save('students', { ...data, id: student.id }, 'questionnaire');
+  }
   if (parts[0] === 'schedules' && ['media', 'duties'].includes(parts[1])) {
     const table = parts[1] === 'media' ? 'mediaPlans' : 'teacherDuties';
     if (method === 'post' && parts.length === 2) return save(table, data);

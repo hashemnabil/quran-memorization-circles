@@ -15,12 +15,36 @@ beforeEach(async () => {
   configureOffline(async () => { throw new Error('offline'); }, () => 'account');
 });
 after(() => db.close());
+
+test('pending activity and course registrations appear in their own lists before sync', async () => {
+  const activity = await localWrite('post', '/students', { fullName: 'Activity student', registrationTrack: 'ACTIVITY' });
+  const course = await localWrite('post', '/students', { fullName: 'Course student', registrationTrack: 'COURSE', courseId: 'course-one' });
+  assert.deepEqual((await localRead('/students', { track: 'ACTIVITY' })).data.map((row: any) => row.id), [activity.id]);
+  assert.deepEqual((await localRead('/students', { track: 'COURSE', courseId: 'course-one' })).data.map((row: any) => row.id), [course.id]);
+  assert.equal((await localRead('/students', { track: 'COURSE', courseId: 'another-course' })).meta.total, 0);
+  assert.equal((await localRead('/students', { track: 'CIRCLE' })).meta.total, 0);
+  assert.equal((await db.queue.toArray())[1].data.courseId, 'course-one');
+});
 test('search, filters and pagination work without a previously cached query variant', async () => {
   await mergeRows('students', Array.from({ length: 45 }, (_, i) => ({ id: `student-${i}`, fullName: `طالب ${i}`, status: i % 2 ? 'ACTIVE' : 'SUSPENDED', circleId: 'circle', createdAt: `${i}` })));
   const page = await localRead('/students', { status: 'ACTIVE', page: 2, limit: 10 });
   assert.equal(page.data.length, 10); assert.equal(page.meta.total, 22);
   const search = await localRead('/students', { search: 'طالب 41' });
   assert.equal(search.data[0].id, 'student-41');
+});
+
+test('student questionnaire updates the own profile immediately and queues one protected action offline', async () => {
+  await mergeRows('students', [{ id: student, selfAccountId: 'account', fullName: 'Student', address: 'Before', totalPoints: 50 }]);
+  const saved = await localWrite('patch', '/students/me/questionnaire', { address: 'After' });
+  assert.equal(saved.synced, 0);
+  const own = await localRead('/students/me');
+  assert.equal(own.address, 'After');
+  assert.equal(own.totalPoints, 50);
+  const queue = await db.queue.toArray();
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].action, 'questionnaire');
+  assert.equal(queue[0].entityId, student);
+  assert.equal(queue[0].data.totalPoints, undefined);
 });
 test('attendance sheet and grouped history reflect a newly queued local sheet', async () => {
   await mergeRows('circles', [{ id: 'circle', name: 'الحلقة' }]);

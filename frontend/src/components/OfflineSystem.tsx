@@ -82,12 +82,12 @@ export default function OfflineSystem() {
   }, [account]);
   const syncing = online && progress.account === account && progress.active;
   const waiting = pending > 0 || Boolean(error) || !last;
-  return <div dir="rtl" role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-4 py-2 text-xs font-medium sm:px-6">
-    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 ${online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+  return <div dir="rtl" role="status" aria-live="polite" className="mb-5 flex flex-wrap items-center gap-2 text-[11px] font-medium">
+    <span className={`inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 ${online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
       <span aria-hidden="true" className={`h-2 w-2 rounded-full ${online ? 'bg-emerald-500' : 'bg-slate-400'}`} />
       {online ? 'متصل' : 'غير متصل'}
     </span>
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 ${syncing ? 'bg-blue-50 text-blue-700' : waiting ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 ${syncing ? 'bg-blue-50 text-blue-700' : waiting ? 'bg-slate-100 text-slate-600' : 'bg-emerald-50 text-emerald-700'}`}>
       {syncing ? <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity=".2" /><path d="M8 2a6 6 0 0 1 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg> : !waiting ? <span aria-hidden="true">✓</span> : null}
       {syncing ? `جارٍ المزامنة ${progress.percent}٪` : waiting ? 'بانتظار المزامنة' : 'تمت المزامنة'}
       {syncing && <span role="progressbar" aria-label="تقدم مراحل المزامنة" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent} className="h-1.5 w-14 overflow-hidden rounded-full bg-blue-100"><span className="block h-full rounded-full bg-blue-500 transition-[width] motion-reduce:transition-none" style={{ width: `${progress.percent}%` }} /></span>}

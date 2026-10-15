@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Role } from '@/types';
 import {
+  IconCamera,
   IconAward,
   IconBell,
   IconBook,
@@ -32,7 +33,7 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-const ALL: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'PARENT', 'SUPPORT'];
+const ALL: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'PARENT', 'SUPPORT', 'STUDENT'];
 
 /**
  * The single source of truth for the sidebar. Each entry declares which roles
@@ -53,15 +54,15 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/courses', label: 'الدورات', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/staff/attendance', label: 'حضور الكادر', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
       { to: '/staff', label: 'دليل الكادر', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
-      { to: '/teachers', label: 'المعلمين', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
+      { to: '/teachers', label: 'المعلمين', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
       { to: '/supervisors', label: 'المشرفين', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
     ],
   },
   {
     title: 'الإعلام',
     items: [
-      { to: '/media-schedule', label: 'جدول الإعلام', icon: <IconCalendar size={19} />, roles: ['ADMIN'] },
-      { to: '/media-activities', label: 'سجل الإعلام', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
+      { to: '/media-schedule', label: 'جدول الإعلام', icon: <IconCamera size={19} />, roles: ['ADMIN'] },
+      { to: '/media-activities', label: 'سجل الإعلام', icon: <IconCamera size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
       { to: '/announcements', label: 'الإعلانات', icon: <IconBell size={19} />, roles: ['ADMIN'] },
     ],
   },
@@ -101,7 +102,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'التواصل',
     items: [
       { to: '/chat', label: 'المحادثات', icon: <IconChat size={19} />, roles: ALL, badge: 'chat' },
-      { to: '/notifications', label: 'الإشعارات', icon: <IconCalendar size={19} />, roles: ALL, badge: 'notifications' },
+      { to: '/notifications', label: 'الإشعارات', icon: <IconBell size={19} />, roles: ALL, badge: 'notifications' },
       { to: '/support', label: 'الدعم الفني', icon: <IconLifeBuoy size={19} />, roles: ALL, badge: 'support' },
     ],
   },

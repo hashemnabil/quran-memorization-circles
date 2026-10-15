@@ -12,7 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { UploadsService } from '../uploads/uploads.service';
 import { StudentsService } from '../students/students.service';
-import { CreateStudentDto, UpdateStudentDto, QueryStudentsDto, AddNoteDto } from '../students/dto/student.dto';
+import { CreateStudentDto, UpdateStudentDto, QueryStudentsDto, AddNoteDto, StudentQuestionnaireDto } from '../students/dto/student.dto';
 import { CirclesService } from '../circles/circles.service';
 import { CreateCircleDto, UpdateCircleDto, QueryCirclesDto } from '../circles/dto/circle.dto';
 import { TeachersService } from '../teachers/teachers.service';
@@ -57,7 +57,7 @@ export class FullSyncService {
       case 'mediaPlans': return { data: user.role === Role.ADMIN && page === 1 ? await s.schedules.media() : [], meta: { hasNextPage: false } };
       case 'teacherDuties': return { data: staff && page === 1 ? await s.schedules.duties(user) : [], meta: { hasNextPage: false } };
       case 'dutyTeachers': return { data: user.role === Role.ADMIN && page === 1 ? await s.schedules.teachers() : [], meta: { hasNextPage: false } };
-      case 'students': return staff ? this.hydratePage(await s.students.findAll(user, plainToInstance(QueryStudentsDto, query)), async (id) => ({ ...await s.students.findOne(user, id), _offline: {
+      case 'students': return user.role === Role.STUDENT ? { data: page === 1 ? [await s.students.getMyProfile(user)] : [], meta: { hasNextPage: false } } : staff ? this.hydratePage(await s.students.findAll(user, plainToInstance(QueryStudentsDto, query)), async (id) => ({ ...await s.students.findOne(user, id), _offline: {
         eligibility: await s.exams.eligibility(user, id), milestones: await s.exams.milestoneRecords(user, id), history: await s.students.history(user, id), progress: await s.recitations.studentProgress(user, id),
       } }), changedIds) : empty;
       case 'circles': return staff ? this.hydratePage(await s.circles.findAll(user, plainToInstance(QueryCirclesDto, query)), (id) => s.circles.findOne(user, id), changedIds) : empty;
@@ -213,6 +213,9 @@ export class FullSyncService {
     if (op.table === 'notifications') {
       if (op.action === 'read') return s.notifications.markRead(user, id);
       if (op.action === 'delete') return s.notifications.remove(user, id);
+    }
+    if (op.table === 'students' && user.role === Role.STUDENT && op.action === 'questionnaire') {
+      return s.students.updateMyQuestionnaire(user, await this.dto(StudentQuestionnaireDto, op.data), id);
     }
     if (op.table === 'students' && staff) {
       if (op.action === 'create') return s.students.create(user, await this.dto(CreateStudentDto, op.data));

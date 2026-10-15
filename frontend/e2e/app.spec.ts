@@ -5,7 +5,7 @@ async function login(page: Page, role: string) {
   await page.addInitScript(() => localStorage.setItem('qc.onboarding.completed', '1'));
   await page.goto('/login');
   await expect(page.getByRole('status', { name: 'بدء التطبيق' })).not.toBeVisible();
-  await page.getByLabel('اسم المستخدم (رقم الطالب للطلاب)').fill(fixtures.accounts[role].username);
+  await page.getByLabel('اسم المستخدم', { exact: true }).fill(fixtures.accounts[role].username);
   await page.getByLabel('كلمة المرور', { exact: true }).fill(fixtures.accounts[role].password);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
   if (role !== 'PARENT') await expect(page).not.toHaveURL(/\/login$/);
@@ -63,9 +63,10 @@ test('student can reload the cached shell and file screen in airplane mode and r
   }))).toBe(true);
   await context.setOffline(true); await page.reload();
   await expect(page.getByRole('heading', { name: 'ملفاتي', exact: true })).toBeVisible();
-  await expect(page.getByText('أنت غير متصل بالإنترنت.', { exact: false })).toBeVisible();
+  await expect(page.getByText('غير متصل', { exact: true })).toBeVisible();
   await context.setOffline(false);
-  await expect(page.getByText('أنت غير متصل بالإنترنت.', { exact: false })).not.toBeVisible();
+  await expect(page.getByText('متصل', { exact: true })).toBeVisible();
+  await expect(page.getByText('غير متصل', { exact: true })).not.toBeVisible();
 });
 
 async function readTeacherOutbox(page: Page): Promise<Array<{ id: number; opId: string }>> {

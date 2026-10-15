@@ -7,6 +7,7 @@ let currentAccount: () => string = () => '';
 let running: Promise<void> | undefined;
 let pulling: { account: string; promise: Promise<void> } | undefined;
 let refreshing: { account: string; promise: Promise<void> } | undefined;
+let networkReconciliation: { account: string; dirty: boolean; promise: Promise<void> } | undefined;
 let preloadSections: ((account: string, changedEntities?: string[]) => Promise<void>) | undefined;
 export function configureOffline(send: Transport, account: () => string, preload?: (account: string, changedEntities?: string[]) => Promise<void>) { transport = send; currentAccount = account; preloadSections = preload; }
 export async function noteRemoteRevision(revision: string) {
@@ -50,6 +51,13 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     row.assignments = data.teacherUserIds.map((teacherUserId: string) => ({ teacherUserId, teacherName: teachers.find((teacher) => teacher.id === teacherUserId)?.fullName || 'محفّظ' }));
   }
   if (table === 'students') {
+    if (action === 'create' && data.registrationTrack === 'ACTIVITY') {
+      row.status = 'ACTIVITY'; row.circleId = null; row.circle = null;
+    }
+    if (action === 'create' && data.registrationTrack === 'COURSE') {
+      row.status = 'ACTIVE'; row.circleId = null; row.circle = null;
+      row.courseEnrollments = [{ courseId: data.courseId, endedAt: null }];
+    }
     row.status ??= 'ACTIVE'; row.gender ??= 'MALE'; row.memorizedParts ??= 0; row.totalPoints ??= 0;
     row.code ||= `LOCAL-${id.slice(0, 8)}`; row.enrollmentDate ||= row.createdAt;
     if (data.circleId !== undefined) row.circle = data.circleId ? await db.circles.get([account, data.circleId]) || null : null;
@@ -69,7 +77,19 @@ export async function save(table: EntityTable, data: Record<string, any>, action
   const opId = crypto.randomUUID();
   await db.transaction('rw', db.table(table), db.queue, async () => {
     await db.table(table).put(row);
-    await db.queue.add({ accountId: account, opId, table, action, entityId: id, data, createdAt: row.updatedAt });
+    const pending = await db.queue.where('accountId').equals(account)
+      .filter(item => item.table === table && item.entityId === id).toArray();
+    const rejected = pending.length === 1 && pending[0].error ? pending[0] : undefined;
+    const correctsRejected = rejected && (action === 'update' && ['create', 'update'].includes(rejected.action)
+      || action === 'questionnaire' && rejected.action === action);
+    if (correctsRejected && rejected) {
+      // Replace only an explicitly rejected request. Unknown/lost responses keep
+      // their original payload and operation ID for safe idempotent replay.
+      // Keep queue order so dependent records still follow this correction.
+      await db.queue.put({ ...rejected, opId, data: { ...rejected.data, ...data }, error: undefined });
+    } else {
+      await db.queue.add({ accountId: account, opId, table, action, entityId: id, data, createdAt: row.updatedAt });
+    }
   });
   window.dispatchEvent(new Event('halaqat:changed'));
   void syncAll().catch(() => undefined);
@@ -280,6 +300,28 @@ export function refreshOffline(options: { forceDownload?: boolean; checkDelta?: 
   if (refreshing?.account === account) return refreshing.promise;
   const promise = refreshOnce(options).finally(() => { if (refreshing?.promise === promise) refreshing = undefined; });
   refreshing = { account, promise }; return promise;
+}
+// Successful writes outside the local outbox (course enrollment, assignments,
+// evaluations, etc.) must update the offline replica even if the socket is down.
+// Coalesce bursts, but recheck a write that committed during an earlier refresh.
+export function reconcileAfterNetworkWrite(): Promise<void> {
+  const account = currentAccount();
+  if (!account || !navigator.onLine) return Promise.resolve();
+  if (networkReconciliation?.account === account) {
+    networkReconciliation.dirty = true;
+    return networkReconciliation.promise;
+  }
+  const state = { account, dirty: true, promise: Promise.resolve() };
+  state.promise = (async () => {
+    while (state.dirty && currentAccount() === account && navigator.onLine) {
+      state.dirty = false;
+      // A startup/remote refresh may have read its watermark before this write.
+      if (refreshing?.account === account) await refreshing.promise.catch(() => undefined);
+      if (currentAccount() === account && navigator.onLine) await refreshOffline({ checkDelta: true });
+    }
+  })().finally(() => { if (networkReconciliation === state) networkReconciliation = undefined; });
+  networkReconciliation = state;
+  return state.promise;
 }
 async function refreshOnce(options: { forceDownload?: boolean; checkDelta?: boolean }) {
   if (!navigator.onLine || !currentAccount()) return;

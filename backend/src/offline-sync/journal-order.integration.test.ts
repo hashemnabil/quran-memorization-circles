@@ -35,6 +35,31 @@ test('student create and edit succeed through full-sync including an empty optio
   }
 });
 
+test('student questionnaire sync updates the same administrative record and rejects another student', { skip: !available }, async () => {
+  const db = new PrismaService();
+  const userId = randomUUID(), studentId = randomUUID(), otherId = randomUUID();
+  const service = new FullSyncService(db, new ConfigService());
+  const actor = { id: userId, role: Role.STUDENT, fullName: 'Student', username: userId, email: null } as any;
+  try {
+    await db.user.create({ data: { id: userId, username: userId, fullName: 'Student', passwordHash: 'test-only', role: Role.STUDENT } });
+    await db.student.createMany({ data: [{ id: studentId, userId, code: `SELF-${studentId}`, fullName: 'Student' }, { id: otherId, code: `OTHER-${otherId}`, fullName: 'Other student' }] });
+    const saved = await service.push(actor, { operations: [{ opId: randomUUID(), entityId: studentId, table: 'students', action: 'questionnaire', data: { address: 'My new address', guardianName: 'Guardian', guardianPhone: '0591234567' } }] });
+    assert.equal(saved.outcomes[0].status, 'applied', JSON.stringify(saved));
+    assert.equal(saved.outcomes[0].data.selfAccountId, userId);
+    const adminPull = await service.pull({ id: userId, role: Role.ADMIN } as any, 'students', 1, new Set([studentId]));
+    assert.equal(adminPull.data.find((row: any) => row.id === studentId)?.address, 'My new address');
+    const denied = await service.push(actor, { operations: [{ opId: randomUUID(), entityId: otherId, table: 'students', action: 'questionnaire', data: { fullName: 'Tampered' } }] });
+    assert.equal(denied.outcomes[0].status, 'rejected');
+    assert.equal((await db.student.findUnique({ where: { id: otherId } }))?.fullName, 'Other student');
+  } finally {
+    await db.student.deleteMany({ where: { id: { in: [studentId, otherId] } } });
+    await db.activityLog.deleteMany({ where: { userId } });
+    await db.processedOperation.deleteMany({ where: { accountId: userId } });
+    await db.user.deleteMany({ where: { id: userId } });
+    await db.$disconnect();
+  }
+});
+
 test('full-sync delta sends changed circle only, scopes IDs, and preserves deletion hints', { skip: !available }, async () => {
   const db = new PrismaService();
   const a = randomUUID(), b = randomUUID(), suffix = randomUUID();

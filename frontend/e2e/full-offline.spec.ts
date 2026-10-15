@@ -74,5 +74,25 @@ test('cold offline navigation opens downloaded core screens and searches locally
   await expect(page.locator('main')).not.toContainText('طالب أوفلاين');
   await search.fill('طالب أوفلاين');
   await expect(page.locator('main')).toContainText('طالب أوفلاين');
+  // A roster refresh while editing must not reset an absence selection to present.
+  await page.goto(`/attendance?circleId=${circleId}`);
+  await expect(page.getByText('طالب أوفلاين', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'تعيين الكل غائب', exact: true }).click();
+  await page.evaluate(({ account, studentId }) => new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open('halaqatFull');
+    request.onsuccess = () => {
+      const database = request.result;
+      const tx = database.transaction('students', 'readwrite');
+      const store = tx.objectStore('students');
+      const read = store.get([account, studentId]);
+      read.onsuccess = () => store.put({ ...read.result, fullName: 'طالب بعد التحديث' });
+      tx.oncomplete = () => { database.close(); window.dispatchEvent(new Event('halaqat:changed')); resolve(); };
+      tx.onerror = () => reject(tx.error);
+    };
+    request.onerror = () => reject(request.error);
+  }), { account, studentId: fixtures.students[0].id });
+  await expect(page.getByText('طالب بعد التحديث', { exact: true })).toBeVisible();
+  const row = page.locator('li').filter({ has: page.getByText('طالب بعد التحديث', { exact: true }) });
+  await expect(row.locator('button[aria-pressed="true"]')).toContainText('غياب');
   expect(errors).toEqual([]);
 });

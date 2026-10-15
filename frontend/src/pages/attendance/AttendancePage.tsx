@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -58,6 +58,9 @@ export default function AttendancePage() {
   const [circleId, setCircleId] = useState(searchParams.get('circleId') ?? '');
   const [date, setDate] = useState(todayInput());
   const [draft, setDraft] = useState<Draft>({});
+  const draftSheet = useRef('');
+  const draftEdited = useRef(false);
+  const editDraft: typeof setDraft = (value) => { draftEdited.current = true; setDraft(value); };
   /** Set the moment a sheet is saved, so the confirmation shows before the refetch lands. */
   const [justSaved, setJustSaved] = useState<{ circleId: string; date: string } | null>(null);
 
@@ -132,7 +135,7 @@ export default function AttendancePage() {
     enabled: !!circleId && !!date,
   });
 
-  // Reset the draft whenever a new sheet loads, pre-filling saved values.
+  // Refresh roster data without discarding an in-progress sheet.
   useEffect(() => {
     if (!sheet) return;
     const next: Draft = {};
@@ -141,8 +144,17 @@ export default function AttendancePage() {
         ? { status: s.attendance.status, note: s.attendance.note ?? undefined }
         : { status: 'PRESENT' };
     });
-    setDraft(next);
-  }, [sheet]);
+    const key = `${accountId}:${circleId}:${date}`;
+    if (draftSheet.current !== key) {
+      draftSheet.current = key;
+      draftEdited.current = false;
+      setDraft(next);
+    } else {
+      setDraft(previous => draftEdited.current
+        ? Object.fromEntries(Object.entries(next).map(([id, value]) => [id, previous[id] ?? value])) as Draft
+        : next);
+    }
+  }, [sheet, accountId, circleId, date]);
 
   const save = useMutation({
     // TanStack must run the handler offline so it can persist the durable outbox.
@@ -213,7 +225,7 @@ export default function AttendancePage() {
     (justSaved?.circleId === circleId && justSaved?.date === date);
 
   const setAll = (status: AttendanceStatus) => {
-    setDraft((prev) => Object.fromEntries(Object.keys(prev).map((id) => [id, { status }])) as Draft);
+    editDraft((prev) => Object.fromEntries(Object.keys(prev).map((id) => [id, { status }])) as Draft);
   };
 
   return (
@@ -339,7 +351,7 @@ export default function AttendancePage() {
                         <StatusPicker
                           value={entry.status}
                           onChange={(status) =>
-                            setDraft((prev) => ({ ...prev, [student.id]: { ...prev[student.id], status } }))
+                            editDraft((prev) => ({ ...prev, [student.id]: { ...prev[student.id], status } }))
                           }
                         />
 
@@ -349,7 +361,7 @@ export default function AttendancePage() {
                             placeholder="سبب العذر"
                             value={entry.note ?? ''}
                             onChange={(e) =>
-                              setDraft((prev) => ({
+                              editDraft((prev) => ({
                                 ...prev,
                                 [student.id]: { ...prev[student.id], note: e.target.value },
                               }))
@@ -393,6 +405,7 @@ function StatusPicker({
         <button
           key={status}
           type="button"
+          aria-pressed={value === status}
           onClick={() => onChange(status)}
           className={cx(
             'rounded-lg border font-bold transition',

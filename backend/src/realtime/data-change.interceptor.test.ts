@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import { lastValueFrom, of, throwError } from 'rxjs';
 import { DataChangeInterceptor } from './data-change.interceptor';
 import { RealtimeGateway } from './realtime.gateway';
+import { snapshotPatch } from './snapshot-delta';
+import { SnapshotDeltaInterceptor } from './snapshot-delta.interceptor';
 
 function fixture(method: string, path: string) {
   let changes = 0;
@@ -37,4 +39,28 @@ test('change announcements carry only an opaque revision and target authenticate
   assert.deepEqual(Object.keys(calls[0].payload), ['revision']);
   assert.notEqual(calls[0].payload.revision, calls[1].payload.revision);
   assert.ok(calls[0].rooms.includes('role:TEACHER'));
+});
+
+test('snapshot patches send changed rows and removal/order IDs without unchanged record contents', () => {
+  const before = [{ id: 'one', name: 'UNCHANGED-PRIVATE-CONTENT' }, { id: 'two', name: 'before' }, { id: 'gone' }];
+  const after = [before[0], { id: 'two', name: 'after' }, { id: 'new' }];
+  const patch = snapshotPatch(before, after);
+  assert.deepEqual(patch.changed, [after[1], after[2]]);
+  assert.deepEqual(patch.order, ['one', 'two', 'new']);
+  assert.ok(!JSON.stringify(patch).includes('UNCHANGED-PRIVATE-CONTENT'));
+});
+
+test('section delta cache is scoped to authenticated account and endpoint', async () => {
+  const interceptor = new SnapshotDeltaInterceptor();
+  const request: any = { method: 'GET', originalUrl: '/api/support', user: { id: 'one' }, headers: { 'x-offline-snapshot': '1' } };
+  const context = { getType: () => 'http', switchToHttp: () => ({ getRequest: () => request }) } as any;
+  const run = (data: any) => lastValueFrom(interceptor.intercept(context, { handle: () => of(data) }));
+  const initial = await run([{ id: 'one', name: 'before' }]);
+  request.headers['x-offline-base'] = initial.offlineSnapshot.token;
+  const changed = await run([{ id: 'one', name: 'after' }]);
+  assert.equal(changed.offlineDelta.patch.changed[0].name, 'after');
+  request.user.id = 'two';
+  assert.ok((await run([])).offlineSnapshot);
+  request.user.id = 'one'; request.originalUrl = '/api/users';
+  assert.ok((await run([])).offlineSnapshot);
 });

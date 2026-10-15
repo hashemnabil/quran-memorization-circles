@@ -19,6 +19,8 @@ test('cold offline navigation opens downloaded core screens and searches locally
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/auth/me') return route.fulfill({ json: user });
+    if (url.pathname === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+    if (url.pathname === '/api/sync-all/delta') return route.fulfill({ json: { tables: {}, changedEntities: [], cursor: '0', hasMore: false } });
     if (url.pathname === '/api/sync-all') return route.fulfill({ json: { data: fixtures[url.searchParams.get('table') || ''] || [], meta: { hasNextPage: false } } });
     if (url.pathname === '/api/settings/public') return route.fulfill({ json: { name: 'اختبار الأوفلاين' } });
     if (url.pathname.endsWith('/unread-count')) return route.fulfill({ json: { count: 0 } });

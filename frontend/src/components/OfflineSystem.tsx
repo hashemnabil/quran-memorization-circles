@@ -27,10 +27,10 @@ export default function OfflineSystem() {
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     let remoteTimer: ReturnType<typeof setTimeout> | undefined;
     const update = () => { if (active) void refresh(); };
-    const synchronize = async (initial = false) => {
+    const synchronize = async (initial = false, checkDelta = false) => {
       if (running || !active || !navigator.onLine) return;
       running = true; setError('');
-      try { await (initial ? initOffline() : refreshOffline()); }
+      try { await (initial ? initOffline() : refreshOffline({ checkDelta })); }
       catch (e) { if (active) setError(e instanceof Error ? e.message : String(e)); }
       finally {
         running = false;
@@ -41,7 +41,7 @@ export default function OfflineSystem() {
         }
       }
     };
-    const start = () => { setOnline(navigator.onLine); if (navigator.onLine) void synchronize(); };
+    const start = () => { setOnline(navigator.onLine); if (navigator.onLine) void synchronize(false, true); };
     const visible = () => { if (document.visibilityState === 'visible') start(); };
     const changed = () => {
       update();
@@ -63,7 +63,7 @@ export default function OfflineSystem() {
     const listener = Network.addListener('networkStatusChange', (status) => {
       if (!active) return;
       setOnline(status.connected);
-      if (status.connected) void synchronize();
+      if (status.connected) void synchronize(false, true);
     });
     window.addEventListener('online', start); window.addEventListener('offline', start);
     window.addEventListener('focus', start);

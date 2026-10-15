@@ -7,6 +7,23 @@ of the requested files are in `frontend/src/lib`, `frontend/src/pages`, and
 
 ## Implemented
 
+- Incremental core replication now uses a durable `sync_changes` sequence cursor.
+  Bootstrap fences the journal before reading initial data. Later requests use
+  `/sync-all/delta?since=...`; only affected domain rows are hydrated and sent.
+  Authorized ID manifests reconcile deletion/scope changes without retransmitting
+  unchanged record bodies. Dirty local rows are preserved. The cursor advances only
+  after both core rows and related section snapshots are saved successfully.
+  Existing installations need one baseline download to establish this cursor.
+  Additional sections refresh only when their dependency tables changed. Their
+  authenticated GET snapshots use account/endpoint-scoped tokens and row/object
+  patches, preserving unchanged records locally. A bounded server cache (8 MB,
+  1 MB per snapshot) falls back to a full affected section after eviction/restart
+  or when no baseline token exists; this does not restart the entire application
+  download. Scope/role assignment changes may require complete authorized rosters
+  to backfill newly accessible records and remove revoked ones. Some server-side
+  authorized list scans remain necessary for deletion manifests; the protocol
+  optimizes hydration and transferred content, not every underlying SQL query.
+
 - Boot download starts after the first screen can render. Automatic 30-second
   ticks only flush pending writes or retry incomplete/announced downloads. There
   is no periodic full download: after bootstrap, successful REST mutations publish
@@ -82,9 +99,10 @@ are not supplied as fabricated zeroes.
 
 The push contract uses `{operations}` rather than raw unrestricted table upserts
 so existing authorization, validation, dependent IDs and idempotency are retained.
-Pull currently downloads full paginated snapshots, not a 30-day incremental feed;
-it removes missing synced records while preserving pending local edits.
-Large deployments should add consistent snapshot cursors and domain change feeds.
+Initial pull downloads full paginated snapshots; subsequent pulls consume the
+durable change cursor and reconcile IDs while preserving pending local edits.
+Large deployments should further optimize authorized ID scans and share the
+section snapshot cache across server instances.
 Uploads need a separate durable binary transfer protocol.
 
 First sign-in and initial download require connectivity. Existing offline sessions

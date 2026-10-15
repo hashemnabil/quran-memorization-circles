@@ -6,8 +6,8 @@ let transport: Transport;
 let currentAccount: () => string = () => '';
 let running: Promise<void> | undefined;
 let pulling: { account: string; promise: Promise<void> } | undefined;
-let preloadSections: ((account: string) => Promise<void>) | undefined;
-export function configureOffline(send: Transport, account: () => string, preload?: (account: string) => Promise<void>) { transport = send; currentAccount = account; preloadSections = preload; }
+let preloadSections: ((account: string, changedEntities?: string[]) => Promise<void>) | undefined;
+export function configureOffline(send: Transport, account: () => string, preload?: (account: string, changedEntities?: string[]) => Promise<void>) { transport = send; currentAccount = account; preloadSections = preload; }
 export async function noteRemoteRevision(revision: string) {
   if (!currentAccount() || typeof revision !== 'string' || !revision || revision.length > 100) return;
   const account = accountId();
@@ -85,16 +85,21 @@ export async function mergeRows(table: EntityTable, rows: Record<string, any>[],
     }
   });
 }
-export function pullAll(): Promise<void> {
+export function pullAll(forceFull = false): Promise<void> {
   const account = accountId();
   if (pulling?.account === account) return pulling.promise;
-  const promise = downloadAll().finally(() => { if (pulling?.promise === promise) pulling = undefined; });
+  const promise = (async () => {
+    const cursor = (await db.meta.get(`${account}:deltaCursor`))?.value;
+    return !forceFull && typeof cursor === 'string' ? downloadDelta(account, cursor) : downloadAll();
+  })().finally(() => { if (pulling?.promise === promise) pulling = undefined; });
   pulling = { account, promise };
   return promise;
 }
 async function downloadAll() {
   const account = accountId();
   const revision = (await db.meta.get(`${account}:remoteRevision`))?.value;
+  // Fence before the initial read; later committed changes are replayed as deltas.
+  const watermark = await transport('get', '/sync-all/watermark');
   let failure: unknown;
   let completed = 0;
   for (const table of entityTables) {
@@ -131,8 +136,45 @@ async function downloadAll() {
   try { await preloadSections?.(account); } catch (error) { failure ||= error; }
   if (failure) throw failure;
   await db.meta.put({ key: `${account}:downloadedAt`, value: new Date().toISOString() });
+  if (typeof watermark?.cursor === 'string') await db.meta.put({ key: `${account}:deltaCursor`, value: watermark.cursor });
   if (revision) await db.meta.put({ key: `${account}:downloadedRevision`, value: revision });
   window.dispatchEvent(new Event('halaqat:changed'));
+}
+async function downloadDelta(account: string, initialCursor: string) {
+  const revision = (await db.meta.get(`${account}:remoteRevision`))?.value;
+  let cursor = initialCursor;
+  const entities = new Set<string>();
+  for (;;) {
+    const result = await transport('get', `/sync-all/delta?since=${encodeURIComponent(cursor)}`);
+    if (currentAccount() !== account) return;
+    if (!result?.tables || !/^(0|[1-9]\d*)$/.test(result.cursor) || BigInt(result.cursor) < BigInt(cursor) || result.hasMore && result.cursor === cursor) throw new Error('استجابة تحديث غير صالحة؛ بقي مؤشر المزامنة محفوظًا');
+    for (const [name, value] of Object.entries(result.tables)) {
+      if (!entityTables.includes(name as EntityTable)) throw new Error('جدول تحديث غير صالح');
+      const table = name as EntityTable, snapshot = value as any;
+      if (!Array.isArray(snapshot.data) || !Array.isArray(snapshot.visibleIds)) throw new Error('تحديث غير مكتمل');
+      await mergeRows(table, snapshot.data, account);
+      const visible = new Set(snapshot.visibleIds);
+      await db.table(table).where('accountId').equals(account).filter((row: LocalRow) => row.synced === 1 && !visible.has(row.id)).delete();
+      for (const [path, data] of Object.entries(snapshot.references || {})) await db.meta.put({ key: `${account}:reference:${path}`, value: data });
+      if (table === 'students') {
+        const { cachedImage } = await import('./offline-images');
+        for (const row of snapshot.data) if (row.photoUrl) await cachedImage(row.photoUrl, account).catch(() => undefined);
+      }
+    }
+    for (const entity of result.changedEntities || []) entities.add(entity);
+    cursor = result.cursor;
+    reportSyncProgress(account, 75);
+    if (!result.hasMore) break;
+  }
+  if (entities.size) await preloadSections?.(account, [...entities]);
+  if (currentAccount() !== account) return;
+  // Advance only after both core changes and section patches are durable.
+  await db.transaction('rw', db.meta, async () => {
+    await db.meta.put({ key: `${account}:deltaCursor`, value: cursor });
+    await db.meta.put({ key: `${account}:downloadedAt`, value: new Date().toISOString() });
+    if (revision) await db.meta.put({ key: `${account}:downloadedRevision`, value: revision });
+  });
+  if (entities.size) window.dispatchEvent(new Event('halaqat:changed'));
 }
 export function syncAll(): Promise<void> {
   if (running) return running;
@@ -195,16 +237,16 @@ async function acknowledge(operation: QueuedWrite, server: any) {
 export async function initOffline() {
   await db.open();
   if (typeof navigator.storage?.persist === 'function') void navigator.storage.persist().catch(() => false);
-  if (navigator.onLine && currentAccount()) await refreshOffline();
+  if (navigator.onLine && currentAccount()) await refreshOffline({ checkDelta: true });
 }
-export async function refreshOffline(options: { forceDownload?: boolean } = {}) {
+export async function refreshOffline(options: { forceDownload?: boolean; checkDelta?: boolean } = {}) {
   if (!navigator.onLine || !currentAccount()) return;
   const account = accountId();
   const downloadedAt = (await db.meta.get(`${account}:downloadedAt`))?.value;
   const remote = (await db.meta.get(`${account}:remoteRevision`))?.value;
   const downloadedRevision = (await db.meta.get(`${account}:downloadedRevision`))?.value;
   // No time-based downloads. Server change events also cover missed events on reconnect.
-  const download = options.forceDownload || !downloadedAt || Boolean(remote && remote !== downloadedRevision);
+  const download = options.forceDownload || options.checkDelta || !downloadedAt || Boolean(remote && remote !== downloadedRevision);
   const hasWrites = await db.queue.where('accountId').equals(account).count() > 0;
   if (!download && !hasWrites) return;
   startSyncProgress(account);
@@ -213,7 +255,7 @@ export async function refreshOffline(options: { forceDownload?: boolean } = {}) 
     try { await syncAll(); } catch (error) { failure = error; }
     reportSyncProgress(account, download ? 10 : 99);
     // Keep downloading even when a queued mutation needs review; dirty rows are protected.
-    if (download && currentAccount() === account) await pullAll();
+    if (download && currentAccount() === account) await pullAll(Boolean(options.forceDownload));
     if (failure) throw failure;
     finishSyncProgress(account, true);
   } catch (error) { finishSyncProgress(account, false); throw error; }

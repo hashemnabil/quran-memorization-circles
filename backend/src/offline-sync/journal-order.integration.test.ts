@@ -3,8 +3,37 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
+import { FullSyncService } from './sync-all.service';
+import { Role } from '@prisma/client';
 const url = new URL(process.env.DATABASE_URL || 'postgresql://localhost/missing');
 const available = ['localhost', '127.0.0.1'].includes(url.hostname) && url.pathname === '/quran_test';
+
+test('full-sync delta sends changed circle only, scopes IDs, and preserves deletion hints', { skip: !available }, async () => {
+  const db = new PrismaService();
+  const a = randomUUID(), b = randomUUID(), suffix = randomUUID();
+  const service = new FullSyncService(db, new ConfigService());
+  const admin = { id: randomUUID(), role: Role.ADMIN } as any;
+  try {
+    await db.circle.createMany({ data: [{ id: a, name: 'before', code: `DELTA-A-${suffix}` }, { id: b, name: 'unchanged', code: `DELTA-B-${suffix}` }] });
+    const cursor = (await service.watermark()).cursor;
+    await db.circle.update({ where: { id: a }, data: { name: 'after' } });
+    const changed = await service.delta(admin, cursor);
+    assert.deepEqual(changed.tables.circles.data.map((row: any) => row.id), [a]);
+    assert.equal(changed.tables.circles.data[0].name, 'after');
+    assert.ok(changed.tables.circles.visibleIds.includes(b));
+    const restricted = await service.delta({ id: randomUUID(), role: Role.TEACHER } as any, cursor);
+    assert.deepEqual(restricted.tables.circles.data, []);
+    assert.deepEqual(restricted.tables.circles.visibleIds, []);
+    await db.circle.delete({ where: { id: a } });
+    const deleted = await service.delta(admin, changed.cursor);
+    assert.deepEqual(deleted.tables.circles.data, []);
+    assert.ok(!deleted.tables.circles.visibleIds.includes(a));
+  } finally {
+    await db.circle.deleteMany({ where: { id: { in: [a, b] } } });
+    await db.$disconnect();
+  }
+});
 test('journal sequences cannot commit out of order across separate transactions', { skip: !available }, async () => {
   const first = new PrismaService(), second = new PrismaService();
   const a = randomUUID(), b = randomUUID(); const suffix = randomUUID().slice(0, 8);

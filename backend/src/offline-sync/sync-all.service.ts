@@ -49,7 +49,7 @@ export class FullSyncService {
       exams: new ExamsService(prisma, acl, activity, notifications),
       courses: new CoursesService(prisma, activity, notifications) };
   }
-  async pull(user: AuthUser, table: string, page: number) {
+  async pull(user: AuthUser, table: string, page: number, changedIds?: Set<string>) {
     const s = this.services(this.prisma); const query = { page, limit: 200 };
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const empty = { data: [], meta: { hasNextPage: false } };
@@ -59,14 +59,14 @@ export class FullSyncService {
       case 'dutyTeachers': return { data: user.role === Role.ADMIN && page === 1 ? await s.schedules.teachers() : [], meta: { hasNextPage: false } };
       case 'students': return staff ? this.hydratePage(await s.students.findAll(user, plainToInstance(QueryStudentsDto, query)), async (id) => ({ ...await s.students.findOne(user, id), _offline: {
         eligibility: await s.exams.eligibility(user, id), milestones: await s.exams.milestoneRecords(user, id), history: await s.students.history(user, id), progress: await s.recitations.studentProgress(user, id),
-      } })) : empty;
-      case 'circles': return staff ? this.hydratePage(await s.circles.findAll(user, plainToInstance(QueryCirclesDto, query)), (id) => s.circles.findOne(user, id)) : empty;
-      case 'teachers': return [Role.ADMIN, Role.SUPERVISOR].includes(user.role as any) ? this.hydratePage(await s.teachers.findAll(user, plainToInstance(QueryTeachersDto, query)), (id) => s.teachers.findOne(user, id)) : empty;
+      } }), changedIds) : empty;
+      case 'circles': return staff ? this.hydratePage(await s.circles.findAll(user, plainToInstance(QueryCirclesDto, query)), (id) => s.circles.findOne(user, id), changedIds) : empty;
+      case 'teachers': return [Role.ADMIN, Role.SUPERVISOR].includes(user.role as any) ? this.hydratePage(await s.teachers.findAll(user, plainToInstance(QueryTeachersDto, query)), (id) => s.teachers.findOne(user, id), changedIds) : empty;
       case 'attendance': return staff ? s.attendance.findAll(user, plainToInstance(QueryAttendanceDto, query)) : empty;
       case 'recitations': return staff ? { ...await s.recitations.findAll(user, plainToInstance(QueryRecitationsDto, query)), ...(page === 1 ? { references: { '/recitations/surahs': s.recitations.surahs() } } : {}) } : empty;
       case 'exams': return staff || user.role === Role.EXAM_COMMITTEE ? { ...await s.exams.findExams(user, plainToInstance(QueryExamsDto, query)), ...(page === 1 ? { references: { '/exams/sections': await s.exams.sections() } } : {}) } : empty;
       case 'examRequests': return staff || user.role === Role.EXAM_COMMITTEE ? s.exams.findRequests(user, plainToInstance(QueryExamRequestsDto, query)) : empty;
-      case 'courses': return staff ? this.hydratePage(await s.courses.findAll(plainToInstance(QueryCoursesDto, { ...query, ...(user.role === Role.TEACHER ? { instructorId: user.id } : {}) })), async (id) => ({ ...await s.courses.findOne(id), _offline: { attendance: await this.prisma.courseAttendance.findMany({ where: { courseId: id }, include: { student: { select: { id: true, fullName: true, code: true } } } }) } })) : empty;
+      case 'courses': return staff ? this.hydratePage(await s.courses.findAll(plainToInstance(QueryCoursesDto, { ...query, ...(user.role === Role.TEACHER ? { instructorId: user.id } : {}) })), async (id) => ({ ...await s.courses.findOne(id), _offline: { attendance: await this.prisma.courseAttendance.findMany({ where: { courseId: id }, include: { student: { select: { id: true, fullName: true, code: true } } } }) } }), changedIds) : empty;
       case 'notifications': return { data: await this.prisma.notification.findMany({ where: { userId: user.id }, skip: (page - 1) * 200, take: 200, orderBy: { id: 'asc' } }), meta: { hasNextPage: (await this.prisma.notification.count({ where: { userId: user.id } })) > page * 200 } };
       case 'behaviors': {
         if (!staff) return empty;
@@ -77,12 +77,71 @@ export class FullSyncService {
       default: throw new BadRequestException('جدول غير مدعوم');
     }
   }
-  private async hydratePage(page: any, detail: (id: string) => Promise<any>) {
+  private async hydratePage(page: any, detail: (id: string) => Promise<any>, changedIds?: Set<string>) {
     const data: any[] = [];
-    for (let offset = 0; offset < page.data.length; offset += 5) {
-      data.push(...await Promise.all(page.data.slice(offset, offset + 5).map(async (row: any) => ({ ...row, ...await detail(row.id) }))));
+    const rows = changedIds ? page.data.filter((row: any) => changedIds.has(row.id)) : page.data;
+    for (let offset = 0; offset < rows.length; offset += 5) {
+      data.push(...await Promise.all(rows.slice(offset, offset + 5).map(async (row: any) => ({ ...row, ...await detail(row.id) }))));
     }
-    return { ...page, data };
+    return { ...page, data, ...(changedIds ? { visibleIds: page.data.map((row: any) => row.id) } : {}) };
+  }
+  async watermark() {
+    const rows = await this.prisma.$queryRaw<Array<{ seq: bigint }>>`SELECT COALESCE(MAX("seq"), 0)::bigint AS "seq" FROM sync_changes`;
+    return { cursor: rows[0].seq.toString() };
+  }
+  async delta(user: AuthUser, since: string) {
+    if (!/^(0|[1-9]\d*)$/.test(since) || since.length > 19 || BigInt(since) > 9223372036854775807n) throw new BadRequestException('مؤشر غير صالح');
+    const changes = await this.prisma.syncChange.findMany({ where: { seq: { gt: BigInt(since) } }, orderBy: { seq: 'asc' }, take: 200 });
+    const affected = new Map<string, Set<string> | undefined>();
+    const add = (table: string, id?: string) => {
+      if (affected.has(table) && !affected.get(table)) return;
+      if (!id) { affected.set(table, undefined); return; }
+      const ids = affected.get(table) || new Set<string>(); ids.add(id); affected.set(table, ids);
+    };
+    const direct: Record<string, string> = { students: 'students', circles: 'circles', teacher_profiles: 'teachers', attendance: 'attendance', recitations: 'recitations', exams: 'exams', exam_requests: 'examRequests', student_notes: 'behaviors', notifications: 'notifications', courses: 'courses', media_plans: 'mediaPlans', teacher_duties: 'teacherDuties' };
+    for (const change of changes) {
+      const row = change.payload as any || {};
+      if (direct[change.entity]) add(direct[change.entity], change.entityId);
+      if (change.entity === 'students') {
+        if (row.circleId) add('circles', row.circleId);
+        if (row._previous?.circleId) add('circles', row._previous.circleId);
+      }
+      if (row.studentId) add('students', row.studentId);
+      if (row.courseId) add('courses', row.courseId);
+      if (change.entity === 'exam_request_sections') add('examRequests', row.requestId);
+      if (change.entity === 'exam_sections_on_exams') add('exams', row.examId);
+      if (change.entity === 'circle_teachers' || change.entity === 'circle_memberships') {
+        add('circles', row.circleId); add('teachers', row.teacherId);
+        // Assignment changes can grant/revoke entire rosters, not just a single row.
+        for (const table of ['students', 'attendance', 'recitations', 'exams', 'examRequests', 'behaviors']) add(table);
+      }
+      if (change.entity === 'users') {
+        const teachers = await this.prisma.teacherProfile.findMany({ where: { userId: change.entityId }, select: { id: true } });
+        for (const teacher of teachers) add('teachers', teacher.id);
+        add('dutyTeachers');
+        if (change.entityId === user.id) {
+          for (const table of Object.values(direct)) add(table);
+        }
+      }
+      if (change.entity === 'teacher_duty_assignments') add('teacherDuties', row.dutyId);
+      if (change.entity === 'exam_sections') add('exams');
+      if (change.entity === 'students' && row._previous && row._previous.circleId !== row.circleId) {
+        for (const table of ['circles', 'attendance', 'recitations', 'exams', 'examRequests', 'behaviors']) add(table);
+      }
+    }
+    const tables: Record<string, any> = {};
+    for (const [table, ids] of affected) {
+      const data: any[] = [], visibleIds: string[] = []; let references = {};
+      for (let page = 1; ; page++) {
+        const result: any = await this.pull(user, table, page, ids);
+        visibleIds.push(...(result.visibleIds || result.data.map((row: any) => row.id)));
+        data.push(...(ids ? result.data.filter((row: any) => ids.has(row.id)) : result.data));
+        references = { ...references, ...result.references };
+        if (!result.meta?.hasNextPage) break;
+      }
+      tables[table] = { data, visibleIds, references };
+    }
+    return { tables, changedEntities: [...new Set(changes.map(row => row.entity))], cursor: changes[changes.length - 1]?.seq.toString() || since, hasMore: changes.length === 200 };
   }
   async push(user: AuthUser, body: any) {
     if (!body || !Array.isArray(body.operations) || body.operations.length < 1 || body.operations.length > 50 || new Set(body.operations.map((row: any) => row?.opId)).size !== body.operations.length) throw new BadRequestException('يلزم إرسال 1–50 عملية بمعرفات مختلفة');

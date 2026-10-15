@@ -42,10 +42,10 @@ configureOffline(async (method, path, data) => {
   return response.data;
 }, () => {
   try { return JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.id || ''; } catch { return ''; }
-}, async (account) => {
+}, async (account, changedEntities) => {
   const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
-  await prefetchSections(async (method, path) => (await api.request({ method, url: path, adapter: networkAdapter })).data,
-    account, () => { try { return JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.id || ''; } catch { return ''; } }, user?.role || '');
+  await prefetchSections(async (method, path, headers) => (await api.request({ method, url: path, headers, adapter: networkAdapter })).data,
+    account, () => { try { return JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.id || ''; } catch { return ''; } }, user?.role || '', changedEntities);
 });
 api.defaults.adapter = async (config) => {
   const path = config.url || ''; const method = (config.method || 'get').toLowerCase();

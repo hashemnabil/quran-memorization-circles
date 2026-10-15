@@ -160,7 +160,7 @@ export class CreateStudentDto {
 export class UpdateStudentDto extends PartialType(CreateStudentDto) {}
 
 export class StudentQuestionnaireDto extends PartialType(PickType(CreateStudentDto, [
-  'fullName', 'birthDate', 'address', 'phone',
+  'fullName', 'birthDate', 'address', 'nationalId', 'fatherNationalId',
   'guardianName', 'guardianPhone', 'guardianRelation',
 ] as const)) {}
 

@@ -70,6 +70,7 @@ export default function StudentPortalPage() {
     <>
       <PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
       <StudentQuestionnaire key={data.id} profile={data} />
+      <StudentPreparations />
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="نسبة الحضور" value={`${data.attendanceSummary?.attendanceRate ?? 0}%`} icon={<IconClipboard size={22} />} />
         <StatCard label="مرات الحضور" value={data.attendanceSummary?.present ?? 0} icon={<IconClipboard size={22} />} />
@@ -122,6 +123,30 @@ export default function StudentPortalPage() {
       </div>
     </>
   );
+}
+
+function StudentPreparations() {
+  const [page, setPage] = useState(1);
+  const assignments = useQuery({
+    queryKey: ['preparations', 'student', page],
+    queryFn: async () => (await api.get('/preparations', { params: { page, limit: 20 } })).data,
+  });
+  return <Card title="التحضير المطلوب" className="mb-5">
+    {assignments.isLoading ? <LoadingState rows={2} /> : assignments.isError ?
+      <ErrorState message="تعذر تحميل التحضير" onRetry={() => assignments.refetch()} /> :
+      assignments.data?.data?.length ? <div className="space-y-3">{assignments.data.data.map((item: any) =>
+        <article key={item.id} className="rounded-xl border border-slate-100 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2"><strong>{item.fromSurah} ({item.fromAyah}) — {item.toSurah} ({item.toAyah})</strong>
+            <span className={item.completedAt ? 'text-emerald-700' : 'text-slate-600'}>{item.completedAt ? 'مكتمل' : 'مطلوب التحضير'}</span></div>
+          {item.dueDate && <p className="mt-2 text-sm">موعد التسميع: {formatDateShort(item.dueDate)}</p>}
+          {item.teacher?.user?.fullName && <p className="mt-1 text-sm">المحفظ: {item.teacher.user.fullName}</p>}
+          {item.note && <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{item.note}</p>}
+        </article>)}</div> : <p className="text-sm text-slate-500">لا يوجد تحضير مسجل لك حاليًا.</p>}
+    {(page > 1 || assignments.data?.meta?.hasNextPage) && <div className="mt-4 flex gap-2">
+      <Button variant="secondary" disabled={page === 1} onClick={() => setPage(value => value - 1)}>السابق</Button>
+      <Button variant="secondary" disabled={!assignments.data?.meta?.hasNextPage} onClick={() => setPage(value => value + 1)}>التالي</Button>
+    </div>}
+  </Card>;
 }
 
 function Info({ label, value }: { label: string; value: unknown }) {

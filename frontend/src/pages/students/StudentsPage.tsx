@@ -664,7 +664,7 @@ function StudentFormModal({
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
         <Input label="رقم الهوية (اختياري، لا يُستخدم لتسجيل الدخول)" value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
         <Input label="اسم ولي الأمر" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />
-        <Input label="رقم هوية الأب" value={form.fatherNationalId} onChange={(e) => set('fatherNationalId', e.target.value)} dir="ltr" />
+        <Input label="رقم هوية ولي الأمر" value={form.fatherNationalId} onChange={(e) => set('fatherNationalId', e.target.value)} dir="ltr" />
         <Input label="رقم جوال ولي الأمر" value={form.guardianPhone} onChange={(e) => set('guardianPhone', e.target.value)} dir="ltr" />
         <Input label="صلة القرابة" value={form.guardianRelation} onChange={(e) => set('guardianRelation', e.target.value)} />
         <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">

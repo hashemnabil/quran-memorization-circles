@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 
-export const entityTables = ['students', 'circles', 'teachers', 'attendance', 'recitations', 'exams', 'behaviors', 'notifications', 'courses', 'examRequests', 'mediaPlans', 'teacherDuties', 'dutyTeachers'] as const;
+export const entityTables = ['students', 'circles', 'teachers', 'attendance', 'recitations', 'exams', 'behaviors', 'notifications', 'courses', 'examRequests', 'mediaPlans', 'teacherDuties', 'dutyTeachers', 'users', 'studentAccounts'] as const;
 export type EntityTable = typeof entityTables[number];
 export type LocalRow = Record<string, any> & { id: string; accountId: string; synced: number; updatedAt: string; pendingDelete?: number };
 export type QueuedWrite = { id?: number; accountId: string; opId: string; table: EntityTable; action: string; entityId: string; data: Record<string, any>; createdAt: string; error?: string };
@@ -25,6 +25,8 @@ class HalaqatDatabase extends Dexie {
     for (const table of entityTables) schema[table] = '[accountId+id], accountId, circleId, studentId, updatedAt, synced, pendingDelete';
     this.version(1).stores({ ...schema, queue: '++id, accountId, opId, table', meta: 'key', responses: 'key, accountId' });
     this.version(2).stores({ mediaPlans: '[accountId+id], accountId, date, synced', teacherDuties: '[accountId+id], accountId, date, synced', dutyTeachers: '[accountId+id], accountId' });
+    this.version(3).stores({ users: '[accountId+id], accountId, synced', studentAccounts: '[accountId+id], accountId, synced', credentialKeys: 'accountId' })
+      .upgrade(tx => tx.table('meta').filter(row => /:(downloadedAt|deltaCursor)$/.test(row.key)).delete().then(() => undefined));
   }
 }
 export const db = new HalaqatDatabase();

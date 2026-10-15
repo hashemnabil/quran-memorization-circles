@@ -17,12 +17,40 @@ function fixture() {
       create: async ({ data }: any) => { receipts.set(data.opId, data); return data; },
     },
   };
-  const service = new FullSyncService({ $transaction: async (run: any) => run(tx) } as any, {} as any);
+  const service = new FullSyncService({ $transaction: async (run: any) => run(tx) } as any, { get: () => 'test-only-credential-fingerprint-key' } as any);
   (service as any).services = () => ({});
   (service as any).apply = async () => { calls++; return { id: randomUUID(), fullName: 'Saved' }; };
   return { service, calls: () => calls, receipts };
 }
 const operation = () => ({ opId: randomUUID(), entityId: randomUUID(), table: 'students', action: 'create', data: { fullName: 'طالب' } });
+
+test('credential replay is idempotent and receipts never contain passwords', async () => {
+  const { service, receipts } = fixture(); let calls = 0;
+  (service as any).apply = async () => { calls++; return { id: 'saved', temporaryPassword: 'secret-password', passwordHash: 'private-hash' }; };
+  const op = { ...operation(), table: 'users', data: { fullName: 'User', password: 'secret-password' } };
+  await service.push(user, { operations: [op] });
+  await service.push(user, { operations: [op] });
+  assert.equal(calls, 1);
+  assert(!JSON.stringify([...receipts.values()]).includes('secret-password'));
+  assert(!JSON.stringify([...receipts.values()]).includes('private-hash'));
+});
+
+test('student account queue dispatch uses the chosen password and returns only account metadata', async () => {
+  const service = new FullSyncService({} as any, {} as any);
+  const calls: any[] = [];
+  const services = { students: {
+    createAccountForStudent: async (...args: any[]) => { calls.push(args); },
+    resetStudentAccountPassword: async (...args: any[]) => { calls.push(args); },
+    listAccounts: async () => [{ id: 'student', username: '120261234', mustChangePassword: true }],
+  } };
+  for (const action of ['create', 'reset-password']) {
+    const op = { ...operation(), table: 'studentAccounts', action, entityId: 'student', data: { password: 'chosen-password' } };
+    const result = await (service as any).apply(services, user, op);
+    assert.equal(result.username, '120261234'); assert.equal(result.temporaryPassword, undefined);
+    await assert.rejects((service as any).apply(services, { ...user, role: Role.TEACHER }, op));
+  }
+  assert.equal(calls.length, 2); assert.equal(calls[0][2], 'chosen-password');
+});
 
 test('student edits accept an unset optional birth date from the actual form', async () => {
   const { service } = fixture();
@@ -70,6 +98,7 @@ test('delta reads the durable journal and sends only affected authorized records
     return [{ seq: 11n, entity: 'students', entityId: 'changed', payload: {} }];
   } } } as any, {} as any);
   (service as any).pull = async (_user: any, table: string, _page: number, ids: Set<string>) => {
+    if (table === 'studentAccounts') return { data: [], meta: { hasNextPage: false } };
     assert.equal(table, 'students'); assert.deepEqual([...ids], ['changed']);
     return { data: [{ id: 'changed', fullName: 'after' }], visibleIds: ['old', 'changed'], meta: { hasNextPage: false } };
   };

@@ -1,5 +1,6 @@
 import { db, entityTables, type EntityTable, type LocalRow, type QueuedWrite } from './db';
 import { startSyncProgress, reportSyncProgress, finishSyncProgress } from './sync-progress';
+import { openCredentials, sealCredentials } from './queued-credentials';
 
 type Transport = (method: string, path: string, data?: any) => Promise<any>;
 let transport: Transport;
@@ -46,6 +47,9 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     row.circleRoles ||= []; row.isActive ??= true;
   }
   delete row.password;
+  delete row.newPassword; delete row.currentPassword;
+  delete row.accountPassword;
+  if (table === 'users') row.isActive ??= true;
   if (table === 'teacherDuties' && Array.isArray(data.teacherUserIds)) {
     const teachers = await get('dutyTeachers');
     row.assignments = data.teacherUserIds.map((teacherUserId: string) => ({ teacherUserId, teacherName: teachers.find((teacher) => teacher.id === teacherUserId)?.fullName || 'محفّظ' }));
@@ -75,6 +79,13 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     row.points = Math.round(Math.max(0, Number(row.versesCount || 0) - Number(row.mistakes || 0) - Number(row.warnings || 0) * 0.25) * 100) / 100;
   }
   const opId = crypto.randomUUID();
+  const { credentialPending: _pendingCredential, activationPending: _pendingActivation, ...wireData } = data;
+  const queued: QueuedWrite = { accountId: account, opId, table, action, entityId: id, data: wireData, createdAt: row.updatedAt };
+  const sealed = await sealCredentials(queued);
+  const candidates = await db.queue.where('accountId').equals(account).filter(item => item.table === table && item.entityId === id).toArray();
+  const candidate = candidates.length === 1 && candidates[0].error &&
+    (action === 'update' && ['create', 'update'].includes(candidates[0].action) || action === 'questionnaire' && candidates[0].action === action) ? candidates[0] : undefined;
+  const corrected = candidate ? await sealCredentials({ ...candidate, opId, data: { ...await openCredentials(candidate), ...wireData } }) : undefined;
   await db.transaction('rw', db.table(table), db.queue, async () => {
     await db.table(table).put(row);
     const pending = await db.queue.where('accountId').equals(account)
@@ -82,13 +93,13 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     const rejected = pending.length === 1 && pending[0].error ? pending[0] : undefined;
     const correctsRejected = rejected && (action === 'update' && ['create', 'update'].includes(rejected.action)
       || action === 'questionnaire' && rejected.action === action);
-    if (correctsRejected && rejected) {
+    if (correctsRejected && rejected && rejected.opId === candidate?.opId && corrected) {
       // Replace only an explicitly rejected request. Unknown/lost responses keep
       // their original payload and operation ID for safe idempotent replay.
       // Keep queue order so dependent records still follow this correction.
-      await db.queue.put({ ...rejected, opId, data: { ...rejected.data, ...data }, error: undefined });
+      await db.queue.put({ ...rejected, opId, data: corrected, error: undefined });
     } else {
-      await db.queue.add({ accountId: account, opId, table, action, entityId: id, data, createdAt: row.updatedAt });
+      await db.queue.add({ ...queued, data: sealed });
     }
   });
   window.dispatchEvent(new Event('halaqat:changed'));
@@ -106,7 +117,9 @@ export async function settleLocalWrite(local: any) {
     if (queued?.error) throw Object.assign(new Error(queued.error), { localWriteRejected: true });
     if (!queued) {
       const id = (await db.meta.get(`${account}:id:${local.id}`))?.value || local.id;
-      return await db.table(local._writeTable).get([account, id]) || { ...local, synced: 1 };
+      const row = await db.table(local._writeTable).get([account, id]) || { ...local, synced: 1 };
+      if (local.accountCredentials) return { ...row, accountCredentials: { ...local.accountCredentials, username: row.code?.startsWith('LOCAL-') ? local.accountCredentials.username : row.code } };
+      return local.temporaryPassword ? { ...row, temporaryPassword: local.temporaryPassword } : row;
     }
     if (failed) return local;
     if (!navigator.onLine) break;
@@ -237,7 +250,8 @@ async function synchronize() {
     for (const op of remaining) if (op.action === 'create' && referencesBlocked(op.data)) blocked.add(op.entityId);
     const batch = remaining.filter(op => !blocked.has(op.entityId) && !referencesBlocked(op.data)).slice(0, 50);
     if (!batch.length) break;
-    const result = await transport('post', '/sync-all', { operations: batch });
+    const operations = await Promise.all(batch.map(async op => ({ ...op, data: await openCredentials(op) })));
+    const result = await transport('post', '/sync-all', { operations });
     if (currentAccount() !== account) return;
     if (!Array.isArray(result?.outcomes) || result.outcomes.some((row: any, index: number) => row.opId !== batch[index]?.opId || !['applied', 'rejected'].includes(row.status))) throw new Error('استجابة مزامنة غير صالحة؛ بقيت العمليات محفوظة');
     let rejected = false;
@@ -283,11 +297,18 @@ async function acknowledge(operation: QueuedWrite, server: any) {
     if (canonicalId !== operation.entityId) {
       await table.delete(key);
       await db.meta.put({ key: `${operation.accountId}:id:${operation.entityId}`, value: canonicalId });
+      if (operation.table === 'students') {
+        const account = await db.table('studentAccounts').get([operation.accountId, operation.entityId]);
+        if (account) {
+          await db.table('studentAccounts').delete([operation.accountId, operation.entityId]);
+          await db.table('studentAccounts').put({ ...account, id: canonicalId, studentId: canonicalId });
+        }
+      }
       for (const name of entityTables) await db.table(name).where('accountId').equals(operation.accountId).modify((row: any) => {
         for (const field of ['studentId', 'circleId', 'teacherId']) if (row[field] === operation.entityId) row[field] = canonicalId;
       });
     }
-    await table.put({ ...local, ...server, id: canonicalId, accountId: operation.accountId, synced: 1 });
+    await table.put({ ...local, ...server, id: canonicalId, accountId: operation.accountId, synced: 1, activationPending: false, credentialPending: false });
   });
 }
 export async function initOffline() {
@@ -357,6 +378,7 @@ async function refreshOnce(options: { forceDownload?: boolean; checkDelta?: bool
 export async function exportLocal() {
   const account = accountId();
   const snapshot = await db.transaction('r', [...entityTables.map((table) => db.table(table)), db.queue, db.meta, db.responses], async () => {
+    if (await db.queue.where('accountId').equals(account).filter(op => Boolean(op.data._sealedCredentials)).count()) throw new Error('زامن عمليات الحسابات وكلمات المرور قبل التصدير؛ مفاتيحها مرتبطة بهذا الجهاز');
     const tables: Record<string, any[]> = {};
     for (const table of entityTables) tables[table] = await db.table(table).where('accountId').equals(account).toArray();
     return { version: 1, accountId: account, exportedAt: new Date().toISOString(), tables,
@@ -374,11 +396,12 @@ export async function exportLocal() {
 export async function importLocal(value: any) {
   const account = accountId();
   if (value?.version !== 1 || value.accountId !== account || !value.tables || !Array.isArray(value.queue)) throw new Error('ملف النسخة الاحتياطية غير صالح أو يخص حسابًا آخر');
-  for (const table of ['mediaPlans', 'teacherDuties', 'dutyTeachers']) value.tables[table] ??= [];
+  for (const table of ['mediaPlans', 'teacherDuties', 'dutyTeachers', 'users', 'studentAccounts']) value.tables[table] ??= [];
   for (const table of entityTables) {
     if (!Array.isArray(value.tables[table]) || value.tables[table].some((row: any) => typeof row.id !== 'string' || row.accountId !== account)) throw new Error('سجلات غير صالحة');
   }
   if (value.queue.some((row: any) => row.accountId !== account || typeof row.opId !== 'string' || !entityTables.includes(row.table))) throw new Error('قائمة المزامنة غير صالحة');
+  if (value.queue.some((row: any) => row.data?._sealedCredentials)) throw new Error('لا يمكن استيراد طلبات كلمات مرور مرتبطة بمفتاح جهاز آخر؛ زامنها على الجهاز الأصلي');
   const meta = value.meta || []; const responses = value.responses || [];
   if (!Array.isArray(meta) || meta.some((row: any) => typeof row.key !== 'string' || !row.key.startsWith(`${account}:`)) || !Array.isArray(responses) || responses.some((row: any) => row.accountId !== account || typeof row.key !== 'string')) throw new Error('بيانات النسخة الاحتياطية غير صالحة');
   const decoded = responses.map((row: any) => ({ ...row, data: row.data?._backupBlob === true ? new Blob([Uint8Array.from(atob(row.data.base64), (char) => char.charCodeAt(0))], { type: row.data.type }) : row.data }));

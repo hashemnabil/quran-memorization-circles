@@ -581,7 +581,7 @@ function StudentFormModal({
       const student = response.data;
       const credentials = student?.accountCredentials;
       if (credentials?.username && credentials?.temporaryPassword) {
-        toast.success(`تم تسجيل الطالب. اسم المستخدم: ${credentials.username} — كلمة المرور المؤقتة: ${credentials.temporaryPassword}`, { duration: 20000 });
+        toast.success(`${student?.synced === 0 ? 'حُفظ الطالب وطلب الحساب؛ التفعيل ينتظر المزامنة.' : 'تم تسجيل الطالب.'} اسم المستخدم: ${credentials.username} — كلمة المرور المؤقتة: ${credentials.temporaryPassword}`, { duration: 20000 });
       } else {
         toast.success(student?.synced === 0 ? 'تم حفظ الطالب على الجهاز؛ بانتظار إرساله للخادم' : 'تم تسجيل الطالب بنجاح');
       }

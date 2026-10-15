@@ -16,6 +16,7 @@ import {
   IsUUID,
   Max,
   MaxLength,
+  MinLength,
   Matches,
   Min,
 } from 'class-validator';
@@ -69,6 +70,13 @@ export class CreateStudentDto {
   @IsOptional()
   @IsBoolean()
   createAccount?: boolean;
+
+  @ApiPropertyOptional({ writeOnly: true })
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  @MaxLength(128)
+  accountPassword?: string;
 
   @ApiPropertyOptional({ description: 'رقم هوية الأب' })
   @IsOptional()

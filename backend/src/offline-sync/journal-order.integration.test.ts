@@ -6,8 +6,45 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { FullSyncService } from './sync-all.service';
 import { Role } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 const url = new URL(process.env.DATABASE_URL || 'postgresql://localhost/missing');
 const available = ['localhost', '127.0.0.1'].includes(url.hostname) && url.pathname === '/quran_test';
+
+test('offline account operations hash chosen passwords and replay without duplicating accounts', { skip: !available, timeout: 60000 }, async () => {
+  const db = new PrismaService();
+  const actorId = randomUUID(), studentId = randomUUID(), localUserId = randomUUID();
+  const actor = { id: actorId, role: Role.ADMIN, fullName: 'Account sync admin', username: actorId, email: null } as any;
+  const username = `offline_${randomUUID().slice(0, 8)}`;
+  const config = new ConfigService({ JWT_ACCESS_SECRET: 'integration-only-credential-key-not-production', BCRYPT_ROUNDS: '4' });
+  const service = new FullSyncService(db, config);
+  let studentUserId: string | undefined; let staffId: string | undefined;
+  try {
+    await db.user.create({ data: { id: actorId, username: actorId, fullName: actor.fullName, role: Role.ADMIN, passwordHash: 'test-only' } });
+    await db.student.create({ data: { id: studentId, code: `3${Date.now().toString().slice(-8)}`, fullName: 'Account student', status: 'ACTIVITY' } });
+    const operations = [
+      { opId: randomUUID(), entityId: studentId, table: 'studentAccounts', action: 'create', data: { password: 'StudentFirst123' } },
+      { opId: randomUUID(), entityId: studentId, table: 'studentAccounts', action: 'reset-password', data: { password: 'StudentReset123' } },
+      { opId: randomUUID(), entityId: localUserId, table: 'users', action: 'create', data: { username, fullName: 'Offline staff', role: 'TEACHER', password: 'StaffFirst123' } },
+      { opId: randomUUID(), entityId: localUserId, table: 'users', action: 'reset-password', data: { newPassword: 'StaffReset123' } },
+    ];
+    const first = await service.push(actor, { operations });
+    assert(first.outcomes.every(row => row.status === 'applied'), JSON.stringify(first));
+    staffId = first.outcomes[2].data.id;
+    studentUserId = (await db.student.findUniqueOrThrow({ where: { id: studentId } })).userId!;
+    assert(await bcrypt.compare('StudentReset123', (await db.user.findUniqueOrThrow({ where: { id: studentUserId } })).passwordHash));
+    assert(await bcrypt.compare('StaffReset123', (await db.user.findUniqueOrThrow({ where: { id: staffId } })).passwordHash));
+    assert.deepEqual(await service.push(actor, { operations }), first);
+    assert.equal(await db.user.count({ where: { username } }), 1);
+    const receipts = await db.processedOperation.findMany({ where: { accountId: actorId } });
+    assert.equal(receipts.length, 4);
+    for (const secret of ['StudentFirst123', 'StudentReset123', 'StaffFirst123', 'StaffReset123']) assert(!JSON.stringify(receipts).includes(secret));
+  } finally {
+    await db.student.deleteMany({ where: { id: studentId } });
+    await db.processedOperation.deleteMany({ where: { accountId: actorId } });
+    await db.user.deleteMany({ where: { OR: [{ id: { in: [actorId, ...[studentUserId, staffId].filter((id): id is string => Boolean(id))] } }, { username }] } });
+    await db.$disconnect();
+  }
+});
 
 test('student create and edit succeed through full-sync including an empty optional birth date', { skip: !available }, async () => {
   const db = new PrismaService();

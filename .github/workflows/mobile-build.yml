@@ -29,7 +29,8 @@ jobs:
           VITE_API_URL: https://quran-memorization-circles.onrender.com/api
           VITE_SOCKET_URL: https://quran-memorization-circles.onrender.com
 
-      - name: Generate Android project
+      - name: Generate Android project if missing
+        if: ${{ hashFiles('frontend/android/app/build.gradle') == '' }}
         working-directory: frontend
         run: npm run mobile:add:android
       - name: Sync Capacitor assets
@@ -37,7 +38,7 @@ jobs:
         run: npm run mobile:sync -- android
       - name: Assemble debug APK
         working-directory: frontend/android
-        run: ./gradlew assembleDebug
+        run: bash ./gradlew assembleDebug
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

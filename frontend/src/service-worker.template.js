@@ -49,6 +49,17 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
+  if (request.method === 'GET' && request.destination === 'image') {
+    event.respondWith((async () => {
+      const cache = await caches.open('quran-circles-images');
+      const cached = await cache.match(request) || (url.origin === self.location.origin ? await caches.match(request, { ignoreVary: true }) : undefined);
+      if (cached) return cached;
+      const response = await fetch(request);
+      if (response.ok || response.type === 'opaque') await cache.put(request, response.clone());
+      return response;
+    })());
+    return;
+  }
   if (request.method !== 'GET' || url.origin !== self.location.origin ||
       url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io')) return;
 
@@ -65,15 +76,17 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       } catch {
-        return (await caches.match(request)) || (await caches.match(APP_SHELL)) || Response.error();
+        return (await caches.match(request, { ignoreVary: true })) || (await caches.match(APP_SHELL, { ignoreVary: true })) || Response.error();
       }
     })());
     return;
   }
 
-  if (url.pathname.startsWith('/assets/') || url.pathname === '/favicon.ico' || url.pathname.startsWith('/icons/')) {
+  if (url.pathname.startsWith('/assets/') || url.pathname === '/manifest.webmanifest' || url.pathname === '/favicon.ico' || url.pathname.startsWith('/icons/')) {
     event.respondWith((async () => {
-      const cached = await caches.match(request);
+      // Vite can add Vary: Origin. Module-script requests carry Origin while
+      // worker precache requests do not; immutable public assets are identical.
+      const cached = await caches.match(request, { ignoreVary: true });
       if (cached) return cached;
       const response = await fetch(request);
       if (response.ok) (await caches.open(CACHE_NAME)).put(request, response.clone());

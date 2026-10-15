@@ -23,7 +23,8 @@ jobs:
         env:
           VITE_API_URL: https://quran-memorization-circles.onrender.com/api
           VITE_SOCKET_URL: https://quran-memorization-circles.onrender.com
-      - name: Generate iOS project
+      - name: Generate iOS project if missing
+        if: ${{ hashFiles('frontend/ios/App/App.xcodeproj/project.pbxproj') == '' }}
         working-directory: frontend
         run: npm run mobile:add:ios
       - name: Sync Capacitor assets

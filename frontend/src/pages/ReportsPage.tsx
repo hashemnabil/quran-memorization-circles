@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, apiError } from '@/lib/api';
+import { localReport } from '@/lib/local-analytics';
+import { exportLocalWorkbook } from '@/lib/local-xlsx';
 import { useAuthStore } from '@/store/auth';
 import { Button, Card, PageHeader, Select, StatCard } from '@/components/ui';
 import { IconClipboard } from '@/components/ui/Icons';
@@ -58,7 +60,7 @@ export default function ReportsPage() {
  const {data:students}=useQuery({queryKey:['reports','students'],queryFn:async()=> (await api.get<any>('/students',{params:{limit:100}})).data});
  const {data:teachers}=useQuery({queryKey:['reports','teachers'],queryFn:async()=> (await api.get<any>('/teachers',{params:{limit:100}})).data,enabled:user?.role==='ADMIN'||user?.role==='SUPERVISOR'});
  const params=useMemo(()=>({type,from:from||undefined,to:to||undefined,circleId:circleId||undefined,courseId:courseId||undefined,teacherId:teacherId||undefined,studentId:studentId||undefined,search:search||undefined,status:status||undefined,track:track||undefined,evaluation:evaluation||undefined,_refresh:refresh}),[type,from,to,circleId,courseId,teacherId,studentId,search,status,track,evaluation,refresh]);
- const {data,isLoading,isError,error}=useQuery({queryKey:['reports',params],queryFn:async()=> (await api.get<ReportData>('/reports',{params})).data, enabled:(type!=='student'||!!studentId)&&(!['courseStudents','courseAttendance'].includes(type)||!!courseId)});
+ const {data,isLoading,isError,error}=useQuery<ReportData>({queryKey:['reports',params],queryFn:()=>localReport(params), enabled:(type!=='student'||!!studentId)&&(!['courseStudents','courseAttendance'].includes(type)||!!courseId)});
  const reportError=(()=>{const err=error as {response?:{status?:number;data?:{message?:string|string[]}};message?:string}|null; const message=err?.response?.data?.message; if(Array.isArray(message)) return message.join('، '); if(message) return message; if(err?.response?.status) return `فشل تحميل التقرير (HTTP ${err.response.status}).`; return 'تعذّر الاتصال بالخادم. تحقق من الاتصال وحاول مجددًا.';})();
  const statLabels: Record<string,string> = { total:'إجمالي السجلات', present:'الحضور', absent:'الغياب', excused:'الغياب بعذر', pages:'مجموع الصفحات', points:'مجموع النقاط', students:'عدد الطلاب', passed:'ناجح', failed:'راسب', average:'متوسط العلامات', circles:'عدد الحلقات', attendance:'سجلات الحضور', recitations:'سجلات التسميع', active:'منتظمون', suspended:'موقوفون', activity:'برنامج النشاط' };
  const statEntries=Object.entries(data?.stats??{}).map(([key,value])=>[statLabels[key]??key,value] as [string,number]);
@@ -67,7 +69,7 @@ export default function ReportsPage() {
  const exportReport=async()=>{
   let url: string | undefined;
   try {
-   const response=await api.get('/reports/export',{params:{...params,_refresh:undefined},responseType:'blob',timeout:120000});
+   const response={data:await exportLocalWorkbook(rows)};
    if (!(response.data instanceof Blob) || response.data.size === 0) throw new Error('الملف المستلم فارغ أو غير صالح');
    url=URL.createObjectURL(response.data);
    const a=document.createElement('a');

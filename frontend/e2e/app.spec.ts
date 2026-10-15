@@ -68,14 +68,14 @@ test('student can reload the cached shell and file screen in airplane mode and r
   await expect(page.getByText('أنت غير متصل بالإنترنت.', { exact: false })).not.toBeVisible();
 });
 
-async function readTeacherOutbox(page: Page): Promise<Array<{ id: string; attempts: number }>> {
+async function readTeacherOutbox(page: Page): Promise<Array<{ id: number; opId: string }>> {
   return page.evaluate(accountId => new Promise(resolve => {
-    const open = indexedDB.open('quran-circles-offline', 1);
+    const open = indexedDB.open('halaqatFull');
     open.onsuccess = () => {
       const db = open.result;
-      if (!db.objectStoreNames.contains('outbox')) { db.close(); resolve([]); return; }
-      const read = db.transaction('outbox').objectStore('outbox').index('accountId').getAll(accountId);
-      read.onsuccess = () => { db.close(); resolve(read.result); };
+      if (!db.objectStoreNames.contains('queue')) { db.close(); resolve([]); return; }
+      const read = db.transaction('queue').objectStore('queue').index('accountId').getAll(accountId);
+      read.onsuccess = () => { db.close(); resolve(read.result.filter(item => item.table === 'attendance')); };
       read.onerror = () => { db.close(); resolve([]); };
     };
     open.onerror = () => resolve([]);
@@ -91,31 +91,31 @@ test('offline attendance survives a lost committed response and replays with the
   await context.setOffline(true);
   await page.getByRole('button', { name: 'حفظ الكشف', exact: true }).first().click();
   await expect.poll(async () => (await readTeacherOutbox(page)).length).toBe(1);
-  const originalId = (await readTeacherOutbox(page))[0].id;
+  const originalId = (await readTeacherOutbox(page))[0].opId;
   let committedResponse: any;
   let loseFirstResponse = true;
-  await page.route('**/api/sync/push', async route => {
+  await page.route('**/api/sync-all', async route => {
     if (!loseFirstResponse) { await route.continue(); return; }
     loseFirstResponse = false;
     const response = await route.fetch();
     committedResponse = await response.json();
     await route.abort('connectionreset');
   });
+  const lostResponse = page.waitForEvent('requestfailed', request => request.url().endsWith('/api/sync-all') && request.method() === 'POST');
   await context.setOffline(false);
-  await expect.poll(() => committedResponse?.results?.[0]?.status).toBe('applied');
+  await expect.poll(() => committedResponse?.outcomes?.[0]?.status).toBe('applied');
   // A committed server write with a lost response must stay queued for replay.
-  // Wait for the actual outbox record (not only its retry counter), and make
-  // the failure actionable if another client-side sync consumed it first.
-  await expect.poll(async () => {
-    const queued = await readTeacherOutbox(page);
-    return queued.find(item => item.id === originalId)?.attempts ?? -1;
-  }, { timeout: 15000 }).toBeGreaterThan(0);
-  expect((await readTeacherOutbox(page))[0].id).toBe(originalId);
-  const replay = page.waitForResponse(response => response.url().endsWith('/api/sync/push') && response.ok());
+  // Observe the failed response before checking durability; do not inspect the
+  // retired attendance-only queue or rely on a transport-specific retry counter.
+  await lostResponse;
+  expect(committedResponse.outcomes[0].opId).toBe(originalId);
+  await expect.poll(async () => (await readTeacherOutbox(page)).map(item => item.opId)).toEqual([originalId]);
+  const replay = page.waitForResponse(response => response.url().endsWith('/api/sync-all') && response.request().method() === 'POST' && response.ok());
   await page.reload();
-  const replayResult = (await (await replay).json()).results[0];
+  const replayResult = (await (await replay).json()).outcomes[0];
   expect(replayResult.opId).toBe(originalId);
-  expect(replayResult.replayed).toBe(true);
+  // The persisted receipt returns the original record IDs, timestamps and data.
+  expect(replayResult).toEqual(committedResponse.outcomes[0]);
   await expect.poll(async () => (await readTeacherOutbox(page)).length).toBe(0);
   const token = await page.evaluate(() => localStorage.getItem('qc.accessToken'));
   const date = new Date().toISOString().slice(0, 10);

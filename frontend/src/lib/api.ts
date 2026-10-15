@@ -4,6 +4,7 @@ import { shouldRetryReadRequest, readRetryDelayMs } from './offline/retry-policy
 import { configureOffline, accountId } from './offline-engine';
 import { db } from './db';
 import { localRead, localWrite, rememberRead, responseKey } from './local-api';
+import { prefetchSections, readPrefetched } from './offline-prefetch';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
 const CONFIGURED_API_URL = import.meta.env.VITE_API_URL?.trim();
@@ -41,11 +42,19 @@ configureOffline(async (method, path, data) => {
   return response.data;
 }, () => {
   try { return JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.id || ''; } catch { return ''; }
+}, async (account) => {
+  const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+  await prefetchSections(async (method, path) => (await api.request({ method, url: path, adapter: networkAdapter })).data,
+    account, () => { try { return JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.id || ''; } catch { return ''; } }, user?.role || '');
 });
 api.defaults.adapter = async (config) => {
   const path = config.url || ''; const method = (config.method || 'get').toLowerCase();
   // Authentication and sync are network boundaries, never optimistic local successes.
-  if (/^\/(auth|sync|offline-sync|registry)(\/|\?|$)/.test(path) || path.startsWith('/sync-all')) return networkAdapter(config);
+  if (method === 'get' && path === '/auth/me' && !navigator.onLine) {
+    const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+    if (user) return { data: user, status: 200, statusText: 'Local', headers: {}, config };
+  }
+  if (/^\/(auth|sync|offline-sync)(\/|\?|$)/.test(path) || path.startsWith('/sync-all') || path.startsWith('/registry') && !path.startsWith('/registry/admin/')) return networkAdapter(config);
   let account: string;
   try { account = accountId(); } catch { return networkAdapter(config); }
   const response = (data: any) => ({ data, status: 200, statusText: 'Local', headers: {}, config });
@@ -61,6 +70,12 @@ api.defaults.adapter = async (config) => {
       if (local !== undefined) return response(local);
       const cached = await db.responses.get(responseKey(account, path, config.params));
       if (cached && !navigator.onLine) return response(cached.data);
+      if (!navigator.onLine) {
+        const url = new URL(path, 'https://local.invalid');
+        const params = { ...Object.fromEntries(url.searchParams), ...config.params };
+        const prefetched = await readPrefetched(account, url.pathname, params);
+        if (prefetched !== undefined) return response(prefetched);
+      }
     }
     const result = await networkAdapter(config);
     let data = result.data;

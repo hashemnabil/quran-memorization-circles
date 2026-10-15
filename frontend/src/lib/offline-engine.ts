@@ -1,11 +1,21 @@
 import { db, entityTables, type EntityTable, type LocalRow, type QueuedWrite } from './db';
+import { startSyncProgress, reportSyncProgress, finishSyncProgress } from './sync-progress';
 
 type Transport = (method: string, path: string, data?: any) => Promise<any>;
 let transport: Transport;
 let currentAccount: () => string = () => '';
 let running: Promise<void> | undefined;
 let pulling: { account: string; promise: Promise<void> } | undefined;
-export function configureOffline(send: Transport, account: () => string) { transport = send; currentAccount = account; }
+let preloadSections: ((account: string) => Promise<void>) | undefined;
+export function configureOffline(send: Transport, account: () => string, preload?: (account: string) => Promise<void>) { transport = send; currentAccount = account; preloadSections = preload; }
+export async function noteRemoteRevision(revision: string) {
+  if (!currentAccount() || typeof revision !== 'string' || !revision || revision.length > 100) return;
+  const account = accountId();
+  const key = `${account}:remoteRevision`;
+  if ((await db.meta.get(key))?.value === revision) return;
+  await db.meta.put({ key, value: revision });
+  if (currentAccount() === account) window.dispatchEvent(new Event('halaqat:remote-change'));
+}
 export function accountId() { const id = currentAccount(); if (!id) throw new Error('يلزم تسجيل الدخول قبل استخدام البيانات المحلية'); return id; }
 export async function get(table: EntityTable): Promise<LocalRow[]> {
   return db.table(table).where('accountId').equals(accountId()).filter((row: LocalRow) => !row.pendingDelete).toArray();
@@ -84,7 +94,9 @@ export function pullAll(): Promise<void> {
 }
 async function downloadAll() {
   const account = accountId();
+  const revision = (await db.meta.get(`${account}:remoteRevision`))?.value;
   let failure: unknown;
+  let completed = 0;
   for (const table of entityTables) {
     if (!navigator.onLine || currentAccount() !== account) return;
     try {
@@ -104,17 +116,22 @@ async function downloadAll() {
       }
       if (!result.meta?.hasNextPage) break;
       page++;
+      await new Promise(resolve => setTimeout(resolve, 25));
     }
     // Full snapshots reconcile deletions and scope changes; dirty edits remain queued.
     await db.table(table).where('accountId').equals(account).filter((row: LocalRow) => row.synced === 1 && !received.has(row.id)).delete();
-    window.dispatchEvent(new Event('halaqat:changed'));
     } catch (error) {
       // One unavailable table must not prevent the remaining tables downloading.
       failure ||= error;
     }
+    reportSyncProgress(account, 10 + (++completed / entityTables.length) * 65);
+    await new Promise(resolve => setTimeout(resolve, 25));
   }
+  if (currentAccount() !== account) return;
+  try { await preloadSections?.(account); } catch (error) { failure ||= error; }
   if (failure) throw failure;
   await db.meta.put({ key: `${account}:downloadedAt`, value: new Date().toISOString() });
+  if (revision) await db.meta.put({ key: `${account}:downloadedRevision`, value: revision });
   window.dispatchEvent(new Event('halaqat:changed'));
 }
 export function syncAll(): Promise<void> {
@@ -180,14 +197,26 @@ export async function initOffline() {
   if (typeof navigator.storage?.persist === 'function') void navigator.storage.persist().catch(() => false);
   if (navigator.onLine && currentAccount()) await refreshOffline();
 }
-export async function refreshOffline() {
+export async function refreshOffline(options: { forceDownload?: boolean } = {}) {
   if (!navigator.onLine || !currentAccount()) return;
   const account = accountId();
+  const downloadedAt = (await db.meta.get(`${account}:downloadedAt`))?.value;
+  const remote = (await db.meta.get(`${account}:remoteRevision`))?.value;
+  const downloadedRevision = (await db.meta.get(`${account}:downloadedRevision`))?.value;
+  // No time-based downloads. Server change events also cover missed events on reconnect.
+  const download = options.forceDownload || !downloadedAt || Boolean(remote && remote !== downloadedRevision);
+  const hasWrites = await db.queue.where('accountId').equals(account).count() > 0;
+  if (!download && !hasWrites) return;
+  startSyncProgress(account);
   let failure: unknown;
-  try { await syncAll(); } catch (error) { failure = error; }
-  // Keep downloading even when a queued mutation needs review; dirty rows are protected.
-  if (currentAccount() === account) await pullAll();
-  if (failure) throw failure;
+  try {
+    try { await syncAll(); } catch (error) { failure = error; }
+    reportSyncProgress(account, download ? 10 : 99);
+    // Keep downloading even when a queued mutation needs review; dirty rows are protected.
+    if (download && currentAccount() === account) await pullAll();
+    if (failure) throw failure;
+    finishSyncProgress(account, true);
+  } catch (error) { finishSyncProgress(account, false); throw error; }
 }
 export async function exportLocal() {
   const account = accountId();

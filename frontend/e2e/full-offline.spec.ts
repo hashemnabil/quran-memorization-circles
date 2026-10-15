@@ -23,6 +23,8 @@ test('cold offline navigation opens downloaded core screens and searches locally
     if (url.pathname === '/api/settings/public') return route.fulfill({ json: { name: 'اختبار الأوفلاين' } });
     if (url.pathname.endsWith('/unread-count')) return route.fulfill({ json: { count: 0 } });
     if (url.pathname.includes('/announcements')) return route.fulfill({ json: [] });
+    if (url.pathname === '/api/support') return route.fulfill({ json: { data: [], meta: { total: 0, totalPages: 1, hasNextPage: false, page: 1, limit: 20 } } });
+    if (url.pathname === '/api/support/stats') return route.fulfill({ json: { OPEN: 0, IN_PROGRESS: 0, RESOLVED: 0, CLOSED: 0, assignedToMe: 0 } });
     return route.fulfill({ status: 403, json: { message: 'Unused in this offline test' } });
   });
   // Opening the app must prepare offline data without visiting settings or pressing a button.
@@ -34,7 +36,7 @@ test('cold offline navigation opens downloaded core screens and searches locally
   }))).toBe(true);
   await page.evaluate(async () => { await navigator.serviceWorker.ready; if (!navigator.serviceWorker.controller) await new Promise<void>((resolve) => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })); });
   await context.setOffline(true);
-  for (const path of ['/students', '/circles', '/teachers', '/attendance', '/recitations', '/reports', '/media-schedule', '/teacher-duties', '/settings/offline', '/']) {
+  for (const path of ['/students', '/circles', '/teachers', '/attendance', '/recitations', '/reports', '/media-schedule', '/teacher-duties', '/support', '/settings/offline', '/']) {
     await page.goto(path);
     await expect(page.locator('main h1').first(), `${path}: ${errors.join('; ')}`).toBeVisible();
     await expect(page.locator('main')).not.toContainText('تعذر تحميل');
@@ -72,5 +74,25 @@ test('cold offline navigation opens downloaded core screens and searches locally
   await expect(page.locator('main')).not.toContainText('طالب أوفلاين');
   await search.fill('طالب أوفلاين');
   await expect(page.locator('main')).toContainText('طالب أوفلاين');
+  // A roster refresh while editing must not reset an absence selection to present.
+  await page.goto(`/attendance?circleId=${circleId}`);
+  await expect(page.getByText('طالب أوفلاين', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'تعيين الكل غائب', exact: true }).click();
+  await page.evaluate(({ account, studentId }) => new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open('halaqatFull');
+    request.onsuccess = () => {
+      const database = request.result;
+      const tx = database.transaction('students', 'readwrite');
+      const store = tx.objectStore('students');
+      const read = store.get([account, studentId]);
+      read.onsuccess = () => store.put({ ...read.result, fullName: 'طالب بعد التحديث' });
+      tx.oncomplete = () => { database.close(); window.dispatchEvent(new Event('halaqat:changed')); resolve(); };
+      tx.onerror = () => reject(tx.error);
+    };
+    request.onerror = () => reject(request.error);
+  }), { account, studentId: fixtures.students[0].id });
+  await expect(page.getByText('طالب بعد التحديث', { exact: true })).toBeVisible();
+  const row = page.locator('li').filter({ has: page.getByText('طالب بعد التحديث', { exact: true }) });
+  await expect(row.locator('button[aria-pressed="true"]')).toContainText('غياب');
   expect(errors).toEqual([]);
 });

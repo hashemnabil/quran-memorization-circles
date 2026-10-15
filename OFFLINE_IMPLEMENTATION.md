@@ -7,6 +7,38 @@ of the requested files are in `frontend/src/lib`, `frontend/src/pages`, and
 
 ## Implemented
 
+- Boot download starts after the first screen can render. Automatic 30-second
+  ticks only flush pending writes or retry incomplete/announced downloads. There
+  is no periodic full download: after bootstrap, successful REST mutations publish
+  an opaque revision over the authenticated realtime channel. Reconnect sends the
+  current revision so clients can detect missed changes. A completed pull records
+  the revision seen at its start; events arriving during that pull remain pending.
+  Revisions currently belong to the running server process; a restart triggers a
+  fresh pull, and multi-instance deployments need a shared revision/event bus.
+  Changes written directly to the database outside REST are not covered by this
+  interceptor. Section prefetch uses
+  one request at a time and yields between resources. Pulls no longer invalidate
+  every active query after each table; the UI refreshes once after the sync cycle.
+  The compact indicator includes monotonic stage-weighted progress (not byte or
+  time remaining); 100% is reported only after a successful synchronization cycle.
+
+- Startup now downloads core entities and a role-specific catalogue of additional
+  JSON reads without navigating to their pages. This includes support tickets and
+  details, conversation metadata/messages, administrative directories, registry,
+  announcements, certificate lists, preparation/evaluation records, transfer and
+  suspension lists/details, circle histories and course/staff attendance history.
+  Paginated resources are downloaded to completion; interrupted sections preserve
+  their previous complete snapshot. Independent sections continue after failures,
+  and the automatic synchronizer retries. Additional snapshots are account-scoped
+  and support the explicitly listed local query filters in offline-prefetch.ts.
+  Server authorization still applies to every request. This is read replication,
+  not offline mutation support for every workflow. Binary attachments, arbitrary
+  report date combinations, and unsupported query filters are not predownloaded.
+  The current-day staff/course sheets and current-month certificate report are
+  prefetched, not every hypothetical future date or parameter combination.
+  Opening the app online starts this automatically; first download must complete
+  before relying on it offline. The compact status shows connection and sync state.
+
 - Account-isolated `halaqatFull` Dexie database with entity tables, durable ordered
   queue, reference metadata, response cache, and cached image blobs.
 - Local-first basic CRUD for students, circles, teachers, recitations, courses;

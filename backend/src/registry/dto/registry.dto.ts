@@ -20,6 +20,6 @@ export class UpdateRegistryUserDto {
 
 export class QueryRegistryUsersDto {
   @IsOptional() @IsString() search?: string;
-  @IsOptional() @Matches(/^\\d+$/) page?: string;
-  @IsOptional() @Matches(/^\\d+$/) pageSize?: string;
+  @IsOptional() @Matches(/^\d+$/) page?: string;
+  @IsOptional() @Matches(/^\d+$/) pageSize?: string;
 }

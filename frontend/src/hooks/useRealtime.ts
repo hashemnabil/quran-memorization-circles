@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { getSocket, disconnectSocket } from '@/lib/socket';
 import { useAuthStore } from '@/store/auth';
 import type { AppNotification, ChatMessage } from '@/types';
+import { noteRemoteRevision } from '@/lib/offline-engine';
 
 /**
  * Subscribes the whole app to the realtime channel once, translating socket
@@ -21,6 +22,9 @@ export function useRealtime() {
 
     const socket = getSocket();
     if (!socket) return;
+    const onDataChanged = (payload: { revision?: unknown }) => {
+      if (typeof payload?.revision === 'string') void noteRemoteRevision(payload.revision).catch(() => undefined);
+    };
 
     const onNotification = (payload: { notification: AppNotification }) => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
@@ -68,6 +72,7 @@ export function useRealtime() {
     };
 
     socket.on('notification:new', onNotification);
+    socket.on('data:changed', onDataChanged);
     socket.on('chat:message', onChatMessage);
     socket.on('chat:inbox', onInbox);
     socket.on('chat:message-deleted', onDeleted);
@@ -75,6 +80,7 @@ export function useRealtime() {
 
     return () => {
       socket.off('notification:new', onNotification);
+      socket.off('data:changed', onDataChanged);
       socket.off('chat:message', onChatMessage);
       socket.off('chat:inbox', onInbox);
       socket.off('chat:message-deleted', onDeleted);

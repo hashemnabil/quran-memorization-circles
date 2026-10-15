@@ -63,9 +63,10 @@ test('student can reload the cached shell and file screen in airplane mode and r
   }))).toBe(true);
   await context.setOffline(true); await page.reload();
   await expect(page.getByRole('heading', { name: 'ملفاتي', exact: true })).toBeVisible();
-  await expect(page.getByText('أنت غير متصل بالإنترنت.', { exact: false })).toBeVisible();
+  await expect(page.getByText('غير متصل', { exact: true })).toBeVisible();
   await context.setOffline(false);
-  await expect(page.getByText('أنت غير متصل بالإنترنت.', { exact: false })).not.toBeVisible();
+  await expect(page.getByText('متصل', { exact: true })).toBeVisible();
+  await expect(page.getByText('غير متصل', { exact: true })).not.toBeVisible();
 });
 
 async function readTeacherOutbox(page: Page): Promise<Array<{ id: number; opId: string }>> {

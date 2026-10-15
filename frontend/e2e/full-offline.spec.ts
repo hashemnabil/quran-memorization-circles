@@ -125,6 +125,7 @@ test('student questionnaire saves online, edits offline and automatically update
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
+  await expect(page.getByText('غير متصل', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'تعديل بياناتي', exact: true }).click();
   await expect(page.getByLabel(/^العنوان/)).toHaveValue('عنوان متصل جديد');
   await page.getByLabel(/^العنوان/).fill('عنوان محفوظ بدون نت');
@@ -133,6 +134,8 @@ test('student questionnaire saves online, edits offline and automatically update
   expect(student.address).toBe('عنوان متصل جديد');
   await page.screenshot({ path: 'test-results/student-mobile-questionnaire.png', animations: 'disabled' });
   await context.setOffline(false);
+  await expect(page.getByText('متصل', { exact: true })).toBeVisible();
+  await expect(page.getByText('غير متصل', { exact: true })).not.toBeVisible();
   await expect.poll(() => student.address).toBe('عنوان محفوظ بدون نت');
   await page.getByRole('button', { name: 'تعديل بياناتي', exact: true }).click();
   await expect(page.getByLabel(/^العنوان/)).toHaveValue('عنوان محفوظ بدون نت');

@@ -197,7 +197,6 @@ function QuickAccess({ role }: { role: string }) {
           <span className={cx('grid h-12 w-12 shrink-0 place-items-center rounded-2xl ring-1 transition group-hover:scale-105', tones[item.tone])}>{item.icon}</span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-extrabold text-slate-800">{item.label}</span>
-            <span className="mt-1 block truncate text-xs text-slate-500">{item.detail}</span>
           </span>
           <span className="text-slate-300 transition group-hover:-translate-x-0.5 group-hover:text-primary-600" aria-hidden>←</span>
         </Link>

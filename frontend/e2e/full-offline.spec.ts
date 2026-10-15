@@ -9,6 +9,40 @@ const fixtures: Record<string, any[]> = {
   dutyTeachers: [{ id: '00000000-0000-4000-8000-000000000005', fullName: 'محفظ النظام' }],
 };
 
+test('website login opens immediately without native splash or onboarding', async ({ page }) => {
+  await page.route('**/api/**', route => route.fulfill({ json: { name: 'حلقات التحفيظ' } }));
+  await page.goto('/login');
+  await expect(page.getByRole('heading', { name: 'تسجيل الدخول', exact: true })).toBeVisible();
+  await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('main', { name: 'التعريف بالتطبيق', exact: true })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('qc.onboarding.completed'))).toBe(null);
+  await page.screenshot({ path: 'test-results/login-desktop.png', animations: 'disabled' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: 'test-results/login-mobile.png', animations: 'disabled' });
+});
+
+test('native launch shows only a logo and introduces the app once', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => { (window as any).androidBridge = {}; });
+  await page.route('**/api/**', route => route.fulfill({ json: { name: 'حلقات التحفيظ' } }));
+  await page.goto('/login');
+  const splash = page.getByRole('status', { name: 'بدء التطبيق', exact: true });
+  await expect(splash).toBeVisible();
+  await expect(splash).toHaveText('');
+  await splash.screenshot({ path: 'test-results/native-logo.png', animations: 'disabled' });
+  await expect(page.getByRole('heading', { name: 'حلقتك بين يديك' })).toBeVisible();
+  await page.screenshot({ path: 'test-results/native-intro.png', animations: 'disabled' });
+  await page.getByRole('button', { name: 'متابعة', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'يومك أكثر تنظيمًا' })).toBeVisible();
+  await page.getByRole('button', { name: 'متابعة', exact: true }).click();
+  await page.getByRole('button', { name: 'ابدأ الآن', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'تسجيل الدخول', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(splash).not.toBeVisible();
+  await expect(page.getByRole('main', { name: 'التعريف بالتطبيق', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'تسجيل الدخول', exact: true })).toBeVisible();
+});
+
 test('online student creation waits for acknowledgement and remains visible before offline bootstrap completes', async ({ page }) => {
   let release!: () => void;
   const acknowledgement = new Promise<void>(resolve => { release = resolve; });

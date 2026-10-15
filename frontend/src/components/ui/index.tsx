@@ -61,7 +61,6 @@ export function Card({
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div className="min-w-0">
             {title && <h2 className="text-base font-bold text-slate-800">{title}</h2>}
-            {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
           </div>
           {action}
         </header>
@@ -115,7 +114,6 @@ export function StatCard({
       <span className="min-w-0 flex-1">
         <span className="block text-xs font-semibold text-slate-500">{label}</span>
         <span className="mt-0.5 block text-2xl font-extrabold text-slate-800 numeric">{value}</span>
-        {hint && <span className="mt-0.5 block text-[11px] text-slate-400">{hint}</span>}
       </span>
     </Wrapper>
   );
@@ -149,7 +147,6 @@ export function Field({
         </label>
       )}
       {children}
-      {hint && !error && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
       {error && <p className="form-error">{error}</p>}
     </div>
   );
@@ -726,7 +723,6 @@ export function PageHeader({
       <div className="min-w-0">
         {breadcrumb && <div className="mb-1 text-xs text-slate-400">{breadcrumb}</div>}
         <h1 className="text-xl font-extrabold text-slate-800 sm:text-2xl">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>
       {action && <div className="page-heading-actions flex flex-wrap gap-2">{action}</div>}
     </header>

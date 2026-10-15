@@ -6,10 +6,9 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { Button, Input, Modal, Textarea } from '@/components/ui';
-import { IconAlert, IconLifeBuoy, IconLock, IconMosque, IconUser } from '@/components/ui/Icons';
+import { IconAlert, IconEye, IconLifeBuoy, IconMosque } from '@/components/ui/Icons';
 import { phoneError, PHONE_HINT, USERNAME_HINT } from '@/lib/validation';
 import type { AuthUser, SchoolSettings } from '@/types';
-import LocalAvailabilityBadge from '@/components/LocalAvailabilityBadge';
 import { savePendingSupport } from '@/lib/offline/pendingSupport';
 
 export default function LoginPage() {
@@ -28,57 +27,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-primary-900 px-4 py-10">
-      <div className="pointer-events-none absolute inset-0 opacity-[0.06]" />
-
-      <div className="relative mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-md flex-col justify-center">
-        <header className="mb-6 text-center">
-          {settings?.logoUrl ? (
-            <img src={settings.logoUrl} alt={settings.name ?? 'شعار المدرسة'} className="mx-auto mb-5 h-28 w-auto max-w-[17rem] object-contain" />
-          ) : (
-            <span className="mx-auto mb-5 grid h-24 w-24 place-items-center rounded-2xl bg-white/10 text-gold-300 ring-1 ring-white/15">
-              <IconMosque size={44} />
-            </span>
-          )}
-          <h1 className="text-2xl font-extrabold text-white">{settings?.name ?? 'حلقات تحفيظ القرآن الكريم'}</h1>
-          {settings?.mosqueName && <p className="mt-1 text-sm text-primary-200">{settings.mosqueName}</p>}
-          <p className="mt-4 text-lg font-extrabold leading-loose text-gold-200">﴿ وَلَقَدْ يَسَّرْنَا الْقُرْآنَ لِلذِّكْرِ فَهَلْ مِنْ مُدَّكِرٍ ﴾</p>
-          <p className="mx-auto mt-3 max-w-sm text-sm leading-7 text-primary-100/85">{settings?.about ?? 'نظام متكامل لإدارة حلقات تحفيظ القرآن الكريم: متابعة الطلاب والحضور والتسميع والاختبارات، وتواصل الفريق.'}</p>
-
-          {/* Local availability badge: shows if a local snapshot exists so the site can open offline */}
-          <LocalAvailabilityBadge />
+    <div className="login-screen" dir="rtl">
+      <div className="login-panel">
+        <header className="mb-8 flex flex-col items-center text-center">
+          {settings?.logoUrl ? <img src={settings.logoUrl} alt="" className="mb-5 h-24 w-24 object-contain" /> : <span className="mb-5 grid h-20 w-20 place-items-center rounded-3xl bg-primary-50 text-primary-800"><IconMosque size={42} /></span>}
+          <h1 className="text-xl font-extrabold leading-relaxed text-slate-900">{settings?.name ?? 'حلقات تحفيظ القرآن الكريم'}</h1>
         </header>
-
-        <div className="card p-6 sm:p-7">
-          <CredentialsStep onAuthenticated={onAuthenticated} />
-        </div>
-
-        <ul className="mt-5 grid grid-cols-2 gap-2 text-[11px]">
-          {[
-            'متابعة الحضور والتسميع اليومي',
-            'إدارة الحلقات والدورات التعليمية',
-            'اختبارات متسلسلة للأجزاء والأحزاب',
-            'ملفات وشهادات الطالب',
-          ].map((item) => (
-            <li key={item} className="flex items-center gap-1.5 rounded-xl bg-white/5 px-2.5 py-2 text-primary-100/90 ring-1 ring-white/10">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gold-400" />
-              {item}
-            </li>
-          ))}
-        </ul>
-
-        <button type="button" onClick={() => setSupportOpen(true)} className="mt-5 flex items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2.5 text-xs font-semibold text-primary-100 ring-1 ring-white/10 transition hover:bg-white/10 hover:text-white">
-          <IconLifeBuoy size={16} />
-          تواجه مشكلة في الدخول؟ تواصل مع الدعم الفني
-        </button>
-
-        <footer className="mt-4 text-center text-xs text-primary-200/70">
-          {settings?.phone && (
-            <p>للاستفسار: <span className="numeric">{settings.phone}</span></p>
-          )}
-        </footer>
+        <CredentialsStep onAuthenticated={onAuthenticated} />
+        <button type="button" onClick={() => setSupportOpen(true)} className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-primary-800"><IconLifeBuoy size={18} />الدعم الفني</button>
       </div>
-
       <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />
     </div>
   );
@@ -127,17 +84,17 @@ function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser
   return (
     <>
       <h2 className="text-lg font-extrabold text-slate-800">تسجيل الدخول</h2>
-      <p className="mt-1 text-sm text-slate-500">أدخل اسم المستخدم وكلمة المرور للمتابعة</p>
 
       <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
         {error && <Alert>{error}</Alert>}
 
         <div className="relative">
-          <Input label="اسم المستخدم (رقم الطالب للطلاب)" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="رقم الطالب أو اسم المستخدم" autoComplete="username" autoFocus dir="ltr" className="[_&amp;_input]:pr-10" hint={USERNAME_HINT} />
+          <Input label="اسم المستخدم" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="اسم المستخدم أو رقم الطالب" autoComplete="username" dir="ltr" />
         </div>
 
         <div className="relative">
-          <Input label="كلمة المرور" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" dir="ltr" className="[_&amp;_input]:pr-10 [_&amp;_input]:pl-16" />
+          <Input label="كلمة المرور" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" dir="ltr" className="[&_input]:pl-12" />
+          <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} aria-pressed={showPassword} className="absolute bottom-1 left-1 grid h-11 w-11 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-primary-800"><IconEye size={19} /></button>
         </div>
 
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">

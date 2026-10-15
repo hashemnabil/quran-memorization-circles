@@ -7,6 +7,7 @@ import { clearPersistedQueryCache } from '@/lib/offline/queryCache';
 import { clearOfflineOperations } from '@/lib/offline/outbox';
 import { clearOfflineReplica } from '@/lib/offline/changeFeed';
 import type { AuthUser, Role } from '@/types';
+import { rememberOfflineLogin, unlockOfflineLogin, forgetOfflineLogin } from '@/lib/offline-login';
 
 const OFFLINE_USER_KEY = 'qc.offlineUser';
 const allowedRoles: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'STUDENT', 'SUPPORT'];
@@ -51,14 +52,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   status: 'idle',
 
   async login(username, password) {
-    const { data } = await api.post('/auth/login', { username, password });
-    return adoptSession(data, set);
+    const unlock = async () => {
+      try {
+        const session = await unlockOfflineLogin(username, password);
+        resetQueryCache();
+        tokenStore.set(session.accessToken, session.refreshToken);
+        cacheOfflineUser(session.user);
+        set({ user: session.user, status: 'authenticated' });
+        return session.user;
+      } catch (error) { throw Object.assign(error as Error, { offlineLoginError: true }); }
+    };
+    if (!navigator.onLine) return unlock();
+    let data;
+    try { ({ data } = await api.post('/auth/login', { username, password })); }
+    catch (error) {
+      if (axios.isAxiosError(error) && !error.response) return unlock();
+      if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status || 0)) forgetOfflineLogin(username);
+      throw error;
+    }
+    const user = await adoptSession(data, set);
+    await rememberOfflineLogin(username, password, user, data).catch(() => undefined);
+    return user;
   },
 
   async logout() {
     const accountId = get().user?.id ?? '';
     try {
-      await api.post('/auth/logout', { refreshToken: tokenStore.refresh() });
+      if (navigator.onLine) await api.post('/auth/logout', { refreshToken: tokenStore.refresh() });
     } catch {
       // Logging out locally matters more than the server acknowledging it.
     }

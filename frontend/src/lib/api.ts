@@ -167,7 +167,7 @@ api.interceptors.response.use(
 
 /** Extracts the Arabic message the API returns, with a sensible fallback. */
 export function apiError(error: unknown, fallback = 'حدث خطأ، يرجى المحاولة مرة أخرى'): string {
-  if (error instanceof Error && (error as any).localWriteRejected) return error.message;
+  if (error instanceof Error && ((error as any).localWriteRejected || (error as any).offlineLoginError)) return error.message;
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as { message?: string | string[] } | undefined;
     if (data?.message) return Array.isArray(data.message) ? data.message[0] : data.message;

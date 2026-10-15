@@ -9,6 +9,64 @@ const fixtures: Record<string, any[]> = {
   dutyTeachers: [{ id: '00000000-0000-4000-8000-000000000005', fullName: 'محفظ النظام' }],
 };
 
+test('administrator creates a user and student account, resets password offline and syncs on reconnect', async ({ page, context }) => {
+  const received: any[] = [];
+  await page.addInitScript(identity => {
+    localStorage.setItem('qc.accessToken', 'test-token');
+    localStorage.setItem('qc.offlineUser', JSON.stringify(identity));
+  }, user);
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/auth/me') return route.fulfill({ json: user });
+    if (url.pathname === '/api/settings/public') return route.fulfill({ json: { name: 'Test' } });
+    if (url.pathname === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+    if (url.pathname === '/api/sync-all/delta') return route.fulfill({ json: { cursor: '0', tables: {}, changedEntities: [], hasMore: false } });
+    if (url.pathname === '/api/sync-all') {
+      if (route.request().method() === 'POST') {
+        const operations = route.request().postDataJSON().operations; received.push(...operations);
+        return route.fulfill({ json: { outcomes: operations.map((op: any) => ({ opId: op.opId, status: 'applied', data: op.table === 'users'
+          ? { id: op.entityId, username: op.data.username, fullName: op.data.fullName, role: op.data.role, isActive: true }
+          : { id: op.entityId, studentId: op.entityId, username: '120261234', fullName: 'طالب أوفلاين', code: '120261234', isActive: true, mustChangePassword: true } })) } });
+      }
+      return route.fulfill({ json: { data: url.searchParams.get('table') === 'students' ? [{ ...fixtures.students[0], code: '120261234' }] : [], meta: { hasNextPage: false } } });
+    }
+    if (url.pathname === '/api/students/accounts') return route.fulfill({ json: [] });
+    if (url.pathname === '/api/students') return route.fulfill({ json: { data: [{ ...fixtures.students[0], code: '120261234' }], meta: { hasNextPage: false } } });
+    if (url.pathname.endsWith('/unread-count')) return route.fulfill({ json: { count: 0 } });
+    if (url.pathname.includes('/announcements')) return route.fulfill({ json: [] });
+    if (url.pathname === '/api/users/stats') return route.fulfill({ json: { total: 0, active: 0, inactive: 0, byRole: [] } });
+    return route.fulfill({ json: { data: [], meta: { page: 1, total: 0, totalPages: 1, hasNextPage: false } } });
+  });
+  await page.goto('/student-accounts');
+  await expect.poll(() => page.evaluate(() => new Promise(resolve => {
+    const open = indexedDB.open('halaqatFull'); open.onsuccess = () => {
+      const database = open.result;
+      const request = database.transaction('meta').objectStore('meta').get('00000000-0000-4000-8000-000000000001:downloadedAt');
+      request.onsuccess = () => { resolve(Boolean(request.result)); database.close(); };
+    };
+  }))).toBe(true);
+  await context.setOffline(true);
+  await page.getByRole('combobox').selectOption(fixtures.students[0].id);
+  await page.getByRole('button', { name: 'إنشاء حساب طالب', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'الحساب وكلمة المرور' })).toBeVisible();
+  await page.getByRole('button', { name: 'تم، إغلاق', exact: true }).click();
+  await page.getByRole('button', { name: 'إعادة تعيين كلمة السر', exact: true }).click();
+  await page.getByRole('button', { name: 'تم، إغلاق', exact: true }).click();
+  await page.evaluate(() => { window.history.pushState({}, '', '/users'); window.dispatchEvent(new PopStateEvent('popstate')); });
+  await page.getByRole('button', { name: 'إضافة مستخدم', exact: true }).click();
+  await page.getByLabel('الاسم الكامل').fill('موظف بدون نت');
+  await page.getByLabel('اسم المستخدم').fill('offlinestaff');
+  await page.getByLabel('كلمة المرور', { exact: false }).fill('OfflinePassword123');
+  await page.getByLabel('الدور').selectOption('TEACHER');
+  await page.getByRole('button', { name: 'حفظ', exact: true }).click();
+  await expect(page.getByRole('cell', { name: 'موظف بدون نت' })).toBeVisible();
+  expect(received).toHaveLength(0);
+  await context.setOffline(false);
+  await expect.poll(() => received.length).toBe(3);
+  expect(received.map(op => `${op.table}:${op.action}`)).toEqual(['studentAccounts:create', 'studentAccounts:reset-password', 'users:create']);
+  await expect(page.getByRole('cell', { name: 'بانتظار المزامنة', exact: true })).toHaveCount(0);
+});
+
 test('website login opens immediately without native splash or onboarding', async ({ page }) => {
   await page.route('**/api/**', route => route.fulfill({ json: { name: 'حلقات التحفيظ' } }));
   await page.goto('/login');

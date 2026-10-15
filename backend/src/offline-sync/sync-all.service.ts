@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma, Role } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../common/decorators';
 import { AccessControlService } from '../common/services/access-control.service';
@@ -26,6 +26,8 @@ import { CreateExamRequestDto, QueryExamRequestsDto, QueryExamsDto, RecordResult
 import { CoursesService } from '../courses/courses.service';
 import { QueryCoursesDto, CreateCourseDto, UpdateCourseDto } from '../courses/dto/course.dto';
 import { SchedulesService } from '../schedules/schedules.service';
+import { UsersService } from '../users/users.service';
+import { CreateUserDto, UpdateUserDto, QueryUsersDto, ResetPasswordDto } from '../users/dto/user.dto';
 
 type Operation = { opId: string; accountId?: string; table: string; action: string; entityId: string; data: Record<string, any> };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -42,7 +44,7 @@ export class FullSyncService {
     // Persist notifications inside the transaction. Clients refresh them after commit.
     const notifications = new NotificationsService(prisma, { emitToUser() {} } as unknown as RealtimeGateway);
     const students = new StudentsService(prisma, acl, activity, new UploadsService(this.config));
-    return { prisma, acl, students, notifications, schedules: new SchedulesService(prisma, notifications), circles: new CirclesService(prisma, acl, activity, notifications),
+    return { prisma, acl, students, users: new UsersService(prisma, this.config, activity, acl, new UploadsService(this.config)), notifications, schedules: new SchedulesService(prisma, notifications), circles: new CirclesService(prisma, acl, activity, notifications),
       teachers: new TeachersService(prisma, this.config, activity, acl),
       recitations: new RecitationsService(prisma, acl, activity, students),
       attendance: new AttendanceService(prisma, acl, activity, notifications),
@@ -54,6 +56,13 @@ export class FullSyncService {
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const empty = { data: [], meta: { hasNextPage: false } };
     switch (table) {
+      case 'users': return user.role === Role.ADMIN ? s.users.findAll(plainToInstance(QueryUsersDto, query)) : empty;
+      case 'studentAccounts': {
+        if (user.role !== Role.ADMIN || page !== 1) return empty;
+        const data = await s.students.listAccounts();
+        return { data: changedIds ? data.filter(row => changedIds.has(row.id)) : data,
+          ...(changedIds ? { visibleIds: data.map(row => row.id) } : {}), meta: { hasNextPage: false } };
+      }
       case 'mediaPlans': return { data: user.role === Role.ADMIN && page === 1 ? await s.schedules.media() : [], meta: { hasNextPage: false } };
       case 'teacherDuties': return { data: staff && page === 1 ? await s.schedules.duties(user) : [], meta: { hasNextPage: false } };
       case 'dutyTeachers': return { data: user.role === Role.ADMIN && page === 1 ? await s.schedules.teachers() : [], meta: { hasNextPage: false } };
@@ -103,6 +112,7 @@ export class FullSyncService {
       const row = change.payload as any || {};
       if (direct[change.entity]) add(direct[change.entity], change.entityId);
       if (change.entity === 'students') {
+        add('studentAccounts', change.entityId);
         if (row.circleId) add('circles', row.circleId);
         if (row._previous?.circleId) add('circles', row._previous.circleId);
       }
@@ -116,6 +126,9 @@ export class FullSyncService {
         for (const table of ['students', 'attendance', 'recitations', 'exams', 'examRequests', 'behaviors']) add(table);
       }
       if (change.entity === 'users') {
+        add('users', change.entityId);
+        const accounts = await this.prisma.student.findMany({ where: { userId: change.entityId }, select: { id: true } });
+        for (const account of accounts) add('studentAccounts', account.id);
         const teachers = await this.prisma.teacherProfile.findMany({ where: { userId: change.entityId }, select: { id: true } });
         for (const teacher of teachers) add('teachers', teacher.id);
         add('dutyTeachers');
@@ -149,7 +162,11 @@ export class FullSyncService {
     for (const op of body.operations as Operation[]) {
       if (!op || op.accountId !== undefined && op.accountId !== user.id || !uuid.test(op.opId) || !uuid.test(op.entityId) || !op.data || typeof op.data !== 'object' || Array.isArray(op.data)) throw new BadRequestException('عملية غير صالحة أو تخص حسابًا آخر');
       try {
-        const fingerprint = createHash('sha256').update(canonical({ table: op.table, action: op.action, entityId: op.entityId, data: op.data })).digest('hex');
+        const sensitive = ['password', 'newPassword', 'currentPassword', 'accountPassword'].some(field => op.data[field] !== undefined);
+        const secret = sensitive ? this.config.get('JWT_ACCESS_SECRET') : undefined;
+        if (sensitive && !secret) throw new BadRequestException('تهيئة مزامنة الحسابات غير مكتملة على الخادم');
+        const fingerprint = (sensitive ? createHmac('sha256', secret!) : createHash('sha256'))
+          .update(canonical({ table: op.table, action: op.action, entityId: op.entityId, data: op.data })).digest('hex');
         const outcome = await this.prisma.$transaction(async (tx) => {
           // Return an integer: Prisma cannot deserialize PostgreSQL's void lock result.
           await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${user.id}), hashtext(${op.opId}))) AS locked`;
@@ -171,7 +188,8 @@ export class FullSyncService {
           const mapping = new Map<string, string>(receipts.map((receipt): [string, string] => { const result = receipt.result as any; return [result.localId, result.outcome?.data?.id]; }).filter(([, id]) => typeof id === 'string'));
           const resolve = (value: any): any => { if (typeof value === 'string') return mapping.get(value) || value; if (Array.isArray(value)) return value.map(resolve); if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, resolve(item)])); return value; };
           const result = await this.apply(this.services(transactionPrisma), user, { ...op, entityId: resolve(op.entityId), data: resolve(op.data) });
-          const outcome = JSON.parse(JSON.stringify({ opId: op.opId, status: 'applied', data: result }));
+          const outcome = JSON.parse(JSON.stringify({ opId: op.opId, status: 'applied', data: result }, (key, value) =>
+            ['password', 'newPassword', 'currentPassword', 'accountPassword', 'temporaryPassword', 'passwordHash'].includes(key) ? undefined : value));
           await tx.processedOperation.create({ data: { opId: op.opId, accountId: user.id, result: { fingerprint, outcome, ...(op.action === 'create' ? { localId: op.entityId } : {}) } as Prisma.InputJsonValue } });
           return outcome;
         }, { timeout: 30000 });
@@ -193,6 +211,21 @@ export class FullSyncService {
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const admin = user.role === Role.ADMIN;
     const id = op.entityId;
+    if (admin && op.table === 'users') {
+      if (op.action === 'create') return s.users.create(user, await this.dto(CreateUserDto, op.data));
+      if (op.action === 'update') return s.users.update(user, id, await this.dto(UpdateUserDto, op.data));
+      if (op.action === 'reset-password') {
+        await s.users.resetPassword(user, id, await this.dto(ResetPasswordDto, op.data));
+        return s.users.findOne(id);
+      }
+    }
+    if (admin && op.table === 'studentAccounts' && ['create', 'reset-password'].includes(op.action)) {
+      const dto = await this.dto(ResetPasswordDto, { newPassword: op.data.password });
+      if (op.action === 'create') await s.students.createAccountForStudent(user, id, dto.newPassword);
+      else await s.students.resetStudentAccountPassword(user, id, dto.newPassword);
+      // Idempotency receipts never retain the temporary password.
+      return (await s.students.listAccounts()).find(row => row.id === id);
+    }
     if (admin && ['mediaPlans', 'teacherDuties'].includes(op.table)) {
       const { id: _id, pendingDelete: _deleted, ...payload } = op.data;
       if (op.table === 'mediaPlans') {

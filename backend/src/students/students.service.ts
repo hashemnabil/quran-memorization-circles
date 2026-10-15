@@ -546,7 +546,7 @@ export class StudentsService {
       if (usernameTaken) throw new ConflictException('رقم الطالب مستخدم كاسم دخول لحساب آخر');
     }
 
-    const temporaryPassword = dto.createAccount ? randomBytes(9).toString('base64url') : undefined;
+    const temporaryPassword = dto.createAccount ? dto.accountPassword ?? randomBytes(9).toString('base64url') : undefined;
     const passwordHash = temporaryPassword ? await bcrypt.hash(temporaryPassword, 12) : undefined;
     const student = await this.prisma.$transaction(async (tx) => {
       const user = dto.createAccount
@@ -664,14 +664,15 @@ export class StudentsService {
     }));
   }
 
-  async createAccountForStudent(actor: AuthUser, id: string) {
+  async createAccountForStudent(actor: AuthUser, id: string, password?: string) {
+    if (password !== undefined && (typeof password !== 'string' || password.length < 6 || password.length > 128)) throw new BadRequestException('كلمة المرور يجب أن تكون بين 6 و128 حرفًا');
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (student.userId) throw new ConflictException('الطالب لديه حساب دخول بالفعل');
     const username = student.code.toLowerCase();
     const taken = await this.prisma.user.findFirst({ where: { username, deletedAt: null }, select: { id: true } });
     if (taken) throw new ConflictException('رقم الطالب مستخدم كاسم دخول لحساب آخر');
-    const temporaryPassword = randomBytes(9).toString('base64url');
+    const temporaryPassword = password ?? randomBytes(9).toString('base64url');
     const user = await this.prisma.user.create({ data: {
       username, passwordHash: await bcrypt.hash(temporaryPassword, 12), fullName: student.fullName,
       phone: student.phone, role: Role.STUDENT, isActive: true, mustChangePassword: true,
@@ -681,11 +682,12 @@ export class StudentsService {
     return { studentId: id, fullName: student.fullName, username, temporaryPassword };
   }
 
-  async resetStudentAccountPassword(actor: AuthUser, id: string) {
+  async resetStudentAccountPassword(actor: AuthUser, id: string, password?: string) {
+    if (password !== undefined && (typeof password !== 'string' || password.length < 6 || password.length > 128)) throw new BadRequestException('كلمة المرور يجب أن تكون بين 6 و128 حرفًا');
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, include: { user: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (!student.user) throw new BadRequestException('الطالب لا يملك حساب دخول');
-    const temporaryPassword = randomBytes(9).toString('base64url');
+    const temporaryPassword = password ?? randomBytes(9).toString('base64url');
     await this.prisma.user.update({ where: { id: student.user.id },
       data: { passwordHash: await bcrypt.hash(temporaryPassword, 12), mustChangePassword: true, isActive: true } });
     await this.prisma.refreshToken.updateMany({ where: { userId: student.user.id, revokedAt: null }, data: { revokedAt: new Date() } });

@@ -6,6 +6,13 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   url.searchParams.forEach((value, key) => { params[key] ??= value; });
   const segments = url.pathname.split('/').filter(Boolean);
   if (url.pathname === '/students/me') return (await get('students')).find(row => row.selfAccountId === accountId());
+  if (url.pathname === '/students/accounts') return get('studentAccounts');
+  if (url.pathname === '/users/stats') {
+    const users = await get('users');
+    return { total: users.length, active: users.filter(row => row.isActive).length,
+      inactive: users.filter(row => !row.isActive).length,
+      byRole: [...new Set(users.map(row => row.role))].map(role => ({ role, count: users.filter(row => row.role === role).length })) };
+  }
   if (segments[0] === 'schedules') {
     const table = { media: 'mediaPlans', duties: 'teacherDuties', teachers: 'dutyTeachers' }[segments[1]] as EntityTable | undefined;
     if (table && segments.length === 2) return (await get(table)).sort((a, b) => String(a.date || a.fullName).localeCompare(String(b.date || b.fullName)));
@@ -71,8 +78,8 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   if (id && id !== 'options') return rows.find((row) => row.id === id);
   if (id === 'options') return rows.map((row) => ({ id: row.id, name: row.name, code: row.code }));
   let filtered = rows.filter((row) => {
-    if (params.search && ![row.fullName, row.name, row.code, row.nationalId, row.guardianName, row.guardianPhone, row.phone, row.user?.fullName].filter(Boolean).join(' ').toLocaleLowerCase().includes(String(params.search).toLocaleLowerCase())) return false;
-    for (const field of ['status', 'evaluation', 'circleId', 'studentId', 'teacherId', 'type', 'gender', 'isActive']) {
+    if (params.search && ![row.fullName, row.name, row.username, row.email, row.code, row.nationalId, row.guardianName, row.guardianPhone, row.phone, row.user?.fullName].filter(Boolean).join(' ').toLocaleLowerCase().includes(String(params.search).toLocaleLowerCase())) return false;
+    for (const field of ['status', 'evaluation', 'circleId', 'studentId', 'teacherId', 'type', 'gender', 'isActive', 'role']) {
       const value = params[field]; if (value === '' || value === undefined) continue;
       const actual = field === 'circleId' ? row.circleId ?? row.circle?.id : row[field];
       if (String(actual) !== String(value)) return false;
@@ -99,7 +106,7 @@ export async function rememberRead(path: string, params: any, data: any) {
   const account = accountId();
   await db.responses.put({ key: responseKey(account, path, params), accountId: account, data });
   const segments = path.split('?')[0].split('/').filter(Boolean);
-  const root = (segments[0] === 'schedules' ? { media: 'mediaPlans', duties: 'teacherDuties', teachers: 'dutyTeachers' }[segments[1]] : segments[0]) as EntityTable;
+  const root = (path === '/students/accounts' ? 'studentAccounts' : segments[0] === 'schedules' ? { media: 'mediaPlans', duties: 'teacherDuties', teachers: 'dutyTeachers' }[segments[1]] : segments[0]) as EntityTable;
   if (entityTables.includes(root)) {
     const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : data?.id ? [data] : [];
     await mergeRows(root, rows, account);
@@ -110,6 +117,29 @@ export function responseKey(account: string, path: string, params: any) {
 }
 export async function localWrite(method: string, path: string, data: any): Promise<any | undefined> {
   const parts = path.split('/').filter(Boolean);
+  if (parts[0] === 'users' && (method === 'post' && parts.length === 1 || method === 'patch' && parts.length <= 3 && (!parts[2] || parts[2] === 'reset-password'))) {
+    const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+    if (user?.role !== 'ADMIN') throw Object.assign(new Error('إدارة الحسابات متاحة للإدارة فقط'), { localWriteRejected: true });
+    return save('users', { ...data, ...(parts[1] ? { id: parts[1] } : {}), credentialPending: true, ...(method === 'post' ? { activationPending: true } : {}) },
+      method === 'post' ? 'create' : parts[2] === 'reset-password' ? 'reset-password' : 'update');
+  }
+  if (parts[0] === 'students' && parts[2] === 'account' && method === 'post' &&
+      (parts.length === 3 || parts.length === 4 && parts[3] === 'reset-password')) {
+    const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+    if (user?.role !== 'ADMIN') throw Object.assign(new Error('إدارة الحسابات متاحة للإدارة فقط'), { localWriteRejected: true });
+    const student = (await get('students')).find(row => row.id === parts[1]);
+    const existing = (await get('studentAccounts')).find(row => row.id === parts[1]);
+    if (!student && !existing) throw Object.assign(new Error('نزّل ملف الطالب مرة واحدة قبل إدارة حسابه بدون نت'), { localWriteRejected: true });
+    if (parts.length === 3 && existing) throw Object.assign(new Error('الطالب لديه حساب أو طلب إنشاء حساب محفوظ بالفعل'), { localWriteRejected: true });
+    if (parts[3] && !existing) throw Object.assign(new Error('الطالب لا يملك حساب دخول محفوظًا على هذا الجهاز'), { localWriteRejected: true });
+    const password = Array.from(crypto.getRandomValues(new Uint8Array(12)), value => value.toString(16).padStart(2, '0')).join('');
+    const details = existing || student!;
+    const row = await save('studentAccounts', { id: parts[1], studentId: parts[1], fullName: details.fullName,
+      code: details.code, nationalId: details.nationalId, username: existing?.username || details.code?.toLowerCase(),
+      isActive: true, mustChangePassword: true, password, credentialPending: true, activationPending: parts.length === 3 },
+      parts.length === 3 ? 'create' : 'reset-password');
+    return { ...row, temporaryPassword: password };
+  }
   if (method === 'patch' && path === '/students/me/questionnaire') {
     const student = (await get('students')).find(row => row.selfAccountId === accountId());
     if (!student) throw Object.assign(new Error('افتح ملفك مع النت مرة واحدة قبل تعبئة الاستبيان بدون نت'), { localWriteRejected: true });
@@ -131,7 +161,14 @@ export async function localWrite(method: string, path: string, data: any): Promi
   else if (parts.length > 2) return undefined;
   if (!['students', 'circles', 'teachers', 'recitations', 'attendance', 'exams', 'examRequests', 'notifications', 'courses'].includes(table)) return undefined;
   if (id && !/^[0-9a-f-]{36}$/i.test(id)) return undefined;
-  if (method === 'post' && !id) return save(table, data || {});
+  if (method === 'post' && !id) {
+    if (table === 'students' && data?.createAccount) {
+      const password = Array.from(crypto.getRandomValues(new Uint8Array(12)), value => value.toString(16).padStart(2, '0')).join('');
+      const saved = await save(table, { ...data, accountPassword: password });
+      return { ...saved, accountCredentials: { username: data.code || 'يُحدّد بعد المزامنة', temporaryPassword: password } };
+    }
+    return save(table, data || {});
+  }
   if (method === 'patch' && id) return action ? save(table, { ...data, id }, action) : update(table, id, data || {});
   if (method === 'delete' && id) return remove(table, id);
   return undefined;

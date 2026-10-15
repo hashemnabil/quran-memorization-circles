@@ -338,7 +338,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         className={cx(
-          'relative z-10 w-full rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl animate-slide-up',
+          'app-dialog relative z-10 w-full rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl animate-slide-up',
           sizes[size],
         )}
       >
@@ -352,7 +352,7 @@ export function Modal({
             <IconX size={18} />
           </button>
         </header>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="app-dialog-body max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
         {footer && (
           <footer className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
             {footer}
@@ -722,13 +722,13 @@ export function PageHeader({
   breadcrumb?: ReactNode;
 }) {
   return (
-    <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+    <header className="page-heading mb-5 flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
         {breadcrumb && <div className="mb-1 text-xs text-slate-400">{breadcrumb}</div>}
         <h1 className="text-xl font-extrabold text-slate-800 sm:text-2xl">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>
-      {action && <div className="flex flex-wrap gap-2">{action}</div>}
+      {action && <div className="page-heading-actions flex flex-wrap gap-2">{action}</div>}
     </header>
   );
 }

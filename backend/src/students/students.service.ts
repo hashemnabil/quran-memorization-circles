@@ -25,6 +25,7 @@ import {
   StudentRegistrationTrack,
   SurahCompletionDto,
   UpdateStudentDto,
+  StudentQuestionnaireDto,
 } from './dto/student.dto';
 
 /** Fields a teacher is allowed to change on a student record. */
@@ -88,11 +89,33 @@ export class StudentsService {
     });
     if (!student) throw new NotFoundException('ملف الطالب غير مرتبط بهذا الحساب');
     const profile = await this.findOne(user, student.id);
-    // Do not expose guardian identities or guardian contact details to the student session.
+    // The student can review their own questionnaire contact fields, never the linked parent's account.
     const { parentProfile: _parentProfile, parentName: _parentName, parentPhone: _parentPhone,
-      guardianName: _guardianName, guardianPhone: _guardianPhone, parentId: _parentId,
+      parentId: _parentId,
       fatherNationalId: _fatherNationalId, ...safeProfile } = profile as any;
-    return safeProfile;
+    return { ...safeProfile, selfAccountId: user.id };
+  }
+
+  async updateMyQuestionnaire(user: AuthUser, dto: StudentQuestionnaireDto, expectedId?: string) {
+    if (user.role !== Role.STUDENT) throw new ForbiddenException('هذا النموذج مخصص للطالب');
+    const student = await this.prisma.student.findFirst({ where: { userId: user.id, deletedAt: null }, select: { id: true } });
+    if (!student) throw new NotFoundException('ملف الطالب غير مرتبط بهذا الحساب');
+    if (expectedId && expectedId !== student.id) throw new ForbiddenException('يمكنك تعديل ملفك فقط');
+    // Explicit allowlist also protects internal callers and offline replay.
+    const fields = ['fullName', 'address', 'phone', 'guardianName', 'guardianPhone', 'guardianRelation'];
+    const data = Object.fromEntries(fields.filter(field => dto[field] !== undefined).map(field => [field, dto[field]]));
+    if (dto.birthDate) data.birthDate = new Date(dto.birthDate);
+    try {
+      await this.prisma.$transaction(async tx => {
+        await tx.student.update({ where: { id: student.id }, data });
+        await tx.user.update({ where: { id: user.id }, data: { fullName: dto.fullName, phone: dto.phone } });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('رقم الهوية مسجل لطالب آخر');
+      throw error;
+    }
+    await this.activity.log({ userId: user.id, action: 'student.questionnaire', summary: 'حدّث الطالب استبيان بياناته', entityType: 'Student', entityId: student.id });
+    return this.getMyProfile(user);
   }
 
   async getMyHistory(user: AuthUser) {

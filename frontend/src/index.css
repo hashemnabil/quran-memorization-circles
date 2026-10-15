@@ -142,6 +142,39 @@
     vertical-align: middle;
   }
 
+  .mobile-navigation {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 35;
+    display: flex;
+    justify-content: space-around;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid #e2e8ed;
+    background: #fff;
+    box-shadow: 0 -4px 20px rgba(15,23,42,.04);
+  }
+
+  .mobile-navigation-item {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 52px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border-radius: 12px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .mobile-navigation-active {
+    color: #186346;
+    background: #edf7f1;
+  }
+
   .app-workspace {
     width: 100%;
     max-width: 1600px;
@@ -263,4 +296,22 @@
   .skeleton {
     @apply animate-pulse rounded-lg bg-slate-200;
   }
+}
+
+@media (max-width: 1023px) {
+  .app-shell { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .app-shell .app-workspace { padding-inline: 16px; }
+}
+@media (max-width: 639px) {
+  .app-workspace .input, .app-workspace .field,
+  .app-dialog .input, .app-dialog .field { min-height: 48px; font-size: 16px; }
+  .page-heading { gap: 16px; }
+  .page-heading-actions { width: 100%; }
+  .page-heading-actions > .btn { flex: 1; }
+  .app-workspace .card { border-radius: 16px; }
+  .app-dialog { max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 12px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .app-dialog-body { max-height: calc(100dvh - 180px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); overscroll-behavior: contain; }
+  .app-dialog header > button { min-height: 44px; min-width: 44px; }
+  .table-wrap { max-width: 100%; overscroll-behavior-x: contain; }
+  .app-workspace .btn-sm { min-height: 44px; }
 }

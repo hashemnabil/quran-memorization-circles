@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { Role } from '@prisma/client';
 import { FullSyncService } from './sync-all.service';
-import { UpdateStudentDto } from '../students/dto/student.dto';
+import { UpdateStudentDto, StudentQuestionnaireDto } from '../students/dto/student.dto';
+import { StudentsService } from '../students/students.service';
 
 const user = { id: randomUUID(), role: Role.ADMIN, fullName: 'Admin', username: 'admin', email: null };
 function fixture() {
@@ -28,6 +29,36 @@ test('student edits accept an unset optional birth date from the actual form', a
   const dto = await (service as any).dto(UpdateStudentDto, { fullName: 'طالب', birthDate: '', phone: '', guardianPhone: '', circleId: null });
   assert.equal(dto.birthDate, undefined);
   assert.equal(dto.fullName, 'طالب');
+});
+
+test('student questionnaire rejects academic and account fields in offline replay', async () => {
+  const { service } = fixture();
+  const valid = await (service as any).dto(StudentQuestionnaireDto, { phone: '0591234567', address: 'Home' });
+  assert.equal(valid.address, 'Home');
+  for (const field of ['gender', 'code', 'nationalId', 'totalPoints', 'circleId', 'userId', 'status']) {
+    await assert.rejects((service as any).dto(StudentQuestionnaireDto, { [field]: 'tampered' }));
+  }
+});
+
+test('questionnaire updates the authenticated student record and cannot target another student', async () => {
+  const writes: any[] = [];
+  const actor = { ...user, role: Role.STUDENT };
+  const ownId = randomUUID();
+  const tx = {
+    student: { update: async (args: any) => { writes.push(args); } },
+    user: { update: async () => undefined },
+  };
+  const prisma = { student: { findFirst: async (args: any) => {
+    assert.deepEqual(args.where, { userId: actor.id, deletedAt: null });
+    return { id: ownId };
+  } }, $transaction: async (run: any) => run(tx) };
+  const students = new StudentsService(prisma as any, {} as any, { log: async () => undefined } as any, {} as any);
+  students.getMyProfile = async () => ({ id: ownId, address: 'Updated home' });
+  await assert.rejects(students.updateMyQuestionnaire(actor, { address: 'Other home' }, randomUUID()));
+  assert.equal(writes.length, 0);
+  await students.updateMyQuestionnaire(actor, { address: 'Updated home' }, ownId);
+  assert.deepEqual(writes, [{ where: { id: ownId }, data: { address: 'Updated home' } }]);
+  await assert.rejects(students.updateMyQuestionnaire(user, { address: 'No' }));
 });
 
 test('delta reads the durable journal and sends only affected authorized records', async () => {

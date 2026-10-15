@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/auth';
 import { Button, Card, ErrorState, Input, LoadingState, PageHeader, ProgressBar, StatCard } from '@/components/ui';
 import { IconAward, IconBook, IconClipboard } from '@/components/ui/Icons';
 import { formatDateShort, formatParts } from '@/lib/format';
+import StudentQuestionnaire from '@/components/StudentQuestionnaire';
 
 export default function StudentPortalPage() {
   const { user, logout } = useAuthStore();
@@ -68,6 +69,7 @@ export default function StudentPortalPage() {
   return (
     <>
       <PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
+      <StudentQuestionnaire key={data.id} profile={data} />
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="نسبة الحضور" value={`${data.attendanceSummary?.attendanceRate ?? 0}%`} icon={<IconClipboard size={22} />} />
         <StatCard label="مرات الحضور" value={data.attendanceSummary?.present ?? 0} icon={<IconClipboard size={22} />} />

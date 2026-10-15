@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType, PickType } from '@nestjs/swagger';
 import { Evaluation, Gender, StudentStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -158,6 +158,11 @@ export class CreateStudentDto {
 }
 
 export class UpdateStudentDto extends PartialType(CreateStudentDto) {}
+
+export class StudentQuestionnaireDto extends PartialType(PickType(CreateStudentDto, [
+  'fullName', 'birthDate', 'address', 'phone',
+  'guardianName', 'guardianPhone', 'guardianRelation',
+] as const)) {}
 
 /**
  * Which part of the school a student belongs to. The unified profile lists all

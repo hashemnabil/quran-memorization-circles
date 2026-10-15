@@ -11,6 +11,7 @@ import AnnouncementBar from '@/components/AnnouncementBar';
 import AutomaticOfflineSync from '@/components/AutomaticOfflineSync';
 import OfflineSystem from '@/components/OfflineSystem';
 import DutyReminder from '@/components/DutyReminder';
+import MobileNavigation from './MobileNavigation';
 import {
   IconBell,
   IconChat,
@@ -234,7 +235,7 @@ export default function AppLayout() {
   );
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="app-shell flex min-h-screen bg-slate-50">
       {/* Desktop sidebar — width animates between the full panel and the icon rail. */}
       <aside
         className={cx(
@@ -381,6 +382,7 @@ export default function AppLayout() {
           {settings?.academicYear ? ` — العام الدراسي ${settings.academicYear}` : ''}
         </footer>
       </div>
+      <MobileNavigation role={user.role} onMenu={() => setDrawerOpen(true)} />
     </div>
   );
 }

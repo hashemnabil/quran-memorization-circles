@@ -4,12 +4,14 @@ import { db } from '@/lib/db';
 import { initOffline, refreshOffline } from '@/lib/offline-engine';
 import { useAuthStore } from '@/store/auth';
 import { queryClient } from '@/lib/queryClient';
+import { getSyncProgress } from '@/lib/sync-progress';
 
 export default function OfflineSystem() {
   const account = useAuthStore((state) => state.user?.id);
   const [online, setOnline] = useState(navigator.onLine);
   const [pending, setPending] = useState(0); const [last, setLast] = useState('');
-  const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const [error, setError] = useState('');
+  const [progress, setProgress] = useState(getSyncProgress);
   const refresh = async () => {
     if (!account) return;
     setPending(await db.queue.where('accountId').equals(account).count());
@@ -20,18 +22,35 @@ export default function OfflineSystem() {
     if (!account) return;
     let active = true;
     let running = false;
+    let changedDuringSync = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     const update = () => { if (active) void refresh(); };
     const synchronize = async (initial = false) => {
       if (running || !active || !navigator.onLine) return;
-      running = true; setBusy(true); setError('');
+      running = true; setError('');
       try { await (initial ? initOffline() : refreshOffline()); }
       catch (e) { if (active) setError(e instanceof Error ? e.message : String(e)); }
-      finally { running = false; if (active) { setBusy(false); update(); } }
+      finally {
+        running = false;
+        if (active) {
+          update();
+          if (changedDuringSync) { changedDuringSync = false; void queryClient.invalidateQueries(); }
+        }
+      }
     };
     const start = () => { setOnline(navigator.onLine); if (navigator.onLine) void synchronize(); };
     const visible = () => { if (document.visibilityState === 'visible') start(); };
-    const changed = () => { update(); void queryClient.invalidateQueries(); };
-    update(); void synchronize(true);
+    const changed = () => {
+      update();
+      if (running) { changedDuringSync = true; return; }
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => { if (active) void queryClient.invalidateQueries(); }, 150);
+    };
+    const progressChanged = () => { if (active) setProgress(getSyncProgress()); };
+    window.addEventListener('halaqat:sync-progress', progressChanged);
+    update();
+    // Let the first screen render and issue its interactive requests first.
+    const initialTimer = setTimeout(() => { void synchronize(true); }, 1200);
     const listener = Network.addListener('networkStatusChange', (status) => {
       if (!active) return;
       setOnline(status.connected);
@@ -45,6 +64,8 @@ export default function OfflineSystem() {
     const syncInterval = setInterval(() => { if (document.visibilityState === 'visible') void synchronize(); }, 30000);
     return () => {
       active = false; clearInterval(interval); clearInterval(syncInterval);
+      clearTimeout(initialTimer); clearTimeout(refreshTimer);
+      window.removeEventListener('halaqat:sync-progress', progressChanged);
       void listener.then((handle) => handle.remove());
       window.removeEventListener('online', start); window.removeEventListener('offline', start);
       window.removeEventListener('focus', start);
@@ -52,7 +73,7 @@ export default function OfflineSystem() {
       window.removeEventListener('halaqat:changed', changed);
     };
   }, [account]);
-  const syncing = online && busy;
+  const syncing = online && progress.account === account && progress.active;
   const waiting = pending > 0 || Boolean(error) || !last;
   return <div dir="rtl" role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-4 py-2 text-xs font-medium sm:px-6">
     <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 ${online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
@@ -61,7 +82,8 @@ export default function OfflineSystem() {
     </span>
     <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 ${syncing ? 'bg-blue-50 text-blue-700' : waiting ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
       {syncing ? <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity=".2" /><path d="M8 2a6 6 0 0 1 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg> : !waiting ? <span aria-hidden="true">✓</span> : null}
-      {syncing ? 'جارٍ المزامنة' : waiting ? 'بانتظار المزامنة' : 'تمت المزامنة'}
+      {syncing ? `جارٍ المزامنة ${progress.percent}٪` : waiting ? 'بانتظار المزامنة' : 'تمت المزامنة'}
+      {syncing && <span role="progressbar" aria-label="تقدم مراحل المزامنة" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent} className="h-1.5 w-14 overflow-hidden rounded-full bg-blue-100"><span className="block h-full rounded-full bg-blue-500 transition-[width] motion-reduce:transition-none" style={{ width: `${progress.percent}%` }} /></span>}
     </span>
   </div>;
 }

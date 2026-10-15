@@ -1,4 +1,5 @@
 import { db } from './db';
+import { reportSyncProgress } from './sync-progress';
 
 type Send = (method: string, path: string) => Promise<any>;
 type Snapshot = { data: any; rows?: any[]; paginated: boolean; registry?: boolean; savedAt: string };
@@ -71,9 +72,9 @@ export async function prefetchSections(send: Send, account: string, currentAccou
       if (path === '/staff-attendance/history' && row.date) pending.push(`${path}/${String(row.date).slice(0, 10)}`);
     }
   };
-  // Limit concurrency on mobile and keep downloading independent sections after errors.
+  // One background request at a time leaves capacity for the page the user opens.
   while (pending.length && currentAccount() === account && navigator.onLine) {
-    const batch = pending.splice(0, 3).filter(path => !visited.has(path));
+    const batch = pending.splice(0, 1).filter(path => !visited.has(path));
     batch.forEach(path => visited.add(path));
     await Promise.all(batch.map(async path => {
       try { await download(path); }
@@ -83,6 +84,8 @@ export async function prefetchSections(send: Send, account: string, currentAccou
         } else { failure ||= error; }
       }
     }));
+    reportSyncProgress(account, 75 + 24 * visited.size / (visited.size + pending.length));
+    await new Promise(resolve => setTimeout(resolve, 25));
   }
   if (currentAccount() !== account) return;
   if (failure) throw failure;

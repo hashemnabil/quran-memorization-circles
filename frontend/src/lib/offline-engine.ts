@@ -1,4 +1,5 @@
 import { db, entityTables, type EntityTable, type LocalRow, type QueuedWrite } from './db';
+import { startSyncProgress, reportSyncProgress, finishSyncProgress } from './sync-progress';
 
 type Transport = (method: string, path: string, data?: any) => Promise<any>;
 let transport: Transport;
@@ -86,6 +87,7 @@ export function pullAll(): Promise<void> {
 async function downloadAll() {
   const account = accountId();
   let failure: unknown;
+  let completed = 0;
   for (const table of entityTables) {
     if (!navigator.onLine || currentAccount() !== account) return;
     try {
@@ -105,14 +107,16 @@ async function downloadAll() {
       }
       if (!result.meta?.hasNextPage) break;
       page++;
+      await new Promise(resolve => setTimeout(resolve, 25));
     }
     // Full snapshots reconcile deletions and scope changes; dirty edits remain queued.
     await db.table(table).where('accountId').equals(account).filter((row: LocalRow) => row.synced === 1 && !received.has(row.id)).delete();
-    window.dispatchEvent(new Event('halaqat:changed'));
     } catch (error) {
       // One unavailable table must not prevent the remaining tables downloading.
       failure ||= error;
     }
+    reportSyncProgress(account, 10 + (++completed / entityTables.length) * 65);
+    await new Promise(resolve => setTimeout(resolve, 25));
   }
   if (currentAccount() !== account) return;
   try { await preloadSections?.(account); } catch (error) { failure ||= error; }
@@ -181,16 +185,26 @@ async function acknowledge(operation: QueuedWrite, server: any) {
 export async function initOffline() {
   await db.open();
   if (typeof navigator.storage?.persist === 'function') void navigator.storage.persist().catch(() => false);
-  if (navigator.onLine && currentAccount()) await refreshOffline();
+  if (navigator.onLine && currentAccount()) await refreshOffline({ forceDownload: true });
 }
-export async function refreshOffline() {
+export async function refreshOffline(options: { forceDownload?: boolean } = {}) {
   if (!navigator.onLine || !currentAccount()) return;
   const account = accountId();
+  const downloadedAt = (await db.meta.get(`${account}:downloadedAt`))?.value;
+  // Frequent ticks send edits; expensive full snapshots refresh at most every five minutes.
+  const download = options.forceDownload || !downloadedAt || Date.now() - Date.parse(downloadedAt) >= 5 * 60 * 1000;
+  const hasWrites = await db.queue.where('accountId').equals(account).count() > 0;
+  if (!download && !hasWrites) return;
+  startSyncProgress(account);
   let failure: unknown;
-  try { await syncAll(); } catch (error) { failure = error; }
-  // Keep downloading even when a queued mutation needs review; dirty rows are protected.
-  if (currentAccount() === account) await pullAll();
-  if (failure) throw failure;
+  try {
+    try { await syncAll(); } catch (error) { failure = error; }
+    reportSyncProgress(account, download ? 10 : 99);
+    // Keep downloading even when a queued mutation needs review; dirty rows are protected.
+    if (download && currentAccount() === account) await pullAll();
+    if (failure) throw failure;
+    finishSyncProgress(account, true);
+  } catch (error) { finishSyncProgress(account, false); throw error; }
 }
 export async function exportLocal() {
   const account = accountId();

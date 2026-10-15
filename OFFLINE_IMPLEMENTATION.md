@@ -7,6 +7,14 @@ of the requested files are in `frontend/src/lib`, `frontend/src/pages`, and
 
 ## Implemented
 
+- Boot download starts after the first screen can render. Automatic 30-second
+  ticks flush pending writes without redownloading a fresh snapshot; full refresh
+  runs on startup and at most every five minutes during use. Section prefetch uses
+  one request at a time and yields between resources. Pulls no longer invalidate
+  every active query after each table; the UI refreshes once after the sync cycle.
+  The compact indicator includes monotonic stage-weighted progress (not byte or
+  time remaining); 100% is reported only after a successful synchronization cycle.
+
 - Startup now downloads core entities and a role-specific catalogue of additional
   JSON reads without navigating to their pages. This includes support tickets and
   details, conversation metadata/messages, administrative directories, registry,

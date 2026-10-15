@@ -4,6 +4,7 @@ type Transport = (method: string, path: string, data?: any) => Promise<any>;
 let transport: Transport;
 let currentAccount: () => string = () => '';
 let running: Promise<void> | undefined;
+let pulling: { account: string; promise: Promise<void> } | undefined;
 export function configureOffline(send: Transport, account: () => string) { transport = send; currentAccount = account; }
 export function accountId() { const id = currentAccount(); if (!id) throw new Error('يلزم تسجيل الدخول قبل استخدام البيانات المحلية'); return id; }
 export async function get(table: EntityTable): Promise<LocalRow[]> {
@@ -74,9 +75,19 @@ export async function mergeRows(table: EntityTable, rows: Record<string, any>[],
     }
   });
 }
-export async function pullAll() {
+export function pullAll(): Promise<void> {
   const account = accountId();
+  if (pulling?.account === account) return pulling.promise;
+  const promise = downloadAll().finally(() => { if (pulling?.promise === promise) pulling = undefined; });
+  pulling = { account, promise };
+  return promise;
+}
+async function downloadAll() {
+  const account = accountId();
+  let failure: unknown;
   for (const table of entityTables) {
+    if (!navigator.onLine || currentAccount() !== account) return;
+    try {
     let page = 1;
     const received = new Set<string>();
     for (;;) {
@@ -96,7 +107,13 @@ export async function pullAll() {
     }
     // Full snapshots reconcile deletions and scope changes; dirty edits remain queued.
     await db.table(table).where('accountId').equals(account).filter((row: LocalRow) => row.synced === 1 && !received.has(row.id)).delete();
+    window.dispatchEvent(new Event('halaqat:changed'));
+    } catch (error) {
+      // One unavailable table must not prevent the remaining tables downloading.
+      failure ||= error;
+    }
   }
+  if (failure) throw failure;
   await db.meta.put({ key: `${account}:downloadedAt`, value: new Date().toISOString() });
   window.dispatchEvent(new Event('halaqat:changed'));
 }
@@ -161,7 +178,16 @@ async function acknowledge(operation: QueuedWrite, server: any) {
 export async function initOffline() {
   await db.open();
   if (typeof navigator.storage?.persist === 'function') void navigator.storage.persist().catch(() => false);
-  if (navigator.onLine && currentAccount()) { await syncAll(); await pullAll(); }
+  if (navigator.onLine && currentAccount()) await refreshOffline();
+}
+export async function refreshOffline() {
+  if (!navigator.onLine || !currentAccount()) return;
+  const account = accountId();
+  let failure: unknown;
+  try { await syncAll(); } catch (error) { failure = error; }
+  // Keep downloading even when a queued mutation needs review; dirty rows are protected.
+  if (currentAccount() === account) await pullAll();
+  if (failure) throw failure;
 }
 export async function exportLocal() {
   const account = accountId();

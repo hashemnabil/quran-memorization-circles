@@ -2,7 +2,8 @@ import 'fake-indexeddb/auto';
 import assert from 'node:assert/strict';
 import { beforeEach, after, test } from 'node:test';
 import { db } from './db';
-import { configureOffline, save, get, update, remove, mergeRows, syncAll, exportLocal, importLocal, clearLocal } from './offline-engine';
+import { configureOffline, save, get, update, remove, mergeRows, syncAll, initOffline, pullAll, refreshOffline, exportLocal, importLocal, clearLocal } from './offline-engine';
+import { entityTables } from './db';
 
 let account = 'account-a'; let online = false;
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { get onLine() { return online; } } });
@@ -13,6 +14,43 @@ beforeEach(async () => {
   configureOffline(async () => { throw new Error('network unavailable'); }, () => account);
 });
 after(() => db.close());
+
+test('opening online downloads every table without a manual action and coalesces concurrent pulls', async () => {
+  const requested: string[] = [];
+  configureOffline(async (_method, path) => {
+    const table = new URL(path, 'https://test.local').searchParams.get('table')!;
+    requested.push(table);
+    return { data: [{ id: `${table}-1` }], meta: { hasNextPage: false } };
+  }, () => account);
+  online = true;
+  await initOffline();
+  assert.deepEqual(requested, [...entityTables]);
+  assert.ok(await db.meta.get(`${account}:downloadedAt`));
+  requested.length = 0;
+  await Promise.all([pullAll(), pullAll()]);
+  assert.deepEqual(requested, [...entityTables]);
+});
+
+test('automatic refresh downloads other data despite a rejected write or unavailable table and retries later', async () => {
+  await save('students', { id: 's1', fullName: 'local edit' });
+  let unavailable = true;
+  configureOffline(async (method, path, body) => {
+    if (method === 'post') return { outcomes: body.operations.map((op: any) => ({ opId: op.opId, status: 'rejected', message: 'review needed' })) };
+    const table = new URL(path, 'https://test.local').searchParams.get('table');
+    if (table === 'teachers' && unavailable) throw new Error('temporary outage');
+    return { data: [{ id: table === 'students' ? 's1' : `${table}-1`, fullName: 'server' }], meta: { hasNextPage: false } };
+  }, () => account);
+  online = true;
+  await assert.rejects(refreshOffline(), /temporary outage/);
+  assert.equal((await get('students'))[0].fullName, 'local edit');
+  assert.equal((await get('teacherDuties')).length, 1);
+  assert.equal(await db.queue.count(), 1);
+  assert.equal(await db.meta.get(`${account}:downloadedAt`), undefined);
+  unavailable = false;
+  await assert.rejects(refreshOffline(), /review needed/);
+  assert.equal((await get('teachers')).length, 1);
+  assert.ok(await db.meta.get(`${account}:downloadedAt`));
+});
 test('writes are durable before network and account-scoped', async () => {
   await save('students', { id: 's1', fullName: 'طالب' });
   assert.equal((await get('students'))[0].synced, 0);

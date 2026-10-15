@@ -5,7 +5,7 @@ assert(['localhost', '127.0.0.1'].includes(target.hostname) && target.pathname =
 const env = { ...process.env, NODE_ENV: 'production', PORT: '4197', JWT_ACCESS_SECRET: 'runtime-rehearsal-only-not-a-production-secret-123456789', RENDER_EXTERNAL_URL: 'https://runtime-test.onrender.com', CORS_ORIGINS: 'https://frontend.example' };
 delete env.DIRECT_URL;
 delete env.PUBLIC_URL;
-const child = spawn(process.execPath, ['dist/main.js'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+const child = spawn(process.execPath, ['scripts/start-production.mjs'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
 let output = '';
 for (const stream of [child.stdout, child.stderr]) stream.on('data', data => { output = (output + data.toString()).slice(-5000); });
 try {

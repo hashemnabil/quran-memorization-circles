@@ -30,14 +30,19 @@ test('failed writes and rejected full-sync operations do not announce new data',
   await lastValueFrom(sync.interceptor.intercept(sync.context, { handle: () => of({ outcomes: [{ status: 'applied' }] }) }));
   assert.equal(sync.changes(), 1);
 });
-test('change announcements carry only an opaque revision and target authenticated role rooms', () => {
+test('change announcements use the durable cursor and do not repeat without new writes', async () => {
   const calls: any[] = [];
   const gateway = Object.create(RealtimeGateway.prototype) as RealtimeGateway;
+  let seq = 10n;
+  (gateway as any).prisma = { $queryRaw: async () => [{ seq }] };
   gateway.server = { to: (rooms: string[]) => ({ emit: (event: string, payload: unknown) => calls.push({ rooms, event, payload }) }) } as any;
-  gateway.notifyDataChanged(); gateway.notifyDataChanged();
+  await gateway.notifyDataChanged(); await gateway.notifyDataChanged();
+  assert.equal(calls.length, 1);
+  seq = 11n; await gateway.notifyDataChanged();
   assert.equal(calls[0].event, 'data:changed');
   assert.deepEqual(Object.keys(calls[0].payload), ['revision']);
   assert.notEqual(calls[0].payload.revision, calls[1].payload.revision);
+  assert.equal(calls[1].payload.revision, '11');
   assert.ok(calls[0].rooms.includes('role:TEACHER'));
 });
 

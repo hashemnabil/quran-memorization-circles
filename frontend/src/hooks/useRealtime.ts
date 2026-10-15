@@ -27,7 +27,6 @@ export function useRealtime() {
     };
 
     const onNotification = (payload: { notification: AppNotification }) => {
-      void noteRemoteRevision(`notification:${payload.notification.id}`).catch(() => undefined);
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['notifications', 'unread'] });
       // Business events also change list data (requests, exams, tickets).

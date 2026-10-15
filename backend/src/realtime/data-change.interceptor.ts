@@ -15,7 +15,7 @@ export class DataChangeInterceptor implements NestInterceptor {
       // A rejected batch must not generate an endless refresh/retry loop.
       if (/\/sync-all(?:\?|$)/.test(path) &&
           !result?.outcomes?.some((outcome: any) => outcome.status === 'applied')) return;
-      this.realtime.notifyDataChanged();
+      void this.realtime.notifyDataChanged()?.catch(() => undefined);
     }));
   }
 }

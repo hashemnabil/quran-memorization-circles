@@ -85,7 +85,7 @@ test('a change received during download remains dirty and is downloaded on the n
   await noteRemoteRevision('revision-1');
   let calls = 0;
   configureOffline(async (_method, path) => {
-    if (path === '/sync-all/watermark') return { cursor: '0' };
+    if (path === '/sync-all/watermark') return { cursor: calls ? '2' : '0' };
     if (path.startsWith('/sync-all/delta')) { calls++; return { tables: {}, changedEntities: [], cursor: '2', hasMore: false }; }
     if (++calls === 1) await noteRemoteRevision('revision-2');
     return { data: [], meta: { hasNextPage: false } };
@@ -124,6 +124,27 @@ test('writes are durable before network and account-scoped', async () => {
   assert.equal((await get('students'))[0].synced, 0);
   assert.equal(await db.queue.count(), 1);
   account = 'account-b'; assert.deepEqual(await get('students'), []);
+});
+
+test('reopening, reconnecting and duplicate events share a silent check without resetting progress when nothing changed', async () => {
+  await db.meta.put({ key: `${account}:downloadedAt`, value: new Date().toISOString() });
+  await db.meta.put({ key: `${account}:deltaCursor`, value: '10' });
+  await noteRemoteRevision('10');
+  const paths: string[] = [], progress: number[] = [];
+  configureOffline(async (_method, path) => { paths.push(path); return { cursor: '10' }; }, () => account);
+  const listener = () => progress.push(getSyncProgress().percent);
+  window.addEventListener('halaqat:sync-progress', listener);
+  online = true;
+  try {
+    await Promise.all([initOffline(), refreshOffline({ checkDelta: true }), refreshOffline({ checkDelta: true })]);
+    assert.deepEqual(paths, ['/sync-all/watermark']);
+    await refreshOffline();
+    assert.deepEqual(paths, ['/sync-all/watermark']);
+    assert.deepEqual(progress, []);
+    assert.equal((await db.meta.get(`${account}:downloadedRevision`))?.value, '10');
+    await noteRemoteRevision('9');
+    assert.equal((await db.meta.get(`${account}:remoteRevision`))?.value, '10');
+  } finally { window.removeEventListener('halaqat:sync-progress', listener); }
 });
 
 test('delta updates only changed rows, removes synced tombstones and preserves dirty work', async () => {

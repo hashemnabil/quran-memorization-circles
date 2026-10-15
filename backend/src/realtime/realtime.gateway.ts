@@ -12,7 +12,6 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
-import { randomUUID } from 'node:crypto';
 
 /**
  * Real-time transport for chat messages and notifications only.
@@ -32,10 +31,16 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   private readonly logger = new Logger('Realtime');
   /** userId -> set of socket ids (a user may have several tabs / devices open). */
   private readonly online = new Map<string, Set<string>>();
-  private dataRevision = randomUUID();
+  private dataRevision = '';
 
-  notifyDataChanged() {
-    this.dataRevision = randomUUID();
+  private async currentRevision() {
+    const rows = await this.prisma.$queryRaw<Array<{ seq: bigint }>>`SELECT COALESCE(MAX("seq"), 0)::bigint AS "seq" FROM sync_changes`;
+    return rows[0].seq.toString();
+  }
+  async notifyDataChanged() {
+    const revision = await this.currentRevision();
+    if (BigInt(revision) <= BigInt(this.dataRevision || '-1')) return;
+    this.dataRevision = revision;
     // No record content is broadcast. Reads still enforce each account's scope.
     this.server?.to(['role:ADMIN', 'role:SUPERVISOR', 'role:TEACHER', 'role:STUDENT', 'role:SUPPORT', 'role:EXAM_COMMITTEE']).emit('data:changed', { revision: this.dataRevision });
   }
@@ -91,7 +96,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
 
       client.emit('connected', { userId: user.id, onlineUsers: [...this.online.keys()] });
-      client.emit('data:changed', { revision: this.dataRevision });
+      client.emit('data:changed', { revision: await this.currentRevision() });
     } catch (error) {
       client.emit('unauthorized', { message: 'رمز الدخول غير صالح' });
       client.disconnect(true);
@@ -149,6 +154,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   emitToUser(userId: string, event: string, payload: unknown) {
     this.server?.to(`user:${userId}`).emit(event, payload);
+    if (event === 'notification:new') void this.notifyDataChanged().catch(() => undefined);
   }
 
   emitToUsers(userIds: string[], event: string, payload: unknown) {

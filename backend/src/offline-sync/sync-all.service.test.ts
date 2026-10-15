@@ -33,9 +33,11 @@ test('student edits accept an unset optional birth date from the actual form', a
 
 test('student questionnaire rejects academic and account fields in offline replay', async () => {
   const { service } = fixture();
-  const valid = await (service as any).dto(StudentQuestionnaireDto, { phone: '0591234567', address: 'Home' });
+  const valid = await (service as any).dto(StudentQuestionnaireDto, { nationalId: '123456789', fatherNationalId: '987654321', address: 'Home' });
   assert.equal(valid.address, 'Home');
-  for (const field of ['gender', 'code', 'nationalId', 'totalPoints', 'circleId', 'userId', 'status']) {
+  assert.equal(valid.nationalId, '123456789');
+  assert.equal(valid.fatherNationalId, '987654321');
+  for (const field of ['gender', 'code', 'phone', 'totalPoints', 'circleId', 'userId', 'status']) {
     await assert.rejects((service as any).dto(StudentQuestionnaireDto, { [field]: 'tampered' }));
   }
 });

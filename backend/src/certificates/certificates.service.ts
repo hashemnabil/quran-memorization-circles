@@ -1,6 +1,7 @@
 import { assertSafeFileUrl } from '../common/validators/safe-url';
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { CertificateKind, Role, StudentFileRequestKind, StudentFileRequestStatus } from '@prisma/client';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { CertificateKind, NotificationType, Role, StudentFileRequestKind, StudentFileRequestStatus } from '@prisma/client';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../common/decorators';
 
@@ -13,7 +14,8 @@ const STUDENT_REQUESTABLE_CERTIFICATES: CertificateKind[] = [
 
 @Injectable()
 export class CertificatesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(CertificatesService.name);
+  constructor(private readonly prisma: PrismaService, private readonly realtime: RealtimeGateway) {}
 
   private async studentFor(user: AuthUser) {
     if (user.role !== Role.STUDENT) throw new ForbiddenException('هذه الخدمة متاحة لحساب الطالب فقط');
@@ -65,7 +67,8 @@ export class CertificatesService {
     if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime())) || (from && to && from > to)) {
       throw new BadRequestException('الفترة الزمنية غير صحيحة');
     }
-    return this.prisma.studentFileRequest.create({
+    const saved = await this.prisma.$transaction(async tx => {
+    const request = await tx.studentFileRequest.create({
       data: {
         studentId: student.id,
         kind: body.kind!,
@@ -76,6 +79,23 @@ export class CertificatesService {
         requestNote: body.requestNote?.trim() || null,
       },
     });
+    const admins = await tx.user.findMany({ where: { role: Role.ADMIN, isActive: true, deletedAt: null }, select: { id: true } });
+    const notifications = [];
+    for (const admin of admins) notifications.push(await tx.notification.create({ data: {
+      userId: admin.id, type: NotificationType.SYSTEM,
+      title: body.kind === StudentFileRequestKind.CERTIFICATE ? 'طلب شهادة جديد' : 'طلب ملف طالب جديد',
+      body: `قدّم الطالب ${user.fullName} طلبًا جديدًا`, link: '/certificates-admin',
+      data: { requestId: request.id, studentId: student.id },
+    } }));
+    return { request, notifications };
+    });
+    for (const notification of saved.notifications) {
+      try {
+      const unreadCount = await this.prisma.notification.count({ where: { userId: notification.userId, isRead: false } });
+      this.realtime.emitToUser(notification.userId, 'notification:new', { notification, unreadCount });
+      } catch { this.logger.warn('Certificate request notification was saved; live delivery is unavailable.'); }
+    }
+    return saved.request;
   }
 
   async myRequests(user: AuthUser) {

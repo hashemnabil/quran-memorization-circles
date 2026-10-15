@@ -10,7 +10,8 @@ import { useAuthStore } from '@/store/auth';
 const fields = [
   ['fullName', 'الاسم الكامل', 'text', 150],
   ['birthDate', 'تاريخ الميلاد', 'date', 10],
-  ['phone', 'جوال الطالب', 'tel', 20],
+  ['nationalId', 'رقم هوية الطالب', 'text', 30],
+  ['fatherNationalId', 'رقم هوية ولي الأمر', 'text', 30],
   ['address', 'العنوان', 'text', 250],
   ['guardianName', 'اسم ولي الأمر', 'text', 150],
   ['guardianPhone', 'جوال ولي الأمر', 'tel', 20],
@@ -26,7 +27,7 @@ export default function StudentQuestionnaire({ profile }: { profile: any }) {
   const [initial, setInitial] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(false);
-  const requiredFields = ['fullName', 'birthDate', 'address', 'guardianName', 'guardianPhone', 'guardianRelation'];
+  const requiredFields = ['fullName', 'birthDate', 'nationalId', 'fatherNationalId', 'address', 'guardianName', 'guardianPhone', 'guardianRelation'];
   const completed = requiredFields.filter(field => profile[field]).length;
   const start = () => {
     const values = Object.fromEntries(fields.map(([key]) => [key, key === 'birthDate' ? String(profile[key] || '').slice(0, 10) : String(profile[key] || '')]));
@@ -49,7 +50,7 @@ export default function StudentQuestionnaire({ profile }: { profile: any }) {
     event.preventDefault(); setError('');
     const payload = Object.fromEntries(Object.entries(draft).map(([key, value]) => [key, value.trim()]));
     if (requiredFields.some(field => !payload[field])) { setError('أكمل الحقول المطلوبة قبل الحفظ'); return; }
-    for (const field of ['phone', 'guardianPhone']) {
+    for (const field of ['guardianPhone']) {
       const invalid = phoneError(payload[field]);
       if (invalid) { setError(invalid); return; }
     }

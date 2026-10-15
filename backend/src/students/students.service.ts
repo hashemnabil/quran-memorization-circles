@@ -91,8 +91,7 @@ export class StudentsService {
     const profile = await this.findOne(user, student.id);
     // The student can review their own questionnaire contact fields, never the linked parent's account.
     const { parentProfile: _parentProfile, parentName: _parentName, parentPhone: _parentPhone,
-      parentId: _parentId,
-      fatherNationalId: _fatherNationalId, ...safeProfile } = profile as any;
+      parentId: _parentId, ...safeProfile } = profile as any;
     return { ...safeProfile, selfAccountId: user.id };
   }
 
@@ -102,13 +101,13 @@ export class StudentsService {
     if (!student) throw new NotFoundException('ملف الطالب غير مرتبط بهذا الحساب');
     if (expectedId && expectedId !== student.id) throw new ForbiddenException('يمكنك تعديل ملفك فقط');
     // Explicit allowlist also protects internal callers and offline replay.
-    const fields = ['fullName', 'address', 'phone', 'guardianName', 'guardianPhone', 'guardianRelation'];
+    const fields = ['fullName', 'address', 'nationalId', 'fatherNationalId', 'guardianName', 'guardianPhone', 'guardianRelation'];
     const data = Object.fromEntries(fields.filter(field => dto[field] !== undefined).map(field => [field, dto[field]]));
     if (dto.birthDate) data.birthDate = new Date(dto.birthDate);
     try {
       await this.prisma.$transaction(async tx => {
         await tx.student.update({ where: { id: student.id }, data });
-        await tx.user.update({ where: { id: user.id }, data: { fullName: dto.fullName, phone: dto.phone } });
+        await tx.user.update({ where: { id: user.id }, data: { fullName: dto.fullName } });
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('رقم الهوية مسجل لطالب آخر');

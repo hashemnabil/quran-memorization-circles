@@ -95,7 +95,7 @@ test('student save explains missing fields, confirms online creation and works o
 });
 test('student questionnaire saves online, edits offline and automatically updates the server after reconnect', async ({ page, context }) => {
   const identity = { ...user, role: 'STUDENT' };
-  let student = { ...fixtures.students[0], selfAccountId: account, fullName: 'طالب الاستبيان', birthDate: '2010-01-01', address: 'العنوان القديم', guardianName: 'ولي الأمر', guardianPhone: '0591234567', guardianRelation: 'الأب' };
+  let student = { ...fixtures.students[0], selfAccountId: account, fullName: 'طالب الاستبيان', nationalId: '123456789', fatherNationalId: '987654321', birthDate: '2010-01-01', address: 'العنوان القديم', guardianName: 'ولي الأمر', guardianPhone: '0591234567', guardianRelation: 'الأب' };
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(identity => {
     localStorage.setItem('qc.onboarding.completed', '1');
@@ -107,6 +107,7 @@ test('student questionnaire saves online, edits offline and automatically update
     if (url.pathname === '/api/auth/me') return route.fulfill({ json: identity });
     if (url.pathname === '/api/students/me') return route.fulfill({ json: student });
     if (url.pathname === '/api/students/me/history') return route.fulfill({ json: {} });
+    if (url.pathname === '/api/preparations') return route.fulfill({ json: { data: [{ id: 'prep-one', fromSurah: 'البقرة', fromAyah: 1, toSurah: 'البقرة', toAyah: 5, note: 'تحضير محفوظ للطالب' }], meta: { hasNextPage: false } } });
     if (url.pathname === '/api/settings/public') return route.fulfill({ json: { name: 'حلقات التحفيظ' } });
     if (url.pathname === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
     if (url.pathname === '/api/sync-all/delta') return route.fulfill({ json: { cursor: '0', tables: {}, changedEntities: [], hasMore: false } });
@@ -123,19 +124,27 @@ test('student questionnaire saves online, edits offline and automatically update
     return route.fulfill({ status: 403, json: { message: 'Not used' } });
   });
   await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'التحضير المطلوب' })).toBeVisible();
+  await expect(page.getByText('تحضير محفوظ للطالب')).toBeVisible();
   await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
   await page.getByRole('button', { name: 'تعديل بياناتي', exact: true }).click();
   await expect(page.getByLabel('الجنس', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('رقم الطالب', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('جوال الطالب', { exact: true })).toHaveCount(0);
+  await page.getByLabel(/^رقم هوية الطالب/).fill('123456780');
+  await page.getByLabel(/^رقم هوية ولي الأمر/).fill('987654320');
   await page.getByLabel(/^العنوان/).fill('عنوان متصل جديد');
   await page.getByRole('button', { name: 'حفظ بياناتي', exact: true }).click();
   await expect(page.getByRole('button', { name: 'تعديل بياناتي', exact: true })).toBeVisible();
   expect(student.address).toBe('عنوان متصل جديد');
+  expect(student.nationalId).toBe('123456780');
+  expect(student.fatherNationalId).toBe('987654320');
   await page.evaluate(async () => { await navigator.serviceWorker.ready; if (!navigator.serviceWorker.controller) await new Promise<void>(resolve => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })); });
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
   await expect(page.getByText('غير متصل', { exact: true })).toBeVisible();
+  await expect(page.getByText('تحضير محفوظ للطالب')).toBeVisible();
   await page.getByRole('button', { name: 'تعديل بياناتي', exact: true }).click();
   await expect(page.getByLabel(/^العنوان/)).toHaveValue('عنوان متصل جديد');
   await page.getByLabel(/^العنوان/).fill('عنوان محفوظ بدون نت');

@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "test:realtime-sync": "node --test -r ts-node/register src/realtime/data-change.interceptor.test.ts",
-    "test:full-offline": "node --test -r ts-node/register src/offline-sync/sync-all.service.test.ts src/schedules/schedules.service.test.ts",
+    "test:full-offline": "node --test -r ts-node/register src/offline-sync/sync-all.service.test.ts src/schedules/schedules.service.test.ts src/certificates/certificates.service.test.ts",
     "build": "prisma generate && nest build",
     "start": "nest start",
     "dev": "nest start --watch",

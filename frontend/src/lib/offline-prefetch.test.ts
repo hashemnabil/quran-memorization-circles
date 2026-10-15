@@ -4,12 +4,44 @@ import { after, beforeEach, test } from 'node:test';
 import { db } from './db';
 import { configureOffline, initOffline } from './offline-engine';
 import { prefetchSections, readPrefetched } from './offline-prefetch';
+import { applySnapshotPatch } from './snapshot-delta';
 
 let account = 'account-a';
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: true } });
 Object.defineProperty(globalThis, 'window', { configurable: true, value: new EventTarget() });
 beforeEach(async () => { account = 'account-a'; for (const table of db.tables) await table.clear(); });
 after(() => db.close());
+
+test('section patches preserve unchanged rows, apply additions/deletions, and reject missing rows', () => {
+  const before = { data: [{ id: 'old', name: 'keep' }, { id: 'deleted' }], meta: { total: 2 } };
+  const after = applySnapshotPatch(before, { kind: 'object', fields: { data: { kind: 'rows', field: 'id', order: ['new', 'old'], changed: [{ id: 'new', name: 'added' }] } }, removed: [] });
+  assert.deepEqual(after.data, [{ id: 'new', name: 'added' }, { id: 'old', name: 'keep' }]);
+  assert.deepEqual(before.data, [{ id: 'old', name: 'keep' }, { id: 'deleted' }]);
+  assert.throws(() => applySnapshotPatch([], { kind: 'rows', field: 'id', order: ['missing'], changed: [] }));
+});
+
+test('incremental section refresh only requests affected domains and reuses stored page tokens', async () => {
+  const paths: string[] = [];
+  let incremental = false;
+  const send = async (_method: string, path: string, headers?: Record<string, string>) => {
+    paths.push(path);
+    if (path === '/support') {
+      if (incremental) {
+        assert.equal(headers?.['X-Offline-Base'], 'support-v1');
+        return { offlineDelta: { baseToken: 'support-v1', token: 'support-v2', patch: { kind: 'object', removed: [], fields: { data: { kind: 'rows', field: 'id', order: ['ticket1', 'ticket2'], changed: [{ id: 'ticket2', subject: 'new' }] } } } } };
+      }
+      return { offlineSnapshot: { token: 'support-v1', data: { data: [{ id: 'ticket1', subject: 'keep' }], meta: { hasNextPage: false } } } };
+    }
+    return [];
+  };
+  await prefetchSections(send, account, () => account, 'ADMIN');
+  paths.length = 0; incremental = true;
+  await prefetchSections(send, account, () => account, 'ADMIN', ['support_tickets']);
+  assert.ok(!paths.includes('/users'));
+  assert.ok(!paths.includes('/chat/conversations'));
+  const rows = (await readPrefetched(account, '/support', { limit: 100 })).data;
+  assert.deepEqual(rows, [{ id: 'ticket1', subject: 'keep' }, { id: 'ticket2', subject: 'new' }]);
+});
 
 test('app startup downloads unvisited sections, all pages, details and conversation messages', async () => {
   const requests: string[] = [];

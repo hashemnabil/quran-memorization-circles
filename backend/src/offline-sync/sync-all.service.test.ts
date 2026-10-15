@@ -21,6 +21,24 @@ function fixture() {
   return { service, calls: () => calls, receipts };
 }
 const operation = () => ({ opId: randomUUID(), entityId: randomUUID(), table: 'students', action: 'create', data: { fullName: 'طالب' } });
+
+test('delta reads the durable journal and sends only affected authorized records', async () => {
+  let args: any;
+  const service = new FullSyncService({ syncChange: { findMany: async (query: any) => {
+    args = query;
+    return [{ seq: 11n, entity: 'students', entityId: 'changed', payload: {} }];
+  } } } as any, {} as any);
+  (service as any).pull = async (_user: any, table: string, _page: number, ids: Set<string>) => {
+    assert.equal(table, 'students'); assert.deepEqual([...ids], ['changed']);
+    return { data: [{ id: 'changed', fullName: 'after' }], visibleIds: ['old', 'changed'], meta: { hasNextPage: false } };
+  };
+  const result = await service.delta(user, '10');
+  assert.equal(args.where.seq.gt, 10n);
+  assert.equal(result.cursor, '11');
+  assert.deepEqual(result.tables.students.data, [{ id: 'changed', fullName: 'after' }]);
+  assert.deepEqual(result.tables.students.visibleIds, ['old', 'changed']);
+  await assert.rejects(service.delta(user, '-1'));
+});
 test('receipt replay after lost acknowledgement does not create twice', async () => {
   const { service, calls } = fixture(); const op = operation();
   const first = await service.push(user, { operations: [op] });

@@ -1,7 +1,8 @@
 import { db } from './db';
 import { reportSyncProgress } from './sync-progress';
+import { applySnapshotPatch } from './snapshot-delta';
 
-type Send = (method: string, path: string) => Promise<any>;
+type Send = (method: string, path: string, headers?: Record<string, string>) => Promise<any>;
 type Snapshot = { data: any; rows?: any[]; paginated: boolean; registry?: boolean; savedAt: string };
 const key = (account: string, path: string, params: Record<string, any> = {}) => {
   const url = new URL(path, 'https://local.invalid');
@@ -11,7 +12,7 @@ const key = (account: string, path: string, params: Record<string, any> = {}) =>
 };
 
 /** Read-only boot download. Every request still passes server authorization. */
-export async function prefetchSections(send: Send, account: string, currentAccount: () => string, role: string) {
+export async function prefetchSections(send: Send, account: string, currentAccount: () => string, role: string, changedEntities?: string[]) {
   const staff = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role);
   const manager = ['ADMIN', 'SUPERVISOR'].includes(role);
   const today = new Date().toISOString().slice(0, 10);
@@ -40,15 +41,38 @@ export async function prefetchSections(send: Send, account: string, currentAccou
     }
   }
   let failure: unknown;
-  const pending = [...paths];
+  const dependencies: Record<string, string[]> = {
+    settings: ['school_settings'], announcements: ['announcements'], users: ['users', 'teacher_profiles'],
+    support: ['support_tickets', 'ticket_messages', 'users'], chat: ['conversations', 'conversation_members', 'messages', 'users'],
+    parents: ['parent_profiles', 'students', 'circles', 'users'], transfers: ['transfer_requests', 'students'],
+    suspensions: ['suspension_requests', 'students'], preparations: ['preparation_assignments', 'students'],
+    attendance: ['attendance', 'students', 'circles'], exams: ['exams', 'exam_requests', 'exam_sections', 'users'],
+    courses: ['courses', 'course_enrollments', 'course_attendance', 'students'],
+    'staff-attendance': ['staff_attendance', 'users'], 'media-activities': ['media_activities'],
+    certificates: ['certificate_records', 'certificate_templates', 'student_file_requests', 'students', 'attendance', 'recitations'],
+    registry: ['registry_users'], circles: ['circles', 'circle_teachers', 'circle_memberships', 'students', 'attendance', 'recitations', 'exams'],
+    students: ['students', 'student_evaluations', 'student_notes', 'attendance', 'recitations', 'exams', 'exam_requests', 'preparation_assignments', 'surah_completions'],
+    teachers: ['teacher_profiles', 'users', 'students', 'attendance', 'recitations', 'circle_teachers'],
+  };
+  const affected = (path: string) => !changedEntities || path.startsWith('/dashboard/') ||
+    (dependencies[path.split('/')[1]] || []).some(entity => changedEntities.includes(entity));
+  const pending = [...paths].filter(affected);
   const visited = new Set<string>();
   const download = async (path: string) => {
     const rows: any[] = []; let result: any; let paginated = false; let registry = false;
     for (let page = 1; ; page++) {
       if (currentAccount() !== account || !navigator.onLine) throw new Error('انقطع تنزيل البيانات؛ ستتم إعادة المحاولة تلقائيًا');
       // Start with defaults: non-paginated DTOs must not receive unsupported parameters.
-      result = await send('get', page === 1 ? path : `${path}${path.includes('?') ? '&' : '?'}page=${page}`);
+      const pagePath = page === 1 ? path : `${path}${path.includes('?') ? '&' : '?'}page=${page}`;
+      const pageKey = `${account}:prefetch-page:${pagePath}`;
+      const previous = (await db.meta.get(pageKey))?.value;
+      const response = await send('get', pagePath, { 'X-Offline-Snapshot': '1', ...(previous?.token ? { 'X-Offline-Base': previous.token } : {}) });
+      if (response?.offlineDelta && response.offlineDelta.baseToken !== previous?.token) throw new Error('نسخة التحديث غير مطابقة');
+      result = response?.offlineSnapshot ? response.offlineSnapshot.data : (response?.offlineDelta
+        ? applySnapshotPatch(previous?.data, response.offlineDelta.patch) : response);
       if (currentAccount() !== account) return;
+      const token = response?.offlineSnapshot?.token || response?.offlineDelta?.token;
+      if (token) await db.meta.put({ key: pageKey, value: { token, data: result } });
       if (Array.isArray(result?.data) && result.meta) {
         paginated = true; rows.push(...result.data);
         if (result.meta.hasNextPage || page < Number(result.meta.totalPages || 1)) continue;

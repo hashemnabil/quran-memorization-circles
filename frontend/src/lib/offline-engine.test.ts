@@ -19,6 +19,7 @@ after(() => db.close());
 test('opening online downloads every table without a manual action and coalesces concurrent pulls', async () => {
   const requested: string[] = [];
   configureOffline(async (_method, path) => {
+    if (path === '/sync-all/watermark') return { cursor: '0' };
     const table = new URL(path, 'https://test.local').searchParams.get('table')!;
     requested.push(table);
     return { data: [{ id: `${table}-1` }], meta: { hasNextPage: false } };
@@ -28,7 +29,7 @@ test('opening online downloads every table without a manual action and coalesces
   assert.deepEqual(requested, [...entityTables]);
   assert.ok(await db.meta.get(`${account}:downloadedAt`));
   requested.length = 0;
-  await Promise.all([pullAll(), pullAll()]);
+  await Promise.all([pullAll(true), pullAll(true)]);
   assert.deepEqual(requested, [...entityTables]);
 });
 
@@ -37,6 +38,7 @@ test('frequent automatic ticks do not redownload fresh snapshots; queued writes 
   await db.meta.put({ key: `${account}:downloadedAt`, value: new Date().toISOString() });
   const methods: string[] = [];
   configureOffline(async (method, _path, body) => {
+    if (_path === '/sync-all/watermark') return { cursor: '0' };
     methods.push(method);
     return method === 'post'
       ? { outcomes: body.operations.map((op: any) => ({ opId: op.opId, status: 'applied', data: { id: op.entityId } })) }
@@ -82,17 +84,19 @@ test('a change received during download remains dirty and is downloaded on the n
   online = true;
   await noteRemoteRevision('revision-1');
   let calls = 0;
-  configureOffline(async () => {
+  configureOffline(async (_method, path) => {
+    if (path === '/sync-all/watermark') return { cursor: '0' };
+    if (path.startsWith('/sync-all/delta')) { calls++; return { tables: {}, changedEntities: [], cursor: '2', hasMore: false }; }
     if (++calls === 1) await noteRemoteRevision('revision-2');
     return { data: [], meta: { hasNextPage: false } };
   }, () => account);
   await refreshOffline();
   assert.equal((await db.meta.get(`${account}:downloadedRevision`))?.value, 'revision-1');
   await refreshOffline();
-  assert.equal(calls, entityTables.length * 2);
+  assert.equal(calls, entityTables.length + 1);
   assert.equal((await db.meta.get(`${account}:downloadedRevision`))?.value, 'revision-2');
   await refreshOffline();
-  assert.equal(calls, entityTables.length * 2);
+  assert.equal(calls, entityTables.length + 1);
 });
 
 test('automatic refresh downloads other data despite a rejected write or unavailable table and retries later', async () => {
@@ -120,6 +124,40 @@ test('writes are durable before network and account-scoped', async () => {
   assert.equal((await get('students'))[0].synced, 0);
   assert.equal(await db.queue.count(), 1);
   account = 'account-b'; assert.deepEqual(await get('students'), []);
+});
+
+test('delta updates only changed rows, removes synced tombstones and preserves dirty work', async () => {
+  await mergeRows('students', [{ id: 'old', fullName: 'unchanged' }, { id: 'changed', fullName: 'before' }, { id: 'deleted' }]);
+  await save('students', { id: 'draft', fullName: 'unsent' });
+  await db.meta.put({ key: `${account}:deltaCursor`, value: '10' });
+  const paths: string[] = [];
+  configureOffline(async (_method, path) => {
+    paths.push(path);
+    return { cursor: '11', hasMore: false, changedEntities: ['students'], tables: { students: { data: [{ id: 'changed', fullName: 'after' }], visibleIds: ['old', 'changed'] } } };
+  }, () => account);
+  online = true; await pullAll();
+  assert.deepEqual(paths, ['/sync-all/delta?since=10']);
+  const rows = await get('students');
+  assert.equal(rows.find(row => row.id === 'old')?.fullName, 'unchanged');
+  assert.equal(rows.find(row => row.id === 'changed')?.fullName, 'after');
+  assert.equal(rows.find(row => row.id === 'draft')?.fullName, 'unsent');
+  assert.equal(rows.some(row => row.id === 'deleted'), false);
+  assert.equal((await db.meta.get(`${account}:deltaCursor`))?.value, '11');
+});
+
+test('a failed section patch does not advance the delta cursor and the same changes replay safely', async () => {
+  await db.meta.put({ key: `${account}:deltaCursor`, value: '10' });
+  let fail = true;
+  const paths: string[] = [];
+  configureOffline(async (_method, path) => {
+    paths.push(path);
+    return { cursor: '11', hasMore: false, tables: {}, changedEntities: ['support_tickets'] };
+  }, () => account, async (_account, entities) => { assert.deepEqual(entities, ['support_tickets']); if (fail) throw new Error('interrupted'); });
+  online = true;
+  await assert.rejects(pullAll(), /interrupted/);
+  assert.equal((await db.meta.get(`${account}:deltaCursor`))?.value, '10');
+  fail = false; await pullAll();
+  assert.deepEqual(paths, ['/sync-all/delta?since=10', '/sync-all/delta?since=10']);
 });
 test('pull cannot overwrite pending edits or resurrect pending deletes', async () => {
   await save('students', { id: 's1', fullName: 'محلي' });

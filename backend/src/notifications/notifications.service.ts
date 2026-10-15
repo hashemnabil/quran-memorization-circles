@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { NotificationType, Role } from '@prisma/client';
+import { NotificationType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AuthUser } from '../common/decorators';
@@ -14,6 +14,11 @@ export interface CreateNotificationInput {
   data?: Record<string, any>;
 }
 
+export async function recordNotificationChange(tx: Prisma.TransactionClient, row: { id: string; userId: string }) {
+  await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext('quran-sync-journal'), 0)) AS locked`;
+  await tx.syncChange.create({ data: { entity: 'notifications', entityId: row.id, operation: 'UPSERT', payload: { id: row.id, userId: row.userId } } });
+}
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -25,7 +30,8 @@ export class NotificationsService {
 
   /** Persists a notification and pushes it over the socket if the user is connected. */
   async notify(input: CreateNotificationInput) {
-    const notification = await this.prisma.notification.create({
+    const notification = await this.prisma.$transaction(async tx => {
+    const row = await tx.notification.create({
       data: {
         userId: input.userId,
         type: input.type,
@@ -34,6 +40,9 @@ export class NotificationsService {
         link: input.link,
         data: input.data as any,
       },
+    });
+    await recordNotificationChange(tx, row);
+    return row;
     });
     const unreadCount = await this.prisma.notification.count({
       where: { userId: input.userId, isRead: false },
@@ -45,15 +54,18 @@ export class NotificationsService {
   async notifyMany(userIds: string[], input: Omit<CreateNotificationInput, 'userId'>) {
     const unique = [...new Set(userIds.filter(Boolean))];
     if (unique.length === 0) return [];
-    await this.prisma.notification.createMany({
-      data: unique.map((userId) => ({
+    await this.prisma.$transaction(async tx => {
+      for (const userId of unique) {
+      const row = await tx.notification.create({ data: {
         userId,
         type: input.type,
         title: input.title,
         body: input.body,
         link: input.link,
         data: input.data as any,
-      })),
+      } });
+      await recordNotificationChange(tx, row);
+      }
     });
     for (const userId of unique) {
       const unreadCount = await this.prisma.notification.count({ where: { userId, isRead: false } });

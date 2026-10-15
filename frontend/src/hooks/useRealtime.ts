@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { getSocket, disconnectSocket } from '@/lib/socket';
 import { useAuthStore } from '@/store/auth';
 import type { AppNotification, ChatMessage } from '@/types';
-import { noteRemoteRevision } from '@/lib/offline-engine';
+import { mergeRows, noteRemoteRevision } from '@/lib/offline-engine';
 
 /**
  * Subscribes the whole app to the realtime channel once, translating socket
@@ -26,7 +26,8 @@ export function useRealtime() {
       if (typeof payload?.revision === 'string') void noteRemoteRevision(payload.revision).catch(() => undefined);
     };
 
-    const onNotification = (payload: { notification: AppNotification }) => {
+    const onNotification = async (payload: { notification: AppNotification }) => {
+      if (payload.notification.id) await mergeRows('notifications', [payload.notification], user.id).catch(() => undefined);
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['notifications', 'unread'] });
       // Business events also change list data (requests, exams, tickets).

@@ -71,7 +71,6 @@ export default function DashboardPage() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['dashboard', 'overview'],
     queryFn: async () => ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE'].includes(user.role) ? localDashboard(user.role) : (await api.get('/dashboard/overview')).data,
-    refetchInterval: 120000,
   });
 
   if (isLoading) {

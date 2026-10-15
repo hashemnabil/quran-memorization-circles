@@ -8,10 +8,10 @@ import { navigationFor } from '@/config/navigation';
 import { ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { Avatar, Badge, cx } from '@/components/ui';
 import AnnouncementBar from '@/components/AnnouncementBar';
-import AutomaticOfflineSync from '@/components/AutomaticOfflineSync';
 import OfflineSystem from '@/components/OfflineSystem';
 import DutyReminder from '@/components/DutyReminder';
 import MobileNavigation from './MobileNavigation';
+import { usePageScroll } from '@/hooks/usePageScroll';
 import {
   IconBell,
   IconChat,
@@ -33,6 +33,7 @@ export default function AppLayout() {
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
   const location = useLocation();
+  usePageScroll(user.id);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -52,6 +53,28 @@ export default function AppLayout() {
     setMenuOpen(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    const active = navigationFor(user.role).find(group => group.items.some(item =>
+      item.to === location.pathname || item.to !== '/' && location.pathname.startsWith(`${item.to}/`)));
+    if (active) setExpandedGroups(current => ({ ...current, [active.title]: true }));
+  }, [location.pathname, user.role]);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setDrawerOpen(false); };
+    window.addEventListener('keydown', close);
+    return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', close); };
+  }, [drawerOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [menuOpen]);
+
   const { data: settings } = useQuery({
     queryKey: ['settings', 'public'],
     queryFn: async () => (await api.get<SchoolSettings>('/settings/public')).data,
@@ -61,19 +84,16 @@ export default function AppLayout() {
   const { data: unreadNotifications } = useQuery({
     queryKey: ['notifications', 'unread'],
     queryFn: async () => (await api.get<{ count: number }>('/notifications/unread-count')).data.count,
-    refetchInterval: 60000,
   });
 
   const { data: unreadChat } = useQuery({
     queryKey: ['chat', 'unread'],
     queryFn: async () => (await api.get<{ count: number }>('/chat/unread-count')).data.count,
-    refetchInterval: 60000,
   });
 
   const { data: supportStats } = useQuery({
     queryKey: ['support', 'stats'],
     queryFn: async () => (await api.get('/support/stats')).data,
-    refetchInterval: 120000,
   });
 
   const badges: Record<string, number> = {
@@ -96,7 +116,7 @@ export default function AppLayout() {
    * `rail` renders the icon-only variant. The mobile drawer always renders the
    * full sidebar regardless of the desktop collapse preference.
    */
-  const Sidebar = ({ rail }: { rail: boolean }) => (
+  const renderSidebar = (rail: boolean) => (
     <div className="sidebar-shell flex h-full flex-col text-primary-50">
       <div
         className={cx(
@@ -140,7 +160,7 @@ export default function AppLayout() {
         )}
       </div>
 
-      <nav className={cx('flex-1 overflow-y-auto overflow-x-hidden py-4', rail ? 'px-2' : 'px-3')}>
+      <nav aria-label="أقسام التطبيق" className={cx('flex-1 overflow-y-auto overflow-x-hidden overscroll-contain py-4', rail ? 'px-2' : 'px-3')}>
         {groups.map((group) => (
           <div key={group.title} className="mb-5">
             {rail ? (
@@ -249,19 +269,19 @@ export default function AppLayout() {
             collapsed ? 'w-20' : 'w-72',
           )}
         >
-          <Sidebar rail={collapsed} />
+          {renderSidebar(collapsed)}
         </div>
       </aside>
 
       {/* Mobile drawer — always the full sidebar. */}
       {drawerOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div role="dialog" aria-modal="true" aria-label="القائمة الجانبية" className="fixed inset-0 z-40 lg:hidden">
           <div
             className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
             onClick={() => setDrawerOpen(false)}
           />
           <div className="absolute inset-y-0 right-0 w-72 animate-slide-up">
-            <Sidebar rail={false} />
+            {renderSidebar(false)}
           </div>
         </div>
       )}
@@ -269,6 +289,10 @@ export default function AppLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="app-topbar sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
           <div className="flex items-center gap-2 px-4 py-3.5 sm:gap-3 sm:px-6">
+            <button type="button" className="app-icon-button" aria-label="الرجوع للصفحة السابقة"
+              onClick={() => { if (window.history.state?.idx > 0) navigate(-1); else navigate(user.role === 'STUDENT' ? '/student' : '/'); }}>
+              <IconChevronRight size={20} />
+            </button>
             <button
               className="app-icon-button lg:hidden"
               onClick={() => setDrawerOpen(true)}
@@ -293,7 +317,6 @@ export default function AppLayout() {
               <p className="text-[11px] text-slate-400">{ROLE_LABELS[user.role]}</p>
             </div>
 
-            <AutomaticOfflineSync accountId={user.id} role={user.role} />
 
             <NavLink
               to="/chat"
@@ -324,8 +347,9 @@ export default function AppLayout() {
             <div className="relative">
               <button
                 onClick={() => setMenuOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-xl p-1 transition hover:bg-slate-100"
+                className="relative z-20 flex items-center gap-2 rounded-xl p-1 transition hover:bg-slate-100"
                 aria-label="قائمة الحساب"
+                aria-expanded={menuOpen}
               >
                 <Avatar name={user.fullName} src={user.avatarUrl} size={34} />
               </button>

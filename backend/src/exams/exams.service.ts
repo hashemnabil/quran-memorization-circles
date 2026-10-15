@@ -95,6 +95,7 @@ const REQUEST_INCLUDE = {
       id: true,
       code: true,
       fullName: true,
+      userId: true,
       memorizedParts: true,
       circle: {
         select: {
@@ -279,6 +280,7 @@ export class ExamsService {
 
   private formatDateArabic(date: Date): string {
     return date.toLocaleString('ar-EG', {
+      timeZone: 'Asia/Riyadh',
       dateStyle: 'full',
       timeStyle: 'short',
     });
@@ -1087,6 +1089,12 @@ export class ExamsService {
     const when = this.formatDateArabic(scheduledAt);
     const notificationPromises: Promise<any>[] = [];
 
+    if (request.student.userId) notificationPromises.push(this.notifications.notify({
+      userId: request.student.userId, type: NotificationType.EXAM_SCHEDULED,
+      title: 'تم تحديد موعد اختبارك', body: `اختبارك في "${this.requestLabel(request)}" بتاريخ ${when}`,
+      link: '/student', data: { examId: exam.id, scheduledAt: scheduledAt.toISOString() },
+    }));
+
     if (request.teacher?.user?.id) {
       notificationPromises.push(
         this.notifications.notify({
@@ -1240,6 +1248,12 @@ export class ExamsService {
       });
     }
 
+    if (dto.scheduledAt && updated.status === ExamStatus.SCHEDULED) {
+      const student = await this.prisma.student.findUnique({ where: { id: updated.studentId }, select: { userId: true } });
+      if (student?.userId) await this.notifications.notify({ userId: student.userId, type: NotificationType.EXAM_SCHEDULED,
+        title: 'تم تعديل موعد اختبارك', body: `موعد اختبارك الجديد: ${this.formatDateArabic(updated.scheduledAt)}`,
+        link: '/student', data: { examId: updated.id, scheduledAt: updated.scheduledAt.toISOString() } });
+    }
     return updated;
   }
 

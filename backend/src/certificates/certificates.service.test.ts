@@ -7,12 +7,13 @@ test('certificate request persists an administrator notification with its reques
   let committed = false;
   const notices: any[] = []; const events: any[] = [];
   const tx = {
+    $queryRaw: async () => [], syncChange: { create: async () => ({}) },
     studentFileRequest: { create: async () => ({ id: 'request', studentId: 'student' }) },
     user: { findMany: async ({ where }: any) => {
       assert.deepEqual(where, { role: Role.ADMIN, isActive: true, deletedAt: null });
       return [{ id: 'admin1' }, { id: 'admin2' }];
     } },
-    notification: { create: async ({ data }: any) => { notices.push(data); return data; } },
+    notification: { create: async ({ data }: any) => { notices.push(data); return { ...data, id: `notification-${notices.length}` }; } },
   };
   const prisma = {
     student: { findFirst: async () => ({ id: 'student' }) },

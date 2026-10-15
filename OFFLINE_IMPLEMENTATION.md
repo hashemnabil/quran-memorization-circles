@@ -7,6 +7,23 @@ of the requested files are in `frontend/src/lib`, `frontend/src/pages`, and
 
 ## Implemented
 
+- Startup now downloads core entities and a role-specific catalogue of additional
+  JSON reads without navigating to their pages. This includes support tickets and
+  details, conversation metadata/messages, administrative directories, registry,
+  announcements, certificate lists, preparation/evaluation records, transfer and
+  suspension lists/details, circle histories and course/staff attendance history.
+  Paginated resources are downloaded to completion; interrupted sections preserve
+  their previous complete snapshot. Independent sections continue after failures,
+  and the automatic synchronizer retries. Additional snapshots are account-scoped
+  and support the explicitly listed local query filters in offline-prefetch.ts.
+  Server authorization still applies to every request. This is read replication,
+  not offline mutation support for every workflow. Binary attachments, arbitrary
+  report date combinations, and unsupported query filters are not predownloaded.
+  The current-day staff/course sheets and current-month certificate report are
+  prefetched, not every hypothetical future date or parameter combination.
+  Opening the app online starts this automatically; first download must complete
+  before relying on it offline. The compact status shows connection and sync state.
+
 - Account-isolated `halaqatFull` Dexie database with entity tables, durable ordered
   queue, reference metadata, response cache, and cached image blobs.
 - Local-first basic CRUD for students, circles, teachers, recitations, courses;

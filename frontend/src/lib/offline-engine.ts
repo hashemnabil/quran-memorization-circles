@@ -5,7 +5,8 @@ let transport: Transport;
 let currentAccount: () => string = () => '';
 let running: Promise<void> | undefined;
 let pulling: { account: string; promise: Promise<void> } | undefined;
-export function configureOffline(send: Transport, account: () => string) { transport = send; currentAccount = account; }
+let preloadSections: ((account: string) => Promise<void>) | undefined;
+export function configureOffline(send: Transport, account: () => string, preload?: (account: string) => Promise<void>) { transport = send; currentAccount = account; preloadSections = preload; }
 export function accountId() { const id = currentAccount(); if (!id) throw new Error('يلزم تسجيل الدخول قبل استخدام البيانات المحلية'); return id; }
 export async function get(table: EntityTable): Promise<LocalRow[]> {
   return db.table(table).where('accountId').equals(accountId()).filter((row: LocalRow) => !row.pendingDelete).toArray();
@@ -113,6 +114,8 @@ async function downloadAll() {
       failure ||= error;
     }
   }
+  if (currentAccount() !== account) return;
+  try { await preloadSections?.(account); } catch (error) { failure ||= error; }
   if (failure) throw failure;
   await db.meta.put({ key: `${account}:downloadedAt`, value: new Date().toISOString() });
   window.dispatchEvent(new Event('halaqat:changed'));

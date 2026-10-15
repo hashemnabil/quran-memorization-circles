@@ -106,7 +106,7 @@ test('student questionnaire saves online, edits offline and automatically update
     const url = new URL(route.request().url());
     if (url.pathname === '/api/auth/me') return route.fulfill({ json: identity });
     if (url.pathname === '/api/students/me') return route.fulfill({ json: student });
-    if (url.pathname === '/api/students/me/history') return route.fulfill({ json: {} });
+    if (url.pathname === '/api/students/me/history') return route.fulfill({ json: { exams: [{ id: 'scheduled-exam', status: 'SCHEDULED', scheduledAt: '2030-01-01T10:00:00Z', location: 'قاعة الاختبار التجريبية', section: { name: 'الحزب الأول' } }] } });
     if (url.pathname === '/api/preparations') return route.fulfill({ json: { data: [{ id: 'prep-one', fromSurah: 'البقرة', fromAyah: 1, toSurah: 'البقرة', toAyah: 5, note: 'تحضير محفوظ للطالب' }], meta: { hasNextPage: false } } });
     if (url.pathname === '/api/settings/public') return route.fulfill({ json: { name: 'حلقات التحفيظ' } });
     if (url.pathname === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
@@ -126,6 +126,15 @@ test('student questionnaire saves online, edits offline and automatically update
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'التحضير المطلوب' })).toBeVisible();
   await expect(page.getByText('تحضير محفوظ للطالب')).toBeVisible();
+  await expect(page.getByText('قاعة الاختبار التجريبية', { exact: false })).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 450));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(400);
+  await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+  await page.getByRole('link', { name: 'الملف الشخصي', exact: true }).click();
+  await expect(page).toHaveURL(/\/profile$/);
+  await page.getByRole('button', { name: 'الرجوع للصفحة السابقة', exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(400);
   await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
   await page.getByRole('button', { name: 'تعديل بياناتي', exact: true }).click();
   await expect(page.getByLabel('الجنس', { exact: true })).toHaveCount(0);
@@ -145,6 +154,7 @@ test('student questionnaire saves online, edits offline and automatically update
   await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
   await expect(page.getByText('غير متصل', { exact: true })).toBeVisible();
   await expect(page.getByText('تحضير محفوظ للطالب')).toBeVisible();
+  await expect(page.getByText('قاعة الاختبار التجريبية', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'تعديل بياناتي', exact: true }).click();
   await expect(page.getByLabel(/^العنوان/)).toHaveValue('عنوان متصل جديد');
   await page.getByLabel(/^العنوان/).fill('عنوان محفوظ بدون نت');
@@ -162,6 +172,10 @@ test('student questionnaire saves online, edits offline and automatically update
 });
 
 test('cold offline navigation opens downloaded core screens and searches locally', async ({ page, context }) => {
+  const syncRequests: string[] = [];
+  page.on('request', request => {
+    if (/\/api\/(sync-all|offline-sync|sync)(\/|\?|$)/.test(request.url())) syncRequests.push(request.url());
+  });
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript((identity) => {
@@ -189,6 +203,12 @@ test('cold offline navigation opens downloaded core screens and searches locally
     const request = indexedDB.open('halaqatFull');
     request.onsuccess = () => { const db = request.result; const read = db.transaction('meta').objectStore('meta').get('00000000-0000-4000-8000-000000000001:downloadedAt'); read.onsuccess = () => { resolve(Boolean(read.result)); db.close(); }; };
   }))).toBe(true);
+  await page.clock.install();
+  const syncCount = syncRequests.length;
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.clock.fastForward('06:00');
+  expect(syncRequests.length).toBe(syncCount);
+  await page.clock.resume();
   await page.evaluate(async () => { await navigator.serviceWorker.ready; if (!navigator.serviceWorker.controller) await new Promise<void>((resolve) => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })); });
   await context.setOffline(true);
   for (const path of ['/students', '/circles', '/teachers', '/attendance', '/recitations', '/reports', '/media-schedule', '/teacher-duties', '/support', '/settings/offline', '/']) {
@@ -253,6 +273,14 @@ test('cold offline navigation opens downloaded core screens and searches locally
   await expect(page.locator('main h1').first()).toBeVisible();
   await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
   await page.screenshot({ path: 'test-results/design-desktop.png', fullPage: true, animations: 'disabled' });
+  const sidebar = page.locator('aside nav');
+  while (await sidebar.getByRole('button', { expanded: false }).count()) await sidebar.getByRole('button', { expanded: false }).first().click();
+  await sidebar.evaluate(element => { element.scrollTop = 150; });
+  const sidebarOffset = await sidebar.evaluate(element => element.scrollTop);
+  expect(sidebarOffset).toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+  expect(await sidebar.evaluate(element => element.scrollTop)).toBe(sidebarOffset);
+  await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'test-results/design-mobile.png', fullPage: true, animations: 'disabled' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

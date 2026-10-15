@@ -2,7 +2,6 @@ import { listOfflineOperations } from '@/lib/offline/outbox';
 import { syncOfflineOperations } from '@/lib/offline/sync';
 import { replayOfflineOperation } from '@/lib/offline/replay';
 import { syncPendingSupport } from '@/lib/offline/pendingSupport';
-import { pullOfflineChanges } from '@/lib/offline/changeFeed';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { queryClient } from '@/lib/queryClient';
@@ -36,10 +35,6 @@ export default function OfflineStatus() {
     };
     const sync = () => {
       if (navigator.onLine && accountId) {
-        // Keep a durable, permission-scoped local replica of student/circle changes.
-        // The existing query cache remains the rendering cache; this replica is
-        // available to offline-aware screens and never authorizes local writes.
-        void pullOfflineChanges(accountId).catch(() => null);
         void syncOfflineOperations(accountId, replayOfflineOperation).then(async (report) => {
           if (report.applied > 0) {
             // A successful replay changes server data; refresh affected reads.
@@ -58,12 +53,10 @@ export default function OfflineStatus() {
     };
     const onOnline = () => { sync(); };
     const onOffline = () => { void refresh(); };
-    const onOutboxChanged = () => { void refresh(); };
-    const onFocus = () => sync();
+    const onOutboxChanged = () => { sync(); };
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     window.addEventListener(OUTBOX_CHANGED, onOutboxChanged);
-    window.addEventListener('focus', onFocus);
     void refresh();
     sync();
     return () => {
@@ -71,7 +64,6 @@ export default function OfflineStatus() {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
       window.removeEventListener(OUTBOX_CHANGED, onOutboxChanged);
-      window.removeEventListener('focus', onFocus);
     };
   }, [accountId, refreshOutbox]);
 

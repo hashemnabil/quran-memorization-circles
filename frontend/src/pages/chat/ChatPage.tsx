@@ -59,7 +59,6 @@ export default function ChatPage() {
   const { data: conversations, isLoading: loadingList } = useQuery({
     queryKey: ['chat', 'conversations'],
     queryFn: async () => (await api.get<Conversation[]>('/chat/conversations')).data,
-    refetchInterval: 45000,
   });
 
   // The detail endpoint carries the member list and the moderation flags.

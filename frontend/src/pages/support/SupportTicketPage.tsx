@@ -42,7 +42,6 @@ export default function SupportTicketPage() {
     queryKey: ['support', 'ticket', id],
     queryFn: async () => (await api.get<SupportTicket>(`/support/${id}`)).data,
     enabled: !!id,
-    refetchInterval: 30000,
   });
 
   const { data: staff } = useQuery({

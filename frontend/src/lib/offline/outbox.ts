@@ -61,6 +61,7 @@ export async function enqueueOfflineOperation(
       tx.onerror = () => reject(tx.error ?? new Error('تعذر حفظ التعديل محلياً'));
       tx.onabort = () => reject(tx.error ?? new Error('أُلغي حفظ التعديل'));
     });
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('quran-circles:outbox-changed'));
     return item;
   } finally { db.close(); }
 }

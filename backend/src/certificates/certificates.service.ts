@@ -2,6 +2,7 @@ import { assertSafeFileUrl } from '../common/validators/safe-url';
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CertificateKind, NotificationType, Role, StudentFileRequestKind, StudentFileRequestStatus } from '@prisma/client';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { recordNotificationChange } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../common/decorators';
 
@@ -87,6 +88,7 @@ export class CertificatesService {
       body: `قدّم الطالب ${user.fullName} طلبًا جديدًا`, link: '/certificates-admin',
       data: { requestId: request.id, studentId: student.id },
     } }));
+    for (const notification of notifications) await recordNotificationChange(tx, notification);
     return { request, notifications };
     });
     for (const notification of saved.notifications) {

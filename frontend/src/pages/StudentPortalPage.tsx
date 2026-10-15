@@ -70,6 +70,19 @@ export default function StudentPortalPage() {
     <>
       <PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
       <StudentQuestionnaire key={data.id} profile={data} />
+      <Card title="مواعيد اختباراتي" className="mb-5">
+        {history.isLoading ? <LoadingState rows={2} /> : history.isError ? <ErrorState message="تعذر تحميل مواعيد الاختبارات" onRetry={() => history.refetch()} /> :
+          history.data?.exams?.some((exam: any) => exam.status === 'SCHEDULED') ?
+          <div className="space-y-3">{history.data.exams.filter((exam: any) => exam.status === 'SCHEDULED')
+            .sort((a: any, b: any) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt)).map((exam: any) =>
+              <article key={exam.id} className="rounded-xl border border-primary-100 bg-primary-50/50 p-4">
+                <strong>{exam.sections?.map((entry: any) => entry.section?.name).filter(Boolean).join('، ') || exam.section?.name || 'اختبار قادم'}</strong>
+                <p className="mt-2 text-sm">{new Date(exam.scheduledAt).toLocaleString('ar', { dateStyle: 'full', timeStyle: 'short' })}</p>
+                {exam.location && <p className="mt-1 text-sm">المكان: {exam.location}</p>}
+                {Date.parse(exam.scheduledAt) > Date.now() && Date.parse(exam.scheduledAt) - Date.now() <= 86400000 &&
+                  <p className="mt-2 font-semibold text-primary-700">تذكير: اختبارك خلال الـ24 ساعة القادمة</p>}
+              </article>)}</div> : <p className="text-sm text-slate-500">لا يوجد موعد اختبار محدد حاليًا.</p>}
+      </Card>
       <StudentPreparations />
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="نسبة الحضور" value={`${data.attendanceSummary?.attendanceRate ?? 0}%`} icon={<IconClipboard size={22} />} />

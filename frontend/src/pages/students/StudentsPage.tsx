@@ -590,7 +590,11 @@ function StudentFormModal({
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       onClose();
     },
-    onError: (error) => toast.error(apiError(error)),
+    onError: (error) => {
+      const message = apiError(error);
+      setErrors({ submit: message });
+      toast.error(message);
+    },
   });
 
   const submit = () => {
@@ -623,6 +627,11 @@ function StudentFormModal({
       size="lg"
       footer={
         <>
+          {Object.values(errors).some(Boolean) && (
+            <p role="alert" className="w-full rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+              {Object.values(errors).filter(Boolean).join(' — ')}
+            </p>
+          )}
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
@@ -664,15 +673,15 @@ function StudentFormModal({
         </label>
         <Input label="العنوان" value={form.address} onChange={(e) => set('address', e.target.value)} />
 
-        {registrationTrack === 'CIRCLE' && <Select label="حلقة التحفيظ" value={form.circleId} onChange={(e) => set('circleId', e.target.value)}>
-          <option value="">بدون حلقة</option>
+        {registrationTrack === 'CIRCLE' && <Select label="حلقة التحفيظ" required error={errors.circleId} value={form.circleId} onChange={(e) => set('circleId', e.target.value)}>
+          <option value="">اختر حلقة التحفيظ</option>
           {circles.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name} ({c.code})
             </option>
           ))}
         </Select>}
-        {registrationTrack === 'COURSE' && <Select label="الدورة" value={courseId} onChange={(e) => setCourseId(e.target.value)}><option value="">اختر الدورة</option>{(courses ?? []).filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}</Select>}
+        {registrationTrack === 'COURSE' && <Select label="الدورة" required error={errors.courseId} value={courseId} onChange={(e) => { setCourseId(e.target.value); setErrors((previous) => ({ ...previous, courseId: '' })); }}><option value="">اختر الدورة</option>{(courses ?? []).filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}</Select>}
         {registrationTrack === 'CIRCLE' && <>
         <Input
           label="الأجزاء المحفوظة"

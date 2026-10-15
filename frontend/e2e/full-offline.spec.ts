@@ -43,7 +43,7 @@ test('native launch shows only a logo and introduces the app once', async ({ pag
   await expect(page.getByRole('heading', { name: 'تسجيل الدخول', exact: true })).toBeVisible();
 });
 
-test('online student creation waits for acknowledgement and remains visible before offline bootstrap completes', async ({ page }) => {
+test('student save explains missing fields, confirms online creation and works offline on mobile', async ({ page, context }) => {
   let release!: () => void;
   const acknowledgement = new Promise<void>(resolve => { release = resolve; });
   const students: any[] = [];
@@ -72,7 +72,9 @@ test('online student creation waits for acknowledgement and remains visible befo
   await page.goto('/students');
   await page.getByRole('button', { name: 'تسجيل طالب', exact: true }).click();
   await page.getByLabel('الاسم الكامل').fill('طالب متصل جديد');
-  await page.getByLabel('حلقة التحفيظ', { exact: true }).selectOption(circleId);
+  await page.getByRole('button', { name: 'حفظ', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('اختر حلقة التحفيظ');
+  await page.getByLabel(/^حلقة التحفيظ/).selectOption(circleId);
   const sending = page.waitForRequest(request => request.url().endsWith('/api/sync-all') && request.method() === 'POST');
   await page.getByRole('button', { name: 'حفظ', exact: true }).click();
   await sending;
@@ -82,6 +84,14 @@ test('online student creation waits for acknowledgement and remains visible befo
   await expect(page.getByText('طالب متصل جديد', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText('طالب متصل جديد', { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await context.setOffline(true);
+  await page.getByRole('button', { name: 'تسجيل طالب', exact: true }).click();
+  await page.getByLabel('الاسم الكامل').fill('طالب محفوظ على الجوال');
+  await page.getByLabel(/^حلقة التحفيظ/).selectOption(circleId);
+  await page.getByRole('button', { name: 'حفظ', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'تسجيل طالب جديد' })).not.toBeVisible();
+  await expect(page.getByText('طالب محفوظ على الجوال', { exact: true })).toBeVisible();
 });
 test('student questionnaire saves online, edits offline and automatically updates the server after reconnect', async ({ page, context }) => {
   const identity = { ...user, role: 'STUDENT' };

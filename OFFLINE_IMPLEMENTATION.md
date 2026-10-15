@@ -8,8 +8,15 @@ of the requested files are in `frontend/src/lib`, `frontend/src/pages`, and
 ## Implemented
 
 - Boot download starts after the first screen can render. Automatic 30-second
-  ticks flush pending writes without redownloading a fresh snapshot; full refresh
-  runs on startup and at most every five minutes during use. Section prefetch uses
+  ticks only flush pending writes or retry incomplete/announced downloads. There
+  is no periodic full download: after bootstrap, successful REST mutations publish
+  an opaque revision over the authenticated realtime channel. Reconnect sends the
+  current revision so clients can detect missed changes. A completed pull records
+  the revision seen at its start; events arriving during that pull remain pending.
+  Revisions currently belong to the running server process; a restart triggers a
+  fresh pull, and multi-instance deployments need a shared revision/event bus.
+  Changes written directly to the database outside REST are not covered by this
+  interceptor. Section prefetch uses
   one request at a time and yields between resources. Pulls no longer invalidate
   every active query after each table; the UI refreshes once after the sync cycle.
   The compact indicator includes monotonic stage-weighted progress (not byte or

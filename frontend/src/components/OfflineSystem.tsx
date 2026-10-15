@@ -23,7 +23,9 @@ export default function OfflineSystem() {
     let active = true;
     let running = false;
     let changedDuringSync = false;
+    let remoteChangedDuringSync = false;
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let remoteTimer: ReturnType<typeof setTimeout> | undefined;
     const update = () => { if (active) void refresh(); };
     const synchronize = async (initial = false) => {
       if (running || !active || !navigator.onLine) return;
@@ -35,6 +37,7 @@ export default function OfflineSystem() {
         if (active) {
           update();
           if (changedDuringSync) { changedDuringSync = false; void queryClient.invalidateQueries(); }
+          if (remoteChangedDuringSync) { remoteChangedDuringSync = false; remoteTimer = setTimeout(() => { void synchronize(); }, 750); }
         }
       }
     };
@@ -47,7 +50,13 @@ export default function OfflineSystem() {
       refreshTimer = setTimeout(() => { if (active) void queryClient.invalidateQueries(); }, 150);
     };
     const progressChanged = () => { if (active) setProgress(getSyncProgress()); };
+    const remoteChanged = () => {
+      if (running) { remoteChangedDuringSync = true; return; }
+      clearTimeout(remoteTimer);
+      remoteTimer = setTimeout(() => { void synchronize(); }, 750);
+    };
     window.addEventListener('halaqat:sync-progress', progressChanged);
+    window.addEventListener('halaqat:remote-change', remoteChanged);
     update();
     // Let the first screen render and issue its interactive requests first.
     const initialTimer = setTimeout(() => { void synchronize(true); }, 1200);
@@ -65,7 +74,9 @@ export default function OfflineSystem() {
     return () => {
       active = false; clearInterval(interval); clearInterval(syncInterval);
       clearTimeout(initialTimer); clearTimeout(refreshTimer);
+      clearTimeout(remoteTimer);
       window.removeEventListener('halaqat:sync-progress', progressChanged);
+      window.removeEventListener('halaqat:remote-change', remoteChanged);
       void listener.then((handle) => handle.remove());
       window.removeEventListener('online', start); window.removeEventListener('offline', start);
       window.removeEventListener('focus', start);

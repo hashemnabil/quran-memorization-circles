@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import assert from 'node:assert/strict';
 import { beforeEach, after, test } from 'node:test';
 import { db } from './db';
-import { configureOffline, save, get, update, remove, mergeRows, syncAll, initOffline, pullAll, refreshOffline, exportLocal, importLocal, clearLocal } from './offline-engine';
+import { configureOffline, save, get, update, remove, mergeRows, syncAll, initOffline, pullAll, refreshOffline, noteRemoteRevision, exportLocal, importLocal, clearLocal } from './offline-engine';
 import { entityTables } from './db';
 import { getSyncProgress } from './sync-progress';
 
@@ -49,7 +49,14 @@ test('frequent automatic ticks do not redownload fresh snapshots; queued writes 
   assert.equal(await db.queue.count(), 0);
   await db.meta.put({ key: `${account}:downloadedAt`, value: new Date(Date.now() - 6 * 60 * 1000).toISOString() });
   await refreshOffline();
+  assert.equal(methods.filter(method => method === 'get').length, 0);
+  await noteRemoteRevision('server-change-1');
+  await refreshOffline();
   assert.equal(methods.filter(method => method === 'get').length, entityTables.length);
+  await noteRemoteRevision('server-change-1');
+  await refreshOffline();
+  assert.equal(methods.filter(method => method === 'get').length, entityTables.length);
+  assert.equal((await db.meta.get(`${account}:downloadedRevision`))?.value, 'server-change-1');
 });
 
 test('progress advances monotonically and reaches 100 only after a successful complete download', async () => {
@@ -65,10 +72,27 @@ test('progress advances monotonically and reaches 100 only after a successful co
     assert.ok(values.some(value => value > 10 && value < 100));
     assert.deepEqual(values, [...values].sort((a, b) => a - b));
     configureOffline(async () => { throw new Error('interrupted'); }, () => account);
-    await assert.rejects(initOffline(), /interrupted/);
+    await assert.rejects(refreshOffline({ forceDownload: true }), /interrupted/);
     assert.equal(getSyncProgress().active, false);
     assert.ok(getSyncProgress().percent < 100);
   } finally { window.removeEventListener('halaqat:sync-progress', listener); }
+});
+
+test('a change received during download remains dirty and is downloaded on the next refresh', async () => {
+  online = true;
+  await noteRemoteRevision('revision-1');
+  let calls = 0;
+  configureOffline(async () => {
+    if (++calls === 1) await noteRemoteRevision('revision-2');
+    return { data: [], meta: { hasNextPage: false } };
+  }, () => account);
+  await refreshOffline();
+  assert.equal((await db.meta.get(`${account}:downloadedRevision`))?.value, 'revision-1');
+  await refreshOffline();
+  assert.equal(calls, entityTables.length * 2);
+  assert.equal((await db.meta.get(`${account}:downloadedRevision`))?.value, 'revision-2');
+  await refreshOffline();
+  assert.equal(calls, entityTables.length * 2);
 });
 
 test('automatic refresh downloads other data despite a rejected write or unavailable table and retries later', async () => {

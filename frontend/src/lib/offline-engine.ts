@@ -8,6 +8,14 @@ let running: Promise<void> | undefined;
 let pulling: { account: string; promise: Promise<void> } | undefined;
 let preloadSections: ((account: string) => Promise<void>) | undefined;
 export function configureOffline(send: Transport, account: () => string, preload?: (account: string) => Promise<void>) { transport = send; currentAccount = account; preloadSections = preload; }
+export async function noteRemoteRevision(revision: string) {
+  if (!currentAccount() || typeof revision !== 'string' || !revision || revision.length > 100) return;
+  const account = accountId();
+  const key = `${account}:remoteRevision`;
+  if ((await db.meta.get(key))?.value === revision) return;
+  await db.meta.put({ key, value: revision });
+  if (currentAccount() === account) window.dispatchEvent(new Event('halaqat:remote-change'));
+}
 export function accountId() { const id = currentAccount(); if (!id) throw new Error('يلزم تسجيل الدخول قبل استخدام البيانات المحلية'); return id; }
 export async function get(table: EntityTable): Promise<LocalRow[]> {
   return db.table(table).where('accountId').equals(accountId()).filter((row: LocalRow) => !row.pendingDelete).toArray();
@@ -86,6 +94,7 @@ export function pullAll(): Promise<void> {
 }
 async function downloadAll() {
   const account = accountId();
+  const revision = (await db.meta.get(`${account}:remoteRevision`))?.value;
   let failure: unknown;
   let completed = 0;
   for (const table of entityTables) {
@@ -122,6 +131,7 @@ async function downloadAll() {
   try { await preloadSections?.(account); } catch (error) { failure ||= error; }
   if (failure) throw failure;
   await db.meta.put({ key: `${account}:downloadedAt`, value: new Date().toISOString() });
+  if (revision) await db.meta.put({ key: `${account}:downloadedRevision`, value: revision });
   window.dispatchEvent(new Event('halaqat:changed'));
 }
 export function syncAll(): Promise<void> {
@@ -185,14 +195,16 @@ async function acknowledge(operation: QueuedWrite, server: any) {
 export async function initOffline() {
   await db.open();
   if (typeof navigator.storage?.persist === 'function') void navigator.storage.persist().catch(() => false);
-  if (navigator.onLine && currentAccount()) await refreshOffline({ forceDownload: true });
+  if (navigator.onLine && currentAccount()) await refreshOffline();
 }
 export async function refreshOffline(options: { forceDownload?: boolean } = {}) {
   if (!navigator.onLine || !currentAccount()) return;
   const account = accountId();
   const downloadedAt = (await db.meta.get(`${account}:downloadedAt`))?.value;
-  // Frequent ticks send edits; expensive full snapshots refresh at most every five minutes.
-  const download = options.forceDownload || !downloadedAt || Date.now() - Date.parse(downloadedAt) >= 5 * 60 * 1000;
+  const remote = (await db.meta.get(`${account}:remoteRevision`))?.value;
+  const downloadedRevision = (await db.meta.get(`${account}:downloadedRevision`))?.value;
+  // No time-based downloads. Server change events also cover missed events on reconnect.
+  const download = options.forceDownload || !downloadedAt || Boolean(remote && remote !== downloadedRevision);
   const hasWrites = await db.queue.where('accountId').equals(account).count() > 0;
   if (!download && !hasWrites) return;
   startSyncProgress(account);

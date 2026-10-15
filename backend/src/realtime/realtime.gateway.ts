@@ -12,6 +12,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
+import { randomUUID } from 'node:crypto';
 
 /**
  * Real-time transport for chat messages and notifications only.
@@ -31,6 +32,13 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   private readonly logger = new Logger('Realtime');
   /** userId -> set of socket ids (a user may have several tabs / devices open). */
   private readonly online = new Map<string, Set<string>>();
+  private dataRevision = randomUUID();
+
+  notifyDataChanged() {
+    this.dataRevision = randomUUID();
+    // No record content is broadcast. Reads still enforce each account's scope.
+    this.server?.to(['role:ADMIN', 'role:SUPERVISOR', 'role:TEACHER', 'role:STUDENT', 'role:SUPPORT', 'role:EXAM_COMMITTEE']).emit('data:changed', { revision: this.dataRevision });
+  }
 
   constructor(
     private readonly jwt: JwtService,
@@ -83,6 +91,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
 
       client.emit('connected', { userId: user.id, onlineUsers: [...this.online.keys()] });
+      client.emit('data:changed', { revision: this.dataRevision });
     } catch (error) {
       client.emit('unauthorized', { message: 'رمز الدخول غير صالح' });
       client.disconnect(true);

@@ -139,6 +139,53 @@ test('online student create and update wait for their own acknowledgement and re
   assert.equal(await db.queue.count(), 0);
 });
 
+test('online edits survive disconnect and offline edits survive reconnect and a second disconnect', async () => {
+  let primary = { id: 'student-roundtrip', fullName: 'original', phone: '111' };
+  let requests = 0;
+  configureOffline(async (method, path, body) => {
+    assert.equal(online, true);
+    assert.equal(method, 'post');
+    assert.equal(path, '/sync-all');
+    requests++;
+    return { outcomes: body.operations.map((op: any) => {
+      primary = { ...primary, ...op.data, fullName: op.data.fullName.trim() };
+      return { opId: op.opId, status: 'applied', data: primary };
+    }) };
+  }, () => account);
+  await mergeRows('students', [primary]);
+
+  online = true;
+  await settleLocalWrite(await update('students', primary.id, { fullName: ' online edit ', phone: '222' }));
+  assert.equal(primary.fullName, 'online edit');
+  online = false;
+  assert.equal((await get('students'))[0].fullName, 'online edit');
+  assert.equal((await get('students'))[0].phone, '222');
+  assert.equal((await get('students'))[0].synced, 1);
+
+  const offlineEdit = await settleLocalWrite(await update('students', primary.id, { fullName: ' offline edit ', phone: '333' }));
+  assert.equal(offlineEdit.synced, 0);
+  assert.equal((await get('students'))[0].fullName, ' offline edit ');
+  assert.equal(primary.fullName, 'online edit');
+  assert.equal(requests, 1);
+  // Reopening IndexedDB must retain an unsent edit, without any network access.
+  db.close(); await db.open();
+  assert.equal((await get('students'))[0].phone, '333');
+  assert.equal(await db.queue.count(), 1);
+
+  online = true;
+  await syncAll();
+  assert.equal(primary.fullName, 'offline edit');
+  assert.equal(primary.phone, '333');
+  assert.equal(await db.queue.count(), 0);
+  online = false;
+  db.close(); await db.open();
+  const final = (await get('students'))[0];
+  assert.equal(final.fullName, primary.fullName);
+  assert.equal(final.phone, primary.phone);
+  assert.equal(final.synced, 1);
+  assert.equal(requests, 2);
+});
+
 test('a rejected old write preserves its dependents but does not block a new unrelated student', async () => {
   await save('students', { id: 'bad', fullName: 'invalid' });
   await save('recitations', { id: 'dependent', studentId: 'bad' });

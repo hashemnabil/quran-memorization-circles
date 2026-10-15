@@ -6,13 +6,15 @@ let transport: Transport;
 let currentAccount: () => string = () => '';
 let running: Promise<void> | undefined;
 let pulling: { account: string; promise: Promise<void> } | undefined;
+let refreshing: { account: string; promise: Promise<void> } | undefined;
 let preloadSections: ((account: string, changedEntities?: string[]) => Promise<void>) | undefined;
 export function configureOffline(send: Transport, account: () => string, preload?: (account: string, changedEntities?: string[]) => Promise<void>) { transport = send; currentAccount = account; preloadSections = preload; }
 export async function noteRemoteRevision(revision: string) {
   if (!currentAccount() || typeof revision !== 'string' || !revision || revision.length > 100) return;
   const account = accountId();
   const key = `${account}:remoteRevision`;
-  if ((await db.meta.get(key))?.value === revision) return;
+  const previous = (await db.meta.get(key))?.value;
+  if (previous === revision || /^\d+$/.test(revision) && typeof previous === 'string' && /^\d+$/.test(previous) && BigInt(revision) <= BigInt(previous)) return;
   await db.meta.put({ key, value: revision });
   if (currentAccount() === account) window.dispatchEvent(new Event('halaqat:remote-change'));
 }
@@ -239,15 +241,31 @@ export async function initOffline() {
   if (typeof navigator.storage?.persist === 'function') void navigator.storage.persist().catch(() => false);
   if (navigator.onLine && currentAccount()) await refreshOffline({ checkDelta: true });
 }
-export async function refreshOffline(options: { forceDownload?: boolean; checkDelta?: boolean } = {}) {
+export function refreshOffline(options: { forceDownload?: boolean; checkDelta?: boolean } = {}): Promise<void> {
+  const account = currentAccount();
+  if (refreshing?.account === account) return refreshing.promise;
+  const promise = refreshOnce(options).finally(() => { if (refreshing?.promise === promise) refreshing = undefined; });
+  refreshing = { account, promise }; return promise;
+}
+async function refreshOnce(options: { forceDownload?: boolean; checkDelta?: boolean }) {
   if (!navigator.onLine || !currentAccount()) return;
   const account = accountId();
   const downloadedAt = (await db.meta.get(`${account}:downloadedAt`))?.value;
   const remote = (await db.meta.get(`${account}:remoteRevision`))?.value;
   const downloadedRevision = (await db.meta.get(`${account}:downloadedRevision`))?.value;
   // No time-based downloads. Server change events also cover missed events on reconnect.
-  const download = options.forceDownload || options.checkDelta || !downloadedAt || Boolean(remote && remote !== downloadedRevision);
+  let download = options.forceDownload || options.checkDelta || !downloadedAt || Boolean(remote && remote !== downloadedRevision);
   const hasWrites = await db.queue.where('accountId').equals(account).count() > 0;
+  const cursor = (await db.meta.get(`${account}:deltaCursor`))?.value;
+  if (download && downloadedAt && typeof cursor === 'string' && !options.forceDownload) {
+    // A reconnect/focus is a silent version check, not a visible new sync cycle.
+    const latest = await transport('get', '/sync-all/watermark');
+    if (currentAccount() !== account) return;
+    if (latest.cursor === cursor) {
+      download = false;
+      if (remote) await db.meta.put({ key: `${account}:downloadedRevision`, value: remote });
+    }
+  }
   if (!download && !hasWrites) return;
   startSyncProgress(account);
   let failure: unknown;

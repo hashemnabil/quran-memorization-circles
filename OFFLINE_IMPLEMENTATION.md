@@ -28,10 +28,15 @@ of the requested files are in `frontend/src/lib`, `frontend/src/pages`, and
   ticks only flush pending writes or retry incomplete/announced downloads. There
   is no periodic full download: after bootstrap, successful REST mutations publish
   an opaque revision over the authenticated realtime channel. Reconnect sends the
-  current revision so clients can detect missed changes. A completed pull records
+  current revision so clients can detect missed changes. Opening/reconnecting
+  shares a silent watermark check; it does not reset progress or start a download
+  if the durable cursor is unchanged. Concurrent triggers share one refresh run.
+  The realtime revision is the durable journal sequence, not a fresh random token
+  per HTTP response; repeated/no-op notifications cannot announce a false change.
+  A completed pull records
   the revision seen at its start; events arriving during that pull remain pending.
-  Revisions currently belong to the running server process; a restart triggers a
-  fresh pull, and multi-instance deployments need a shared revision/event bus.
+  The revision survives server restarts. Multi-instance deployments still need a
+  shared event bus to broadcast changes immediately across all socket instances.
   Changes written directly to the database outside REST are not covered by this
   interceptor. Section prefetch uses
   one request at a time and yields between resources. Pulls no longer invalidate

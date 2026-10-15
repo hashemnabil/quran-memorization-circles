@@ -32,6 +32,10 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     row.circleRoles ||= []; row.isActive ??= true;
   }
   delete row.password;
+  if (table === 'teacherDuties' && Array.isArray(data.teacherUserIds)) {
+    const teachers = await get('dutyTeachers');
+    row.assignments = data.teacherUserIds.map((teacherUserId: string) => ({ teacherUserId, teacherName: teachers.find((teacher) => teacher.id === teacherUserId)?.fullName || 'محفّظ' }));
+  }
   if (table === 'students') {
     row.status ??= 'ACTIVE'; row.gender ??= 'MALE'; row.memorizedParts ??= 0; row.totalPoints ??= 0;
     row.code ||= `LOCAL-${id.slice(0, 8)}`; row.enrollmentDate ||= row.createdAt;
@@ -179,6 +183,7 @@ export async function exportLocal() {
 export async function importLocal(value: any) {
   const account = accountId();
   if (value?.version !== 1 || value.accountId !== account || !value.tables || !Array.isArray(value.queue)) throw new Error('ملف النسخة الاحتياطية غير صالح أو يخص حسابًا آخر');
+  for (const table of ['mediaPlans', 'teacherDuties', 'dutyTeachers']) value.tables[table] ??= [];
   for (const table of entityTables) {
     if (!Array.isArray(value.tables[table]) || value.tables[table].some((row: any) => typeof row.id !== 'string' || row.accountId !== account)) throw new Error('سجلات غير صالحة');
   }

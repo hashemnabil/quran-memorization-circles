@@ -36,8 +36,8 @@ Operations outside the explicit local adapter still use their existing online
 APIs. Cached reads may be available offline, but that is not full offline support.
 
 Remaining workflows include chat, transfers and suspensions, user/staff/supervisor
-administration and staff attendance, settings/profile changes, registry, media and
-schedules, announcements, support workflows, certificates/student files, file
+administration and staff attendance, settings/profile changes, registry, media
+activities, announcements, support workflows, certificates/student files, file
 uploads and Excel imports, course enrollment/attendance editing, exam scheduling,
 rejection/cancellation and milestone editing, student evaluation/preparation/surah
 completion workflows, and some nested detail/reference endpoints.

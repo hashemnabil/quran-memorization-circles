@@ -25,6 +25,7 @@ import { ExamsService } from '../exams/exams.service';
 import { CreateExamRequestDto, QueryExamRequestsDto, QueryExamsDto, RecordResultDto, UpdateExamDto } from '../exams/dto/exam.dto';
 import { CoursesService } from '../courses/courses.service';
 import { QueryCoursesDto, CreateCourseDto, UpdateCourseDto } from '../courses/dto/course.dto';
+import { SchedulesService } from '../schedules/schedules.service';
 
 type Operation = { opId: string; accountId?: string; table: string; action: string; entityId: string; data: Record<string, any> };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -41,7 +42,7 @@ export class FullSyncService {
     // Persist notifications inside the transaction. Clients refresh them after commit.
     const notifications = new NotificationsService(prisma, { emitToUser() {} } as unknown as RealtimeGateway);
     const students = new StudentsService(prisma, acl, activity, new UploadsService(this.config));
-    return { prisma, acl, students, notifications, circles: new CirclesService(prisma, acl, activity, notifications),
+    return { prisma, acl, students, notifications, schedules: new SchedulesService(prisma, notifications), circles: new CirclesService(prisma, acl, activity, notifications),
       teachers: new TeachersService(prisma, this.config, activity, acl),
       recitations: new RecitationsService(prisma, acl, activity, students),
       attendance: new AttendanceService(prisma, acl, activity, notifications),
@@ -53,6 +54,9 @@ export class FullSyncService {
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const empty = { data: [], meta: { hasNextPage: false } };
     switch (table) {
+      case 'mediaPlans': return { data: user.role === Role.ADMIN && page === 1 ? await s.schedules.media() : [], meta: { hasNextPage: false } };
+      case 'teacherDuties': return { data: staff && page === 1 ? await s.schedules.duties(user) : [], meta: { hasNextPage: false } };
+      case 'dutyTeachers': return { data: user.role === Role.ADMIN && page === 1 ? await s.schedules.teachers() : [], meta: { hasNextPage: false } };
       case 'students': return staff ? this.hydratePage(await s.students.findAll(user, plainToInstance(QueryStudentsDto, query)), async (id) => ({ ...await s.students.findOne(user, id), _offline: {
         eligibility: await s.exams.eligibility(user, id), milestones: await s.exams.milestoneRecords(user, id), history: await s.students.history(user, id), progress: await s.recitations.studentProgress(user, id),
       } })) : empty;
@@ -129,6 +133,18 @@ export class FullSyncService {
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const admin = user.role === Role.ADMIN;
     const id = op.entityId;
+    if (admin && ['mediaPlans', 'teacherDuties'].includes(op.table)) {
+      const { id: _id, pendingDelete: _deleted, ...payload } = op.data;
+      if (op.table === 'mediaPlans') {
+        if (op.action === 'create') return s.schedules.createMedia(user, payload);
+        if (op.action === 'update') return s.schedules.updateMedia(id, payload);
+        if (op.action === 'delete') return s.schedules.deleteMedia(id);
+      } else {
+        if (op.action === 'delete') return s.schedules.deleteDuty(id);
+        const duty = op.action === 'create' ? await s.schedules.createDuty(user, payload) : op.action === 'update' ? await s.schedules.updateDuty(id, payload) : null;
+        if (duty) return (await s.schedules.duties(user)).find((row) => row.id === duty.id);
+      }
+    }
     if (op.table === 'courses' && [Role.ADMIN, Role.SUPERVISOR].includes(user.role as any)) {
       if (op.action === 'create') return s.courses.create(user, await this.dto(CreateCourseDto, op.data));
       if (op.action === 'update') return s.courses.update(user, id, await this.dto(UpdateCourseDto, op.data));

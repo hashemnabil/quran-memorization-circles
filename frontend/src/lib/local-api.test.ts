@@ -54,6 +54,20 @@ test('new offline teachers have the nested user shape required by their page', a
   const list = await localRead('/teachers');
   assert.equal(list.data[0].user.username, 'newteacher');
 });
+test('media schedule can be created, edited and removed entirely offline', async () => {
+  const row = await localWrite('post', '/schedules/media', { date: '2026-10-15', day: 'الخميس', activity: 'تصوير', idea: 'التخرج', content: 'فيديو' });
+  await localWrite('patch', `/schedules/media/${row.id}`, { date: '2026-10-16', day: 'الجمعة', activity: 'نشر', idea: 'التخرج', content: 'صور' });
+  assert.equal((await localRead('/schedules/media'))[0].activity, 'نشر');
+  await localWrite('delete', `/schedules/media/${row.id}`, {});
+  assert.deepEqual(await localRead('/schedules/media'), []);
+  assert.equal(await db.queue.count(), 3);
+});
+test('offline teacher duties preserve selected teacher names', async () => {
+  await mergeRows('dutyTeachers', [{ id: 'teacher1', fullName: 'المحفظ الأول' }, { id: 'teacher2', fullName: 'المحفظ الثاني' }]);
+  const row = await localWrite('post', '/schedules/duties', { date: '2026-10-15', day: 'الخميس', note: '', teacherUserIds: ['teacher1', 'teacher2'] });
+  assert.deepEqual(row.assignments.map((a: any) => a.teacherName), ['المحفظ الأول', 'المحفظ الثاني']);
+  assert.equal((await localRead('/schedules/duties')).length, 1);
+});
 test('offline Excel export produces a valid workbook archive with escaped text', async () => {
   const blob = await exportLocalWorkbook([{ الطالب: '<طالب & اسم>', العلامة: 90 }]);
   const archive = await JSZip.loadAsync(await blob.arrayBuffer());

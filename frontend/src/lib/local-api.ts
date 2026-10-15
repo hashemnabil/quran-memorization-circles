@@ -5,6 +5,10 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   const url = new URL(path, 'https://local.invalid');
   url.searchParams.forEach((value, key) => { params[key] ??= value; });
   const segments = url.pathname.split('/').filter(Boolean);
+  if (segments[0] === 'schedules') {
+    const table = { media: 'mediaPlans', duties: 'teacherDuties', teachers: 'dutyTeachers' }[segments[1]] as EntityTable | undefined;
+    if (table && segments.length === 2) return (await get(table)).sort((a, b) => String(a.date || a.fullName).localeCompare(String(b.date || b.fullName)));
+  }
   const reference = await db.meta.get(`${accountId()}:reference:${url.pathname}`);
   if (reference) return reference.value;
   if (segments[0] === 'students' && segments[2] === 'history') return (await get('students')).find((row) => row.id === segments[1])?._offline?.history;
@@ -90,7 +94,8 @@ export async function localRead(path: string, params: Record<string, any> = {}):
 export async function rememberRead(path: string, params: any, data: any) {
   const account = accountId();
   await db.responses.put({ key: responseKey(account, path, params), accountId: account, data });
-  const root = path.split('?')[0].split('/').filter(Boolean)[0] as EntityTable;
+  const segments = path.split('?')[0].split('/').filter(Boolean);
+  const root = (segments[0] === 'schedules' ? { media: 'mediaPlans', duties: 'teacherDuties', teachers: 'dutyTeachers' }[segments[1]] : segments[0]) as EntityTable;
   if (entityTables.includes(root)) {
     const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : data?.id ? [data] : [];
     await mergeRows(root, rows, account);
@@ -101,6 +106,12 @@ export function responseKey(account: string, path: string, params: any) {
 }
 export async function localWrite(method: string, path: string, data: any): Promise<any | undefined> {
   const parts = path.split('/').filter(Boolean);
+  if (parts[0] === 'schedules' && ['media', 'duties'].includes(parts[1])) {
+    const table = parts[1] === 'media' ? 'mediaPlans' : 'teacherDuties';
+    if (method === 'post' && parts.length === 2) return save(table, data);
+    if (method === 'patch' && parts.length === 3) return update(table, parts[2], data);
+    if (method === 'delete' && parts.length === 3) return remove(table, parts[2]);
+  }
   let table = parts[0] as EntityTable; let id = parts[1]; let action: string | undefined;
   if (table === 'students' && parts[2] === 'notes' && method === 'post') return save('behaviors', { ...data, studentId: id });
   if (table === 'students' && id === 'bulk-delete' && method === 'post' && Array.isArray(data?.ids)) { for (const rowId of data.ids) await remove('students', rowId); return { deleted: data.ids.length }; }

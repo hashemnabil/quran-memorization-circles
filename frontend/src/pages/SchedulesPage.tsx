@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
+import { saveDeviceFile } from '@/lib/save-device-file';
 import { useAuthStore } from '@/store/auth';
 import { Button, Card, Input, LoadingState, PageHeader } from '@/components/ui';
 
@@ -22,11 +23,11 @@ async function excel(filename: string, headers: string[], rows: string[][]) {
   zip.file('xl/_rels/workbook.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
   zip.file('xl/worksheets/sheet1.xml', '<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' + xmlRows + '</sheetData></worksheet>');
   const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = filename + '.xlsx'; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  await saveDeviceFile(blob, filename + '.xlsx');
 }
-const initialMedia = { date: new Date().toISOString().slice(0, 10), day: '', activity: '', idea: '', content: '' };
+const localDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+const dayName = (date: string) => date ? new Intl.DateTimeFormat('ar', { weekday: 'long', timeZone: 'Asia/Riyadh' }).format(new Date(date + 'T12:00:00+03:00')) : '';
+const initialMedia = { date: localDate(), day: dayName(localDate()), activity: '', idea: '', content: '' };
 export function MediaSchedulePage() {
   const qc = useQueryClient();
   const [form, setForm] = useState(initialMedia);
@@ -37,10 +38,10 @@ export function MediaSchedulePage() {
     onError: e => toast.error(apiError(e)) });
   const remove = useMutation({ mutationFn: (id: string) => api.delete('/schedules/media/' + id),
     onSuccess: () => { toast.success('تم الحذف'); void qc.invalidateQueries({ queryKey: ['schedule-media'] }); }, onError: e => toast.error(apiError(e)) });
-  return <div className="space-y-5" dir="rtl"><PageHeader title="جدول الإعلام" subtitle="خطة الإعلام الخاصة بالإدارة" />
+  return <div className="space-y-5" dir="rtl"><PageHeader title="جدول الإعلام" subtitle="خطة الإعلام الخاصة بالإدارة — الحفظ والتعديل والتصدير يعملان دون اتصال" />
     <Card title={editing ? 'تعديل خطة إعلامية' : 'إضافة خطة إعلامية'}><form className="grid gap-3 md:grid-cols-2" onSubmit={e => { e.preventDefault(); save.mutate(); }}>
       <Input label="اليوم" value={form.day} required onChange={e => setForm({ ...form, day: e.target.value })} />
-      <Input label="التاريخ" type="date" value={form.date} required onChange={e => setForm({ ...form, date: e.target.value })} />
+      <Input label="التاريخ" type="date" value={form.date} required onChange={e => setForm({ ...form, date: e.target.value, day: dayName(e.target.value) })} />
       <Input label="شو بدنا نعمل؟" value={form.activity} required onChange={e => setForm({ ...form, activity: e.target.value })} />
       <Input label="الفكرة" value={form.idea} required onChange={e => setForm({ ...form, idea: e.target.value })} />
       <label className="grid gap-1 md:col-span-2">المحتوى<textarea className="rounded-lg border p-3" required value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} /></label>
@@ -53,20 +54,20 @@ export function MediaSchedulePage() {
 export function TeacherDutyPage() {
   const qc = useQueryClient();
   const admin = useAuthStore(s => s.user?.role === 'ADMIN');
-  const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), day: '', note: '', teacherUserIds: [] as string[] });
+  const [form, setForm] = useState({ date: localDate(), day: dayName(localDate()), note: '', teacherUserIds: [] as string[] });
   const [editing, setEditing] = useState<string | null>(null);
   const duties = useQuery({ queryKey: ['teacher-duties'], queryFn: async () => (await api.get<Duty[]>('/schedules/duties')).data });
   const teachers = useQuery({ queryKey: ['duty-teachers'], enabled: admin, queryFn: async () => (await api.get<Teacher[]>('/schedules/teachers')).data });
   const save = useMutation({ mutationFn: () => editing ? api.patch('/schedules/duties/' + editing, form) : api.post('/schedules/duties', form),
-    onSuccess: () => { toast.success('تم حفظ النظام وإرسال إشعارات التعيين'); setEditing(null); setForm({ date: new Date().toISOString().slice(0, 10), day: '', note: '', teacherUserIds: [] }); void qc.invalidateQueries({ queryKey: ['teacher-duties'] }); },
+    onSuccess: () => { toast.success('تم حفظ النظام محليًا؛ تصل الإشعارات إلى المحفّظين بعد المزامنة'); setEditing(null); setForm({ date: localDate(), day: dayName(localDate()), note: '', teacherUserIds: [] }); void qc.invalidateQueries({ queryKey: ['teacher-duties'] }); },
     onError: e => toast.error(apiError(e)) });
   const remove = useMutation({ mutationFn: (id: string) => api.delete('/schedules/duties/' + id),
     onSuccess: () => { toast.success('تم الحذف'); void qc.invalidateQueries({ queryKey: ['teacher-duties'] }); }, onError: e => toast.error(apiError(e)) });
   const names = (d: Duty) => d.assignments.map(a => a.teacherName || teachers.data?.find(t => t.id === a.teacherUserId)?.fullName || a.teacherUserId).join('، ');
-  return <div className="space-y-5" dir="rtl"><PageHeader title="جدول نظام المحفّظين" subtitle="تعيين أكثر من محفّظ في اليوم نفسه مع تذكير عند التعيين وقبل يوم وصباح الموعد" />
+  return <div className="space-y-5" dir="rtl"><PageHeader title="جدول نظام المحفّظين" subtitle="الحفظ والتعديل والتصدير دون اتصال — إشعار بعد المزامنة وتذكير قبل الموعد بيوم وصباح الموعد" />
     {admin && <Card title={editing ? 'تعديل النظام' : 'تعيين نظام'}><form className="grid gap-3 md:grid-cols-2" onSubmit={e => { e.preventDefault(); save.mutate(); }}>
       <Input label="اليوم" required value={form.day} onChange={e => setForm({ ...form, day: e.target.value })} />
-      <Input label="التاريخ" type="date" required value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+      <Input label="التاريخ" type="date" required value={form.date} onChange={e => setForm({ ...form, date: e.target.value, day: dayName(e.target.value) })} />
       <Input label="ملاحظات" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
       <fieldset className="rounded-lg border p-3 md:col-span-2"><legend>اختر المحفّظين (يمكن اختيار أكثر من واحد)</legend><div className="grid gap-2 md:grid-cols-3">{teachers.data?.map(t => <label key={t.id} className="flex gap-2"><input type="checkbox" checked={form.teacherUserIds.includes(t.id)} onChange={e => setForm({ ...form, teacherUserIds: e.target.checked ? [...form.teacherUserIds, t.id] : form.teacherUserIds.filter(id => id !== t.id) })} />{t.fullName}</label>)}</div></fieldset>
       <div className="flex gap-2"><Button type="submit" disabled={save.isPending || !form.teacherUserIds.length}>حفظ التعيين</Button>{editing && <Button type="button" variant="secondary" onClick={() => { setEditing(null); setForm({ date: new Date().toISOString().slice(0, 10), day: '', note: '', teacherUserIds: [] }); }}>إلغاء</Button>}</div>

@@ -10,6 +10,7 @@ import { Avatar, Badge, cx } from '@/components/ui';
 import AnnouncementBar from '@/components/AnnouncementBar';
 import AutomaticOfflineSync from '@/components/AutomaticOfflineSync';
 import OfflineSystem from '@/components/OfflineSystem';
+import DutyReminder from '@/components/DutyReminder';
 import {
   IconBell,
   IconChat,
@@ -371,6 +372,7 @@ export default function AppLayout() {
 
         <main className="min-w-0 flex-1 p-4 sm:p-7 lg:p-8">
           <OfflineSystem />
+          <DutyReminder />
           <Outlet />
         </main>
 

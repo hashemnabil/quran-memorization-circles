@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuthUser } from '../common/decorators';
 
-const TZ = 'Asia/Hebron';
+const TZ = 'Asia/Riyadh';
 function dateOnly(input: unknown): Date {
   if (typeof input !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(input)) throw new BadRequestException('التاريخ يجب أن يكون YYYY-MM-DD');
   const date = new Date(input + 'T00:00:00.000Z');
@@ -62,7 +62,7 @@ export class SchedulesService implements OnModuleInit, OnModuleDestroy {
   }
   async duties(user: AuthUser) {
     const duties = await this.prisma.teacherDuty.findMany({
-      where: user.role === Role.TEACHER ? { assignments: { some: { teacherUserId: user.id } } } : {},
+      where: {},
       include: { assignments: { select: { teacherUserId: true } } },
       orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     });
@@ -94,28 +94,40 @@ export class SchedulesService implements OnModuleInit, OnModuleDestroy {
     if (!existing) throw new NotFoundException();
     const oldIds = new Set(existing.assignments.map(a => a.teacherUserId));
     const newIds = data.teacherUserIds.filter(x => !oldIds.has(x));
+    const removedIds = [...oldIds].filter(x => !data.teacherUserIds.includes(x));
     const dateChanged = existing.date.valueOf() !== data.date.valueOf();
     await this.prisma.$transaction(async tx => {
       await tx.teacherDuty.update({ where: { id }, data: { date: data.date, day: data.day, note: data.note } });
       await tx.teacherDutyAssignment.deleteMany({ where: { dutyId: id, teacherUserId: { notIn: data.teacherUserIds } } });
       if (newIds.length) await tx.teacherDutyAssignment.createMany({ data: newIds.map(teacherUserId => ({ dutyId: id, teacherUserId })) });
       if (dateChanged) await tx.teacherDutyAssignment.updateMany({ where: { dutyId: id },
-        data: { dayBeforeNotifiedAt: null, morningNotifiedAt: null } });
+        data: { assignedNotifiedAt: null, dayBeforeNotifiedAt: null, morningNotifiedAt: null } });
+      for (const userId of removedIds) await tx.notification.create({ data: { userId, type: 'SYSTEM', title: 'أُلغي تكليفك بالنظام', body: 'أُلغي تكليفك بتاريخ ' + existing.date.toISOString().slice(0, 10), link: '/teacher-duties', data: { dutyId: id } } });
     });
-    if (newIds.length) await this.notifyAssigned(id, newIds, data.date);
+    if (dateChanged || newIds.length) await this.notifyAssigned(id, dateChanged ? data.teacherUserIds : newIds, data.date);
     return this.prisma.teacherDuty.findUnique({ where: { id }, include: { assignments: true } });
   }
-  async deleteDuty(id: string) { await this.prisma.teacherDuty.deleteMany({ where: { id } }); return { deleted: true }; }
+  async deleteDuty(id: string) {
+    await this.prisma.$transaction(async tx => {
+      const duty = await tx.teacherDuty.findUnique({ where: { id }, include: { assignments: true } });
+      if (!duty) return;
+      for (const assignment of duty.assignments) await tx.notification.create({ data: { userId: assignment.teacherUserId, type: 'SYSTEM', title: 'أُلغي موعد النظام', body: 'أُلغي موعد النظام بتاريخ ' + duty.date.toISOString().slice(0, 10), link: '/teacher-duties', data: { dutyId: id } } });
+      await tx.teacherDuty.delete({ where: { id } });
+    });
+    return { deleted: true };
+  }
 
   private async notifyAssigned(dutyId: string, ids: string[], date: Date) {
     for (const userId of ids) {
-      const claimed = await this.prisma.teacherDutyAssignment.updateMany({
-        where: { dutyId, teacherUserId: userId, assignedNotifiedAt: null },
+      await this.prisma.$transaction(async tx => {
+      const claimed = await tx.teacherDutyAssignment.updateMany({
+        where: { dutyId, teacherUserId: userId, assignedNotifiedAt: null, duty: { date } },
         data: { assignedNotifiedAt: new Date() },
       });
-      if (claimed.count) await this.notifications.notify({ userId, type: 'SYSTEM',
+      if (claimed.count) await tx.notification.create({ data: { userId, type: 'SYSTEM',
         title: 'تم تعيينك في جدول النظام', body: 'موعد النظام: ' + date.toISOString().slice(0, 10),
-        link: '/administration', data: { dutyId } });
+        link: '/teacher-duties', data: { dutyId } } });
+      });
     }
   }
   async sendDueReminders() {
@@ -135,14 +147,16 @@ export class SchedulesService implements OnModuleInit, OnModuleDestroy {
     for (const assignment of assignments) {
       const morning = assignment.duty.date.getTime() === today.getTime();
       const field = morning ? 'morningNotifiedAt' : 'dayBeforeNotifiedAt';
-      const claimed = await this.prisma.teacherDutyAssignment.updateMany({
-        where: { id: assignment.id, [field]: null }, data: { [field]: now },
+      await this.prisma.$transaction(async tx => {
+      const claimed = await tx.teacherDutyAssignment.updateMany({
+        where: { id: assignment.id, [field]: null, duty: { date: assignment.duty.date } }, data: { [field]: now },
       });
-      if (!claimed.count) continue;
-      await this.notifications.notify({ userId: assignment.teacherUserId, type: 'SYSTEM',
+      if (!claimed.count) return;
+      await tx.notification.create({ data: { userId: assignment.teacherUserId, type: 'SYSTEM',
         title: morning ? 'تذكير: عليك النظام اليوم' : 'تذكير: عليك النظام غدًا',
         body: 'موعد النظام: ' + assignment.duty.date.toISOString().slice(0, 10),
-        link: '/administration', data: { dutyId: assignment.dutyId } });
+        link: '/teacher-duties', data: { dutyId: assignment.dutyId } } });
+      });
     }
   }
 }

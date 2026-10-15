@@ -269,7 +269,7 @@ export default function AppLayout() {
         <header className="app-topbar sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
           <div className="flex items-center gap-2 px-4 py-3.5 sm:gap-3 sm:px-6">
             <button
-              className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden"
+              className="app-icon-button lg:hidden"
               onClick={() => setDrawerOpen(true)}
               aria-label="فتح القائمة"
             >
@@ -296,7 +296,7 @@ export default function AppLayout() {
 
             <NavLink
               to="/chat"
-              className="relative rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
+              className="app-icon-button relative"
               aria-label="المحادثات"
             >
               <IconChat size={20} />
@@ -309,7 +309,7 @@ export default function AppLayout() {
 
             <NavLink
               to="/notifications"
-              className="relative rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
+              className="app-icon-button relative"
               aria-label="الإشعارات"
             >
               <IconBell size={20} />
@@ -370,7 +370,7 @@ export default function AppLayout() {
         {/* Sits directly under the header so it is seen on every page. */}
         <AnnouncementBar />
 
-        <main className="min-w-0 flex-1 p-4 sm:p-7 lg:p-8">
+        <main className="app-workspace min-w-0 flex-1 p-4 sm:p-7 lg:p-8">
           <OfflineSystem />
           <DutyReminder />
           <Outlet />

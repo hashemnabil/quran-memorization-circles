@@ -137,5 +137,15 @@ test('cold offline navigation opens downloaded core screens and searches locally
   await expect(page.getByText('طالب بعد التحديث', { exact: true })).toBeVisible();
   const row = page.locator('li').filter({ has: page.getByText('طالب بعد التحديث', { exact: true }) });
   await expect(row.locator('button[aria-pressed="true"]')).toContainText('غياب');
+  await page.goto('/');
+  await expect(page.locator('main h1').first()).toBeVisible();
+  await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
+  await page.screenshot({ path: 'test-results/design-desktop.png', fullPage: true, animations: 'disabled' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: 'test-results/design-mobile.png', fullPage: true, animations: 'disabled' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'فتح القائمة', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'إغلاق القائمة', exact: true })).toBeVisible();
+  await page.screenshot({ path: 'test-results/design-mobile-menu.png', animations: 'disabled' });
   expect(errors).toEqual([]);
 });

@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { api } from '@/lib/api';
+import { IconMosque } from '@/components/ui/Icons';
 import type { SchoolSettings } from '@/types';
 
 const BRAND_CACHE_KEY = 'qc.schoolBranding';
@@ -52,7 +53,7 @@ export default function AppLaunchGate({ children }: { children: ReactNode }) {
             {branding.logoUrl ? (
               <img src={branding.logoUrl} alt={branding.name || 'شعار المدرسة'} className="mb-6 h-28 w-28 rounded-3xl border border-emerald-900/10 bg-white p-3 object-contain shadow-lg shadow-emerald-950/10" />
             ) : (
-              <div className="mb-6 grid h-28 w-28 place-items-center rounded-3xl border border-emerald-900/10 bg-emerald-50 text-5xl shadow-lg shadow-emerald-950/10">🕌</div>
+              <div className="mb-6 grid h-28 w-28 place-items-center rounded-3xl border border-emerald-900/10 bg-emerald-50 text-emerald-800 shadow-lg shadow-emerald-950/10"><IconMosque size={52} /></div>
             )}
             <h1 className="text-xl font-extrabold leading-relaxed text-emerald-950">{branding.name || branding.mosqueName || 'عبدالله بن عمر'}</h1>
             <div className="my-5 h-1 w-16 rounded-full bg-gradient-to-l from-emerald-700 to-amber-400" />

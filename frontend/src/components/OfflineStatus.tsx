@@ -11,7 +11,6 @@ const OUTBOX_CHANGED = 'quran-circles:outbox-changed';
 
 /** Browser connectivity events are hints, not proof that the API is reachable. */
 export default function OfflineStatus() {
-  const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
   const [operations, setOperations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const accountId = useAuthStore((state) => state.user?.id ?? '');
@@ -57,8 +56,8 @@ export default function OfflineStatus() {
         void refresh();
       }
     };
-    const onOnline = () => { setOnline(true); sync(); };
-    const onOffline = () => { setOnline(false); void refresh(); };
+    const onOnline = () => { sync(); };
+    const onOffline = () => { void refresh(); };
     const onOutboxChanged = () => { void refresh(); };
     const onFocus = () => sync();
     window.addEventListener('online', onOnline);
@@ -78,19 +77,14 @@ export default function OfflineStatus() {
 
   return (
     <>
-      {!online && (
-        <div role="status" aria-live="polite" dir="rtl" className="fixed inset-x-0 top-0 z-[100] bg-amber-100 px-4 py-2 text-center text-sm font-medium text-amber-950 shadow-sm">
-          أنت غير متصل بالإنترنت. التعديلات المحفوظة محلياً ستظهر أدناه.
-        </div>
-      )}
       {operations.length > 0 && (
-        <div className="fixed inset-x-0 top-[48px] z-[100] mx-4 rounded-md bg-white/90 p-3 shadow">
+        <div className="fixed inset-x-4 bottom-4 z-40 mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-4 shadow-lg">
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium">تعديلات محفوظة محلياً: {pendingOperations.length}</div>
             <div className="text-xs text-slate-500">ستحاول المزامنة تلقائياً عند عودة الاتصال</div>
           </div>
           {blockedOperations.length > 0 && (
-            <div role="alert" className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-950" dir="rtl">
+            <div role="alert" className="mt-2 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700" dir="rtl">
               <div className="font-semibold">تحتاج بعض التعديلات إلى مراجعة ({blockedOperations.length})</div>
               <ul className="mt-1 list-disc pr-5">
                 {blockedOperations.slice(0, 3).map((operation: any) => (

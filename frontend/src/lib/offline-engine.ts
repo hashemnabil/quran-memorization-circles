@@ -273,7 +273,7 @@ async function acknowledge(operation: QueuedWrite, server: any) {
 export async function initOffline() {
   await db.open();
   if (typeof navigator.storage?.persist === 'function') void navigator.storage.persist().catch(() => false);
-  if (navigator.onLine && currentAccount()) await refreshOffline({ checkDelta: true });
+  if (navigator.onLine && currentAccount()) await refreshOffline();
 }
 export function refreshOffline(options: { forceDownload?: boolean; checkDelta?: boolean } = {}): Promise<void> {
   const account = currentAccount();

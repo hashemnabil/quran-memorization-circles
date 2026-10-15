@@ -237,6 +237,31 @@ test('reopening, reconnecting and duplicate events share a silent check without 
   } finally { window.removeEventListener('halaqat:sync-progress', listener); }
 });
 
+test('reopening and reconnecting send nothing until a new server revision or a local edit exists', async () => {
+  await db.meta.put({ key: `${account}:downloadedAt`, value: new Date().toISOString() });
+  await db.meta.put({ key: `${account}:deltaCursor`, value: '10' });
+  await db.meta.put({ key: `${account}:remoteRevision`, value: '10' });
+  await db.meta.put({ key: `${account}:downloadedRevision`, value: '10' });
+  const paths: string[] = [];
+  configureOffline(async (_method, path) => {
+    paths.push(path);
+    if (path === '/sync-all/watermark') return { cursor: '11' };
+    return { tables: {}, changedEntities: [], cursor: '11', hasMore: false };
+  }, () => account);
+  online = true;
+  await initOffline();
+  online = false; await initOffline();
+  online = true; await refreshOffline(); await initOffline();
+  assert.deepEqual(paths, []);
+  await noteRemoteRevision('10'); await refreshOffline();
+  assert.deepEqual(paths, []);
+  await noteRemoteRevision('11'); await refreshOffline();
+  assert.deepEqual(paths, ['/sync-all/watermark', '/sync-all/delta?since=10']);
+  paths.length = 0;
+  await initOffline(); await refreshOffline();
+  assert.deepEqual(paths, []);
+});
+
 test('delta updates only changed rows, removes synced tombstones and preserves dirty work', async () => {
   await mergeRows('students', [{ id: 'old', fullName: 'unchanged' }, { id: 'changed', fullName: 'before' }, { id: 'deleted' }]);
   await save('students', { id: 'draft', fullName: 'unsent' });

@@ -25,8 +25,9 @@ test('cold offline navigation opens downloaded core screens and searches locally
     if (url.pathname.includes('/announcements')) return route.fulfill({ json: [] });
     return route.fulfill({ status: 403, json: { message: 'Unused in this offline test' } });
   });
-  await page.goto('/settings/offline');
-  await expect(page.getByRole('heading', { name: 'إدارة البيانات المحلية' })).toBeVisible();
+  // Opening the app must prepare offline data without visiting settings or pressing a button.
+  await page.goto('/');
+  await expect(page.locator('main h1').first()).toBeVisible();
   await expect.poll(() => page.evaluate(() => new Promise((resolve) => {
     const request = indexedDB.open('halaqatFull');
     request.onsuccess = () => { const db = request.result; const read = db.transaction('meta').objectStore('meta').get('00000000-0000-4000-8000-000000000001:downloadedAt'); read.onsuccess = () => { resolve(Boolean(read.result)); db.close(); }; };

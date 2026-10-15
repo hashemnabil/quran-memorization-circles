@@ -7,6 +7,13 @@ of the requested files are in `frontend/src/lib`, `frontend/src/pages`, and
 
 ## Implemented
 
+- Supported online writes now wait for their own queue acknowledgement and return
+  canonical server data; offline/transport failures retain the local result.
+  Explicit validation rejections reach the form instead of showing server success.
+  A rejected operation and its dependents remain queued, while unrelated later
+  writes can proceed. Student edits normalize an empty optional birth date before
+  validation. Pending local reads remain visible before bootstrap completes.
+
 - Incremental core replication now uses a durable `sync_changes` sequence cursor.
   Bootstrap fences the journal before reading initial data. Later requests use
   `/sync-all/delta?since=...`; only affected domain rows are hydrated and sent.

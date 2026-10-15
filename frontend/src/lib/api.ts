@@ -1,7 +1,7 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { Capacitor } from '@capacitor/core';
 import { shouldRetryReadRequest, readRetryDelayMs } from './offline/retry-policy.js';
-import { configureOffline, accountId } from './offline-engine';
+import { configureOffline, accountId, settleLocalWrite } from './offline-engine';
 import { db } from './db';
 import { localRead, localWrite, rememberRead, responseKey } from './local-api';
 import { prefetchSections, readPrefetched } from './offline-prefetch';
@@ -61,11 +61,14 @@ api.defaults.adapter = async (config) => {
   if (method !== 'get' && !(config.data instanceof FormData) && config.responseType !== 'blob') {
     const payload = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
     const local = await localWrite(method, path, payload);
-    if (local !== undefined) return response(local);
+    if (local !== undefined) return response(await settleLocalWrite(local));
   }
   if (method === 'get' && config.responseType !== 'blob') {
     const downloaded = await db.meta.get(`${account}:downloadedAt`);
-    if (downloaded || !navigator.onLine) {
+    const localTable = path.split('/').filter(Boolean)[0];
+    const hasPending = db.tables.some(table => table.name === localTable) &&
+      await db.table(localTable).where('accountId').equals(account).filter((row: any) => row.synced === 0).count() > 0;
+    if (downloaded || !navigator.onLine || hasPending) {
       const local = await localRead(path, { ...config.params });
       if (local !== undefined) return response(local);
       const cached = await db.responses.get(responseKey(account, path, config.params));
@@ -164,6 +167,7 @@ api.interceptors.response.use(
 
 /** Extracts the Arabic message the API returns, with a sensible fallback. */
 export function apiError(error: unknown, fallback = 'حدث خطأ، يرجى المحاولة مرة أخرى'): string {
+  if (error instanceof Error && (error as any).localWriteRejected) return error.message;
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as { message?: string | string[] } | undefined;
     if (data?.message) return Array.isArray(data.message) ? data.message[0] : data.message;

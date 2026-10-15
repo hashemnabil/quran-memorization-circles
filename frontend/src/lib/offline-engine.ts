@@ -35,7 +35,7 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     });
     window.dispatchEvent(new Event('halaqat:changed'));
     void syncAll().catch(() => undefined);
-    return { id, accountId: account, synced: 0, updatedAt, message: 'تم حفظ كشف الحضور محليًا' } as LocalRow;
+    return { id, accountId: account, synced: 0, updatedAt, _writeOpId: opId, _writeTable: table, message: 'تم حفظ كشف الحضور محليًا' } as LocalRow;
   }
   const existing = await db.table(table).get([account, id]);
   const row: LocalRow = { createdAt: new Date().toISOString(), ...(table === 'behaviors' ? { author: { id: account, fullName: 'محفوظ محليًا' } } : {}), ...existing, ...data, id, accountId: account, synced: 0, updatedAt: new Date().toISOString() };
@@ -66,13 +66,32 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     if (data.versesCount === undefined && from >= 0 && to >= from) row.versesCount = surahs.slice(from, to + 1).reduce((sum: number, surah: any, index: number) => sum + (index === to - from ? row.toAyah : surah.ayahs) - (index === 0 ? row.fromAyah - 1 : 0), 0);
     row.points = Math.round(Math.max(0, Number(row.versesCount || 0) - Number(row.mistakes || 0) - Number(row.warnings || 0) * 0.25) * 100) / 100;
   }
+  const opId = crypto.randomUUID();
   await db.transaction('rw', db.table(table), db.queue, async () => {
     await db.table(table).put(row);
-    await db.queue.add({ accountId: account, opId: crypto.randomUUID(), table, action, entityId: id, data, createdAt: row.updatedAt });
+    await db.queue.add({ accountId: account, opId, table, action, entityId: id, data, createdAt: row.updatedAt });
   });
   window.dispatchEvent(new Event('halaqat:changed'));
   void syncAll().catch(() => undefined);
-  return row;
+  return { ...row, _writeOpId: opId, _writeTable: table };
+}
+export async function settleLocalWrite(local: any) {
+  if (!navigator.onLine || !local?._writeOpId) return local;
+  const account = accountId();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let failed = false;
+    try { await syncAll(); } catch { failed = true; }
+    if (currentAccount() !== account) return local;
+    const queued = await db.queue.where('opId').equals(local._writeOpId).first();
+    if (queued?.error) throw Object.assign(new Error(queued.error), { localWriteRejected: true });
+    if (!queued) {
+      const id = (await db.meta.get(`${account}:id:${local.id}`))?.value || local.id;
+      return await db.table(local._writeTable).get([account, id]) || { ...local, synced: 1 };
+    }
+    if (failed) return local;
+    if (!navigator.onLine) break;
+  }
+  return local;
 }
 export function update(table: EntityTable, id: string, data: Record<string, any>) { return save(table, { ...data, id }, 'update'); }
 export function remove(table: EntityTable, id: string) { return save(table, { id, pendingDelete: 1 }, 'delete'); }
@@ -187,23 +206,38 @@ async function synchronize() {
   if (!navigator.onLine || !currentAccount() || !transport) return;
   const account = accountId();
   const pending = await db.queue.where('accountId').equals(account).sortBy('id');
-  // Ordered batches preserve dependent operations. Server receipts make retries safe.
-  for (let offset = 0; offset < pending.length; offset += 50) {
-    const batch = pending.slice(offset, offset + 50);
+  // Keep failed writes durable, while allowing independent later writes to proceed.
+  let remaining = pending;
+  const blocked = new Set<string>();
+  const referencesBlocked = (value: any): boolean => typeof value === 'string' ? blocked.has(value)
+    : Array.isArray(value) ? value.some(referencesBlocked)
+    : value && typeof value === 'object' ? Object.values(value).some(referencesBlocked) : false;
+  let failure: string | undefined;
+  while (remaining.length) {
+    for (const op of remaining) if (op.action === 'create' && referencesBlocked(op.data)) blocked.add(op.entityId);
+    const batch = remaining.filter(op => !blocked.has(op.entityId) && !referencesBlocked(op.data)).slice(0, 50);
+    if (!batch.length) break;
     const result = await transport('post', '/sync-all', { operations: batch });
     if (currentAccount() !== account) return;
-    if (!Array.isArray(result?.outcomes) || new Set(result.outcomes.map((row: any) => row.opId)).size !== result.outcomes.length || result.outcomes.some((row: any) => !batch.some((item) => item.opId === row.opId))) throw new Error('استجابة مزامنة غير صالحة؛ بقيت العمليات محفوظة');
+    if (!Array.isArray(result?.outcomes) || result.outcomes.some((row: any, index: number) => row.opId !== batch[index]?.opId || !['applied', 'rejected'].includes(row.status))) throw new Error('استجابة مزامنة غير صالحة؛ بقيت العمليات محفوظة');
+    let rejected = false;
     for (const outcome of result.outcomes) {
       const operation = batch.find((item) => item.opId === outcome.opId);
       if (!operation) continue;
       if (outcome.status !== 'applied') {
         await db.queue.update(operation.id!, { error: outcome.message || 'تعذر تطبيق العملية' });
-        throw new Error(outcome.message || 'تحتاج عملية المزامنة إلى مراجعة');
+        blocked.add(operation.entityId);
+        failure ||= outcome.message || 'تحتاج عملية المزامنة إلى مراجعة';
+        rejected = true;
+        continue;
       }
       await acknowledge(operation, outcome.data);
     }
-    if (result.outcomes.length !== batch.length) throw new Error('لم يؤكد الخادم جميع العمليات؛ بقيت البقية محفوظة');
+    if (!result.outcomes.length || !rejected && result.outcomes.length !== batch.length) throw new Error('لم يؤكد الخادم جميع العمليات؛ بقيت البقية محفوظة');
+    const processed = new Set(result.outcomes.map((row: any) => row.opId));
+    remaining = remaining.filter(op => !processed.has(op.opId));
   }
+  if (failure) throw new Error(failure);
   await db.meta.put({ key: `${account}:lastSync`, value: new Date().toISOString() });
 }
 async function acknowledge(operation: QueuedWrite, server: any) {

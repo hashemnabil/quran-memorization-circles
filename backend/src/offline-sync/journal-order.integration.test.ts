@@ -9,6 +9,32 @@ import { Role } from '@prisma/client';
 const url = new URL(process.env.DATABASE_URL || 'postgresql://localhost/missing');
 const available = ['localhost', '127.0.0.1'].includes(url.hostname) && url.pathname === '/quran_test';
 
+test('student create and edit succeed through full-sync including an empty optional birth date', { skip: !available }, async () => {
+  const db = new PrismaService();
+  const actorId = randomUUID(), circleId = randomUUID(), localId = randomUUID(), createId = randomUUID(), editId = randomUUID();
+  const service = new FullSyncService(db, new ConfigService());
+  const actor = { id: actorId, role: Role.ADMIN, fullName: 'Sync admin', username: actorId, email: null } as any;
+  let studentId: string | undefined;
+  try {
+    await db.user.create({ data: { id: actorId, username: actorId, fullName: actor.fullName, passwordHash: 'test-only', role: Role.ADMIN } });
+    await db.circle.create({ data: { id: circleId, name: 'Online CRUD test', code: `CRUD-${circleId}` } });
+    const created = await service.push(actor, { operations: [{ opId: createId, entityId: localId, table: 'students', action: 'create', data: { fullName: 'new student', circleId, registrationTrack: 'CIRCLE', createAccount: false, guardianRelation: 'الأب', memorizedParts: 0 } }] });
+    assert.equal(created.outcomes[0].status, 'applied', JSON.stringify(created));
+    studentId = created.outcomes[0].data.id;
+    assert.ok(studentId);
+    const edited = await service.push(actor, { operations: [{ opId: editId, entityId: studentId, table: 'students', action: 'update', data: { id: studentId, fullName: 'edited student', birthDate: '', phone: '', guardianPhone: '', circleId } }] });
+    assert.equal(edited.outcomes[0].status, 'applied', JSON.stringify(edited));
+    assert.equal((await db.student.findUnique({ where: { id: studentId } }))?.fullName, 'edited student');
+  } finally {
+    if (studentId) await db.student.deleteMany({ where: { id: studentId } });
+    await db.circle.deleteMany({ where: { id: circleId } });
+    await db.activityLog.deleteMany({ where: { userId: actorId } });
+    await db.processedOperation.deleteMany({ where: { accountId: actorId } });
+    await db.user.deleteMany({ where: { id: actorId } });
+    await db.$disconnect();
+  }
+});
+
 test('full-sync delta sends changed circle only, scopes IDs, and preserves deletion hints', { skip: !available }, async () => {
   const db = new PrismaService();
   const a = randomUUID(), b = randomUUID(), suffix = randomUUID();

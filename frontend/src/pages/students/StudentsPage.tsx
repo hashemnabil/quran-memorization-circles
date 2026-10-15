@@ -583,7 +583,7 @@ function StudentFormModal({
       if (credentials?.username && credentials?.temporaryPassword) {
         toast.success(`تم تسجيل الطالب. اسم المستخدم: ${credentials.username} — كلمة المرور المؤقتة: ${credentials.temporaryPassword}`, { duration: 20000 });
       } else {
-        toast.success('تم تسجيل الطالب بنجاح');
+        toast.success(student?.synced === 0 ? 'تم حفظ الطالب على الجهاز؛ بانتظار إرساله للخادم' : 'تم تسجيل الطالب بنجاح');
       }
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['student-accounts'] });

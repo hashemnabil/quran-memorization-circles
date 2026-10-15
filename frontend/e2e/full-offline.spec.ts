@@ -8,6 +8,47 @@ const fixtures: Record<string, any[]> = {
   teachers: [{ id: '00000000-0000-4000-8000-000000000004', isActive: true, user: { id: 'teacher-user', fullName: 'معلم أوفلاين', isActive: true }, circleRoles: [] }],
   dutyTeachers: [{ id: '00000000-0000-4000-8000-000000000005', fullName: 'محفظ النظام' }],
 };
+
+test('online student creation waits for acknowledgement and remains visible before offline bootstrap completes', async ({ page }) => {
+  let release!: () => void;
+  const acknowledgement = new Promise<void>(resolve => { release = resolve; });
+  const students: any[] = [];
+  await page.addInitScript(identity => {
+    localStorage.setItem('qc.onboarding.completed', '1');
+    localStorage.setItem('qc.accessToken', 'test-token');
+    localStorage.setItem('qc.offlineUser', JSON.stringify(identity));
+  }, user);
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/auth/me') return route.fulfill({ json: user });
+    if (url.pathname === '/api/circles/options') return route.fulfill({ json: fixtures.circles });
+    if (url.pathname === '/api/students') return route.fulfill({ json: { data: students, meta: { total: students.length, page: 1, totalPages: 1, hasNextPage: false } } });
+    if (url.pathname === '/api/courses') return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
+    if (url.pathname === '/api/sync-all' && route.request().method() === 'POST') {
+      await acknowledgement;
+      const operations = route.request().postDataJSON().operations;
+      const outcomes = operations.map((op: any) => {
+        const row = { ...fixtures.students[0], ...op.data, id: '00000000-0000-4000-8000-000000000099', code: '120261234' };
+        students.push(row); return { opId: op.opId, status: 'applied', data: row };
+      });
+      return route.fulfill({ json: { outcomes } });
+    }
+    return route.fulfill({ status: 403, json: { message: 'Initial bootstrap not ready' } });
+  });
+  await page.goto('/students');
+  await page.getByRole('button', { name: 'تسجيل طالب', exact: true }).click();
+  await page.getByLabel('الاسم الكامل').fill('طالب متصل جديد');
+  await page.getByLabel('حلقة التحفيظ', { exact: true }).selectOption(circleId);
+  const sending = page.waitForRequest(request => request.url().endsWith('/api/sync-all') && request.method() === 'POST');
+  await page.getByRole('button', { name: 'حفظ', exact: true }).click();
+  await sending;
+  try { await expect(page.getByRole('heading', { name: 'تسجيل طالب جديد' })).toBeVisible(); }
+  finally { release(); }
+  await expect(page.getByRole('heading', { name: 'تسجيل طالب جديد' })).not.toBeVisible();
+  await expect(page.getByText('طالب متصل جديد', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('طالب متصل جديد', { exact: true })).toBeVisible();
+});
 test('cold offline navigation opens downloaded core screens and searches locally', async ({ page, context }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));

@@ -27,10 +27,10 @@ export default function OfflineSystem() {
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     let remoteTimer: ReturnType<typeof setTimeout> | undefined;
     const update = () => { if (active) void refresh(); };
-    const synchronize = async (initial = false, checkDelta = false) => {
+    const synchronize = async (initial = false) => {
       if (running || !active || !navigator.onLine) return;
       running = true; setError('');
-      try { await (initial ? initOffline() : refreshOffline({ checkDelta })); }
+      try { await (initial ? initOffline() : refreshOffline()); }
       catch (e) { if (active) setError(e instanceof Error ? e.message : String(e)); }
       finally {
         running = false;
@@ -41,8 +41,9 @@ export default function OfflineSystem() {
         }
       }
     };
-    const start = () => { setOnline(navigator.onLine); if (navigator.onLine) void synchronize(false, true); };
-    const visible = () => { if (document.visibilityState === 'visible') start(); };
+    // Reconnection only resumes known pending work. The realtime connection
+    // announces the current server revision, including changes missed offline.
+    const start = () => { setOnline(navigator.onLine); if (navigator.onLine) void synchronize(); };
     const changed = () => {
       update();
       if (running) { changedDuringSync = true; return; }
@@ -63,24 +64,19 @@ export default function OfflineSystem() {
     const listener = Network.addListener('networkStatusChange', (status) => {
       if (!active) return;
       setOnline(status.connected);
-      if (status.connected) void synchronize(false, true);
+      if (status.connected) void synchronize();
     });
     window.addEventListener('online', start); window.addEventListener('offline', start);
-    window.addEventListener('focus', start);
-    document.addEventListener('visibilitychange', visible);
     window.addEventListener('halaqat:changed', changed);
     const interval = setInterval(update, 2000);
-    const syncInterval = setInterval(() => { if (document.visibilityState === 'visible') void synchronize(); }, 30000);
     return () => {
-      active = false; clearInterval(interval); clearInterval(syncInterval);
+      active = false; clearInterval(interval);
       clearTimeout(initialTimer); clearTimeout(refreshTimer);
       clearTimeout(remoteTimer);
       window.removeEventListener('halaqat:sync-progress', progressChanged);
       window.removeEventListener('halaqat:remote-change', remoteChanged);
       void listener.then((handle) => handle.remove());
       window.removeEventListener('online', start); window.removeEventListener('offline', start);
-      window.removeEventListener('focus', start);
-      document.removeEventListener('visibilitychange', visible);
       window.removeEventListener('halaqat:changed', changed);
     };
   }, [account]);

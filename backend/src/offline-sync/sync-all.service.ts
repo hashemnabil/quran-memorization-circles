@@ -92,7 +92,8 @@ export class FullSyncService {
       try {
         const fingerprint = createHash('sha256').update(canonical({ table: op.table, action: op.action, entityId: op.entityId, data: op.data })).digest('hex');
         const outcome = await this.prisma.$transaction(async (tx) => {
-          await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${user.id}), hashtext(${op.opId}))`;
+          // Return an integer: Prisma cannot deserialize PostgreSQL's void lock result.
+          await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${user.id}), hashtext(${op.opId}))) AS locked`;
           const previous = await tx.processedOperation.findUnique({ where: { opId_accountId: { opId: op.opId, accountId: user.id } } });
           if (previous) {
             const receipt = previous.result as any;

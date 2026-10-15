@@ -18,6 +18,7 @@ function makeService(initial: any[] = []) {
   let notificationCalls = 0;
   let activityCalls = 0;
   const attendance = {
+    count: async () => 1,
     findMany: async ({ where }: any) => rows.filter((row) =>
       (!where?.circleId || row.circleId === where.circleId) &&
       (!where?.date || row.date.getTime?.() === where.date.getTime?.() || String(row.date).slice(0, 10) === date),
@@ -43,6 +44,7 @@ function makeService(initial: any[] = []) {
     $transaction: async (callback: any) => callback({
       $queryRaw: async () => [],
       attendance,
+      student: { findUnique: async () => ({ id: 'student-1', fullName: 'Student' }) },
     }),
   };
   const acl = { assertCircleWriteAccess: async () => undefined };

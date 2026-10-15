@@ -44,6 +44,7 @@ test('change announcements use the durable cursor and do not repeat without new 
   assert.notEqual(calls[0].payload.revision, calls[1].payload.revision);
   assert.equal(calls[1].payload.revision, '11');
   assert.ok(calls[0].rooms.includes('role:TEACHER'));
+  assert.ok(calls[0].rooms.includes('role:PARENT'));
 });
 
 test('snapshot patches send changed rows and removal/order IDs without unchanged record contents', () => {

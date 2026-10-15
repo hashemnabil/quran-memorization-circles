@@ -1,6 +1,6 @@
 import { assertSafeFileUrl } from '../common/validators/safe-url';
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { CertificateKind, NotificationType, Role, StudentFileRequestKind, StudentFileRequestStatus } from '@prisma/client';
+import { CertificateKind, NotificationType, Prisma, Role, StudentFileRequestKind, StudentFileRequestStatus } from '@prisma/client';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { recordNotificationChange } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,6 +17,26 @@ const STUDENT_REQUESTABLE_CERTIFICATES: CertificateKind[] = [
 export class CertificatesService {
   private readonly logger = new Logger(CertificatesService.name);
   constructor(private readonly prisma: PrismaService, private readonly realtime: RealtimeGateway) {}
+
+  private async withStudentNotice<T>(studentId: string, title: string, write: (tx: Prisma.TransactionClient) => Promise<T>, body?: string) {
+    const saved = await this.prisma.$transaction(async tx => {
+      const result = await write(tx);
+      const student = await tx.student.findUnique({ where: { id: studentId }, select: { userId: true, parentProfile: { select: { userId: true } } } });
+      const notices = [];
+      for (const userId of new Set([student?.userId, student?.parentProfile?.userId].filter((id): id is string => !!id))) {
+        const notice = await tx.notification.create({ data: { userId, type: 'SYSTEM', title, body,
+          link: userId === student?.userId ? '/my-files' : `/parent/children/${studentId}`, data: { studentId } } });
+        await recordNotificationChange(tx, notice); notices.push(notice);
+      }
+      return { result, notices };
+    });
+    for (const notification of saved.notices) {
+      try { const unreadCount = await this.prisma.notification.count({ where: { userId: notification.userId, isRead: false } });
+        this.realtime.emitToUser(notification.userId, 'notification:new', { notification, unreadCount });
+      } catch { this.logger.warn('Student notification saved; live delivery unavailable'); }
+    }
+    return saved.result;
+  }
 
   private async studentFor(user: AuthUser) {
     if (user.role !== Role.STUDENT) throw new ForbiddenException('هذه الخدمة متاحة لحساب الطالب فقط');
@@ -88,6 +108,9 @@ export class CertificatesService {
       body: `قدّم الطالب ${user.fullName} طلبًا جديدًا`, link: '/certificates-admin',
       data: { requestId: request.id, studentId: student.id },
     } }));
+    notifications.push(await tx.notification.create({ data: { userId: user.id, type: NotificationType.SYSTEM,
+      title: 'تم تقديم طلبك', body: 'طلبك بانتظار مراجعة الإدارة', link: '/my-files',
+      data: { requestId: request.id, studentId: student.id } } }));
     for (const notification of notifications) await recordNotificationChange(tx, notification);
     return { request, notifications };
     });
@@ -192,7 +215,10 @@ export class CertificatesService {
     if (body.status === StudentFileRequestStatus.READY && !body.fileUrl?.trim()) {
       throw new BadRequestException('يجب توفير رابط الملف قبل نشره للطالب');
     }
-    return this.prisma.studentFileRequest.update({
+    const labels = { APPROVED: 'تمت الموافقة على طلبك', REJECTED: 'تم رفض طلبك', READY: 'ملفك جاهز للتحميل' };
+    if (request.status === body.status && request.decisionNote === (body.decisionNote?.trim() || null) &&
+        (body.status !== StudentFileRequestStatus.READY || request.fileUrl === body.fileUrl?.trim())) return request;
+    return this.withStudentNotice(request.studentId, labels[body.status], tx => tx.studentFileRequest.update({
       where: { id },
       data: {
         status: body.status!,
@@ -201,7 +227,7 @@ export class CertificatesService {
         reviewedById: user.id,
         reviewedAt: new Date(),
       },
-    });
+    }), body.decisionNote);
   }
 
   async publishMonthlyReport(user: AuthUser, body: { studentId?: string; from?: string; to?: string; fileUrl?: string; reportDraft?: unknown }) {
@@ -216,7 +242,7 @@ export class CertificatesService {
     assertSafeFileUrl(body.fileUrl);
     const student = await this.prisma.student.findFirst({ where: { id: body.studentId, deletedAt: null }, select: { id: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
-    return this.prisma.studentFileRequest.create({
+    return this.withStudentNotice(student.id, 'التقرير الشهري جاهز', tx => tx.studentFileRequest.create({
       data: {
         studentId: student.id,
         kind: StudentFileRequestKind.MONTHLY_REPORT,
@@ -229,7 +255,7 @@ export class CertificatesService {
         reviewedAt: new Date(),
         decisionNote: 'تم إنشاء التقرير الشهري ونشره تلقائيًا من بيانات النظام.',
       },
-    });
+    }));
   }
 
   async issueRecord(user: AuthUser, body: { studentId?: string; templateId?: string; kind?: CertificateKind; title?: string; details?: unknown; fileUrl?: string }) {
@@ -243,7 +269,7 @@ export class CertificatesService {
       const template = await this.prisma.certificateTemplate.findUnique({ where: { id: body.templateId } });
       if (!template || !template.isActive) throw new BadRequestException('القالب غير موجود أو متوقف');
     }
-    return this.prisma.certificateRecord.create({
+    return this.withStudentNotice(student.id, 'صدرت لك شهادة جديدة', tx => tx.certificateRecord.create({
       data: {
         studentId: student.id,
         templateId: body.templateId || null,
@@ -253,6 +279,6 @@ export class CertificatesService {
         fileUrl: body.fileUrl.trim(),
         issuedById: user.id,
       },
-    });
+    }), body.title);
   }
 }

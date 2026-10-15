@@ -18,6 +18,7 @@ test('sync push commits domain writes and durable outcomes atomically', { timeou
   const actorId = randomUUID();
   const parentId = randomUUID();
   const teacherId = randomUUID();
+  const adminId = randomUUID();
   const date = '2026-01-01';
   const actor = { id: actorId, role: Role.TEACHER, teacherId } as any;
   const svc = new OfflineSyncService(db as any, new AccessControlService(db as any));
@@ -29,6 +30,7 @@ test('sync push commits domain writes and durable outcomes atomically', { timeou
     await db.user.createMany({ data: [
       { id: actorId, username: `sync-staff-${suffix}`, fullName: 'Test teacher', passwordHash: 'test-only', role: Role.TEACHER },
       { id: parentId, username: `sync-parent-${suffix}`, fullName: 'Test parent', passwordHash: 'test-only', role: Role.PARENT },
+      { id: adminId, username: `absence-admin-${suffix}`, fullName: 'Test admin', passwordHash: 'test-only', role: Role.ADMIN },
     ] });
     await db.teacherProfile.create({ data: { id: teacherId, userId: actorId } });
     const parent = await db.parentProfile.create({ data: { userId: parentId } });
@@ -107,6 +109,20 @@ test('sync push commits domain writes and durable outcomes atomically', { timeou
       assert.equal(recovered.results[0].status, 'applied');
       assert.equal(await db.notification.count({ where: { userId: parentId } }), 2);
     });
+    await t.test('weekly and monthly escalation survives offline replay, and dismissal remains a human decision', async () => {
+      for (const date of ['2026-02-07', '2026-02-08', '2026-02-09', '2026-02-16', '2026-02-23']) {
+        const op = operation(`absence-${date}-${suffix}`); op.data.date = date;
+        assert.equal((await push(op)).results[0].status, 'applied');
+        assert.equal((await push(op)).results[0].replayed, true);
+      }
+      const reviews = await db.notification.findMany({ where: { userId: adminId, data: { path: ['requiresDecision'], equals: true } } });
+      assert.equal(reviews.length, 2);
+      assert(reviews.some(n => (n.data as any).alertKey.includes('week:')));
+      assert(reviews.some(n => (n.data as any).alertKey.includes('month:')));
+      const warnings = await db.notification.findMany({ where: { userId: parentId } });
+      assert.equal(warnings.filter(n => (n.data as any)?.alertKey?.endsWith(':warning')).length, 2);
+      assert.equal((await db.student.findUniqueOrThrow({ where: { id: studentId } })).status, 'ACTIVE');
+    });
     await t.test('revoked teacher assignments prevent new offline writes', async () => {
       await db.circleTeacher.updateMany({ where: { teacherId }, data: { endedAt: new Date() } });
       assert.equal((await push(operation(`revoked-${suffix}`))).results[0].code, 'FORBIDDEN');
@@ -115,7 +131,7 @@ test('sync push commits domain writes and durable outcomes atomically', { timeou
     await db.processedOperation.deleteMany({ where: { accountId: { in: [actorId, parentId] } } });
     await db.circle.deleteMany({ where: { id: { in: [circleId, otherCircleId] } } });
     await db.student.deleteMany({ where: { id: studentId } });
-    await db.user.deleteMany({ where: { id: { in: [actorId, parentId] } } });
+    await db.user.deleteMany({ where: { id: { in: [actorId, parentId, adminId] } } });
     await db.syncChange.deleteMany({ where: { entityId: { in: [circleId, otherCircleId, studentId] } } });
     await db.$disconnect();
   }

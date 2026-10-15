@@ -63,6 +63,8 @@ export class SupportService {
       entityId: ticket.id,
     });
 
+    await this.notifications.notify({ userId: actor.id, type: NotificationType.SUPPORT_TICKET,
+      title: `تم تقديم طلبك #${ticket.number}`, body: 'طلبك بانتظار المراجعة', link: `/support/${ticket.id}` });
     return ticket;
   }
 
@@ -234,6 +236,10 @@ export class SupportService {
       },
     });
 
+    if (staff && ticket.status === TicketStatus.OPEN && ticket.createdById) {
+      await this.notifications.notify({ userId: ticket.createdById, type: NotificationType.SUPPORT_TICKET,
+        title: `طلبك #${ticket.number} قيد المعالجة`, body: 'بدأ فريق الدعم معالجة الطلب', link: `/support/${id}` });
+    }
     if (!message.isInternal) {
       const recipient = staff ? ticket.createdById : ticket.assignedToId;
       if (recipient && recipient !== actor.id) {

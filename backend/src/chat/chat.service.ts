@@ -292,7 +292,7 @@ export class ChatService {
 
     this.realtime.emitToConversation(id, 'chat:message', message);
 
-    // Members who are offline get a persistent notification instead.
+    // Persist a notification for every other member, including connected accounts.
     const others = await this.prisma.conversationMember.findMany({
       where: { conversationId: id, leftAt: null, userId: { not: user.id } },
       select: { userId: true },
@@ -304,8 +304,8 @@ export class ChatService {
     });
 
     for (const member of others) {
-      this.realtime.emitToUser(member.userId, 'chat:inbox', { conversationId: id, message });
-      if (!this.realtime.isOnline(member.userId)) {
+      // Connected accounts may be on another page or device: persist for everyone.
+      {
         await this.notifications.notify({
           userId: member.userId,
           type: NotificationType.CHAT_MESSAGE,
@@ -315,8 +315,10 @@ export class ChatService {
               : `رسالة من ${user.fullName}`,
           body: dto.body.slice(0, 120),
           link: `/chat/${id}`,
+          data: { conversationId: id, messageId: message.id },
         });
       }
+      this.realtime.emitToUser(member.userId, 'chat:inbox', { conversationId: id, message });
     }
 
     return message;
@@ -324,11 +326,17 @@ export class ChatService {
 
   async markRead(user: AuthUser, id: string) {
     const membership = await this.assertMember(user, id);
-    await this.prisma.conversationMember.update({
+    const readAt = new Date();
+    await this.prisma.$transaction(async tx => {
+    await tx.conversationMember.update({
       where: { id: membership.id },
-      data: { lastReadAt: new Date() },
+      data: { lastReadAt: readAt },
+    });
+    await tx.notification.updateMany({ where: { userId: user.id, type: 'CHAT_MESSAGE', isRead: false,
+      createdAt: { lte: readAt }, data: { path: ['conversationId'], equals: id } }, data: { isRead: true, readAt } });
     });
     this.realtime.emitToConversation(id, 'chat:read', { conversationId: id, userId: user.id });
+    this.realtime.emitToUser(user.id, 'chat:read', { conversationId: id, userId: user.id });
     return { message: 'تم تعليم الرسائل كمقروءة' };
   }
 

@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api, apiError } from '@/lib/api';
@@ -10,6 +10,8 @@ import { formatDateShort, formatParts } from '@/lib/format';
 import StudentQuestionnaire from '@/components/StudentQuestionnaire';
 
 export default function StudentPortalPage() {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState('');
@@ -77,7 +79,10 @@ export default function StudentPortalPage() {
             .sort((a: any, b: any) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt)).map((exam: any) =>
               <article key={exam.id} className="rounded-xl border border-primary-100 bg-primary-50/50 p-4">
                 <strong>{exam.sections?.map((entry: any) => entry.section?.name).filter(Boolean).join('، ') || exam.section?.name || 'اختبار قادم'}</strong>
-                <p className="mt-2 text-sm">{new Date(exam.scheduledAt).toLocaleString('ar', { dateStyle: 'full', timeStyle: 'short' })}</p>
+                <p className="mt-2 text-sm">{new Date(exam.scheduledAt).toLocaleString('ar', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Asia/Riyadh' })} (توقيت الرياض)</p>
+                <p className="mt-2 font-semibold text-primary-700">{Date.parse(exam.scheduledAt) > now
+                  ? `متبقي على الاختبار ${Math.floor((Date.parse(exam.scheduledAt) - now) / 86400000)} يوم و${Math.floor((Date.parse(exam.scheduledAt) - now) / 3600000) % 24} ساعة و${Math.floor((Date.parse(exam.scheduledAt) - now) / 60000) % 60} دقيقة`
+                  : 'حان موعد الاختبار؛ راجع المحفظ لتأكيد الموعد والنتيجة'}</p>
                 {exam.location && <p className="mt-1 text-sm">المكان: {exam.location}</p>}
                 {Date.parse(exam.scheduledAt) > Date.now() && Date.parse(exam.scheduledAt) - Date.now() <= 86400000 &&
                   <p className="mt-2 font-semibold text-primary-700">تذكير: اختبارك خلال الـ24 ساعة القادمة</p>}

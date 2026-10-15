@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { NotificationType, Prisma, Role } from '@prisma/client';
+import { Notification, NotificationType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AuthUser } from '../common/decorators';
@@ -28,6 +28,13 @@ export class NotificationsService {
     private readonly realtime: RealtimeGateway,
   ) {}
 
+  async deliver(notification: Notification) {
+    try {
+      const unreadCount = await this.prisma.notification.count({ where: { userId: notification.userId, isRead: false } });
+      this.realtime.emitToUser(notification.userId, 'notification:new', { notification, unreadCount });
+    } catch { this.logger.warn('Notification saved; live delivery unavailable'); }
+  }
+
   /** Persists a notification and pushes it over the socket if the user is connected. */
   async notify(input: CreateNotificationInput) {
     const notification = await this.prisma.$transaction(async tx => {
@@ -44,17 +51,15 @@ export class NotificationsService {
     await recordNotificationChange(tx, row);
     return row;
     });
-    const unreadCount = await this.prisma.notification.count({
-      where: { userId: input.userId, isRead: false },
-    });
-    this.realtime.emitToUser(input.userId, 'notification:new', { notification, unreadCount });
+    await this.deliver(notification);
     return notification;
   }
 
   async notifyMany(userIds: string[], input: Omit<CreateNotificationInput, 'userId'>) {
     const unique = [...new Set(userIds.filter(Boolean))];
     if (unique.length === 0) return [];
-    await this.prisma.$transaction(async tx => {
+    const notifications = await this.prisma.$transaction(async tx => {
+      const saved = [];
       for (const userId of unique) {
       const row = await tx.notification.create({ data: {
         userId,
@@ -65,15 +70,11 @@ export class NotificationsService {
         data: input.data as any,
       } });
       await recordNotificationChange(tx, row);
+      saved.push(row);
       }
+      return saved;
     });
-    for (const userId of unique) {
-      const unreadCount = await this.prisma.notification.count({ where: { userId, isRead: false } });
-      this.realtime.emitToUser(userId, 'notification:new', {
-        notification: { type: input.type, title: input.title, body: input.body, link: input.link },
-        unreadCount,
-      });
-    }
+    for (const notification of notifications) await this.deliver(notification);
     return unique;
   }
 
@@ -84,6 +85,16 @@ export class NotificationsService {
       select: { id: true },
     });
     return this.notifyMany(users.map((u) => u.id), input);
+  }
+
+  /** Student and guardian get their own permitted destination, never staff-only links. */
+  async notifyStudent(studentId: string, input: Omit<CreateNotificationInput, 'userId' | 'link'>) {
+    const student = await this.prisma.student.findUnique({ where: { id: studentId },
+      select: { userId: true, parentProfile: { select: { userId: true } } } });
+    const recipients = new Map<string, string>();
+    if (student?.parentProfile?.userId) recipients.set(student.parentProfile.userId, `/parent/children/${studentId}`);
+    if (student?.userId) recipients.set(student.userId, '/student');
+    for (const [userId, link] of recipients) await this.notify({ ...input, userId, link });
   }
 
   async list(user: AuthUser, query: PaginationDto & { unreadOnly?: boolean }) {

@@ -210,10 +210,9 @@ export class AccessControlService {
    * A Prisma `where` fragment listing everyone this user may open a conversation
    * with. `null` means "nobody".
    *
-   * The rule throughout is that a conversation needs an existing relationship
-   * inside the school: staff are colleagues, and a parent is connected only to
-   * the people actually responsible for their own children. In particular no
-   * role can reach *every* parent, and parents cannot reach each other at all.
+   * Student contacts follow their current circle. Teaching staff can contact
+   * administrators, teachers and the students in their own circles. The same
+   * filter is used for the directory, new conversations and message delivery.
    */
   async contactableUserFilter(user: AuthUser): Promise<Prisma.UserWhereInput | null> {
     switch (user.role) {
@@ -222,25 +221,32 @@ export class AccessControlService {
       case Role.SUPPORT:
         return {};
 
-      // Colleagues, plus the guardians of the children they are responsible for.
+      // Teachers and supervisors contact teaching colleagues and their own students.
       case Role.TEACHER:
       case Role.SUPERVISOR: {
         const circleIds = await this.ownCircleIds(user);
-        const parentIds = circleIds.length
-          ? (
-              await this.prisma.student.findMany({
-                where: { circleId: { in: circleIds }, deletedAt: null, parentId: { not: null } },
-                select: { parentId: true },
-                distinct: ['parentId'],
-              })
-            ).map((s) => s.parentId!)
-          : [];
         return {
           OR: [
-            { role: { in: AccessControlService.STAFF } },
-            ...(parentIds.length ? [{ parent: { id: { in: parentIds } } }] : []),
+            { role: { in: [Role.ADMIN, Role.TEACHER] } },
+            { role: Role.STUDENT, studentProfile: { is: { circleId: { in: circleIds }, deletedAt: null } } },
           ],
         };
+      }
+
+      case Role.STUDENT: {
+        const student = await this.prisma.student.findFirst({
+          where: { userId: user.id, deletedAt: null, circle: { deletedAt: null } },
+          select: { circleId: true },
+        });
+        const circleIds = student?.circleId ? [student.circleId] : [];
+        const [teacherIds, supervisorIds] = await Promise.all([
+          this.teacherUserIdsOfCircles(circleIds), this.supervisorUserIdsOfCircles(circleIds),
+        ]);
+        return { OR: [
+          { role: Role.ADMIN },
+          { role: Role.TEACHER, id: { in: teacherIds } },
+          { role: Role.SUPERVISOR, id: { in: supervisorIds } },
+        ] };
       }
 
       // Grades exams; talks to colleagues, never to families directly.

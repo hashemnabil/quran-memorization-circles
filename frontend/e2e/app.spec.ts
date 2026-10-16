@@ -46,6 +46,24 @@ for (const [role, paths] of Object.entries(destinations)) {
     expect(errors).toEqual([]);
   });
 }
+test('student contact picker offers assigned teachers, supervisor and administrators online and offline', async ({ page, context }) => {
+  await login(page, 'STUDENT'); await page.goto('/chat');
+  await page.getByRole('button', { name: 'محادثة جديدة', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  for (const role of ['ADMIN', 'TEACHER', 'SUPERVISOR']) await expect(dialog.getByRole('button', { name: new RegExp(`Browser ${role}`) })).toBeVisible();
+  for (const role of ['STUDENT', 'SUPPORT', 'EXAM_COMMITTEE']) await expect(dialog.getByRole('button', { name: new RegExp(`Browser ${role}`) })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(account => new Promise(resolve => {
+    const open = indexedDB.open('halaqatFull'); open.onsuccess = () => {
+      const database = open.result; const read = database.transaction('meta').objectStore('meta').get(`${account}:chatContactPolicyV1`);
+      read.onsuccess = () => { resolve(Boolean(read.result)); database.close(); };
+    };
+  }), fixtures.accounts.STUDENT.id)).toBe(true);
+  await context.setOffline(true);
+  await dialog.getByPlaceholder('ابحث عن مستخدم...').fill('Browser TEACHER');
+  await expect(dialog.getByRole('button', { name: /Browser TEACHER/ })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /Browser ADMIN/ })).toHaveCount(0);
+});
+
 test('parent portal remains disabled and teaching accounts cannot visit user administration', async ({ page }) => {
   await login(page, 'PARENT');
   await expect(page.getByText('تم إيقاف بوابة ولي الأمر؛ يرجى استخدام حساب الطالب')).toBeVisible();

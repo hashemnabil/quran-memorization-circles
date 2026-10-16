@@ -537,6 +537,7 @@ export interface ChatMember {
 }
 
 export interface Conversation {
+  contactRestricted?: boolean;
   id: string;
   type: 'DIRECT' | 'GROUP';
   title: string;

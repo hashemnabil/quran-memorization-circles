@@ -360,6 +360,13 @@ async function refreshOnce(options: { forceDownload?: boolean; checkDelta?: bool
     window.dispatchEvent(new Event('halaqat:changed'));
   }
   const downloadedAt = (await db.meta.get(`${account}:downloadedAt`))?.value;
+  // Upgrade only contact snapshots once; never restart the full application download.
+  if (downloadedAt && preloadSections && !(await db.meta.get(`${account}:chatContactPolicyV1`))?.value) {
+    await preloadSections(account, ['chat_contact_policy']);
+    if (currentAccount() !== account) return;
+    await db.meta.put({ key: `${account}:chatContactPolicyV1`, value: true });
+    window.dispatchEvent(new Event('halaqat:changed'));
+  }
   const remote = (await db.meta.get(`${account}:remoteRevision`))?.value;
   const downloadedRevision = (await db.meta.get(`${account}:downloadedRevision`))?.value;
   // No time-based downloads. Server change events also cover missed events on reconnect.

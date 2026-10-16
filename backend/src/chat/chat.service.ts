@@ -56,6 +56,7 @@ export class ChatService {
       orderBy: { conversation: { lastMessageAt: 'desc' } },
     });
 
+    const contactIds = await this.contactIds(user, memberships.flatMap(m => m.conversation.members.map(member => member.user.id)));
     const results = await Promise.all(
       memberships.map(async (m) => {
         const unreadCount = await this.prisma.message.count({
@@ -90,7 +91,9 @@ export class ChatService {
           adminOnly: m.conversation.adminOnly,
           isAdmin: m.isAdmin,
           // Mirrors the checks in `send()` so the UI can disable the composer.
-          canPost: !isGroup || (!m.conversation.isClosed && (!m.conversation.adminOnly || m.isAdmin)),
+          contactRestricted: m.conversation.members.some(member => member.user.id !== user.id && !contactIds.has(member.user.id)),
+          canPost: m.conversation.members.every(member => member.user.id === user.id || contactIds.has(member.user.id)) &&
+            (!isGroup || (!m.conversation.isClosed && (!m.conversation.adminOnly || m.isAdmin))),
         };
       }),
     );
@@ -124,6 +127,14 @@ export class ChatService {
   }
 
   /** Throws on the first member the actor is not permitted to contact. */
+  private async contactIds(user: AuthUser, ids: string[]) {
+    if (!ids.length) return new Set<string>();
+    const filter = await this.acl.contactableUserFilter(user);
+    if (!filter) return new Set<string>();
+    const rows = await this.prisma.user.findMany({ where: { AND: [filter, { id: { in: ids }, isActive: true, deletedAt: null }] }, select: { id: true } });
+    return new Set(rows.map(row => row.id));
+  }
+
   private async assertAllContactable(user: AuthUser, memberIds: string[]) {
     for (const id of memberIds) {
       if (id === user.id) continue;
@@ -216,6 +227,8 @@ export class ChatService {
 
     const isGroup = conversation.type === ConversationType.GROUP;
     const other = !isGroup ? conversation.members.find((m) => m.user.id !== user.id) : null;
+    const contactIds = await this.contactIds(user, conversation.members.map(member => member.user.id));
+    const contactRestricted = conversation.members.some(member => member.user.id !== user.id && !contactIds.has(member.user.id));
 
     return {
       ...conversation,
@@ -228,7 +241,8 @@ export class ChatService {
       isOnline: other ? this.realtime.isOnline(other.user.id) : false,
       memberCount: conversation.members.length,
       isAdmin: membership.isAdmin,
-      canPost: !isGroup || (!conversation.isClosed && (!conversation.adminOnly || membership.isAdmin)),
+      contactRestricted,
+      canPost: !contactRestricted && (!isGroup || (!conversation.isClosed && (!conversation.adminOnly || membership.isAdmin))),
     };
   }
 
@@ -253,6 +267,10 @@ export class ChatService {
 
   async send(user: AuthUser, id: string, dto: SendMessageDto) {
     const membership = await this.assertMember(user, id);
+    const recipients = await this.prisma.conversationMember.findMany({
+      where: { conversationId: id, leftAt: null, userId: { not: user.id } }, select: { userId: true },
+    });
+    await this.assertAllContactable(user, recipients.map(member => member.userId));
 
     // Group moderation: archived groups accept nothing, announcement-style
     // groups accept messages from their admins only.
@@ -390,6 +408,10 @@ export class ChatService {
   /** Editing is limited to the author; the message is flagged as edited. */
   async editMessage(user: AuthUser, conversationId: string, messageId: string, body: string) {
     await this.assertMember(user, conversationId);
+    const recipients = await this.prisma.conversationMember.findMany({
+      where: { conversationId, leftAt: null, userId: { not: user.id } }, select: { userId: true },
+    });
+    await this.assertAllContactable(user, recipients.map(member => member.userId));
 
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, conversationId, deletedAt: null },

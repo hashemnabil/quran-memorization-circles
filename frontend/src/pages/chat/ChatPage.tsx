@@ -465,7 +465,7 @@ export default function ChatPage() {
               {active && !active.canPost ? (
                 <p className="flex items-center justify-center gap-2 border-t border-slate-100 px-4 py-4 text-center text-xs text-slate-500">
                   <IconLock size={14} />
-                  {active.isClosed
+                  {active.contactRestricted ? 'التواصل مع أعضاء هذه المحادثة غير متاح حسب صلاحياتك الحالية.' : active.isClosed
                     ? 'هذه المجموعة مغلقة، لا يمكن إرسال رسائل جديدة.'
                     : 'الإرسال في هذه المجموعة متاح لمشرفيها فقط.'}
                 </p>

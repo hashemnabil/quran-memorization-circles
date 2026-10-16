@@ -461,7 +461,6 @@ export class ExamsService {
     await this.acl.assertStudentAccess(user, studentId);
 
     // ✅ تشخيص المشكلة - سجل البيانات
-    this.logger.log(`🔍 جاري التحقق من أهلية الطالب: ${studentId}`);
 
     const [sections, passed, openWork] = await Promise.all([
       this.prisma.examSection.findMany({
@@ -525,9 +524,6 @@ export class ExamsService {
     ]);
 
     // ✅ تشخيص المشكلة - سجل النتائج
-    this.logger.log(`📊 عدد المقررات الكلي: ${sections.length}`);
-    this.logger.log(`📊 عدد الاختبارات المجتازة: ${passed.length}`);
-    this.logger.log(`📊 عدد الطلبات المفتوحة: ${openWork.length}`);
 
     // ✅ تأكد من أن passedIds تحتوي على المعرفات الصحيحة فقط
     const manualRecords = await this.prisma.examMilestoneRecord.findMany({
@@ -571,12 +567,10 @@ export class ExamsService {
     manualOpenIds.forEach((id) => openIds.add(id));
 
     // ✅ تشخيص المشكلة - سجل المعرفات
-    this.logger.log(`🧪 المعرفات المجتازة: ${Array.from(passedIds).join(', ') || 'لا يوجد'}`);
-    this.logger.log(`🧪 المعرفات المفتوحة: ${Array.from(openIds).join(', ') || 'لا يوجد'}`);
 
     // ✅ إذا كان هناك مقررات مجتازة ولكن الطالب لم يقدم أي اختبار، هذا يعني وجود خطأ
     if (passedIds.size > 0 && passed.length === 0) {
-      this.logger.warn(`⚠️ تحذير: يوجد ${passedIds.size} مقرر مجتاز ولكن لا يوجد اختبارات للطالب ${studentId}`);
+      this.logger.warn('Exam progression data needs administrative review');
     }
 
     const progression = sections.map((section) => {
@@ -632,7 +626,6 @@ export class ExamsService {
       }));
 
     // ✅ تشخيص المشكلة - سجل المقررات القابلة للاختيار
-    this.logger.log(`✅ المقررات المتاحة للاختيار: ${selectableSections.length}`);
 
     return {
       passedCount: passedIds.size,
@@ -829,10 +822,7 @@ export class ExamsService {
         this.assertEligible(studentId, section.id, index === 0),
       ));
     } catch (error) {
-      this.logger.error(
-        `خطأ في التحقق من أهلية الطالب ${studentId}: ${error.message}`,
-        error.stack,
-      );
+      this.logger.error('Exam eligibility validation failed');
       throw error;
     }
   }

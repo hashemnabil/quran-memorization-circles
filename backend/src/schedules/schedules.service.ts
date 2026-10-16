@@ -40,9 +40,9 @@ export class SchedulesService implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
   constructor(private readonly prisma: PrismaService, private readonly notifications: NotificationsService) {}
   onModuleInit() {
-    this.timer = setInterval(() => { void this.sendDueReminders().catch(err => console.error('Duty reminder check failed', err)); }, 60_000);
+    this.timer = setInterval(() => { void this.sendDueReminders().catch(() => console.error('Duty reminder check failed')); }, 60_000);
     this.timer.unref?.();
-    void this.sendDueReminders().catch(err => console.error('Duty reminder startup check failed', err));
+    void this.sendDueReminders().catch(() => console.error('Duty reminder startup check failed'));
   }
   onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
 

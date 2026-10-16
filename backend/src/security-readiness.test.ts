@@ -12,6 +12,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { FullSyncService } from './offline-sync/sync-all.service';
 import { RealtimeGateway } from './realtime/realtime.gateway';
 import { CoursesService } from './courses/courses.service';
+import { ActivityService } from './common/services/activity.service';
 
 test('new password policy accepts passphrases and rejects short, common and bcrypt-truncated inputs', () => {
   for (const value of ['4827', 'password1234', '123456789012', 'a'.repeat(20), 'ب'.repeat(40)]) assert.equal(validNewPassword(value), false);
@@ -49,12 +50,16 @@ test('committee student scope is limited to exam-related students and read-only 
   assert.deepEqual(committee, { OR: [{ examRequests: { some: {} } }, { exams: { some: {} } }] });
   assert.deepEqual(await acl.studentScope({ role: Role.SUPPORT } as any), { id: '__none__' });
 });
-test('database exceptions expose neither SQL parameters to HTTP nor raw stack values in server logs', () => {
+test('database exceptions expose neither SQL parameters to HTTP nor raw stack values in server logs', async () => {
   const logs: any[] = []; const filter = new AllExceptionsFilter(); (filter as any).logger = { error: (...args: any[]) => logs.push(args) };
   let result: any;
   const response: any = { status: () => response, json: (value: any) => { result = value; } };
   filter.catch(new Prisma.PrismaClientKnownRequestError('sensitive SQL parameter', { code: 'P2021', clientVersion: 'test' }), { switchToHttp: () => ({ getRequest: () => ({ method: 'POST', url: '/api/test' }), getResponse: () => response }) } as any);
   assert.equal(result.statusCode, 500); assert(!JSON.stringify({ result, logs }).includes('sensitive SQL parameter'));
+  const audit = new ActivityService({ activityLog: { create: async () => { throw new Error('sensitive SQL parameter'); } } } as any);
+  (audit as any).logger = { warn: (...args: any[]) => logs.push(args) };
+  await audit.log({ action: 'TEST', summary: 'Private test event' });
+  assert(!JSON.stringify(logs).includes('sensitive SQL parameter'));
 });
 test('unknown sync/database failures are not serialized as successful business rejections', async () => {
   const service = new FullSyncService({ $transaction: async () => { throw new Error('raw database details'); } } as any, { get: () => 'test-only-key' } as any);

@@ -17,11 +17,14 @@ const alias = 'halaqat-release';
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 3072 });
 const pem = path.join(folder, 'temporary-encrypted-key.pem');
 const certificate = path.join(folder, 'temporary-certificate.pem');
-const env = { ...process.env, HALAQAT_SIGNING_PASSWORD: password };
+// OpenSSL receives an environment-variable reference, never a literal credential.
+const secretEnvName = 'HALAQAT_KEY_PASSPHRASE';
+const passphraseSource = `env:${secretEnvName}`;
+const env = { ...process.env, [secretEnvName]: password };
 try {
   writeFileSync(pem, privateKey.export({ type: 'pkcs8', format: 'pem', cipher: 'aes-256-cbc', passphrase: password }), { mode: 0o600, flag: 'wx' });
-  execFileSync(openssl, ['req', '-new', '-x509', '-sha256', '-key', pem, '-passin', 'env:HALAQAT_SIGNING_PASSWORD', '-out', certificate, '-days', '10000', '-subj', '/CN=Halaqat Release/O=Quran Circles'], { env, stdio: 'ignore' });
-  execFileSync(openssl, ['pkcs12', '-export', '-inkey', pem, '-passin', 'env:HALAQAT_SIGNING_PASSWORD', '-in', certificate, '-out', keystore, '-name', alias, '-passout', 'env:HALAQAT_SIGNING_PASSWORD'], { env, stdio: 'ignore' });
+  execFileSync(openssl, ['req', '-new', '-x509', '-sha256', '-key', pem, '-passin', passphraseSource, '-out', certificate, '-days', '10000', '-subj', '/CN=Halaqat Release/O=Quran Circles'], { env, stdio: 'ignore' });
+  execFileSync(openssl, ['pkcs12', '-export', '-inkey', pem, '-passin', passphraseSource, '-in', certificate, '-out', keystore, '-name', alias, '-passout', passphraseSource], { env, stdio: 'ignore' });
   writeFileSync(credentials, JSON.stringify({ keystore: 'halaqat-release.p12', alias, storePassword: password, keyPassword: password }, null, 2), { mode: 0o600, flag: 'wx' });
   console.log('Release identity created in .release-signing. Back up both files securely. No private values were printed.');
 } finally {

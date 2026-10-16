@@ -289,19 +289,19 @@ test('unexpected screen errors offer recovery without clearing the saved account
 });
 
 test('native launch shows only a logo and introduces the app once', async ({ page }) => {
-  await page.clock.install();
-  await page.clock.pauseAt(new Date());
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.addInitScript(() => { (window as any).androidBridge = {}; });
+  await page.addInitScript(() => {
+    (window as any).androidBridge = {};
+    new MutationObserver(() => {
+      const splash = document.querySelector('[role="status"][aria-label] .launch-logo')?.parentElement;
+      if (splash) (window as any).__nativeSplashText = splash.textContent?.trim();
+    }).observe(document, { childList: true, subtree: true });
+  });
   await page.route('**/api/**', route => route.fulfill({ json: { name: 'حلقات التحفيظ' } }));
   await page.goto('/login');
   const splash = page.getByRole('status', { name: 'بدء التطبيق', exact: true });
-  // Pause the brief splash timer so the screenshot/assertions do not race it.
-  await expect(splash).toBeVisible();
-  await expect(splash).toHaveText('');
-  await splash.screenshot({ path: 'test-results/native-logo.png', animations: 'disabled' });
-  await page.clock.runFor(1800);
   await expect(page.getByRole('heading', { name: 'كل آية، خطوة إلى الأمام' })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__nativeSplashText)).toBe('');
   await page.evaluate(() => Promise.all(Array.from(document.images).map(image => image.decode().catch(() => undefined))));
   await page.screenshot({ path: 'test-results/native-intro.png', animations: 'disabled' });
   await page.getByRole('button', { name: 'متابعة', exact: true }).click();

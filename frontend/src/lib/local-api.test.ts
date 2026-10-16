@@ -25,7 +25,7 @@ test('account cleanup refuses both pending journals and removes only the selecte
   await assert.rejects(clearAccountData('account'));
   assert.equal(await db.students.count(), 2); assert.equal(await db.queue.count(), 1);
   await db.queue.clear();
-  await enqueueOfflineOperation({ accountId: 'account', resource: 'attendance', method: 'POST', path: '/attendance', payload: {} });
+  await enqueueOfflineOperation({ accountId: 'account', resource: 'attendance-sheet', method: 'POST', path: '/attendance', payload: { circleId: '11111111-1111-4111-8111-111111111111', date: '2026-01-01', entries: [{ studentId: student, status: 'PRESENT' }] } });
   await assert.rejects(clearAccountData('account'));
   assert.equal(await db.students.count(), 2);
   await clearOfflineOperations('account');

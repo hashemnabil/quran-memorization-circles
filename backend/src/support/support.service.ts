@@ -366,6 +366,7 @@ export class SupportService {
       deletedAt: null,
       ...(this.isStaff(user) ? {} : { createdById: user.id }),
     };
+    if (user.role !== Role.ADMIN) base.AND = [{ OR: [{ category: null }, { category: { notIn: ['PASSWORD_RESET', 'ACCOUNT_DELETION'] } }, { category: 'ACCOUNT_DELETION', createdById: user.id }] }];
 
     const grouped = await this.prisma.supportTicket.groupBy({
       by: ['status'],
@@ -381,7 +382,7 @@ export class SupportService {
       total: Object.values(counts).reduce((a, b) => a + b, 0),
       assignedToMe: this.isStaff(user)
         ? await this.prisma.supportTicket.count({
-            where: { deletedAt: null, assignedToId: user.id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+            where: { ...base, assignedToId: user.id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
           })
         : 0,
     };

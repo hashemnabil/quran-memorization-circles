@@ -104,8 +104,10 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       const invitation = await request('POST', `/registry/admin/users/${registryRecordId}/invitation`, Role.ADMIN, {});
       assert.equal((await request('POST', '/registry/access', undefined, { nationalId: record.nationalId, invitation: invitation.invitation })).user.id, registryRecordId);
       await request('POST', '/support/account-deletion', Role.STUDENT, { currentPassword: 'incorrect' }, 400);
+      const supportBefore = await request('GET', '/support/stats', Role.SUPPORT);
       const deletion = await request('POST', '/support/account-deletion', Role.STUDENT, { currentPassword: password, userId: ids.TEACHER, reason: 'Test request only' });
       assert.equal(deletion.createdById, ids.STUDENT); assert.equal(deletion.category, 'ACCOUNT_DELETION');
+      assert.deepEqual(await request('GET', '/support/stats', Role.SUPPORT), supportBefore);
       await request('GET', `/support/${deletion.id}`, Role.TEACHER, undefined, 403);
       await request('GET', `/support/${deletion.id}`, Role.STUDENT);
       assert(await db.user.findUnique({ where: { id: ids.STUDENT } }));

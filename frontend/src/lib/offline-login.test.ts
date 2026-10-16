@@ -25,4 +25,8 @@ test('offline unlock survives a local lock, restores identity only and full logo
   forgetAccountOfflineLogin(user.id, 'renamed');
   await assert.rejects(unlockOfflineLogin('teacher', 'correct-password'));
   await assert.rejects(unlockOfflineLogin('renamed', 'correct-password'));
+  const pendingEncryption = rememberOfflineLogin('teacher', 'correct-password', user);
+  forgetAccountOfflineLogin(user.id, 'teacher');
+  await pendingEncryption;
+  await assert.rejects(unlockOfflineLogin('teacher', 'correct-password'));
 });

@@ -50,6 +50,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'شؤون إدارية',
     items: [
+      { to: '/admin/notifications', label: 'إرسال الإشعارات', icon: <IconBell size={19} />, roles: ['ADMIN'] },
+      { to: '/admin/password-requests', label: 'طلبات تغيير كلمة المرور', icon: <IconUser size={19} />, roles: ['ADMIN'] },
       { to: '/profile-reviews/teachers', label: 'تحقق من بيانات المحفظ', icon: <IconUser size={19} />, roles: ['ADMIN'] },
       { to: '/teacher-duties', label: 'جدول نظام المحفّظين', icon: <IconCalendar size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/circles', label: 'الحلقات', icon: <IconCircleGroup size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
@@ -119,6 +121,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'الملف الشخصي',
     items: [
+      { to: '/about', label: 'معلومات عن البرنامج', icon: <IconBook size={19} />, roles: ALL },
       { to: '/verify-profile', label: 'تحقق من بياناتي', icon: <IconUser size={19} />, roles: ['TEACHER', 'STUDENT'] },
       { to: '/profile', label: 'الملف الشخصي', icon: <IconUser size={19} />, roles: ALL },
     ],

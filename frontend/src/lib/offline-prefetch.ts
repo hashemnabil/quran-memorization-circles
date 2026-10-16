@@ -145,7 +145,7 @@ export async function readPrefetched(account: string, path: string, params: Reco
   const filters = Object.entries(params).filter(([, value]) => value !== undefined && value !== '');
   if (!filters.length && !snapshot.paginated) return snapshot.data;
   if (!snapshot.rows) return undefined;
-  const supported = ['page', 'limit', 'pageSize', 'search', 'sortBy', 'sortOrder', 'status', 'role', 'priority', 'studentId', 'circleId', 'userId', 'type', 'isActive', 'mine', 'pending', 'from', 'to', 'fromDate', 'toDate'];
+  const supported = ['page', 'limit', 'pageSize', 'search', 'sortBy', 'sortOrder', 'category', 'status', 'role', 'priority', 'studentId', 'circleId', 'userId', 'type', 'isActive', 'mine', 'pending', 'from', 'to', 'fromDate', 'toDate'];
   if (filters.some(([field]) => !supported.includes(field))) return undefined;
   let rows = snapshot.rows.filter(row => filters.every(([field, value]) => {
     if (['page', 'limit', 'pageSize', 'sortBy', 'sortOrder'].includes(field)) return true;

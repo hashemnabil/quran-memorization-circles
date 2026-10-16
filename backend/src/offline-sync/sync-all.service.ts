@@ -1,4 +1,5 @@
 import { ProfileReviewsService } from '../profile-reviews/profile-reviews.service';
+import { BroadcastDto } from '../notifications/broadcast.dto';
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, Role } from '@prisma/client';
@@ -256,6 +257,10 @@ export class FullSyncService {
       throw new BadRequestException('عملية غير مدعومة');
     }
     if (op.table === 'notifications') {
+      if (op.action === 'broadcast') {
+        const result = await s.notifications.broadcast(user, await this.dto(BroadcastDto, op.data));
+        return { id, ...result, pendingDelete: 1, isRead: true };
+      }
       if (op.action === 'read') return s.notifications.markRead(user, id);
       if (op.action === 'delete') return s.notifications.remove(user, id);
     }

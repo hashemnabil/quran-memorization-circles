@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { BroadcastDto } from './broadcast.dto';
 import { Notification, NotificationType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -33,6 +34,22 @@ export class NotificationsService {
       const unreadCount = await this.prisma.notification.count({ where: { userId: notification.userId, isRead: false } });
       this.realtime.emitToUser(notification.userId, 'notification:new', { notification, unreadCount });
     } catch { this.logger.warn('Notification saved; live delivery unavailable'); }
+  }
+
+  async broadcast(actor: AuthUser, dto: BroadcastDto) {
+    if (actor.role !== Role.ADMIN) throw new ForbiddenException('إرسال الإشعارات متاح للإدارة فقط');
+    if (!dto.title.trim() || !dto.body.trim()) throw new BadRequestException('العنوان ونص الإشعار مطلوبان');
+    if (dto.selection === 'SELECTED' && !dto.userIds.length) throw new BadRequestException('حدد مستلمًا واحدًا على الأقل');
+    if (dto.selection === 'ALL' && dto.userIds.length) throw new BadRequestException('لا ترسل قائمة أشخاص عند اختيار الجميع');
+    const users = await this.prisma.user.findMany({ where: { isActive: true, deletedAt: null,
+      ...(dto.audience === 'ALL' ? {} : { role: dto.audience as Role }),
+      ...(dto.selection === 'SELECTED' ? { id: { in: dto.userIds } } : {}),
+    }, select: { id: true } });
+    if (!users.length || dto.selection === 'SELECTED' && users.length !== dto.userIds.length)
+      throw new BadRequestException('راجع المستلمين؛ بعض الحسابات غير نشطة أو خارج الفئة المحددة');
+    await this.notifyMany(users.map(user => user.id), { type: NotificationType.ANNOUNCEMENT,
+      title: dto.title.trim(), body: dto.body.trim(), data: { sentBy: actor.id, source: 'ADMIN_BROADCAST' } });
+    return { recipientCount: users.length };
   }
 
   /** Persists a notification and pushes it over the socket if the user is connected. */

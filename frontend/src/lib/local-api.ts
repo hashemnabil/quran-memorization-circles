@@ -123,6 +123,11 @@ export function responseKey(account: string, path: string, params: any) {
   return JSON.stringify([account, path, Object.entries(params || {}).sort(([a], [b]) => a.localeCompare(b))]);
 }
 export async function localWrite(method: string, path: string, data: any): Promise<any | undefined> {
+  if (path === '/notifications/broadcast' && method === 'post') {
+    const actor = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+    if (actor?.role !== 'ADMIN') throw Object.assign(new Error('إرسال الإشعارات متاح للإدارة فقط'), { localWriteRejected: true });
+    return save('notifications', { ...data, pendingDelete: 1 }, 'broadcast');
+  }
   const parts = path.split('/').filter(Boolean);
   if (method === 'post' && path === '/profile-reviews' || method === 'patch' && path === '/students/me/questionnaire' || method === 'patch' && parts[0] === 'teachers' && JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.role === 'TEACHER') {
     const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');

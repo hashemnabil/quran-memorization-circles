@@ -34,6 +34,8 @@ export default function OfflineStatus() {
       } catch { /* Keep the status UI usable if local storage is unavailable. */ }
     };
     const sync = () => {
+      // Recovery requests must reach administration even when the requester cannot sign in.
+      if (navigator.onLine) void syncPendingSupport().catch(() => null);
       if (navigator.onLine && accountId) {
         void syncOfflineOperations(accountId, replayOfflineOperation).then(async (report) => {
           if (report.applied > 0) {
@@ -45,8 +47,6 @@ export default function OfflineStatus() {
           }
           await refresh();
         }).catch(() => { void refresh(); });
-        // also try to sync any pending support tickets saved from the login page
-        void syncPendingSupport().catch(() => null).finally(() => void refresh());
       } else {
         void refresh();
       }
@@ -57,6 +57,7 @@ export default function OfflineStatus() {
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     window.addEventListener(OUTBOX_CHANGED, onOutboxChanged);
+    window.addEventListener('qc:pending-support', onOutboxChanged);
     void refresh();
     sync();
     return () => {
@@ -64,6 +65,7 @@ export default function OfflineStatus() {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
       window.removeEventListener(OUTBOX_CHANGED, onOutboxChanged);
+      window.removeEventListener('qc:pending-support', onOutboxChanged);
     };
   }, [accountId, refreshOutbox]);
 

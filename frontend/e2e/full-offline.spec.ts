@@ -27,6 +27,7 @@ for (const width of [1280, 390]) {
       if (url.pathname === '/api/auth/me') return route.fulfill({ json: identity });
       if (url.pathname === '/api/settings/public') return route.fulfill({ json: { name: 'Test' } });
       if (url.pathname === '/api/profile-reviews/me') return route.fulfill({ json: review });
+      if (url.pathname === '/api/notifications') return route.fulfill({ json: { data: [notification], unreadCount: 1, meta: { hasNextPage: false } } });
       if (url.pathname.endsWith('/unread-count')) return route.fulfill({ json: { count: 1 } });
       if (url.pathname.includes('/announcements') || url.pathname === '/api/chat/conversations') return route.fulfill({ json: [] });
       if (url.pathname === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
@@ -87,7 +88,7 @@ test('notification links open their exact exam and request records offline, incl
     if (path === '/exams/stats') return route.fulfill({ json: { pendingRequests: 0, scheduled: 0, completed: 1, passed: 1, failed: 0, passRate: 100 } });
     if (path === '/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
     if (path === '/sync-all/delta') return route.fulfill({ json: { cursor: '0', tables: {}, changedEntities: [], hasMore: false } });
-    const data = path === '/transfers' ? [transfer] : path === '/suspensions' ? [suspension] : [];
+    const data = path === '/notifications' ? notifications : path === '/transfers' ? [transfer] : path === '/suspensions' ? [suspension] : [];
     if (path === '/sync-all') {
       const table = url.searchParams.get('table');
       const rows = table === 'exams' ? [exam] : table === 'examRequests' ? [request] : table === 'notifications' ? notifications : [];
@@ -134,6 +135,9 @@ test('exam committee tabs work without offering forbidden student files or repor
     if (url.pathname.endsWith('/unread-count')) return route.fulfill({ json: { count: 0 } });
     if (url.pathname.includes('/announcements')) return route.fulfill({ json: [] });
     let data: any[] = [];
+    if (url.pathname === '/api/exams/requests') data = [request];
+    if (url.pathname === '/api/exams') data = url.searchParams.get('status') === 'COMPLETED' ? [] : [exam];
+    if (url.pathname === '/api/exams/stats') return route.fulfill({ json: { pendingRequests: 1, scheduled: 1, completed: 0, passed: 0, failed: 0, passRate: 0 } });
     if (url.pathname === '/api/sync-all') {
       const table = url.searchParams.get('table'); data = table === 'exams' ? [exam] : table === 'examRequests' ? [request] : [];
     }
@@ -225,7 +229,10 @@ test('website login opens immediately without native splash or onboarding', asyn
 test('public privacy page and support dialog work with keyboard focus contained and restored', async ({ page }) => {
   await page.route('**/api/**', route => route.fulfill({ json: { name: 'School' } }));
   await page.goto('/login');
-  await page.getByRole('link', { name: 'البيانات والخصوصية', exact: true }).click();
+  await page.getByRole('link', { name: 'معلومات عن البرنامج', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'قسم الإدارة', exact: true })).toBeVisible();
+  await page.screenshot({ path: 'test-results/about-program-desktop.png', fullPage: true, animations: 'disabled' });
+  await page.getByRole('link', { name: 'سياسة الخصوصية', exact: true }).click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page.getByRole('heading', { name: 'البيانات والخصوصية', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'التواصل مع الدعم الفني', exact: true }).click();
@@ -278,10 +285,12 @@ test('native launch shows only a logo and introduces the app once', async ({ pag
   await expect(splash).toBeVisible();
   await expect(splash).toHaveText('');
   await splash.screenshot({ path: 'test-results/native-logo.png', animations: 'disabled' });
-  await expect(page.getByRole('heading', { name: 'حلقتك بين يديك' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'كل آية، خطوة إلى الأمام' })).toBeVisible();
+  await page.evaluate(() => Promise.all(Array.from(document.images).map(image => image.decode().catch(() => undefined))));
   await page.screenshot({ path: 'test-results/native-intro.png', animations: 'disabled' });
   await page.getByRole('button', { name: 'متابعة', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'يومك أكثر تنظيمًا' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'اعرف خطوتك القادمة' })).toBeVisible();
+  await page.screenshot({ path: 'test-results/native-intro-2.png', animations: 'disabled' });
   await page.getByRole('button', { name: 'متابعة', exact: true }).click();
   await page.getByRole('button', { name: 'ابدأ الآن', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'تسجيل الدخول', exact: true })).toBeVisible();
@@ -289,6 +298,88 @@ test('native launch shows only a logo and introduces the app once', async ({ pag
   await expect(splash).not.toBeVisible();
   await expect(page.getByRole('main', { name: 'التعريف بالتطبيق', exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'تسجيل الدخول', exact: true })).toBeVisible();
+});
+
+test('password recovery collects account identity and queues a request offline', async ({ page, context }) => {
+  const requests: any[] = [];
+  await page.route('**/api/**', route => {
+    if (new URL(route.request().url()).pathname === '/api/support/public') { requests.push(route.request().postDataJSON()); return route.fulfill({ json: { number: 30 } }); }
+    return route.fulfill({ json: { name: schoolName } });
+  });
+  await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/login');
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await context.setOffline(true);
+  await page.getByRole('button', { name: 'طلب تغيير كلمة المرور', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'طلب تغيير كلمة المرور', exact: true });
+  await dialog.getByLabel('الاسم الكامل').fill('طالب التجربة');
+  await dialog.getByLabel(/^رقم الطالب/).fill('ST-25');
+  await dialog.getByLabel(/^رقم الهوية/).fill('123456789');
+  await dialog.getByLabel(/^اسم المستخدم/).fill('student25');
+  await dialog.getByLabel('رقم واتساب للتواصل').fill('0591234567');
+  await page.screenshot({ path: 'test-results/password-request-mobile.png', animations: 'disabled' });
+  await dialog.getByRole('button', { name: 'إرسال الطلب للإدارة' }).click();
+  await expect(dialog.getByRole('status')).toContainText('حُفظ الطلب');
+  const stored = await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open('quran-circles-pending-support'); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    const rows = await new Promise<any[]>((resolve, reject) => { const request = database.transaction('pendingSupport').objectStore('pendingSupport').getAll(); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    database.close(); return rows;
+  });
+  expect(stored).toHaveLength(1); expect(stored[0].description).toContain('student25'); expect(stored[0].requestId).toBeTruthy();
+  await context.setOffline(false); await expect.poll(() => requests.length).toBe(1);
+  expect(requests[0].requestId).toBe(stored[0].requestId);
+  expect(await page.evaluate(() => localStorage.getItem('qc.accessToken'))).toBe(null);
+});
+
+test('online reads use the server and persist the fresh record for the next offline visit', async ({ page, context }) => {
+  let name = 'اسم من الخادم'; let reads = 0;
+  await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url()); const path = url.pathname;
+    if (path === '/api/auth/me') return route.fulfill({ json: user });
+    if (path === '/api/announcements/active') return route.fulfill({ json: [] });
+    if (path === '/api/circles/options') return route.fulfill({ json: [] });
+    if (path === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+    if (path === '/api/students') { reads++; return route.fulfill({ json: { data: [{ ...fixtures.students[0], fullName: name }], meta: { hasNextPage: false, total: 1 } } }); }
+    if (path === '/api/sync-all') return route.fulfill({ json: { data: url.searchParams.get('table') === 'students' ? [{ ...fixtures.students[0], fullName: 'نسخة محلية قديمة' }] : [], meta: { hasNextPage: false } } });
+    return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
+  });
+  await page.goto('/students'); await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(account => new Promise(resolve => { const request = indexedDB.open('halaqatFull'); request.onsuccess = () => { const db = request.result; const read = db.transaction('meta').objectStore('meta').get(`${account}:downloadedAt`); read.onsuccess = () => { resolve(Boolean(read.result)); db.close(); }; }; }), account)).toBe(true);
+  name = 'تعديل جديد على الخادم'; const before = reads;
+  await page.reload(); await expect(page.getByText(name, { exact: true })).toBeVisible(); expect(reads).toBeGreaterThan(before);
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await context.setOffline(true); await page.reload(); await expect(page.getByText(name, { exact: true })).toBeVisible();
+});
+
+test('admin broadcast targets selected accounts and stays durable offline', async ({ page, context }) => {
+  const recipients = [{ id: fixtures.students[0].id, fullName: 'طالب التجربة', username: 'student25', role: 'STUDENT', isActive: true }, { id: fixtures.teachers[0].id, fullName: 'محفظ التجربة', username: 'teacher25', role: 'TEACHER', isActive: true }];
+  await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/auth/me') return route.fulfill({ json: user });
+    if (path === '/api/users') return route.fulfill({ json: { data: recipients, meta: { hasNextPage: false } } });
+    if (path === '/api/announcements/active') return route.fulfill({ json: [] });
+    if (path === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+    return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
+  });
+  await page.goto('/admin/notifications');
+  await expect(page.getByRole('heading', { name: 'إرسال الإشعارات' })).toBeVisible();
+  await page.getByLabel(/^عنوان الإشعار/).fill('موعد اللقاء');
+  await page.getByLabel(/^نص الإشعار/).fill('نلتقي غدًا بعد العصر.');
+  await page.getByLabel('الفئة', { exact: true }).selectOption('STUDENT');
+  await page.getByLabel('المستلمون', { exact: true }).selectOption('SELECTED');
+  await page.getByLabel('طالب التجربة').check();
+  await expect(page.getByText('محفظ التجربة', { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: 'test-results/admin-broadcast-desktop.png', animations: 'disabled' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: 'test-results/admin-broadcast-mobile.png', animations: 'disabled' });
+  await context.setOffline(true); await page.getByRole('button', { name: 'إرسال الإشعار', exact: true }).click();
+  await expect(page.getByText(/تم حفظ الإشعار/)).toBeVisible();
+  const operations = await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>(resolve => { const request = indexedDB.open('halaqatFull'); request.onsuccess = () => resolve(request.result); });
+    const rows = await new Promise<any[]>(resolve => { const request = database.transaction('queue').objectStore('queue').getAll(); request.onsuccess = () => resolve(request.result); }); database.close(); return rows;
+  });
+  const operation = operations.find(row => row.action === 'broadcast'); expect(operation.data.userIds).toEqual([recipients[0].id]);
 });
 
 test('student save explains missing fields, confirms online creation and works offline on mobile', async ({ page, context }) => {

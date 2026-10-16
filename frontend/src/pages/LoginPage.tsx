@@ -1,4 +1,5 @@
 import axios from 'axios';
+import PasswordRequestModal from '@/components/PasswordRequestModal';
 import React, { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -15,6 +16,7 @@ import { BRANDING_CACHE_KEY, DEFAULT_SCHOOL_NAME, DEFAULT_SCHOOL_LOGO, cachedSch
 export default function LoginPage() {
   const navigate = useNavigate();
   const [cachedBranding] = useState(cachedSchoolBranding);
+  const [passwordRequestOpen, setPasswordRequestOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(() => new URLSearchParams(window.location.search).get('support') === '1');
 
   const { data: settings } = useQuery({
@@ -40,10 +42,12 @@ export default function LoginPage() {
           <h1 className="mt-5 text-lg font-extrabold leading-8 text-white sm:text-xl">{settings?.name?.trim() || cachedBranding.name || DEFAULT_SCHOOL_NAME}</h1>
         </header>
         <CredentialsStep onAuthenticated={onAuthenticated} />
+        <button type="button" onClick={() => setPasswordRequestOpen(true)} className="mt-3 min-h-11 w-full rounded-xl text-sm font-bold text-primary-700 hover:bg-primary-50">طلب تغيير كلمة المرور</button>
         <button type="button" onClick={() => setSupportOpen(true)} className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-primary-800"><IconLifeBuoy size={18} />الدعم الفني</button>
-        <Link to="/privacy" className="mt-2 block py-2 text-center text-xs font-semibold text-slate-500 hover:text-primary-800">البيانات والخصوصية</Link>
+        <Link to="/about" className="mt-2 block py-2 text-center text-xs font-semibold text-slate-500 hover:text-primary-800">معلومات عن البرنامج</Link>
       </div>
       <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />
+      {passwordRequestOpen && <PasswordRequestModal open onClose={() => setPasswordRequestOpen(false)} />}
     </div>
   );
 }

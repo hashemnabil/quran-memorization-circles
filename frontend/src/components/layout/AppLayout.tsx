@@ -415,7 +415,7 @@ export default function AppLayout() {
         <footer className="border-t border-slate-200 px-6 py-4 text-center text-[11px] text-slate-400">
           {settings?.name ?? 'نظام إدارة حلقات التحفيظ'}
           {settings?.academicYear ? ` — العام الدراسي ${settings.academicYear}` : ''}
-          <Link to="/privacy" className="ms-3 inline-block py-2 hover:text-primary-700">البيانات والخصوصية</Link>
+          <Link to="/about" className="ms-3 inline-block py-2 hover:text-primary-700">معلومات عن البرنامج</Link>
         </footer>
       </div>
       <MobileNavigation role={user.role} onMenu={() => setDrawerOpen(true)} />

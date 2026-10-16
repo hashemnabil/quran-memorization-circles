@@ -12,6 +12,9 @@ import { RedirectIfAuthenticated, RequireAuth, RequireRole } from '@/components/
 
 import LoginPage from '@/pages/LoginPage';
 import PrivacyPage from '@/pages/PrivacyPage';
+import AboutPage from '@/pages/AboutPage';
+import BroadcastPage from '@/pages/BroadcastPage';
+import PasswordRequestsPage from '@/pages/PasswordRequestsPage';
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 import StudentPortalPage from '@/pages/StudentPortalPage';
 const ReportsPage = lazy(() => import('@/pages/ReportsPage'));
@@ -97,6 +100,7 @@ export default function App() {
       <Suspense fallback={<LoadingState />}>
       <Routes>
       <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/about" element={<AboutPage />} />
       <Route path="/register" element={<RegistryLoginPage />} />
       <Route path="/register/data" element={<RegistryDataPage />} />
       <Route
@@ -119,6 +123,8 @@ export default function App() {
         <Route path="profile-reviews/students" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="STUDENT" /></RequireRole>} />
         <Route path="profile-reviews/teachers" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="TEACHER" /></RequireRole>} />
         <Route path="settings/offline" element={<OfflineSettingsPage />} />
+        <Route path="admin/notifications" element={<RequireRole roles={['ADMIN']}><BroadcastPage /></RequireRole>} />
+        <Route path="admin/password-requests" element={<RequireRole roles={['ADMIN']}><PasswordRequestsPage /></RequireRole>} />
         <Route index element={currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="reports" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><ReportsPage /></RequireRole>} />

@@ -5,11 +5,11 @@ on:
       version_name:
         description: 'Release version (major.minor.patch)'
         required: true
-        default: '1.0.0'
+        default: '1.1.0'
       version_code:
         description: 'Increasing iOS build number'
         required: true
-        default: '2'
+        default: '3'
 permissions:
   contents: read
 jobs:
@@ -71,7 +71,8 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild -version
-          xcodebuild -workspace frontend/ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Halaqat.xcarchive" DEVELOPMENT_TEAM="$IOS_TEAM_ID" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_UUID" MARKETING_VERSION="$VERSION_NAME" CURRENT_PROJECT_VERSION="$VERSION_CODE" archive
+          node frontend/scripts/configure-ios-release.mjs
+          xcodebuild -workspace frontend/ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Halaqat.xcarchive" archive
           node --input-type=module <<'NODE'
           import fs from 'node:fs'; import path from 'node:path';
           const team = process.env.IOS_TEAM_ID; const profile = process.env.IOS_PROFILE_UUID;

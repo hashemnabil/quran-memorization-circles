@@ -12,6 +12,20 @@ Object.defineProperty(globalThis, 'window', { configurable: true, value: new Eve
 beforeEach(async () => { account = 'account-a'; for (const table of db.tables) await table.clear(); });
 after(() => db.close());
 
+test('complete activity history and recipient groups are prefetched before visiting their screens and searchable offline', async () => {
+  await prefetchSections(async (_method, path) => {
+    if (path === '/notifications/recipients') return { users: [{ id: 'student', role: 'STUDENT', circleId: 'circle' }], circles: [{ id: 'circle', name: 'Circle' }], studentsWithoutAccounts: [] };
+    if (path === '/dashboard/activity') return { data: [{ id: 'new', summary: 'Recent', createdAt: '2026-01-01' }], meta: { totalPages: 2, hasNextPage: true } };
+    if (path === '/dashboard/activity?page=2') return { data: [{ id: 'old', summary: 'First ever record', createdAt: '2001-01-01' }], meta: { totalPages: 2, hasNextPage: false } };
+    return [];
+  }, account, () => account, 'ADMIN', ['broadcast_activity_v1']);
+  const history = await readPrefetched(account, '/dashboard/activity', { page: 1, limit: 50, sortBy: 'createdAt', sortOrder: 'asc' });
+  assert.equal(history.meta.total, 2); assert.equal(history.data[0].id, 'old');
+  assert.equal((await readPrefetched(account, '/dashboard/activity', { search: 'First ever' })).data[0].id, 'old');
+  assert.equal((await readPrefetched(account, '/notifications/recipients')).users[0].circleId, 'circle');
+  assert.equal(await readPrefetched('other-account', '/notifications/recipients'), undefined);
+});
+
 test('section patches preserve unchanged rows, apply additions/deletions, and reject missing rows', () => {
   const before = { data: [{ id: 'old', name: 'keep' }, { id: 'deleted' }], meta: { total: 2 } };
   const after = applySnapshotPatch(before, { kind: 'object', fields: { data: { kind: 'rows', field: 'id', order: ['new', 'old'], changed: [{ id: 'new', name: 'added' }] } }, removed: [] });

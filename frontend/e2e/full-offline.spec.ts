@@ -367,13 +367,79 @@ test('online reads use the server and persist the fresh record for the next offl
   await context.setOffline(true); await page.reload(); await expect(page.getByText(name, { exact: true })).toBeVisible();
 });
 
+test('all recipient accounts, educational staff and circle students remain selectable after an offline reload', async ({ page, context }) => {
+  const students = Array.from({ length: 125 }, (_, index) => ({ id: `10000000-0000-4000-8000-${String(index).padStart(12, '0')}`, fullName: `طالب القائمة ${index}`, username: `student${index}`, role: 'STUDENT', circleId: index === 0 || index === 124 ? circleId : 'other-circle' }));
+  const directory = { users: [...students, { id: fixtures.teachers[0].id, fullName: 'محفظ القائمة', username: 'teacher', role: 'TEACHER' }, { id: 'supervisor', fullName: 'مشرف القائمة', username: 'supervisor', role: 'SUPERVISOR' }, { id: 'examiner', fullName: 'عضو اللجنة', username: 'examiner', role: 'EXAM_COMMITTEE' }], circles: [{ id: circleId, name: 'حلقة الإشعار' }], studentsWithoutAccounts: [{ id: 'no-login', fullName: 'طالب دون حساب', circleId }] };
+  await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    return route.fulfill({ json: path === '/api/auth/me' ? user : path === '/api/notifications/recipients' ? directory : path === '/api/announcements/active' ? [] : path === '/api/sync-all/watermark' ? { cursor: '0' } : { data: [], meta: { hasNextPage: false } } });
+  });
+  await page.goto('/admin/notifications');
+  await page.getByLabel('الفئة', { exact: true }).selectOption('STUDENT');
+  await page.getByLabel('المستلمون', { exact: true }).selectOption('SELECTED');
+  await expect(page.getByRole('checkbox', { name: /^طالب القائمة 124 / })).toBeVisible();
+  await page.getByLabel('الفئة', { exact: true }).selectOption('STAFF');
+  for (const name of ['محفظ القائمة', 'مشرف القائمة', 'عضو اللجنة']) await expect(page.getByRole('checkbox', { name: new RegExp('^' + name) })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: /^طالب القائمة 124 / })).toHaveCount(0);
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+  await context.setOffline(true); await page.reload();
+  await page.getByLabel('الفئة', { exact: true }).selectOption('CIRCLE');
+  await page.getByLabel(/^الحلقة/).selectOption(circleId);
+  await page.getByLabel('المستلمون', { exact: true }).selectOption('SELECTED');
+  await expect(page.getByRole('checkbox', { name: /^طالب القائمة 124 / })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: /^طالب القائمة 1 / })).toHaveCount(0);
+  await page.getByText('طلاب دون حساب دخول: 1', { exact: true }).click();
+  await expect(page.getByText('طالب دون حساب — لا يوجد حساب دخول')).toBeVisible();
+  await page.getByRole('button', { name: 'تحديد كل الفئة', exact: true }).click();
+  await page.getByLabel(/^عنوان الإشعار/).fill('إشعار الحلقة');
+  await page.getByLabel(/^نص الإشعار/).fill('موعد الحلقة القادم');
+  await page.getByRole('button', { name: 'إرسال الإشعار', exact: true }).click();
+  await expect(page.getByText(/تم حفظ الإشعار/)).toBeVisible();
+  const payload = await page.evaluate(() => new Promise<any>(resolve => {
+    const open = indexedDB.open('halaqatFull'); open.onsuccess = () => { const database = open.result; const read = database.transaction('queue').objectStore('queue').getAll(); read.onsuccess = () => { database.close(); resolve(read.result.find(row => row.action === 'broadcast').data); }; };
+  }));
+  expect(payload.audience).toBe('CIRCLE'); expect(payload.circleId).toBe(circleId);
+  expect(payload.userIds).toEqual([students[0].id, students[124].id]);
+});
+
+test('activity archive opens records older than the former 100-record limit and filters them after an offline reload', async ({ page, context }) => {
+  const records = Array.from({ length: 125 }, (_, index) => ({ id: `history-${index}`, summary: index === 0 ? 'أول نشاط محفوظ في المدرسة' : `نشاط محفوظ ${index}`, createdAt: new Date(Date.UTC(2001, 0, 1) + index * 1000).toISOString(), user: { fullName: 'مدير السجل' } }));
+  await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url()), path = url.pathname;
+    if (path === '/api/auth/me') return route.fulfill({ json: user });
+    if (path === '/api/dashboard/activity') {
+      const rows = records.filter(row => row.summary.includes(url.searchParams.get('search') || '')).sort((a, b) => a.createdAt.localeCompare(b.createdAt) * (url.searchParams.get('sortOrder') === 'asc' ? 1 : -1));
+      const limit = Number(url.searchParams.get('limit') || 200), page = Number(url.searchParams.get('page') || 1);
+      return route.fulfill({ json: { data: rows.slice((page - 1) * limit, page * limit), meta: { total: rows.length, totalPages: Math.max(1, Math.ceil(rows.length / limit)), hasNextPage: page * limit < rows.length } } });
+    }
+    return route.fulfill({ json: path === '/api/announcements/active' ? [] : path === '/api/notifications/recipients' ? { users: [], circles: [], studentsWithoutAccounts: [] } : path === '/api/sync-all/watermark' ? { cursor: '0' } : { data: [], meta: { hasNextPage: false } } });
+  });
+  await page.goto('/admin/activity');
+  await page.getByRole('button', { name: '3', exact: true }).click();
+  await expect(page.getByText('أول نشاط محفوظ في المدرسة', { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(account => new Promise<number>(resolve => {
+    const open = indexedDB.open('halaqatFull'); open.onsuccess = () => { const database = open.result; const read = database.transaction('meta').objectStore('meta').get(`${account}:prefetch:/dashboard/activity`); read.onsuccess = () => { database.close(); resolve(read.result?.value?.rows?.length || 0); }; };
+  }), account)).toBe(125);
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+  await context.setOffline(true); await page.reload();
+  await page.getByLabel('ترتيب النشاطات').selectOption('asc');
+  await expect(page.getByText('أول نشاط محفوظ في المدرسة', { exact: true })).toBeVisible();
+  await page.getByLabel('البحث في النشاط أو اسم المستخدم').fill('أول نشاط');
+  await expect(page.getByText('نشاط محفوظ 1', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('أول نشاط محفوظ في المدرسة', { exact: true })).toBeVisible();
+});
+
 test('admin broadcast targets selected accounts and stays durable offline', async ({ page, context }) => {
   const recipients = [{ id: fixtures.students[0].id, fullName: 'طالب التجربة', username: 'student25', role: 'STUDENT', isActive: true }, { id: fixtures.teachers[0].id, fullName: 'محفظ التجربة', username: 'teacher25', role: 'TEACHER', isActive: true }];
   await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/auth/me') return route.fulfill({ json: user });
-    if (path === '/api/users') return route.fulfill({ json: { data: recipients, meta: { hasNextPage: false } } });
+    if (path === '/api/notifications/recipients') return route.fulfill({ json: { users: recipients, circles: [], studentsWithoutAccounts: [] } });
     if (path === '/api/announcements/active') return route.fulfill({ json: [] });
     if (path === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
     return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });

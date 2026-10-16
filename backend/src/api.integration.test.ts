@@ -72,6 +72,36 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('GET', '/users', Role.TEACHER, undefined, 403);
       assert.equal((await request('GET', '/students/me', Role.STUDENT)).id, student.id);
     });
+    await t.test('profile proposals require administrative approval, reject with a reason and replay safely offline', async () => {
+      const proposal = await request('POST', '/profile-reviews', Role.STUDENT, { patch: { address: 'Proposed student home' } });
+      assert.notEqual((await db.student.findUniqueOrThrow({ where: { id: student.id } })).address, 'Proposed student home');
+      await request('PATCH', `/profile-reviews/${proposal.id}/decision`, Role.STUDENT, { status: 'APPROVED' }, 403);
+      await request('PATCH', `/profile-reviews/${proposal.id}/decision`, Role.ADMIN, { status: 'REJECTED' }, 400);
+      await request('PATCH', `/profile-reviews/${proposal.id}/decision`, Role.ADMIN, { status: 'APPROVED' });
+      assert.equal((await db.student.findUniqueOrThrow({ where: { id: student.id } })).address, 'Proposed student home');
+      await request('PATCH', `/profile-reviews/${proposal.id}/decision`, Role.ADMIN, { status: 'APPROVED' }, 409);
+      const teacherProposal = await request('POST', '/profile-reviews', Role.TEACHER, { patch: { qualification: 'Reviewed qualification', phone: '0591234567' } });
+      await request('PATCH', `/profile-reviews/${teacherProposal.id}/decision`, Role.ADMIN, { status: 'REJECTED', reason: 'يرجى تصحيح البيانات' });
+      assert.notEqual((await db.teacherProfile.findUniqueOrThrow({ where: { id: teacherId } })).qualification, 'Reviewed qualification');
+      assert.equal((await request('GET', '/profile-reviews/me', Role.TEACHER)).requests[0].reason, 'يرجى تصحيح البيانات');
+      await request('POST', '/profile-reviews', Role.TEACHER, { patch: { salary: 1000 } }, 400);
+      await request('PATCH', '/auth/profile', Role.STUDENT, { fullName: 'Bypass' }, 400);
+      const localId = randomUUID(), opId = randomUUID();
+      const create = { opId, table: 'profileReviews', action: 'create', entityId: localId, data: { patch: { address: 'Approved after offline replay' } } };
+      const first = await request('POST', '/sync-all', Role.STUDENT, { operations: [create] });
+      assert.equal(first.outcomes[0].status, 'applied');
+      assert.equal((await request('POST', '/sync-all', Role.STUDENT, { operations: [create] })).outcomes[0].status, 'applied');
+      assert.equal(await db.profileReview.count({ where: { id: localId } }), 1);
+      assert.equal((await db.student.findUniqueOrThrow({ where: { id: student.id } })).address, 'Proposed student home');
+      const decision = { opId: randomUUID(), table: 'profileReviews', action: 'decision', entityId: localId, data: { status: 'APPROVED' } };
+      assert.equal((await request('POST', '/sync-all', Role.ADMIN, { operations: [decision] })).outcomes[0].status, 'applied');
+      assert.equal((await db.student.findUniqueOrThrow({ where: { id: student.id } })).address, 'Approved after offline replay');
+      const stale = await request('POST', '/profile-reviews', Role.STUDENT, { patch: { address: 'Stale proposal' } });
+      await db.student.update({ where: { id: student.id }, data: { address: 'New administration value' } });
+      await request('PATCH', `/profile-reviews/${stale.id}/decision`, Role.ADMIN, { status: 'APPROVED' }, 409);
+      await request('PATCH', `/profile-reviews/${stale.id}/decision`, Role.ADMIN, { status: 'REJECTED', reason: 'الملف تغير، يرجى إعادة التقديم' });
+      assert.equal((await db.student.findUniqueOrThrow({ where: { id: student.id } })).address, 'New administration value');
+    });
     await t.test('attendance and recitation write through to storage and authorized reports', async () => {
       await request('POST', '/attendance', Role.TEACHER, { circleId: circle.id, date: '2026-01-01', entries: [{ studentId: student.id, status: 'PRESENT' }] });
       assert.equal(await db.attendance.count({ where: { studentId: student.id } }), 1);
@@ -128,7 +158,7 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       assert.deepEqual(responses.map((response) => response.status).sort(), [200, 401]);
       const winning = await responses.find((response) => response.ok)!.json();
       sessions.ADMIN = winning;
-      await request('PATCH', '/auth/change-password', Role.ADMIN, { currentPassword: password, newPassword: 'UpdatedPassword!983' });
+      await request('PATCH', '/auth/change-password', Role.ADMIN, { currentPassword: password, newPassword: '4827' });
       await request('GET', '/auth/me', Role.ADMIN, undefined, 401);
       await request('POST', '/auth/refresh', undefined, { refreshToken: winning.refreshToken }, 401);
     });
@@ -146,6 +176,7 @@ test('role workflows and production security regressions over HTTP', { timeout: 
     if (circle?.id || hiddenCircle?.id) await db.circle.deleteMany({ where: { id: { in: [circle?.id, hiddenCircle?.id].filter(Boolean) } } });
     if (student?.id || hiddenStudent?.id) await db.student.deleteMany({ where: { id: { in: [student?.id, hiddenStudent?.id].filter(Boolean) } } });
     await db.user.deleteMany({ where: { id: { in: Object.values(ids) } } });
+    await db.profileReview.deleteMany({ where: { requesterId: { in: Object.values(ids) } } });
     await app.close();
   }
 });

@@ -74,7 +74,7 @@ export class CreateStudentDto {
   @ApiPropertyOptional({ writeOnly: true })
   @IsOptional()
   @IsString()
-  @MinLength(6)
+  @MinLength(4)
   @MaxLength(128)
   accountPassword?: string;
 

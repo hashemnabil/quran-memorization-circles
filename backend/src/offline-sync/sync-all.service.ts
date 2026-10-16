@@ -1,3 +1,4 @@
+import { ProfileReviewsService } from '../profile-reviews/profile-reviews.service';
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, Role } from '@prisma/client';
@@ -56,6 +57,11 @@ export class FullSyncService {
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const empty = { data: [], meta: { hasNextPage: false } };
     switch (table) {
+      case 'profileReviews': {
+        if (![Role.ADMIN, Role.STUDENT, Role.TEACHER].includes(user.role as any)) return empty;
+        const reviews = new ProfileReviewsService(this.prisma);
+        return { ...await reviews.list(user, undefined, page), ...(page === 1 && user.role !== Role.ADMIN ? { references: { '/profile-reviews/me': await reviews.mine(user) } } : {}) };
+      }
       case 'users': return user.role === Role.ADMIN ? s.users.findAll(plainToInstance(QueryUsersDto, query)) : empty;
       case 'studentAccounts': {
         if (user.role !== Role.ADMIN || page !== 1) return empty;
@@ -70,7 +76,7 @@ export class FullSyncService {
         eligibility: await s.exams.eligibility(user, id), milestones: await s.exams.milestoneRecords(user, id), history: await s.students.history(user, id), progress: await s.recitations.studentProgress(user, id),
       } }), changedIds) : empty;
       case 'circles': return staff ? this.hydratePage(await s.circles.findAll(user, plainToInstance(QueryCirclesDto, query)), (id) => s.circles.findOne(user, id), changedIds) : empty;
-      case 'teachers': return [Role.ADMIN, Role.SUPERVISOR].includes(user.role as any) ? this.hydratePage(await s.teachers.findAll(user, plainToInstance(QueryTeachersDto, query)), (id) => s.teachers.findOne(user, id), changedIds) : empty;
+      case 'teachers': if (user.role === Role.TEACHER) return { data: page === 1 && user.teacherId ? [await s.teachers.findOne(user, user.teacherId)] : [], meta: { hasNextPage: false } }; return [Role.ADMIN, Role.SUPERVISOR].includes(user.role as any) ? this.hydratePage(await s.teachers.findAll(user, plainToInstance(QueryTeachersDto, query)), (id) => s.teachers.findOne(user, id), changedIds) : empty;
       case 'attendance': return staff ? s.attendance.findAll(user, plainToInstance(QueryAttendanceDto, query)) : empty;
       case 'recitations': return staff ? { ...await s.recitations.findAll(user, plainToInstance(QueryRecitationsDto, query)), ...(page === 1 ? { references: { '/recitations/surahs': s.recitations.surahs() } } : {}) } : empty;
       case 'exams': return staff || user.role === Role.EXAM_COMMITTEE ? { ...await s.exams.findExams(user, plainToInstance(QueryExamsDto, query)), ...(page === 1 ? { references: { '/exams/sections': await s.exams.sections() } } : {}) } : empty;
@@ -107,7 +113,7 @@ export class FullSyncService {
       if (!id) { affected.set(table, undefined); return; }
       const ids = affected.get(table) || new Set<string>(); ids.add(id); affected.set(table, ids);
     };
-    const direct: Record<string, string> = { students: 'students', circles: 'circles', teacher_profiles: 'teachers', attendance: 'attendance', recitations: 'recitations', exams: 'exams', exam_requests: 'examRequests', student_notes: 'behaviors', notifications: 'notifications', courses: 'courses', media_plans: 'mediaPlans', teacher_duties: 'teacherDuties' };
+    const direct: Record<string, string> = { profile_reviews: 'profileReviews', students: 'students', circles: 'circles', teacher_profiles: 'teachers', attendance: 'attendance', recitations: 'recitations', exams: 'exams', exam_requests: 'examRequests', student_notes: 'behaviors', notifications: 'notifications', courses: 'courses', media_plans: 'mediaPlans', teacher_duties: 'teacherDuties' };
     for (const change of changes) {
       const row = change.payload as any || {};
       if (direct[change.entity]) add(direct[change.entity], change.entityId);
@@ -242,6 +248,12 @@ export class FullSyncService {
       if (op.action === 'create') return s.courses.create(user, await this.dto(CreateCourseDto, op.data));
       if (op.action === 'update') return s.courses.update(user, id, await this.dto(UpdateCourseDto, op.data));
       if (op.action === 'delete' && admin) return s.courses.remove(user, id);
+    }
+    if (op.table === 'profileReviews') {
+      const reviews = new ProfileReviewsService(s.prisma);
+      if (op.action === 'create') return reviews.submit(user, op.data.patch, id);
+      if (op.action === 'decision') return reviews.decide(user, id, op.data.status, op.data.reason);
+      throw new BadRequestException('عملية غير مدعومة');
     }
     if (op.table === 'notifications') {
       if (op.action === 'read') return s.notifications.markRead(user, id);

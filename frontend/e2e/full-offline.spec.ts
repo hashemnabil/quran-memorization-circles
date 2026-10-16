@@ -151,9 +151,10 @@ test('student save explains missing fields, confirms online creation and works o
   await expect(page.getByRole('heading', { name: 'تسجيل طالب جديد' })).not.toBeVisible();
   await expect(page.getByText('طالب محفوظ على الجوال', { exact: true })).toBeVisible();
 });
-test('student questionnaire saves online, edits offline and automatically updates the server after reconnect', async ({ page, context }) => {
+test('student edits remain pending offline and online until administrative approval', async ({ page, context }) => {
   const identity = { ...user, role: 'STUDENT' };
   let student = { ...fixtures.students[0], selfAccountId: account, fullName: 'طالب الاستبيان', nationalId: '123456789', fatherNationalId: '987654321', birthDate: '2010-01-01', address: 'العنوان القديم', guardianName: 'ولي الأمر', guardianPhone: '0591234567', guardianRelation: 'الأب' };
+  const reviews: any[] = [];
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(identity => {
     localStorage.setItem('qc.onboarding.completed', '1');
@@ -163,6 +164,7 @@ test('student questionnaire saves online, edits offline and automatically update
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/auth/me') return route.fulfill({ json: identity });
+    if (url.pathname === '/api/profile-reviews/me') return route.fulfill({ json: { id: student.id, kind: 'STUDENT', profile: student, requests: reviews } });
     if (url.pathname === '/api/students/me') return route.fulfill({ json: student });
     if (url.pathname === '/api/students/me/history') return route.fulfill({ json: { exams: [{ id: 'scheduled-exam', status: 'SCHEDULED', scheduledAt: '2030-01-01T10:00:00Z', location: 'قاعة الاختبار التجريبية', section: { name: 'الحزب الأول' } }] } });
     if (url.pathname === '/api/preparations') return route.fulfill({ json: { data: [{ id: 'prep-one', fromSurah: 'البقرة', fromAyah: 1, toSurah: 'البقرة', toAyah: 5, note: 'تحضير محفوظ للطالب' }], meta: { hasNextPage: false } } });
@@ -172,12 +174,12 @@ test('student questionnaire saves online, edits offline and automatically update
     if (url.pathname === '/api/sync-all') {
       if (route.request().method() === 'POST') {
         const outcomes = route.request().postDataJSON().operations.map((op: any) => {
-          expect(op.action).toBe('questionnaire'); expect(op.entityId).toBe(student.id);
-          student = { ...student, ...op.data }; return { opId: op.opId, status: 'applied', data: student };
+          expect(op.table).toBe('profileReviews'); expect(op.action).toBe('create');
+          const review = { id: op.entityId, kind: 'STUDENT', requesterId: account, patch: op.data.patch, base: student, status: 'PENDING', createdAt: new Date().toISOString() }; reviews.push(review); return { opId: op.opId, status: 'applied', data: review };
         });
         return route.fulfill({ json: { outcomes } });
       }
-      return route.fulfill({ json: { data: url.searchParams.get('table') === 'students' ? [student] : [], meta: { hasNextPage: false } } });
+      return route.fulfill({ json: { data: url.searchParams.get('table') === 'students' ? [student] : url.searchParams.get('table') === 'profileReviews' ? reviews : [], ...(url.searchParams.get('table') === 'profileReviews' ? { references: { '/profile-reviews/me': { id: student.id, kind: 'STUDENT', profile: student, requests: reviews } } } : {}), meta: { hasNextPage: false } } });
     }
     return route.fulfill({ status: 403, json: { message: 'Not used' } });
   });
@@ -198,35 +200,72 @@ test('student questionnaire saves online, edits offline and automatically update
   await expect(page.getByLabel('الجنس', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('رقم الطالب', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('جوال الطالب', { exact: true })).toHaveCount(0);
+  await context.setOffline(true);
   await page.getByLabel(/^رقم هوية الطالب/).fill('123456780');
   await page.getByLabel(/^رقم هوية ولي الأمر/).fill('987654320');
-  await page.getByLabel(/^العنوان/).fill('عنوان متصل جديد');
-  await page.getByRole('button', { name: 'حفظ بياناتي', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'تعديل بياناتي', exact: true })).toBeVisible();
-  expect(student.address).toBe('عنوان متصل جديد');
-  expect(student.nationalId).toBe('123456780');
-  expect(student.fatherNationalId).toBe('987654320');
-  await page.evaluate(async () => { await navigator.serviceWorker.ready; if (!navigator.serviceWorker.controller) await new Promise<void>(resolve => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })); });
-  await context.setOffline(true);
-  await page.reload();
-  await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
-  await expect(page.getByText('غير متصل', { exact: true })).toBeVisible();
-  await expect(page.getByText('تحضير محفوظ للطالب')).toBeVisible();
-  await expect(page.getByText('قاعة الاختبار التجريبية', { exact: false })).toBeVisible();
-  await page.getByRole('button', { name: 'تعديل بياناتي', exact: true }).click();
-  await expect(page.getByLabel(/^العنوان/)).toHaveValue('عنوان متصل جديد');
-  await page.getByLabel(/^العنوان/).fill('عنوان محفوظ بدون نت');
-  await page.getByRole('button', { name: 'حفظ بياناتي', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'تعديل بياناتي', exact: true })).toBeVisible();
-  expect(student.address).toBe('عنوان متصل جديد');
-  await page.screenshot({ path: 'test-results/student-mobile-questionnaire.png', animations: 'disabled' });
+  await page.getByLabel(/^العنوان/).fill('Proposed offline address');
+  await page.getByRole('button', { name: 'إرسال للتحقق', exact: true }).click();
+  await expect(page.getByText('الطلب محفوظ على الجهاز بانتظار الإرسال', { exact: true })).toBeVisible();
+  expect(student.nationalId).toBe('123456789'); expect(student.address).not.toBe('Proposed offline address');
+  await expect(page.getByText('Proposed offline address', { exact: true })).toBeVisible();
   await context.setOffline(false);
-  await expect(page.getByText('متصل', { exact: true })).toBeVisible();
-  await expect(page.getByText('غير متصل', { exact: true })).not.toBeVisible();
-  await expect.poll(() => student.address).toBe('عنوان محفوظ بدون نت');
-  await page.getByRole('button', { name: 'تعديل بياناتي', exact: true }).click();
-  await expect(page.getByLabel(/^العنوان/)).toHaveValue('عنوان محفوظ بدون نت');
-  await page.screenshot({ path: 'test-results/student-mobile-form.png', fullPage: true, animations: 'disabled' });
+  await expect.poll(() => reviews.length).toBe(1);
+  await expect(page.getByText('طلبك بانتظار مراجعة الإدارة', { exact: true })).toBeVisible();
+  expect(student.nationalId).toBe('123456789'); expect(reviews[0].patch.nationalId).toBe('123456780');
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; if (!navigator.serviceWorker.controller) await new Promise<void>(resolve => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })); });
+  await context.setOffline(true); await page.reload();
+  await expect(page.getByText('Proposed offline address', { exact: true })).toBeVisible();
+  await expect(page.getByText('تحضير محفوظ للطالب')).toBeVisible();
+  await page.screenshot({ path: 'test-results/student-review-pending.png', fullPage: true });
+});
+
+test('administration queues approval and reasoned rejection offline without applying profile changes early', async ({ page, context }) => {
+  const reviews = [
+    { id: '10000000-0000-4000-8000-000000000001', kind: 'TEACHER', requesterId: 'teacher', status: 'PENDING', base: { fullName: 'محفظ التحقق', address: 'قبل' }, patch: { address: 'عنوان المحفظ المقترح' }, createdAt: '2026-10-15T00:00:00Z' },
+    { id: '10000000-0000-4000-8000-000000000002', kind: 'STUDENT', requesterId: 'student', status: 'PENDING', base: { fullName: 'طالب التحقق', address: 'قبل' }, patch: { address: 'عنوان الطالب المقترح' }, createdAt: '2026-10-15T00:00:00Z' },
+  ];
+  const decisions: any[] = []; let teacherAddress = 'قبل';
+  await page.addInitScript(identity => { localStorage.setItem('qc.onboarding.completed', '1'); localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/auth/me') return route.fulfill({ json: user });
+    if (url.pathname === '/api/profile-reviews') return route.fulfill({ json: { data: reviews.filter(row => !url.searchParams.get('kind') || row.kind === url.searchParams.get('kind')), meta: { hasNextPage: false } } });
+    if (url.pathname === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+    if (url.pathname === '/api/sync-all/delta') return route.fulfill({ json: { cursor: '0', tables: {}, changedEntities: [], hasMore: false } });
+    if (url.pathname === '/api/sync-all') {
+      if (route.request().method() === 'POST') {
+        const outcomes = route.request().postDataJSON().operations.map((op: any) => {
+          expect(op.table).toBe('profileReviews'); expect(op.action).toBe('decision'); decisions.push(op);
+          const review = reviews.find(row => row.id === op.entityId)!; review.status = op.data.status;
+          if (review.kind === 'TEACHER' && op.data.status === 'APPROVED') teacherAddress = review.patch.address;
+          return { opId: op.opId, status: 'applied', data: { ...review, reason: op.data.reason } };
+        });
+        return route.fulfill({ json: { outcomes } });
+      }
+      return route.fulfill({ json: { data: url.searchParams.get('table') === 'profileReviews' ? reviews : [], meta: { hasNextPage: false } } });
+    }
+    if (url.pathname.includes('/announcements')) return route.fulfill({ json: [] });
+    if (url.pathname.endsWith('/unread-count')) return route.fulfill({ json: { count: 0 } });
+    return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
+  });
+  await page.goto('/profile-reviews/teachers');
+  await expect(page.getByRole('heading', { name: 'تحقق من بيانات المحفظ', exact: true })).toBeVisible();
+  await expect(page.getByText('عنوان المحفظ المقترح', { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => new Promise(resolve => { const open = indexedDB.open('halaqatFull'); open.onsuccess = () => { const database = open.result; const request = database.transaction('meta').objectStore('meta').get('00000000-0000-4000-8000-000000000001:downloadedAt'); request.onsuccess = () => { resolve(!!request.result); database.close(); }; }; }))).toBe(true);
+  await context.setOffline(true);
+  await page.getByRole('button', { name: 'تأكيد واعتماد', exact: true }).click();
+  await expect(page.getByText(/القرار بانتظار المزامنة/)).toBeVisible();
+  expect(teacherAddress).toBe('قبل'); expect(decisions).toHaveLength(0);
+  await page.evaluate(() => { history.pushState({}, '', '/profile-reviews/students'); dispatchEvent(new PopStateEvent('popstate')); });
+  await expect(page.getByText('عنوان الطالب المقترح', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'رفض الطلب', exact: true })).toBeDisabled();
+  await page.getByLabel('سبب الرفض / ملاحظة').fill('يرجى تصحيح العنوان');
+  await page.getByRole('button', { name: 'رفض الطلب', exact: true }).click();
+  await expect(page.getByText(/القرار بانتظار المزامنة/)).toBeVisible();
+  await context.setOffline(false);
+  await expect.poll(() => decisions.length).toBe(2);
+  expect(teacherAddress).toBe('عنوان المحفظ المقترح');
+  expect(decisions.find(op => op.data.status === 'REJECTED').data.reason).toBe('يرجى تصحيح العنوان');
 });
 
 test('cold offline navigation opens downloaded core screens and searches locally', async ({ page, context }) => {

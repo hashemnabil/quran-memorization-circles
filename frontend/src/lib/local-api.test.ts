@@ -33,17 +33,20 @@ test('search, filters and pagination work without a previously cached query vari
   assert.equal(search.data[0].id, 'student-41');
 });
 
-test('student questionnaire updates the own profile immediately and queues one protected action offline', async () => {
+test('student questionnaire queues a review without changing the approved student profile', async () => {
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ id: 'account', role: 'STUDENT' }) } });
   await mergeRows('students', [{ id: student, selfAccountId: 'account', fullName: 'Student', address: 'Before', totalPoints: 50 }]);
   const saved = await localWrite('patch', '/students/me/questionnaire', { address: 'After' });
   assert.equal(saved.synced, 0);
   const own = await localRead('/students/me');
-  assert.equal(own.address, 'After');
+  assert.equal(own.address, 'Before');
   assert.equal(own.totalPoints, 50);
   const queue = await db.queue.toArray();
   assert.equal(queue.length, 1);
-  assert.equal(queue[0].action, 'questionnaire');
-  assert.equal(queue[0].entityId, student);
+  assert.equal(queue[0].table, 'profileReviews');
+  assert.equal(queue[0].action, 'create');
+  assert.equal(queue[0].data.patch.address, 'After');
+  assert.equal((await db.table('profileReviews').get(['account', saved.id]))?.status, 'PENDING');
   assert.equal(queue[0].data.totalPoints, undefined);
 });
 test('attendance sheet and grouped history reflect a newly queued local sheet', async () => {

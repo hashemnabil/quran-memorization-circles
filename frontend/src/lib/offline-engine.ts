@@ -41,6 +41,7 @@ export async function save(table: EntityTable, data: Record<string, any>, action
   }
   const existing = await db.table(table).get([account, id]);
   const row: LocalRow = { createdAt: new Date().toISOString(), ...(table === 'behaviors' ? { author: { id: account, fullName: 'محفوظ محليًا' } } : {}), ...existing, ...data, id, accountId: account, synced: 0, updatedAt: new Date().toISOString() };
+  if (table === 'profileReviews' && action === 'decision') { row.pendingDecision = data.status; row.status = existing?.status || 'PENDING'; }
   if (table === 'teachers') {
     row.user = { ...existing?.user, ...(row.user || {}) };
     for (const field of ['fullName', 'username', 'email', 'phone', 'avatarUrl', 'jobTitle', 'specialization']) if (data[field] !== undefined) row.user[field] = data[field];
@@ -84,7 +85,7 @@ export async function save(table: EntityTable, data: Record<string, any>, action
   const sealed = await sealCredentials(queued);
   const candidates = await db.queue.where('accountId').equals(account).filter(item => item.table === table && item.entityId === id).toArray();
   const candidate = candidates.length === 1 && candidates[0].error &&
-    (action === 'update' && ['create', 'update'].includes(candidates[0].action) || action === 'questionnaire' && candidates[0].action === action) ? candidates[0] : undefined;
+    (action === 'update' && ['create', 'update'].includes(candidates[0].action) || ['questionnaire', 'decision'].includes(action) && candidates[0].action === action) ? candidates[0] : undefined;
   const corrected = candidate ? await sealCredentials({ ...candidate, opId, data: { ...await openCredentials(candidate), ...wireData } }) : undefined;
   await db.transaction('rw', db.table(table), db.queue, async () => {
     await db.table(table).put(row);
@@ -92,7 +93,7 @@ export async function save(table: EntityTable, data: Record<string, any>, action
       .filter(item => item.table === table && item.entityId === id).toArray();
     const rejected = pending.length === 1 && pending[0].error ? pending[0] : undefined;
     const correctsRejected = rejected && (action === 'update' && ['create', 'update'].includes(rejected.action)
-      || action === 'questionnaire' && rejected.action === action);
+      || ['questionnaire', 'decision'].includes(action) && rejected.action === action);
     if (correctsRejected && rejected && rejected.opId === candidate?.opId && corrected) {
       // Replace only an explicitly rejected request. Unknown/lost responses keep
       // their original payload and operation ID for safe idempotent replay.
@@ -347,6 +348,17 @@ export function reconcileAfterNetworkWrite(): Promise<void> {
 async function refreshOnce(options: { forceDownload?: boolean; checkDelta?: boolean }) {
   if (!navigator.onLine || !currentAccount()) return;
   const account = accountId();
+  if ((await db.meta.get(`${account}:needsProfileReviewsBootstrap`))?.value) {
+    for (let page = 1; ; page++) {
+      const result = await transport('get', `/sync-all?table=profileReviews&page=${page}`);
+      if (currentAccount() !== account) return;
+      await mergeRows('profileReviews', result.data, account);
+      for (const [path, data] of Object.entries(result.references || {})) await db.meta.put({ key: `${account}:reference:${path}`, value: data });
+      if (!result.meta?.hasNextPage) break;
+    }
+    await db.meta.delete(`${account}:needsProfileReviewsBootstrap`);
+    window.dispatchEvent(new Event('halaqat:changed'));
+  }
   const downloadedAt = (await db.meta.get(`${account}:downloadedAt`))?.value;
   const remote = (await db.meta.get(`${account}:remoteRevision`))?.value;
   const downloadedRevision = (await db.meta.get(`${account}:downloadedRevision`))?.value;

@@ -16,6 +16,23 @@ beforeEach(async () => {
 });
 after(() => db.close());
 
+test('verification upgrade downloads just the new table without redownloading old application data', async () => {
+  online = true; const paths: string[] = [];
+  await db.meta.bulkPut([{ key: `${account}:downloadedAt`, value: 'ready' }, { key: `${account}:deltaCursor`, value: '50' }, { key: `${account}:needsProfileReviewsBootstrap`, value: true }]);
+  await mergeRows('students', [{ id: 'existing', fullName: 'Kept' }]);
+  configureOffline(async (_method, path) => { paths.push(path);
+    if (path.includes('table=profileReviews')) return { data: [{ id: 'review', status: 'PENDING' }], meta: { hasNextPage: false } };
+    if (path === '/sync-all/watermark') return { cursor: '50' };
+    throw new Error(`Unexpected full download: ${path}`);
+  }, () => account);
+  await refreshOffline();
+  assert(paths.some(path => path.includes('table=profileReviews')));
+  assert(!paths.some(path => path.includes('table=students')));
+  assert.equal((await get('students'))[0].fullName, 'Kept');
+  assert.equal((await get('profileReviews'))[0].id, 'review');
+  assert.equal(await db.meta.get(`${account}:needsProfileReviewsBootstrap`), undefined);
+});
+
 test('direct server writes refresh the local replica without a socket and recheck overlapping commits', async () => {
   await db.meta.bulkPut([
     { key: `${account}:downloadedAt`, value: 'ready' },

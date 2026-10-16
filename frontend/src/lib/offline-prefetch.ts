@@ -56,7 +56,8 @@ export async function prefetchSections(send: Send, account: string, currentAccou
   };
   const affected = (path: string) => !changedEntities || path.startsWith('/dashboard/') ||
     (dependencies[path.split('/')[1]] || []).some(entity => changedEntities.includes(entity));
-  const pending = [...paths].filter(affected);
+  if (['STUDENT', 'TEACHER'].includes(role)) paths.add('/profile-reviews/me');
+  const pending = [...paths].filter(path => path === '/profile-reviews/me' ? !changedEntities || changedEntities.some(entity => ['profile_reviews', 'students', 'teacher_profiles', 'users'].includes(entity)) : affected(path));
   const visited = new Set<string>();
   const download = async (path: string) => {
     const rows: any[] = []; let result: any; let paginated = false; let registry = false;
@@ -85,6 +86,15 @@ export async function prefetchSections(send: Send, account: string, currentAccou
     }
     if (currentAccount() !== account) return;
     const data = paginated ? { ...result, [registry ? 'items' : 'data']: rows } : result;
+    if (path === '/profile-reviews/me' && data?.profile && Array.isArray(data.requests)) {
+      await db.meta.put({ key: `${account}:reference:/profile-reviews/me`, value: data });
+      await db.transaction('rw', db.table('profileReviews'), async () => {
+        for (const request of data.requests) {
+          if (typeof request.id !== 'string' || (await db.table('profileReviews').get([account, request.id]))?.synced === 0) continue;
+          await db.table('profileReviews').put({ ...request, accountId: account, synced: 1 });
+        }
+      });
+    }
     await db.meta.put({ key: key(account, path), value: { data, rows: paginated ? rows : Array.isArray(data) ? data : undefined, paginated, registry, savedAt: new Date().toISOString() } satisfies Snapshot });
     const items = paginated ? rows : Array.isArray(data) ? data : [];
     for (const row of items) {

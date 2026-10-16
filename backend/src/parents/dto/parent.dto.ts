@@ -28,9 +28,9 @@ export class CreateParentDto {
   @MaxLength(160)
   email?: string | null;
 
-  @ApiProperty({ minLength: 6 })
+  @ApiProperty({ minLength: 4 })
   @IsString()
-  @MinLength(6, { message: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' })
+  @MinLength(4, { message: 'كلمة المرور يجب أن تكون 4 أحرف على الأقل' })
   password: string;
 
   @ApiProperty()

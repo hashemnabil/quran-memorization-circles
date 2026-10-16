@@ -1,3 +1,4 @@
+import { NativePushSettings } from '@/components/NativePush';
 import { ChangeEvent, FormEvent, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -51,7 +52,7 @@ export default function ProfilePage() {
     e.preventDefault();
     const next: Record<string, string> = {};
     if (!currentPassword) next.currentPassword = 'كلمة المرور الحالية مطلوبة';
-    if (newPassword.length < 6) next.newPassword = 'كلمة المرور الجديدة 6 أحرف على الأقل';
+    if (newPassword.length < 4) next.newPassword = 'كلمة المرور الجديدة 4 أحرف على الأقل';
     if (newPassword !== confirmPassword) next.confirmPassword = 'كلمتا المرور غير متطابقتين';
     if (newPassword && newPassword === currentPassword) next.newPassword = 'يجب أن تختلف عن الحالية';
     setErrors(next);
@@ -162,8 +163,9 @@ export default function ProfilePage() {
             </Card>
           )}
 
-          <ProfileDetailsCard profile={profile} onUpdated={setUser} />
+          {['STUDENT', 'TEACHER'].includes(user.role) ? <Card title="بياناتي الشخصية"><Button onClick={() => navigate('/verify-profile')}>تحقق من بياناتي</Button></Card> : <ProfileDetailsCard profile={profile} onUpdated={setUser} />}
 
+          <NativePushSettings />
           <Card title="تغيير كلمة المرور" subtitle="سيتم إنهاء جميع جلساتك بعد التغيير">
             <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
               <Input
@@ -183,7 +185,7 @@ export default function ProfilePage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 error={errors.newPassword}
-                hint="6 أحرف على الأقل"
+                hint="4 أحرف على الأقل"
                 dir="ltr"
               />
               <Input

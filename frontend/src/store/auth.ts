@@ -77,6 +77,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async logout() {
     const accountId = get().user?.id ?? '';
+    await import('@/lib/native-push').then(module => module.disableNativePush()).catch(() => undefined);
     try {
       if (navigator.onLine) await api.post('/auth/logout', { refreshToken: tokenStore.refresh() });
     } catch {

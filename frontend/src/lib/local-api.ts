@@ -2,6 +2,11 @@ import { db, entityTables, type EntityTable } from './db';
 import { accountId, get, mergeRows, remove, save, update } from './offline-engine';
 
 export async function localRead(path: string, params: Record<string, any> = {}): Promise<any | undefined> {
+  if (path.split('?')[0] === '/profile-reviews') { const kind = new URL(path, 'https://local.invalid').searchParams.get('kind') || params.kind; const data = (await get('profileReviews')).filter(row => !kind || row.kind === kind).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))); const queue = await db.queue.where('accountId').equals(accountId()).filter(op => op.table === 'profileReviews').toArray(); return { data: data.map(row => ({ ...row, syncError: queue.find(op => op.entityId === row.id)?.error })), meta: { total: data.length, hasNextPage: false } }; }
+  if (path === '/profile-reviews/me') {
+    const account = accountId(); const reference = (await db.meta.get(`${account}:reference:/profile-reviews/me`))?.value;
+    if (reference) return { ...reference, requests: (await get('profileReviews')).filter(row => row.requesterId === account).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))) };
+  }
   const url = new URL(path, 'https://local.invalid');
   url.searchParams.forEach((value, key) => { params[key] ??= value; });
   const segments = url.pathname.split('/').filter(Boolean);
@@ -105,6 +110,8 @@ export async function localRead(path: string, params: Record<string, any> = {}):
 export async function rememberRead(path: string, params: any, data: any) {
   const account = accountId();
   await db.responses.put({ key: responseKey(account, path, params), accountId: account, data });
+  if (path === '/profile-reviews/me') { await db.meta.put({ key: `${account}:reference:/profile-reviews/me`, value: data }); await mergeRows('profileReviews', data.requests || [], account); }
+  if (path.split('?')[0] === '/profile-reviews') await mergeRows('profileReviews', data.data || [], account);
   const segments = path.split('?')[0].split('/').filter(Boolean);
   const root = (path === '/students/accounts' ? 'studentAccounts' : segments[0] === 'schedules' ? { media: 'mediaPlans', duties: 'teacherDuties', teachers: 'dutyTeachers' }[segments[1]] : segments[0]) as EntityTable;
   if (entityTables.includes(root)) {
@@ -117,6 +124,19 @@ export function responseKey(account: string, path: string, params: any) {
 }
 export async function localWrite(method: string, path: string, data: any): Promise<any | undefined> {
   const parts = path.split('/').filter(Boolean);
+  if (method === 'post' && path === '/profile-reviews' || method === 'patch' && path === '/students/me/questionnaire' || method === 'patch' && parts[0] === 'teachers' && JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.role === 'TEACHER') {
+    const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+    if (!['STUDENT', 'TEACHER'].includes(user?.role)) throw Object.assign(new Error('طلب التحقق للطالب والمحفظ فقط'), { localWriteRejected: true });
+    if ((await get('profileReviews')).some(row => row.status === 'PENDING')) throw Object.assign(new Error('لديك طلب بانتظار المراجعة'), { localWriteRejected: true });
+    return save('profileReviews', { kind: user.role, requesterId: user.id, patch: path === '/profile-reviews' ? data.patch : data, status: 'PENDING', createdAt: new Date().toISOString() }, 'create');
+  }
+  if (method === 'patch' && parts[0] === 'profile-reviews' && parts[2] === 'decision') {
+    const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+    if (user?.role !== 'ADMIN') throw Object.assign(new Error('المراجعة للإدارة فقط'), { localWriteRejected: true });
+    const pending = await db.queue.where('accountId').equals(accountId()).filter(op => op.table === 'profileReviews' && op.entityId === parts[1]).first();
+    if (pending && !pending.error) throw Object.assign(new Error('لديك قرار بانتظار المزامنة'), { localWriteRejected: true });
+    return save('profileReviews', { ...data, id: parts[1] }, 'decision');
+  }
   if (parts[0] === 'users' && (method === 'post' && parts.length === 1 || method === 'patch' && parts.length <= 3 && (!parts[2] || parts[2] === 'reset-password'))) {
     const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
     if (user?.role !== 'ADMIN') throw Object.assign(new Error('إدارة الحسابات متاحة للإدارة فقط'), { localWriteRejected: true });
@@ -139,11 +159,6 @@ export async function localWrite(method: string, path: string, data: any): Promi
       isActive: true, mustChangePassword: true, password, credentialPending: true, activationPending: parts.length === 3 },
       parts.length === 3 ? 'create' : 'reset-password');
     return { ...row, temporaryPassword: password };
-  }
-  if (method === 'patch' && path === '/students/me/questionnaire') {
-    const student = (await get('students')).find(row => row.selfAccountId === accountId());
-    if (!student) throw Object.assign(new Error('افتح ملفك مع النت مرة واحدة قبل تعبئة الاستبيان بدون نت'), { localWriteRejected: true });
-    return save('students', { ...data, id: student.id }, 'questionnaire');
   }
   if (parts[0] === 'schedules' && ['media', 'duties'].includes(parts[1])) {
     const table = parts[1] === 'media' ? 'mediaPlans' : 'teacherDuties';

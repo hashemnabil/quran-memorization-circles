@@ -1,3 +1,4 @@
+import ProfileVerificationPage, { ProfileReviewsPage } from '@/pages/ProfileVerificationPage';
 import { useEffect } from 'react';
 import AppLaunchGate from '@/components/AppLaunchGate';
 import { Route, Routes } from 'react-router-dom';
@@ -110,6 +111,9 @@ export default function App() {
           </RequireAuth>
         }
       >
+        <Route path="verify-profile" element={<RequireRole roles={['STUDENT', 'TEACHER']}><ProfileVerificationPage /></RequireRole>} />
+        <Route path="profile-reviews/students" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="STUDENT" /></RequireRole>} />
+        <Route path="profile-reviews/teachers" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="TEACHER" /></RequireRole>} />
         <Route path="settings/offline" element={<OfflineSettingsPage />} />
         <Route index element={currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />

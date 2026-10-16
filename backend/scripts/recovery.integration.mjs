@@ -41,7 +41,22 @@ try {
   const opId = 'recovery-operation';
   await fixture.processedOperation.create({ data: { opId, accountId: 'test-account', result: { status: 'applied' } } });
   assert(await fixture.processedOperation.findUnique({ where: { opId_accountId: { opId, accountId: 'test-account' } } }));
+  // Rehearse the additive review/push upgrade on the same unmanaged disposable database.
+  await fixture.$executeRawUnsafe('DROP TABLE push_deliveries, push_devices, profile_reviews');
+  await fixture.$executeRawUnsafe('ALTER TABLE notifications DROP COLUMN "pushQueuedAt"');
+  await fixture.$disconnect();
+  run(['db', 'execute', '--file', 'prisma/recovery/add-profile-reviews-native-push.sql', '--schema', 'prisma/schema.prisma']);
+  assert.equal((await fixture.student.findUniqueOrThrow({ where: { id: student.id } })).address, 'After recovery');
+  const review = await fixture.profileReview.create({ data: { kind: 'STUDENT', requesterId: 'test-requester', subjectId: student.id, patch: { address: 'Unapproved' }, base: { address: 'After recovery' } } });
+  assert.equal(review.status, 'PENDING');
+  assert.equal((await fixture.student.findUniqueOrThrow({ where: { id: student.id } })).address, 'After recovery');
+  const receiver = await fixture.user.create({ data: { username: `recovery-${name}`, fullName: 'Recovery notification receiver', passwordHash: 'test-only', role: 'ADMIN' } });
+  const notice = await fixture.notification.create({ data: { userId: receiver.id, type: 'SYSTEM', title: 'Recovery notification', pushQueuedAt: new Date() } });
+  const device = await fixture.pushDevice.create({ data: { installationId: 'recovery-installation', userId: receiver.id, platform: 'android', token: 'synthetic-recovery-token' } });
+  const delivery = await fixture.pushDelivery.create({ data: { deviceId: device.id, notificationId: notice.id } });
+  assert.equal(delivery.status, 'PENDING');
   console.log('Recovery preserved the existing student, restored all six tables, and enabled journal and receipt writes.');
+  console.log('The additive review/push recovery also preserved student data and created working request and delivery records.');
 } finally {
   await fixture.$disconnect();
   if (created) await admin.$executeRawUnsafe(`DROP DATABASE "${name}"`);

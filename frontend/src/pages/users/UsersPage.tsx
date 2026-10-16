@@ -394,7 +394,7 @@ function UserFormModal({ user, onClose }: { user?: UserRecord; onClose: () => vo
     if (mailErr) next.email = mailErr;
     const phoneErr = phoneError(form.phone);
     if (phoneErr) next.phone = phoneErr;
-    if (!isEdit && form.password.length < 6) next.password = 'كلمة المرور 6 أحرف على الأقل';
+    if (!isEdit && form.password.length < 4) next.password = 'كلمة المرور 4 أحرف على الأقل';
     setErrors(next);
     if (Object.keys(next).length) return;
     mutation.mutate();
@@ -492,7 +492,7 @@ function ResetPasswordModal({ user, onClose }: { user: UserRecord; onClose: () =
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
-          <Button onClick={() => mutation.mutate()} loading={mutation.isPending} disabled={newPassword.length < 6}>
+          <Button onClick={() => mutation.mutate()} loading={mutation.isPending} disabled={newPassword.length < 4}>
             إعادة التعيين
           </Button>
         </>
@@ -507,7 +507,7 @@ function ResetPasswordModal({ user, onClose }: { user: UserRecord; onClose: () =
         type="text"
         value={newPassword}
         onChange={(e) => setNewPassword(e.target.value)}
-        hint="6 أحرف على الأقل"
+        hint="4 أحرف على الأقل"
         dir="ltr"
       />
     </Modal>

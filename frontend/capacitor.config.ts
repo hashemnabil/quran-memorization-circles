@@ -4,6 +4,7 @@ const config: CapacitorConfig = {
   appId: 'org.qurancircles.app',
   appName: 'حلقات تحفيظ السوسي',
   webDir: 'dist',
+  plugins: { PushNotifications: { presentationOptions: ['badge', 'sound', 'alert'] } },
   server: { androidScheme: 'https' },
   android: { allowMixedContent: false },
 };

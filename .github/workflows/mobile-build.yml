@@ -36,6 +36,11 @@ jobs:
       - name: Sync Capacitor assets
         working-directory: frontend
         run: npm run mobile:sync -- android
+      - name: Configure optional Firebase Android project
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          node -e "const fs=require('fs');const value=process.env.GOOGLE_SERVICES_JSON;if(value){JSON.parse(value);fs.writeFileSync('frontend/android/app/google-services.json',value);}"
       - name: Assemble debug APK
         working-directory: frontend/android
         run: bash ./gradlew assembleDebug

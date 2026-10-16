@@ -96,6 +96,12 @@ export async function prefetchSections(send: Send, account: string, currentAccou
       });
     }
     await db.meta.put({ key: key(account, path), value: { data, rows: paginated ? rows : Array.isArray(data) ? data : undefined, paginated, registry, savedAt: new Date().toISOString() } satisfies Snapshot });
+    // Exact request caches must not override a newer permission-filtered snapshot offline.
+    if (path === '/users/directory' || path.startsWith('/chat/conversations')) {
+      await db.responses.where('accountId').equals(account).filter(row => {
+        try { return JSON.parse(row.key)[1] === path; } catch { return false; }
+      }).delete();
+    }
     const items = paginated ? rows : Array.isArray(data) ? data : [];
     for (const row of items) {
       if (row?.id) {

@@ -43,6 +43,17 @@ test('incremental section refresh only requests affected domains and reuses stor
   assert.deepEqual(rows, [{ id: 'ticket1', subject: 'keep' }, { id: 'ticket2', subject: 'new' }]);
 });
 
+test('contact policy refresh replaces obsolete offline directory variants without downloading core tables', async () => {
+  await db.responses.put({ key: JSON.stringify([account, '/users/directory', [['search', 'old']]]), accountId: account, data: [{ id: 'forbidden' }] });
+  const paths: string[] = [];
+  await prefetchSections(async (_method, path) => {
+    paths.push(path); return path === '/users/directory' ? [{ id: 'allowed', role: 'TEACHER' }] : [];
+  }, account, () => account, 'STUDENT', ['chat_contact_policy']);
+  assert.equal(await db.responses.where('accountId').equals(account).count(), 0);
+  assert.deepEqual(await readPrefetched(account, '/users/directory'), [{ id: 'allowed', role: 'TEACHER' }]);
+  assert(!paths.some(path => path.startsWith('/sync-all') || path.startsWith('/students/')));
+});
+
 test('app startup downloads unvisited sections, all pages, details and conversation messages', async () => {
   const requests: string[] = [];
   const send = async (_method: string, path: string): Promise<any> => {

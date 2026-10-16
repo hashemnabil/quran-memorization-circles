@@ -25,7 +25,10 @@ for (const [role, paths] of Object.entries(destinations)) {
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('response', (response) => { if (response.url().includes('/api/') && response.status() >= 500) errors.push(`HTTP ${response.status()} ${new URL(response.url()).pathname}`); });
     await login(page, role);
-    const allPaths = [...paths, ...(['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role) ? reports.map(report => `/documents/${report}`) : []), '/notifications', '/chat', '/support', '/profile'];
+    const initialSidebar = page.getByRole('navigation', { name: 'أقسام التطبيق', exact: true });
+    for (const group of await initialSidebar.getByRole('button', { expanded: false }).all()) await group.click();
+    const visiblePaths = await initialSidebar.getByRole('link').evaluateAll(links => links.map(link => link.getAttribute('href')!));
+    const allPaths = [...new Set([...paths, ...visiblePaths, ...(['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role) ? reports.map(report => `/documents/${report}`) : []), '/notifications', '/chat', '/support', '/profile'])];
     for (const path of allPaths) {
       const sidebar = page.getByRole('navigation', { name: 'أقسام التطبيق', exact: true });
       for (const group of await sidebar.getByRole('button', { expanded: false }).all()) await group.click();

@@ -117,6 +117,39 @@ test('notification links open their exact exam and request records offline, incl
   expect(errors).toEqual([]);
 });
 
+test('exam committee tabs work without offering forbidden student files or reports', async ({ page }) => {
+  const identity = { ...user, role: 'EXAM_COMMITTEE' };
+  const student = fixtures.students[0];
+  const request = { id: '40000000-0000-4000-8000-000000000001', status: 'PENDING', student, section: { name: 'Exam section' }, createdAt: '2026-10-15T00:00:00Z', teacher: { user: { fullName: 'Teacher' } } };
+  const exam = { ...request, id: '40000000-0000-4000-8000-000000000002', status: 'SCHEDULED', scheduledAt: '2026-10-15T10:00:00Z' };
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, identity);
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/auth/me') return route.fulfill({ json: identity });
+    if (url.pathname === '/api/settings/public') return route.fulfill({ json: { name: 'Test' } });
+    if (url.pathname === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+    if (url.pathname === '/api/sync-all/delta') return route.fulfill({ json: { cursor: '0', tables: {}, changedEntities: [], hasMore: false } });
+    if (url.pathname.endsWith('/unread-count')) return route.fulfill({ json: { count: 0 } });
+    if (url.pathname.includes('/announcements')) return route.fulfill({ json: [] });
+    let data: any[] = [];
+    if (url.pathname === '/api/sync-all') {
+      const table = url.searchParams.get('table'); data = table === 'exams' ? [exam] : table === 'examRequests' ? [request] : [];
+    }
+    return route.fulfill({ json: { data, meta: { page: 1, total: data.length, totalPages: 1, hasNextPage: false } } });
+  });
+  await page.goto('/exams');
+  await expect(page.getByRole('cell', { name: student.fullName, exact: false })).toBeVisible();
+  await expect(page.locator(`a[href="/students/${student.id}"]`)).toHaveCount(0);
+  await expect(page.locator('a[href="/documents/exams"]')).toHaveCount(0);
+  await page.getByRole('button', { name: /الاختبارات المجدولة/ }).click();
+  await expect(page.getByRole('cell', { name: student.fullName, exact: false })).toBeVisible();
+  await expect(page.locator(`a[href="/students/${student.id}"]`)).toHaveCount(0);
+  await page.getByRole('button', { name: 'سجل الاختبارات', exact: true }).click();
+  await expect(page.getByText('لا توجد اختبارات في السجل', { exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('administrator creates a user and student account, resets password offline and syncs on reconnect', async ({ page, context }) => {
   const received: any[] = [];
   await page.addInitScript(identity => {

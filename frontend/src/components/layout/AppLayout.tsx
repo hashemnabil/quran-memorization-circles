@@ -1,5 +1,5 @@
 import { NativePushConnection } from '@/components/NativePush';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -38,11 +38,20 @@ export default function AppLayout() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const accountMenu = useRef<HTMLDivElement>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ 'شؤون إدارية': false, الإعلام: false, 'شؤون الطلبة': false, المستندات: false, التواصل: false, 'نظام المدرسة': false });
   // The collapsed rail is a desktop-only preference, remembered between visits.
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
 
   useRealtime();
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !accountMenu.current?.contains(event.target)) setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOutside, true);
+    return () => document.removeEventListener('pointerdown', closeOutside, true);
+  }, [menuOpen]);
 
   useEffect(() => {
     localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
@@ -346,7 +355,7 @@ export default function AppLayout() {
               )}
             </NavLink>
 
-            <div className="relative">
+            <div ref={accountMenu} className="relative">
               <button
                 onClick={() => setMenuOpen((v) => !v)}
                 className="relative z-20 flex items-center gap-2 rounded-xl p-1 transition hover:bg-slate-100"
@@ -358,7 +367,6 @@ export default function AppLayout() {
 
               {menuOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
                   <div className="absolute left-0 z-20 mt-2 w-60 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-card-hover animate-fade-in">
                     <div className="border-b border-slate-100 px-4 py-3">
                       <p className="truncate text-sm font-bold text-slate-800">{user.fullName}</p>

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { canVisitStudentRoute } from '@/lib/student-route-policy';
 import type { Role } from '@/types';
 import {
   IconCamera,
@@ -162,6 +163,7 @@ export function rolesForPath(path?: string | null): Role[] | null {
  * them by the school's own notice.
  */
 export function canOpenPath(role: Role, path?: string | null): boolean {
+  if (role === 'STUDENT') return !!path && canVisitStudentRoute(path.split(/[?#]/)[0].replace(/\/+$/, '') || '/');
   const roles = rolesForPath(path);
   return roles === null ? true : roles.includes(role);
 }

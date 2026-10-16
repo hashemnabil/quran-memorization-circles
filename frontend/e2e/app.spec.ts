@@ -11,25 +11,35 @@ async function login(page: Page, role: string) {
   if (role !== 'PARENT') await expect(page).not.toHaveURL(/\/login$/);
 }
 const destinations: Record<string, string[]> = {
-  ADMIN: ['/students', '/circles', '/teachers', '/attendance', '/recitations', '/exams', '/courses', '/certificates-admin', '/users', '/settings'],
-  SUPERVISOR: ['/students', '/circles', '/attendance', '/recitations', '/exams', '/reports'],
-  TEACHER: ['/students', '/circles', '/attendance', '/recitations', '/exams', '/reports'],
-  EXAM_COMMITTEE: ['/exams', '/notifications'], SUPPORT: ['/support', '/notifications'],
-  STUDENT: ['/student', '/my-files', '/profile'],
+  ADMIN: ['/profile-reviews/students', '/profile-reviews/teachers', '/student-accounts', '/students', '/circles', '/teachers', '/supervisors', '/staff', '/staff/attendance', '/attendance', '/recitations', '/exams', '/courses', '/certificates-admin', '/users', '/settings', '/media-schedule', '/media-activities', '/announcements', '/teacher-duties', '/transfers', '/suspensions'],
+  SUPERVISOR: ['/students', '/circles', '/teachers', '/staff', '/staff/attendance', '/attendance', '/recitations', '/exams', '/courses', '/media-activities', '/teacher-duties', '/transfers', '/suspensions'],
+  TEACHER: ['/students', '/circles', '/attendance', '/recitations', '/exams', '/courses', '/teacher-duties', '/transfers', '/suspensions', '/verify-profile'],
+  EXAM_COMMITTEE: ['/exams'], SUPPORT: [],
+  STUDENT: ['/student', '/my-files', '/verify-profile'],
 };
+const reports = ['attendance', 'recitations', 'exams', 'student', 'circles', 'students', 'memorization-students', 'activity-students', 'suspended-students', 'course-students', 'courses', 'course-attendance'];
 for (const [role, paths] of Object.entries(destinations)) {
   test(`${role} renders its actual authorized screens through the live API`, async ({ page }) => {
+    test.setTimeout(180000);
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('response', (response) => { if (response.url().includes('/api/') && response.status() >= 500) errors.push(`HTTP ${response.status()} ${new URL(response.url()).pathname}`); });
     await login(page, role);
-    for (const path of paths) {
-      await page.goto(path);
+    const allPaths = [...paths, ...(['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role) ? reports.map(report => `/documents/${report}`) : []), '/notifications', '/chat', '/support', '/profile'];
+    for (const path of allPaths) {
+      const sidebar = page.getByRole('navigation', { name: 'أقسام التطبيق', exact: true });
+      for (const group of await sidebar.getByRole('button', { expanded: false }).all()) await group.click();
+      const link = sidebar.locator(`a[href="${path}"]`);
+      if (await link.count()) await link.click();
+      else await page.goto(path);
       await expect(page).toHaveURL(url => url.pathname === path);
       await expect(page.getByRole('status', { name: 'بدء التطبيق' })).not.toBeVisible();
       await expect(page.locator('main h1').first()).toBeVisible();
       await expect(page.locator('main')).not.toContainText('تعذر تحميل');
     }
+    await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+    await page.locator('header').getByRole('link', { name: 'الإشعارات', exact: true }).click();
+    await expect(page).toHaveURL(/\/notifications$/);
     expect(errors).toEqual([]);
   });
 }

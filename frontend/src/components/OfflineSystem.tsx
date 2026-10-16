@@ -30,7 +30,7 @@ export default function OfflineSystem() {
     const synchronize = async (initial = false) => {
       if (running || !active || !navigator.onLine) return;
       running = true; setError('');
-      try { await (initial ? initOffline() : refreshOffline()); }
+      try { await useAuthStore.getState().resumeOnline(); await (initial ? initOffline() : refreshOffline()); }
       catch (e) { if (active) setError(e instanceof Error ? e.message : String(e)); }
       finally {
         running = false;

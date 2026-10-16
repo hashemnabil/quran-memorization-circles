@@ -7,6 +7,8 @@ import { configureOffline, mergeRows } from './offline-engine';
 import { localRead, localWrite } from './local-api';
 import { localReport } from './local-analytics';
 import { exportLocalWorkbook } from './local-xlsx';
+import { clearAccountData } from './account-cleanup';
+import { enqueueOfflineOperation, clearOfflineOperations } from './offline/outbox';
 const student = '00000000-0000-4000-8000-000000000001';
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
 Object.defineProperty(globalThis, 'window', { configurable: true, value: new EventTarget() });
@@ -15,6 +17,22 @@ beforeEach(async () => {
   configureOffline(async () => { throw new Error('offline'); }, () => 'account');
 });
 after(() => db.close());
+
+test('account cleanup refuses both pending journals and removes only the selected clean account', async () => {
+  const row = { id: 'student', accountId: 'account', synced: 1, updatedAt: new Date().toISOString() };
+  await db.students.bulkPut([row, { ...row, accountId: 'other' }]);
+  await db.queue.add({ accountId: 'account', opId: 'pending', table: 'students', action: 'create', entityId: 'student', data: {}, createdAt: row.updatedAt });
+  await assert.rejects(clearAccountData('account'));
+  assert.equal(await db.students.count(), 2); assert.equal(await db.queue.count(), 1);
+  await db.queue.clear();
+  await enqueueOfflineOperation({ accountId: 'account', resource: 'attendance', method: 'POST', path: '/attendance', payload: {} });
+  await assert.rejects(clearAccountData('account'));
+  assert.equal(await db.students.count(), 2);
+  await clearOfflineOperations('account');
+  await clearAccountData('account');
+  assert.equal(await db.students.where('accountId').equals('account').count(), 0);
+  assert.equal(await db.students.where('accountId').equals('other').count(), 1);
+});
 
 test('pending activity and course registrations appear in their own lists before sync', async () => {
   const activity = await localWrite('post', '/students', { fullName: 'Activity student', registrationTrack: 'ACTIVITY' });

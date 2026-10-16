@@ -1,4 +1,5 @@
-import { defineConfig, type ProxyOptions } from 'vite';
+import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
+import { productionCsp } from './src/lib/security-csp';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { readFileSync } from 'node:fs';
@@ -27,6 +28,13 @@ function proxy(options: ProxyOptions = {}): ProxyOptions {
 
 export default defineConfig({
   plugins: [react(), {
+    name: 'production-content-security-policy',
+    apply: 'build',
+    transformIndexHtml() {
+      const env = { ...loadEnv('production', process.cwd(), 'VITE_'), ...process.env };
+      return [{ tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: productionCsp(env.VITE_API_URL, env.VITE_SOCKET_URL) }, injectTo: 'head-prepend' as const }];
+    },
+  }, {
     name: 'complete-offline-shell',
     generateBundle(_options, bundle) {
       const template = readFileSync(path.resolve(__dirname, 'src/service-worker.template.js'), 'utf8');

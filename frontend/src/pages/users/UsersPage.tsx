@@ -1,3 +1,4 @@
+import { passwordError } from '@/lib/validation';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -394,7 +395,7 @@ function UserFormModal({ user, onClose }: { user?: UserRecord; onClose: () => vo
     if (mailErr) next.email = mailErr;
     const phoneErr = phoneError(form.phone);
     if (phoneErr) next.phone = phoneErr;
-    if (!isEdit && form.password.length < 4) next.password = 'كلمة المرور 4 أحرف على الأقل';
+    if (!isEdit && form.password.length < 12) next.password = 'كلمة المرور 12 حرفًا على الأقل';
     setErrors(next);
     if (Object.keys(next).length) return;
     mutation.mutate();
@@ -492,7 +493,7 @@ function ResetPasswordModal({ user, onClose }: { user: UserRecord; onClose: () =
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
-          <Button onClick={() => mutation.mutate()} loading={mutation.isPending} disabled={newPassword.length < 4}>
+          <Button onClick={() => mutation.mutate()} loading={mutation.isPending} disabled={Boolean(passwordError(newPassword))}>
             إعادة التعيين
           </Button>
         </>
@@ -507,7 +508,7 @@ function ResetPasswordModal({ user, onClose }: { user: UserRecord; onClose: () =
         type="text"
         value={newPassword}
         onChange={(e) => setNewPassword(e.target.value)}
-        hint="4 أحرف على الأقل"
+        hint="12 حرفًا على الأقل"
         dir="ltr"
       />
     </Modal>

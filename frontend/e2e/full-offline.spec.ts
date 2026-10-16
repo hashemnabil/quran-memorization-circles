@@ -10,6 +10,18 @@ const fixtures: Record<string, any[]> = {
   dutyTeachers: [{ id: '00000000-0000-4000-8000-000000000005', fullName: 'محفظ النظام' }],
 };
 
+test('public deletion entry identifies the school and production CSP blocks injected inline scripts', async ({ page }) => {
+  await page.route('**/api/**', route => route.fulfill({ json: { name: schoolName } }));
+  await page.goto('/account-deletion');
+  await expect(page.getByRole('heading', { name: 'طلب حذف الحساب والبيانات' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'تسجيل الدخول للتحقق من هويتي' })).toBeVisible();
+  const executed = await page.evaluate(() => {
+    const script = document.createElement('script'); script.textContent = 'window.__injectedSecurityTest = true'; document.head.appendChild(script);
+    return Boolean((window as any).__injectedSecurityTest);
+  });
+  expect(executed).toBe(false);
+});
+
 for (const width of [1280, 390]) {
   test(`student header, notification destination and services open on first click at ${width}px`, async ({ page, context }) => {
     const identity = { ...user, role: 'STUDENT' };
@@ -277,14 +289,18 @@ test('unexpected screen errors offer recovery without clearing the saved account
 });
 
 test('native launch shows only a logo and introduces the app once', async ({ page }) => {
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => { (window as any).androidBridge = {}; });
   await page.route('**/api/**', route => route.fulfill({ json: { name: 'حلقات التحفيظ' } }));
   await page.goto('/login');
   const splash = page.getByRole('status', { name: 'بدء التطبيق', exact: true });
+  // Pause the brief splash timer so the screenshot/assertions do not race it.
   await expect(splash).toBeVisible();
   await expect(splash).toHaveText('');
   await splash.screenshot({ path: 'test-results/native-logo.png', animations: 'disabled' });
+  await page.clock.runFor(1800);
   await expect(page.getByRole('heading', { name: 'كل آية، خطوة إلى الأمام' })).toBeVisible();
   await page.evaluate(() => Promise.all(Array.from(document.images).map(image => image.decode().catch(() => undefined))));
   await page.screenshot({ path: 'test-results/native-intro.png', animations: 'disabled' });

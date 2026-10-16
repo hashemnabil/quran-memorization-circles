@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { rememberOfflineLogin, unlockOfflineLogin, forgetOfflineLogin } from './offline-login';
+import { rememberOfflineLogin, unlockOfflineLogin, forgetAccountOfflineLogin } from './offline-login';
 
-test('offline login survives logout, validates credentials and stores no plaintext credentials', async () => {
+test('offline unlock survives a local lock, restores identity only and full logout removes account aliases', async () => {
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
     getItem: (key: string) => storage.get(key) ?? null,
@@ -19,8 +19,10 @@ test('offline login survives logout, validates credentials and stores no plainte
   await assert.rejects(unlockOfflineLogin('another', 'correct-password'));
   const session = await unlockOfflineLogin(' Teacher ', 'correct-password');
   assert.equal(session.user.id, user.id);
-  assert.equal(session.accessToken, 'secret-access');
-  assert.equal(session.refreshToken, 'secret-refresh');
-  forgetOfflineLogin('teacher');
+  assert.equal('accessToken' in session, false);
+  assert.equal('refreshToken' in session, false);
+  await rememberOfflineLogin('renamed', 'correct-password', user);
+  forgetAccountOfflineLogin(user.id, 'renamed');
   await assert.rejects(unlockOfflineLogin('teacher', 'correct-password'));
+  await assert.rejects(unlockOfflineLogin('renamed', 'correct-password'));
 });

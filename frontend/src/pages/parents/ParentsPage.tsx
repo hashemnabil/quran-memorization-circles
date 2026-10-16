@@ -1,3 +1,4 @@
+import { passwordError } from '@/lib/validation';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -209,7 +210,7 @@ function ParentFormModal({ onClose }: { onClose: () => void }) {
     if (phoneErr) next.phone = phoneErr;
     const altPhoneErr = phoneError(form.altPhone);
     if (altPhoneErr) next.altPhone = altPhoneErr;
-    if (form.password.length < 4) next.password = 'كلمة المرور 4 أحرف على الأقل';
+    if (passwordError(form.password)) next.password = passwordError(form.password);
     setErrors(next);
     if (Object.keys(next).length) return;
     create.mutate(Object.fromEntries(Object.entries(form).filter(([, v]) => v !== '')));

@@ -3,6 +3,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth';
 import { useRealtime } from '@/hooks/useRealtime';
 import { navigationFor } from '@/config/navigation';
@@ -118,8 +119,8 @@ export default function AppLayout() {
   const groups = navigationFor(user.role);
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login', { replace: true });
+    try { await logout(); navigate('/login', { replace: true }); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'تعذر إكمال تسجيل الخروج'); }
   };
 
   /**
@@ -244,6 +245,7 @@ export default function AppLayout() {
       </nav>
 
       <div className={cx('border-t border-white/10', rail ? 'p-2' : 'p-3')}>
+        {!rail && <button type="button" className="mb-2 min-h-11 w-full rounded-xl text-sm font-semibold text-primary-100 hover:bg-white/10" onClick={() => { useAuthStore.getState().lock(); navigate('/login', { replace: true }); }}>قفل محلي مع الاحتفاظ بالبيانات</button>}
         <button
           onClick={handleLogout}
           title={rail ? 'تسجيل الخروج' : undefined}

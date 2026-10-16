@@ -1,3 +1,4 @@
+import { passwordError } from '@/lib/validation';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -288,7 +289,7 @@ function TeacherFormModal({ onClose }: { onClose: () => void }) {
     if (mailErr) next.email = mailErr;
     const phoneErr = phoneError(form.phone);
     if (phoneErr) next.phone = phoneErr;
-    if (form.password.length < 4) next.password = 'كلمة المرور 4 أحرف على الأقل';
+    if (passwordError(form.password)) next.password = passwordError(form.password);
     setErrors(next);
     if (Object.keys(next).length) return;
 

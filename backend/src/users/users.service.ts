@@ -330,7 +330,7 @@ export class UsersService {
       },
       select: { id: true, fullName: true, role: true, avatarUrl: true, jobTitle: true },
       orderBy: { fullName: 'asc' },
-      take: 50,
+      ...(search ? { take: 50 } : {}),
     });
   }
 

@@ -16,6 +16,15 @@ beforeEach(async () => {
 });
 after(() => db.close());
 
+test('contact policy upgrade refreshes only contact domains once without restarting the download', async () => {
+  online = true; const domains: any[] = [];
+  await db.meta.put({ key: `${account}:downloadedAt`, value: 'ready' });
+  configureOffline(async () => { throw new Error('Unexpected full download'); }, () => account,
+    async (_account, changed) => { domains.push(changed); });
+  await refreshOffline(); await refreshOffline();
+  assert.deepEqual(domains, [['chat_contact_policy']]);
+});
+
 test('verification upgrade downloads just the new table without redownloading old application data', async () => {
   online = true; const paths: string[] = [];
   await db.meta.bulkPut([{ key: `${account}:downloadedAt`, value: 'ready' }, { key: `${account}:deltaCursor`, value: '50' }, { key: `${account}:needsProfileReviewsBootstrap`, value: true }]);

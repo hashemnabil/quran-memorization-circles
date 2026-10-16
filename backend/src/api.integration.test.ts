@@ -72,6 +72,46 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('GET', '/users', Role.TEACHER, undefined, 403);
       assert.equal((await request('GET', '/students/me', Role.STUDENT)).id, student.id);
     });
+    await t.test('chat directory and writes enforce student, teacher and supervisor relationships', async () => {
+      const stranger = await db.user.create({ data: { username: `stranger${suffix}`, fullName: 'Unrelated student', role: Role.STUDENT, passwordHash } });
+      const conversations: string[] = [];
+      try {
+        await db.student.update({ where: { id: hiddenStudent.id }, data: { userId: stranger.id } });
+        const rules = [
+          { role: Role.STUDENT, allowed: [ids.ADMIN!, ids.TEACHER!, ids.SUPERVISOR!], denied: [stranger.id, ids.SUPPORT!, ids.EXAM_COMMITTEE!] },
+          { role: Role.TEACHER, allowed: [ids.ADMIN!, ids.STUDENT!], denied: [stranger.id, ids.SUPERVISOR!, ids.SUPPORT!] },
+          { role: Role.SUPERVISOR, allowed: [ids.ADMIN!, ids.TEACHER!, ids.STUDENT!], denied: [stranger.id, ids.SUPPORT!, ids.EXAM_COMMITTEE!] },
+          { role: Role.ADMIN, allowed: [ids.STUDENT!, ids.TEACHER!, ids.SUPERVISOR!, ids.SUPPORT!, ids.EXAM_COMMITTEE!, stranger.id], denied: [] },
+        ];
+        for (const rule of rules) {
+          const directory = await request('GET', '/users/directory', rule.role);
+          for (const target of rule.allowed) {
+            assert(directory.some((person: any) => person.id === target), `${rule.role} must see ${target}`);
+            const thread = await request('POST', '/chat/conversations/direct', rule.role, { userId: target });
+            conversations.push(thread.id);
+            await request('POST', `/chat/conversations/${thread.id}/messages`, rule.role, { body: 'Authorized contact' });
+          }
+          for (const target of rule.denied) {
+            assert(!directory.some((person: any) => person.id === target), `${rule.role} must not see ${target}`);
+            await request('POST', '/chat/conversations/direct', rule.role, { userId: target }, 403);
+          }
+        }
+        await request('POST', '/chat/conversations/group', Role.STUDENT, { title: 'Bypass', memberIds: [stranger.id] }, 403);
+        const thread = await request('POST', '/chat/conversations/direct', Role.TEACHER, { userId: ids.STUDENT });
+        const message = await request('POST', `/chat/conversations/${thread.id}/messages`, Role.TEACHER, { body: 'Before transfer' });
+        await db.student.update({ where: { id: student.id }, data: { circleId: hiddenCircle.id } });
+        assert(!(await request('GET', '/users/directory', Role.TEACHER)).some((person: any) => person.id === ids.STUDENT));
+        assert(!(await request('GET', '/users/directory', Role.STUDENT)).some((person: any) => person.id === ids.TEACHER));
+        assert.equal((await request('GET', `/chat/conversations/${thread.id}`, Role.TEACHER)).canPost, false);
+        await request('POST', `/chat/conversations/${thread.id}/messages`, Role.TEACHER, { body: 'After transfer' }, 403);
+        await request('PATCH', `/chat/conversations/${thread.id}/messages/${message.id}`, Role.TEACHER, { body: 'Edit bypass' }, 403);
+        await request('POST', `/chat/conversations/${thread.id}/messages`, Role.STUDENT, { body: 'After transfer' }, 403);
+      } finally {
+        await db.student.update({ where: { id: student.id }, data: { circleId: circle.id } });
+        await db.conversation.deleteMany({ where: { id: { in: conversations } } });
+        await db.user.delete({ where: { id: stranger.id } });
+      }
+    });
     await t.test('profile proposals require administrative approval, reject with a reason and replay safely offline', async () => {
       const proposal = await request('POST', '/profile-reviews', Role.STUDENT, { patch: { address: 'Proposed student home' } });
       assert.notEqual((await db.student.findUniqueOrThrow({ where: { id: student.id } })).address, 'Proposed student home');
@@ -127,7 +167,7 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       const ticket = await request('POST', '/support', Role.STUDENT, { subject: `Test ${suffix}`, description: 'Test support request' });
       await request('POST', `/support/${ticket.id}/reply`, Role.SUPPORT, { body: 'Test support response' });
       await request('GET', '/notifications', Role.STUDENT);
-      conversation = await request('POST', '/chat/conversations/direct', Role.TEACHER, { userId: ids.SUPERVISOR });
+      conversation = await request('POST', '/chat/conversations/direct', Role.TEACHER, { userId: ids.ADMIN });
       await request('POST', `/chat/conversations/${conversation.id}/messages`, Role.TEACHER, { body: 'Test message' });
       assert.equal(await db.message.count({ where: { conversationId: conversation.id } }), 1);
       await request('GET', `/chat/conversations/${conversation.id}`, Role.EXAM_COMMITTEE, undefined, 403);

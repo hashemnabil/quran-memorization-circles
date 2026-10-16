@@ -28,7 +28,7 @@ test('every account role gets a persistent message notice even while connected; 
     const prisma: any = { $transaction: async (run: any) => run(tx), conversationMember: member,
       conversation: { findUnique: async () => ({ type: 'DIRECT' }) } };
     const service = new ChatService(prisma, { isOnline: () => true, emitToConversation() {}, emitToUser: (...args: any[]) => events.push(args) } as any,
-      { notify: async (input: any) => notices.push(input) } as any, {} as any);
+      { notify: async (input: any) => notices.push(input) } as any, { assertCanContact: async () => ({ id: 'recipient' }) } as any);
     await service.send({ id: 'sender', fullName: 'Sender', role } as any, 'conversation', { body: 'Hello' });
     assert.equal(notices.length, 1); assert.equal(notices[0].userId, 'recipient');
     assert.deepEqual(notices[0].data, { conversationId: 'conversation', messageId: 'message' });

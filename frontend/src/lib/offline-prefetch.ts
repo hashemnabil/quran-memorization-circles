@@ -42,8 +42,8 @@ export async function prefetchSections(send: Send, account: string, currentAccou
   }
   let failure: unknown;
   const dependencies: Record<string, string[]> = {
-    settings: ['school_settings'], announcements: ['announcements'], users: ['users', 'teacher_profiles'],
-    support: ['support_tickets', 'ticket_messages', 'users'], chat: ['conversations', 'conversation_members', 'messages', 'users'],
+    settings: ['school_settings'], announcements: ['announcements'], users: ['users', 'teacher_profiles', 'circle_teachers', 'circles', 'students', 'chat_contact_policy'],
+    support: ['support_tickets', 'ticket_messages', 'users'], chat: ['conversations', 'conversation_members', 'messages', 'users', 'circle_teachers', 'circles', 'students', 'chat_contact_policy'],
     parents: ['parent_profiles', 'students', 'circles', 'users'], transfers: ['transfer_requests', 'students'],
     suspensions: ['suspension_requests', 'students'], preparations: ['preparation_assignments', 'students'],
     attendance: ['attendance', 'students', 'circles'], exams: ['exams', 'exam_requests', 'exam_sections', 'users'],
@@ -125,6 +125,7 @@ export async function prefetchSections(send: Send, account: string, currentAccou
   if (failure) throw failure;
   if (pending.length) throw new Error('انقطع تنزيل البيانات؛ ستتم إعادة المحاولة تلقائيًا');
   await db.meta.put({ key: `${account}:sectionsDownloadedAt`, value: new Date().toISOString() });
+  if (!changedEntities || changedEntities.includes('chat_contact_policy')) await db.meta.put({ key: `${account}:chatContactPolicyV1`, value: true });
 }
 
 /** Snapshots of extra sections are used only offline; core entities stay local-first. */

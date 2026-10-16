@@ -1,19 +1,19 @@
 import axios from 'axios';
 import React, { FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { Button, Input, Modal, Textarea } from '@/components/ui';
-import { IconAlert, IconEye, IconLifeBuoy, IconMosque } from '@/components/ui/Icons';
+import { IconAlert, IconEye, IconLifeBuoy } from '@/components/ui/Icons';
 import { phoneError, PHONE_HINT, USERNAME_HINT } from '@/lib/validation';
 import type { AuthUser, SchoolSettings } from '@/types';
 import { savePendingSupport } from '@/lib/offline/pendingSupport';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(() => new URLSearchParams(window.location.search).get('support') === '1');
 
   const { data: settings } = useQuery({
     queryKey: ['settings', 'public'],
@@ -30,11 +30,12 @@ export default function LoginPage() {
     <div className="login-screen" dir="rtl">
       <div className="login-panel">
         <header className="mb-8 flex flex-col items-center text-center">
-          {settings?.logoUrl ? <img src={settings.logoUrl} alt="" className="mb-5 h-24 w-24 object-contain" /> : <span className="mb-5 grid h-20 w-20 place-items-center rounded-3xl bg-primary-50 text-primary-800"><IconMosque size={42} /></span>}
+          <img src={settings?.logoUrl || '/brand-logo.png'} alt="" onError={event => { if (!event.currentTarget.src.endsWith('/brand-logo.png')) event.currentTarget.src = '/brand-logo.png'; }} className="mb-5 h-24 w-24 object-contain" />
           <h1 className="text-xl font-extrabold leading-relaxed text-slate-900">{settings?.name ?? 'حلقات تحفيظ القرآن الكريم'}</h1>
         </header>
         <CredentialsStep onAuthenticated={onAuthenticated} />
         <button type="button" onClick={() => setSupportOpen(true)} className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-primary-800"><IconLifeBuoy size={18} />الدعم الفني</button>
+        <Link to="/privacy" className="mt-2 block py-2 text-center text-xs font-semibold text-slate-500 hover:text-primary-800">البيانات والخصوصية</Link>
       </div>
       <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />
     </div>

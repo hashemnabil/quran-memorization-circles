@@ -1,13 +1,13 @@
 import { NativePushConnection } from '@/components/NativePush';
-import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { useRealtime } from '@/hooks/useRealtime';
 import { navigationFor } from '@/config/navigation';
 import { ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
-import { Avatar, Badge, cx } from '@/components/ui';
+import { Avatar, Badge, cx, LoadingState } from '@/components/ui';
 import AnnouncementBar from '@/components/AnnouncementBar';
 import OfflineSystem from '@/components/OfflineSystem';
 import DutyReminder from '@/components/DutyReminder';
@@ -405,15 +405,17 @@ export default function AppLayout() {
         {/* Sits directly under the header so it is seen on every page. */}
         <AnnouncementBar />
 
-        <main className="app-workspace min-w-0 flex-1 p-4 sm:p-7 lg:p-8">
+        <a href="#app-content" className="skip-to-content">الانتقال إلى المحتوى</a>
+        <main id="app-content" tabIndex={-1} className="app-workspace min-w-0 flex-1 p-4 sm:p-7 lg:p-8">
           <OfflineSystem />
           <DutyReminder />
-          <Outlet />
+          <Suspense fallback={<LoadingState />}><Outlet /></Suspense>
         </main>
 
         <footer className="border-t border-slate-200 px-6 py-4 text-center text-[11px] text-slate-400">
           {settings?.name ?? 'نظام إدارة حلقات التحفيظ'}
           {settings?.academicYear ? ` — العام الدراسي ${settings.academicYear}` : ''}
+          <Link to="/privacy" className="ms-3 inline-block py-2 hover:text-primary-700">البيانات والخصوصية</Link>
         </footer>
       </div>
       <MobileNavigation role={user.role} onMenu={() => setDrawerOpen(true)} />

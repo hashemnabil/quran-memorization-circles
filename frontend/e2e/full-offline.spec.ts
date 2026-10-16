@@ -220,6 +220,52 @@ test('website login opens immediately without native splash or onboarding', asyn
   await page.screenshot({ path: 'test-results/login-mobile.png', animations: 'disabled' });
 });
 
+test('public privacy page and support dialog work with keyboard focus contained and restored', async ({ page }) => {
+  await page.route('**/api/**', route => route.fulfill({ json: { name: 'School' } }));
+  await page.goto('/login');
+  await page.getByRole('link', { name: 'البيانات والخصوصية', exact: true }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole('heading', { name: 'البيانات والخصوصية', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'التواصل مع الدعم الفني', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'التواصل مع الدعم الفني', exact: true });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  const trigger = page.getByRole('button', { name: 'الدعم الفني', exact: true });
+  await trigger.click();
+  const close = dialog.getByRole('button', { name: 'إغلاق', exact: true });
+  await close.focus(); await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: 'إرسال الطلب', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab'); await expect(close).toBeFocused();
+  await page.keyboard.press('Escape'); await expect(trigger).toBeFocused();
+  await expect(dialog).toHaveCount(0);
+});
+
+test('local Arabic font files and brand assets are cached before an offline login reload', async ({ page, context }) => {
+  await page.route('**/api/**', route => route.fulfill({ json: { name: 'School' } }));
+  await page.goto('/login');
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+  await expect.poll(() => page.evaluate(async () => (await caches.keys()).filter(key => key.startsWith('quran-circles-shell-')).length)).toBeGreaterThan(0);
+  const cached = await page.evaluate(async () => (await Promise.all((await caches.keys()).filter(key => key.startsWith('quran-circles-shell-')).map(async key => (await (await caches.open(key)).keys()).map(request => request.url)))).flat());
+  expect(cached.filter(url => url.endsWith('.woff2')).length).toBe(4);
+  expect(cached.some(url => url.endsWith('/brand-logo.png'))).toBe(true);
+  await context.setOffline(true); await page.reload();
+  await expect(page.getByRole('heading', { name: 'تسجيل الدخول', exact: true })).toBeVisible();
+  expect(await page.evaluate(async () => { await document.fonts.load('16px Tajawal', 'العربية'); return document.fonts.check('16px Tajawal', 'العربية'); })).toBe(true);
+});
+
+test('unexpected screen errors offer recovery without clearing the saved account', async ({ page }) => {
+  await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url());
+    return route.fulfill({ json: url.pathname === '/api/auth/me' ? user : url.pathname === '/api/announcements/active' ? { unexpected: true } : { name: 'School', data: [], meta: { total: 0, totalPages: 1 } } });
+  });
+  await page.goto('/profile');
+  await expect(page.getByRole('heading', { name: 'تعذر عرض الصفحة', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'إعادة فتح الصفحة', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.id)).toBe(account);
+});
+
 test('native launch shows only a logo and introduces the app once', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => { (window as any).androidBridge = {}; });

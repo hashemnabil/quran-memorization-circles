@@ -19,3 +19,8 @@ Thumbs.db
 **/GoogleService-Info.plist
 *service-account*.json
 *.p8
+*.jks
+*.keystore
+*.p12
+keystore.properties
+.release-signing/

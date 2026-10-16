@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useCachedImage } from '@/hooks/useCachedImage';
 import { api } from '@/lib/api';
-import { IconMosque } from '@/components/ui/Icons';
 import type { SchoolSettings } from '@/types';
 
 const BRAND_CACHE_KEY = 'qc.schoolBranding';
@@ -53,7 +52,7 @@ function NativeLaunchGate({ children }: { children: ReactNode }) {
       {showSplash && (
         <div dir="rtl" role="status" aria-label="بدء التطبيق" className="fixed inset-0 z-[190] flex items-center justify-center overflow-hidden bg-[#f7faf8] px-6 text-center text-primary-800">
           <div className="launch-logo" aria-hidden="true">
-            {logo && !logoFailed ? <img src={logo} alt="" onError={() => setLogoFailed(true)} className="h-36 w-36 object-contain" /> : <IconMosque size={96} />}
+            {logo && !logoFailed ? <img src={logo} alt="" onError={() => setLogoFailed(true)} className="h-36 w-36 object-contain" /> : <img src="/brand-logo.png" alt="" className="h-36 w-36 object-contain" />}
           </div>
         </div>
       )}

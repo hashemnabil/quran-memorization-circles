@@ -17,6 +17,7 @@ import { ChangePasswordDto, LoginDto, UpdateProfileDto } from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly dummyHash = bcrypt.hashSync(randomBytes(32).toString('hex'), 10);
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -55,18 +56,20 @@ export class AuthService {
     const user = await this.prisma.user.findFirst({
       where: { username: dto.username.toLowerCase().trim(), deletedAt: null },
       include: {
-        teacher: { select: { id: true } },
+        teacher: { select: { id: true, isActive: true, deletedAt: true } },
         parent: { select: { id: true } },
       },
     });
 
     // Same message for unknown name and wrong password to avoid enumeration.
-    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+    const matches = await bcrypt.compare(dto.password, user?.passwordHash || this.dummyHash);
+    if (!user || !matches) {
       throw new UnauthorizedException('اسم المستخدم أو كلمة المرور غير صحيحة');
     }
     if (!user.isActive) {
       throw new UnauthorizedException('تم إيقاف هذا الحساب، يرجى مراجعة الإدارة');
     }
+    if (user.role === Role.TEACHER && (!user.teacher?.isActive || user.teacher.deletedAt)) throw new UnauthorizedException('الحساب غير متاح؛ راجع الإدارة');
     if (user.role === 'PARENT') {
       throw new UnauthorizedException('تم إيقاف بوابة ولي الأمر؛ يرجى استخدام حساب الطالب');
     }
@@ -93,9 +96,9 @@ export class AuthService {
     return this.prisma.$transaction(async (tx) => {
       const stored = await tx.refreshToken.findFirst({
         where: { tokenHash: this.hashToken(refreshToken), revokedAt: null, expiresAt: { gt: new Date() } },
-        include: { user: { include: { teacher: { select: { id: true } }, parent: { select: { id: true } } } } },
+        include: { user: { include: { teacher: { select: { id: true, isActive: true, deletedAt: true } }, parent: { select: { id: true } } } } },
       });
-      if (!stored || !stored.user || stored.user.deletedAt || !stored.user.isActive || stored.user.role === 'PARENT') {
+      if (!stored || !stored.user || stored.user.deletedAt || !stored.user.isActive || stored.user.role === 'PARENT' || stored.user.role === Role.TEACHER && (!stored.user.teacher?.isActive || stored.user.teacher.deletedAt)) {
         throw new UnauthorizedException('الجلسة منتهية أو الحساب غير متاح؛ يرجى تسجيل الدخول مجدداً');
       }
       // Conditional claim prevents concurrent requests minting two sessions from one token.
@@ -113,7 +116,7 @@ export class AuthService {
   async logout(refreshToken?: string, userId?: string) {
     if (refreshToken) {
       await this.prisma.refreshToken.updateMany({
-        where: { tokenHash: this.hashToken(refreshToken), revokedAt: null },
+        where: { tokenHash: this.hashToken(refreshToken), ...(userId ? { userId } : {}), revokedAt: null },
         data: { revokedAt: new Date() },
       });
     } else if (userId) {
@@ -216,7 +219,8 @@ export class AuthService {
     const rounds = parseInt(this.config.get('BCRYPT_ROUNDS') || '10', 10);
     const passwordHash = await bcrypt.hash(dto.newPassword, rounds);
     await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: user.id }, data: { passwordHash, mustChangePassword: false } });
+      const changed = await tx.user.updateMany({ where: { id: user.id, passwordHash: found.passwordHash }, data: { passwordHash, mustChangePassword: false } });
+      if (changed.count !== 1) throw new BadRequestException('تغيّرت بيانات الحساب؛ سجّل الدخول مجددًا');
       await tx.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
     });
 

@@ -6,8 +6,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AuthUser } from '../common/decorators';
 import { paginate } from '../common/dto/pagination.dto';
+import * as bcrypt from 'bcryptjs';
 import {
   CreateTicketDto,
+  AccountDeletionDto,
   PublicTicketDto,
   QueryTicketsDto,
   ReplyTicketDto,
@@ -33,7 +35,16 @@ export class SupportService {
     return user.role === Role.SUPPORT || user.role === Role.ADMIN;
   }
 
-  async create(actor: AuthUser, dto: CreateTicketDto) {
+  async requestDeletion(actor: AuthUser, dto: AccountDeletionDto) {
+    const account = await this.prisma.user.findFirst({ where: { id: actor.id, isActive: true, deletedAt: null }, select: { passwordHash: true } });
+    if (!account || !await bcrypt.compare(dto.currentPassword, account.passwordHash)) throw new BadRequestException('تعذر التحقق من بيانات الحساب');
+    const existing = await this.prisma.supportTicket.findFirst({ where: { createdById: actor.id, category: 'ACCOUNT_DELETION', deletedAt: null, status: { in: ['OPEN', 'IN_PROGRESS'] } }, include: TICKET_INCLUDE });
+    if (existing) return existing;
+    return this.create(actor, { subject: 'طلب حذف حسابي وبياناتي', category: 'ACCOUNT_DELETION', priority: TicketPriority.HIGH,
+      description: `طلب صاحب الحساب حذف حسابه وبياناته بعد التحقق من كلمة المرور الحالية.\n${dto.reason?.trim() || ''}\nيجب أن تحدد الإدارة السجلات التي يمكن حذفها أو إخفاء هويتها وما يتطلب احتفاظًا مشروعًا قبل التنفيذ.` }, true);
+  }
+  async create(actor: AuthUser, dto: CreateTicketDto, verifiedDeletion = false) {
+    if (['ACCOUNT_DELETION', 'PASSWORD_RESET'].includes(dto.category || '') && !verifiedDeletion) throw new BadRequestException('استخدم صفحة الطلب المخصصة للتحقق من الهوية');
     const ticket = await this.prisma.supportTicket.create({
       data: {
         subject: dto.subject,
@@ -48,9 +59,9 @@ export class SupportService {
       include: TICKET_INCLUDE,
     });
 
-    await this.notifications.notifyRoles([Role.SUPPORT, Role.ADMIN], {
+    await this.notifications.notifyRoles(verifiedDeletion ? [Role.ADMIN] : [Role.SUPPORT, Role.ADMIN], {
       type: NotificationType.SUPPORT_TICKET,
-      title: 'طلب دعم فني جديد',
+      title: verifiedDeletion ? 'طلب حذف حساب وبيانات يحتاج مراجعة الإدارة' : 'طلب دعم فني جديد',
       body: `${actor.fullName}: ${dto.subject}`,
       link: `/support/${ticket.id}`,
     });
@@ -164,7 +175,7 @@ export class SupportService {
         : {}),
     };
 
-    if (user.role !== Role.ADMIN) where.AND = [{ OR: [{ category: null }, { category: { not: 'PASSWORD_RESET' } }] }];
+    if (user.role !== Role.ADMIN) where.AND = [{ OR: [{ category: null }, { category: { notIn: ['PASSWORD_RESET', 'ACCOUNT_DELETION'] } }, { category: 'ACCOUNT_DELETION', createdById: user.id }] }];
 
     // Non-staff users only ever see their own tickets. The assignee filter is
     // dropped too — it is a way to enumerate other people's queues.
@@ -203,6 +214,7 @@ export class SupportService {
     });
     if (!ticket) throw new NotFoundException('طلب الدعم غير موجود');
     if (ticket.category === 'PASSWORD_RESET' && user.role !== Role.ADMIN) throw new ForbiddenException('هذا الطلب مخصص للإدارة');
+    if (ticket.category === 'ACCOUNT_DELETION' && user.role !== Role.ADMIN && ticket.createdById !== user.id) throw new ForbiddenException('لا تملك صلاحية الوصول إلى الطلب');
     if (!this.isStaff(user) && ticket.createdById !== user.id) {
       throw new ForbiddenException('لا تملك صلاحية الوصول إلى هذا الطلب');
     }
@@ -216,6 +228,7 @@ export class SupportService {
     });
     if (!ticket) throw new NotFoundException('طلب الدعم غير موجود');
     if (ticket.category === 'PASSWORD_RESET' && actor.role !== Role.ADMIN) throw new ForbiddenException('هذا الطلب مخصص للإدارة');
+    if (ticket.category === 'ACCOUNT_DELETION' && actor.role !== Role.ADMIN && ticket.createdById !== actor.id) throw new ForbiddenException('لا تملك صلاحية الوصول إلى الطلب');
 
     const staff = this.isStaff(actor);
     if (!staff && ticket.createdById !== actor.id) {
@@ -291,6 +304,7 @@ export class SupportService {
     if (!ticket) throw new NotFoundException('طلب الدعم غير موجود');
     if (ticket.category === 'PASSWORD_RESET' && actor.role !== Role.ADMIN) throw new ForbiddenException('هذا الطلب مخصص للإدارة');
     if (ticket.category === 'PASSWORD_RESET' && dto.category && dto.category !== 'PASSWORD_RESET') throw new BadRequestException('لا يمكن تغيير نوع طلب استعادة الحساب');
+    if (ticket.category === 'ACCOUNT_DELETION' && (actor.role !== Role.ADMIN || dto.category && dto.category !== 'ACCOUNT_DELETION')) throw new ForbiddenException('طلبات الحذف مخصصة للإدارة ولا يمكن تغيير نوعها');
 
     if (dto.assignedToId) {
       const assignee = await this.prisma.user.findFirst({
@@ -298,7 +312,7 @@ export class SupportService {
           id: dto.assignedToId,
           deletedAt: null,
           isActive: true,
-          role: { in: ticket.category === 'PASSWORD_RESET' ? [Role.ADMIN] : [Role.SUPPORT, Role.ADMIN] },
+          role: { in: ['PASSWORD_RESET', 'ACCOUNT_DELETION'].includes(ticket.category || '') ? [Role.ADMIN] : [Role.SUPPORT, Role.ADMIN] },
         },
       });
       if (!assignee) throw new BadRequestException('المستخدم المحدد ليس من فريق الدعم');
@@ -352,6 +366,7 @@ export class SupportService {
       deletedAt: null,
       ...(this.isStaff(user) ? {} : { createdById: user.id }),
     };
+    if (user.role !== Role.ADMIN) base.AND = [{ OR: [{ category: null }, { category: { notIn: ['PASSWORD_RESET', 'ACCOUNT_DELETION'] } }, { category: 'ACCOUNT_DELETION', createdById: user.id }] }];
 
     const grouped = await this.prisma.supportTicket.groupBy({
       by: ['status'],
@@ -367,7 +382,7 @@ export class SupportService {
       total: Object.values(counts).reduce((a, b) => a + b, 0),
       assignedToMe: this.isStaff(user)
         ? await this.prisma.supportTicket.count({
-            where: { deletedAt: null, assignedToId: user.id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+            where: { ...base, assignedToId: user.id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
           })
         : 0,
     };

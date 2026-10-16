@@ -12,6 +12,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
+import { AccessControlService } from '../common/services/access-control.service';
 
 /**
  * Real-time transport for chat messages and notifications only.
@@ -65,16 +66,19 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       const user = await this.prisma.user.findFirst({
         where: { id: payload.sub, deletedAt: null, isActive: true },
-        select: { id: true, fullName: true, role: true },
+        select: { id: true, fullName: true, role: true, teacher: { select: { id: true, isActive: true, deletedAt: true } } },
       });
       if (!user) throw new Error('user unavailable');
+      if (user.role === 'TEACHER' && (!user.teacher?.isActive || user.teacher.deletedAt)) throw new Error('teacher unavailable');
 
       if (user.role === 'PARENT' || typeof payload.sid !== 'string') throw new Error('session unavailable');
       const session = await this.prisma.refreshToken.findFirst({ where: { id: payload.sid, userId: user.id, revokedAt: null, expiresAt: { gt: new Date() } }, select: { id: true } });
       if (!session) throw new Error('session revoked');
       client.data.sessionId = payload.sid;
       client.data.tokenExpiresAt = payload.exp * 1000;
-      client.data.user = user;
+      if (!Number.isFinite(client.data.tokenExpiresAt) || client.data.tokenExpiresAt <= Date.now()) throw new Error('token expired');
+      client.data.user = { ...user, teacherId: user.teacher?.id };
+      client.data.expiryTimer = setTimeout(() => client.disconnect(true), Math.max(0, Math.min(2147483647, client.data.tokenExpiresAt - Date.now())));
 
       // Personal room: notifications are addressed to `user:<id>`.
       client.join(`user:${user.id}`);
@@ -92,10 +96,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       this.online.set(user.id, sockets);
 
       if (sockets.size === 1) {
-        this.server.emit('presence:update', { userId: user.id, online: true });
+        void this.presence(user.id, true);
       }
 
-      client.emit('connected', { userId: user.id, onlineUsers: [...this.online.keys()] });
+      const filter = await new AccessControlService(this.prisma).contactableUserFilter(client.data.user);
+      const contacts = filter === null ? [] : await this.prisma.user.findMany({ where: { AND: [{ id: { in: [...this.online.keys()] }, isActive: true, deletedAt: null }, filter] }, select: { id: true } });
+      client.emit('connected', { userId: user.id, onlineUsers: contacts.map(row => row.id) });
       client.emit('data:changed', { revision: await this.currentRevision() });
     } catch (error) {
       client.emit('unauthorized', { message: 'رمز الدخول غير صالح' });
@@ -104,6 +110,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   handleDisconnect(client: Socket) {
+    clearTimeout(client.data?.expiryTimer);
     const userId = client.data?.user?.id as string | undefined;
     if (!userId) return;
     const sockets = this.online.get(userId);
@@ -111,12 +118,13 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     sockets.delete(client.id);
     if (sockets.size === 0) {
       this.online.delete(userId);
-      this.server.emit('presence:update', { userId, online: false });
+      void this.presence(userId, false);
     }
   }
 
   @SubscribeMessage('conversation:join')
   async joinConversation(@ConnectedSocket() client: Socket, @MessageBody() body: { conversationId: string }) {
+    if (!await this.authorized(client)) return { ok: false };
     const userId = client.data?.user?.id;
     if (!userId || !body?.conversationId) return { ok: false };
 
@@ -138,6 +146,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   @SubscribeMessage('typing')
   async typing(@ConnectedSocket() client: Socket, @MessageBody() body: { conversationId: string; isTyping: boolean }) {
+    if (!await this.authorized(client)) return;
     const user = client.data?.user;
     if (!user || !body?.conversationId) return;
     const member = await this.prisma.conversationMember.findFirst({ where: { conversationId: body.conversationId, userId: user.id, leftAt: null }, select: { id: true } });
@@ -153,7 +162,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   // ---- server-side emitters used by the services -------------------------
 
   emitToUser(userId: string, event: string, payload: unknown) {
-    this.server?.to(`user:${userId}`).emit(event, payload);
+    void this.emitChecked(`user:${userId}`, event, payload);
     if (event === 'notification:new') void this.notifyDataChanged().catch(() => undefined);
   }
 
@@ -162,7 +171,35 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   emitToConversation(conversationId: string, event: string, payload: unknown) {
-    this.server?.to(`conversation:${conversationId}`).emit(event, payload);
+    void this.emitChecked(`conversation:${conversationId}`, event, payload, conversationId);
+  }
+
+  private async authorized(client: any): Promise<boolean> {
+    try {
+      const identity = client.data?.user;
+      if (!identity || !client.data.sessionId || !Number.isFinite(client.data.tokenExpiresAt) || client.data.tokenExpiresAt <= Date.now()) throw new Error();
+      const session = await this.prisma.refreshToken.findFirst({ where: { id: client.data.sessionId, userId: identity.id, revokedAt: null, expiresAt: { gt: new Date() }, user: { isActive: true, deletedAt: null, role: identity.role } }, select: { id: true, user: { select: { role: true, teacher: { select: { isActive: true, deletedAt: true } } } } } });
+      if (!session || session.user.role === 'TEACHER' && (!session.user.teacher?.isActive || session.user.teacher.deletedAt)) throw new Error();
+      return true;
+    } catch { client.disconnect(true); return false; }
+  }
+  private async emitChecked(room: string, event: string, payload: unknown, conversationId?: string) {
+    try {
+      for (const client of await this.server.in(room).fetchSockets()) {
+        if (!await this.authorized(client)) continue;
+        if (conversationId && !await this.prisma.conversationMember.findFirst({ where: { conversationId, userId: client.data.user.id, leftAt: null }, select: { id: true } })) { client.leave(room); continue; }
+        client.emit(event, payload);
+      }
+    } catch { this.logger.warn('Live delivery unavailable; persisted records remain authoritative'); }
+  }
+  private async presence(userId: string, online: boolean) {
+    try {
+      for (const receiver of await this.server.fetchSockets()) {
+        if (!await this.authorized(receiver)) continue;
+        const filter = await new AccessControlService(this.prisma).contactableUserFilter(receiver.data.user);
+        if (filter !== null && await this.prisma.user.findFirst({ where: { AND: [{ id: userId, deletedAt: null }, filter] }, select: { id: true } })) receiver.emit('presence:update', { userId, online });
+      }
+    } catch { this.logger.warn('Presence update unavailable'); }
   }
 
   isOnline(userId: string) {

@@ -7,6 +7,9 @@ import { configureOffline, mergeRows } from './offline-engine';
 import { localRead, localWrite } from './local-api';
 import { localReport } from './local-analytics';
 import { exportLocalWorkbook } from './local-xlsx';
+import { clearAccountData } from './account-cleanup';
+import { enqueueOfflineOperation, clearOfflineOperations } from './offline/outbox';
+import { cachedImage } from './offline-images';
 const student = '00000000-0000-4000-8000-000000000001';
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
 Object.defineProperty(globalThis, 'window', { configurable: true, value: new EventTarget() });
@@ -15,6 +18,42 @@ beforeEach(async () => {
   configureOffline(async () => { throw new Error('offline'); }, () => 'account');
 });
 after(() => db.close());
+
+test('a late image response cannot repopulate a signed-out account', async () => {
+  const originalFetch = globalThis.fetch;
+  let release!: (response: Response) => void;
+  let started!: () => void;
+  const requestStarted = new Promise<void>(resolve => { started = resolve; });
+  globalThis.fetch = (() => new Promise<Response>(resolve => { release = resolve; started(); })) as typeof fetch;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: true } });
+  try {
+    const pending = cachedImage('https://images.example/student.png');
+    await requestStarted;
+    configureOffline(async () => { throw new Error('offline'); }, () => 'other');
+    release(new Response(new Blob(['image'], { type: 'image/png' }), { headers: { 'content-type': 'image/png' } }));
+    assert.equal(await pending, undefined);
+    assert.equal(await db.responses.count(), 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
+  }
+});
+
+test('account cleanup refuses both pending journals and removes only the selected clean account', async () => {
+  const row = { id: 'student', accountId: 'account', synced: 1, updatedAt: new Date().toISOString() };
+  await db.students.bulkPut([row, { ...row, accountId: 'other' }]);
+  await db.queue.add({ accountId: 'account', opId: 'pending', table: 'students', action: 'create', entityId: 'student', data: {}, createdAt: row.updatedAt });
+  await assert.rejects(clearAccountData('account'));
+  assert.equal(await db.students.count(), 2); assert.equal(await db.queue.count(), 1);
+  await db.queue.clear();
+  await enqueueOfflineOperation({ accountId: 'account', resource: 'attendance-sheet', method: 'POST', path: '/attendance', payload: { circleId: '11111111-1111-4111-8111-111111111111', date: '2026-01-01', entries: [{ studentId: student, status: 'PRESENT' }] } });
+  await assert.rejects(clearAccountData('account'));
+  assert.equal(await db.students.count(), 2);
+  await clearOfflineOperations('account');
+  await clearAccountData('account');
+  assert.equal(await db.students.where('accountId').equals('account').count(), 0);
+  assert.equal(await db.students.where('accountId').equals('other').count(), 1);
+});
 
 test('pending activity and course registrations appear in their own lists before sync', async () => {
   const activity = await localWrite('post', '/students', { fullName: 'Activity student', registrationTrack: 'ACTIVITY' });

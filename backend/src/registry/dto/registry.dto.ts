@@ -5,6 +5,8 @@ export class RegistryAccessDto {
   @MinLength(3)
   @MaxLength(40)
   nationalId!: string;
+  @IsString() @MinLength(20) @MaxLength(2000)
+  invitation!: string;
 }
 
 export class UpdateRegistryUserDto {

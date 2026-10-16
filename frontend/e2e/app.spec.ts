@@ -149,7 +149,10 @@ test('offline attendance survives a lost committed response and replays with the
   // The persisted receipt returns the original record IDs, timestamps and data.
   expect(replayResult).toEqual(committedResponse.outcomes[0]);
   await expect.poll(async () => (await readTeacherOutbox(page)).length).toBe(0);
-  const token = await page.evaluate(() => localStorage.getItem('qc.accessToken'));
+  const token = await page.evaluate(() => {
+    if (localStorage.getItem('qc.accessToken') || localStorage.getItem('qc.refreshToken')) throw new Error('Legacy plaintext credentials remain');
+    return JSON.parse(sessionStorage.getItem('server-session-v2') || 'null')?.accessToken;
+  });
   const date = new Date().toISOString().slice(0, 10);
   const response = await page.request.get(`http://127.0.0.1:3000/api/attendance/sheet?circleId=${fixtures.circle.id}&date=${date}`, { headers: { Authorization: `Bearer ${token}` } });
   expect(response.ok()).toBe(true);

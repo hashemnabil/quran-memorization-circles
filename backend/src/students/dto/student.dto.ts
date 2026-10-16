@@ -1,3 +1,4 @@
+import { NewPassword } from '../../common/validators/password';
 import { ApiProperty, ApiPropertyOptional, PartialType, PickType } from '@nestjs/swagger';
 import { Evaluation, Gender, StudentStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
@@ -74,7 +75,7 @@ export class CreateStudentDto {
   @ApiPropertyOptional({ writeOnly: true })
   @IsOptional()
   @IsString()
-  @MinLength(4)
+  @NewPassword()
   @MaxLength(128)
   accountPassword?: string;
 

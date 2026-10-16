@@ -79,6 +79,13 @@ export class CreateTicketDto {
   priority?: TicketPriority;
 }
 
+export class AccountDeletionDto {
+  @IsString() @IsNotEmpty() @MaxLength(128)
+  currentPassword: string;
+  @IsOptional() @IsString() @MaxLength(1000)
+  reason?: string;
+}
+
 export class ReplyTicketDto {
   @ApiProperty()
   @IsString()

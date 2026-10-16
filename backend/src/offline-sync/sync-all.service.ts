@@ -1,6 +1,6 @@
 import { ProfileReviewsService } from '../profile-reviews/profile-reviews.service';
 import { BroadcastDto } from '../notifications/broadcast.dto';
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, Role } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
@@ -82,7 +82,7 @@ export class FullSyncService {
       case 'recitations': return staff ? { ...await s.recitations.findAll(user, plainToInstance(QueryRecitationsDto, query)), ...(page === 1 ? { references: { '/recitations/surahs': s.recitations.surahs() } } : {}) } : empty;
       case 'exams': return staff || user.role === Role.EXAM_COMMITTEE ? { ...await s.exams.findExams(user, plainToInstance(QueryExamsDto, query)), ...(page === 1 ? { references: { '/exams/sections': await s.exams.sections() } } : {}) } : empty;
       case 'examRequests': return staff || user.role === Role.EXAM_COMMITTEE ? s.exams.findRequests(user, plainToInstance(QueryExamRequestsDto, query)) : empty;
-      case 'courses': return staff ? this.hydratePage(await s.courses.findAll(plainToInstance(QueryCoursesDto, { ...query, ...(user.role === Role.TEACHER ? { instructorId: user.id } : {}) })), async (id) => ({ ...await s.courses.findOne(id), _offline: { attendance: await this.prisma.courseAttendance.findMany({ where: { courseId: id }, include: { student: { select: { id: true, fullName: true, code: true } } } }) } }), changedIds) : empty;
+      case 'courses': return staff ? this.hydratePage(await s.courses.findAll(plainToInstance(QueryCoursesDto, { ...query, ...(user.role === Role.TEACHER ? { instructorId: user.id } : {}) })), async (id) => ({ ...await s.courses.findOne(id, user), _offline: { attendance: await this.prisma.courseAttendance.findMany({ where: { courseId: id }, include: { student: { select: { id: true, fullName: true, code: true } } } }) } }), changedIds) : empty;
       case 'notifications': return { data: await this.prisma.notification.findMany({ where: { userId: user.id }, skip: (page - 1) * 200, take: 200, orderBy: { id: 'asc' } }), meta: { hasNextPage: (await this.prisma.notification.count({ where: { userId: user.id } })) > page * 200 } };
       case 'behaviors': {
         if (!staff) return empty;
@@ -202,7 +202,8 @@ export class FullSyncService {
         }, { timeout: 30000 });
         outcomes.push(outcome);
       } catch (error) {
-        outcomes.push({ opId: op.opId, status: 'rejected', message: error instanceof Error ? error.message : 'تعذر حفظ العملية' });
+        if (!(error instanceof HttpException) || error.getStatus() >= 500) throw error;
+        outcomes.push({ opId: op.opId, status: 'rejected', message: error.message });
         break; // Preserve dependency ordering after a rejection.
       }
     }

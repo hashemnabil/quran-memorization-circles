@@ -2,12 +2,15 @@ import { create } from 'zustand';
 import axios from 'axios';
 import { api, tokenStore } from '@/lib/api';
 import { clearHeartbeat, expireStaleSession } from '@/lib/session';
-import { resetQueryCache } from '@/lib/queryClient';
+import { resetQueryCache, queryClient } from '@/lib/queryClient';
 import { clearPersistedQueryCache } from '@/lib/offline/queryCache';
 import { clearOfflineOperations } from '@/lib/offline/outbox';
 import { clearOfflineReplica } from '@/lib/offline/changeFeed';
 import type { AuthUser, Role } from '@/types';
-import { rememberOfflineLogin, unlockOfflineLogin, forgetOfflineLogin } from '@/lib/offline-login';
+import { rememberOfflineLogin, unlockOfflineLogin, forgetOfflineLogin, forgetAccountOfflineLogin } from '@/lib/offline-login';
+import { assertNoPendingWrites, clearAccountData } from '@/lib/account-cleanup';
+import { disconnectSocket } from '@/lib/socket';
+import { credentialStorage } from '@/lib/credential-storage';
 
 const OFFLINE_USER_KEY = 'qc.offlineUser';
 const allowedRoles: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'STUDENT', 'SUPPORT'];
@@ -42,6 +45,8 @@ interface AuthState {
   status: 'idle' | 'loading' | 'authenticated' | 'unauthenticated';
   login: (username: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
+  lock: () => void;
+  resumeOnline: () => Promise<void>;
   loadSession: () => Promise<void>;
   setUser: (user: AuthUser) => void;
   hasRole: (...roles: Role[]) => boolean;
@@ -56,7 +61,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       try {
         const session = await unlockOfflineLogin(username, password);
         resetQueryCache();
-        tokenStore.set(session.accessToken, session.refreshToken);
+        await tokenStore.ready();
+        if (tokenStore.owner() && tokenStore.owner() !== session.user.id) await tokenStore.clear();
+        tokenStore.setLocal(true);
+        sessionStorage.setItem('qc.localUnlocked', session.user.id);
         cacheOfflineUser(session.user);
         set({ user: session.user, status: 'authenticated' });
         return session.user;
@@ -77,13 +85,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async logout() {
     const accountId = get().user?.id ?? '';
+    const previous = get().user;
+    tokenStore.setClosing(true);
+    set({ status: 'loading' });
+    try {
+    await queryClient.cancelQueries();
+    await assertNoPendingWrites(accountId);
+    // Invalidate account-scoped background writers before clearing their stores.
+    localStorage.removeItem(OFFLINE_USER_KEY);
+    await clearAccountData(accountId);
+    if (typeof caches !== 'undefined') await caches.delete('quran-circles-images');
     await import('@/lib/native-push').then(module => module.disableNativePush()).catch(() => undefined);
     try {
       if (navigator.onLine) await api.post('/auth/logout', { refreshToken: tokenStore.refresh() });
     } catch {
       // Logging out locally matters more than the server acknowledging it.
     }
-    tokenStore.clear();
+    await tokenStore.clear();
+    await credentialStorage.remove('registry.accessToken'); localStorage.removeItem('registry.accessToken');
+    disconnectSocket();
+    sessionStorage.removeItem('qc.localUnlocked');
+    if (get().user?.username) forgetAccountOfflineLogin(accountId, get().user!.username);
     clearHeartbeat();
     try { localStorage.removeItem(OFFLINE_USER_KEY); } catch { /* ignore unavailable storage */ }
     // Nothing the previous account loaded may survive into the next session.
@@ -94,13 +116,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       clearPersistedQueryCache(accountId),
       clearOfflineOperations(accountId),
       clearOfflineReplica(accountId),
-    ]).catch(() => undefined);
+    ]);
+    } catch (error) {
+      if (get().user) {
+        if (previous) cacheOfflineUser(previous);
+        set({ user: previous, status: previous ? 'authenticated' : 'unauthenticated' });
+      }
+      throw error;
+    } finally { tokenStore.setClosing(false); }
   },
 
   async loadSession() {
+    try { await tokenStore.ready(); } catch { set({ status: 'unauthenticated', user: null }); return; }
     expireStaleSession();
     const accessToken = tokenStore.access();
     if (!accessToken) {
+      const local = readOfflineUser();
+      if (!navigator.onLine && local && sessionStorage.getItem('qc.localUnlocked') === local.id) {
+        tokenStore.setLocal(true); set({ user: local, status: 'authenticated' }); return;
+      }
       set({ status: 'unauthenticated', user: null });
       return;
     }
@@ -132,8 +166,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       // Preserve tokens after temporary network failures; only an explicit
       // authentication rejection should force a fresh sign-in.
-      if (status === 401 || status === 403) tokenStore.clear();
+      if (status === 401 || status === 403) {
+        const previous = readOfflineUser(); if (previous) forgetAccountOfflineLogin(previous.id, previous.username);
+        await tokenStore.clear(); localStorage.removeItem(OFFLINE_USER_KEY);
+      }
       set({ user: null, status: 'unauthenticated' });
+    }
+  },
+
+  lock() {
+    disconnectSocket(); resetQueryCache(); sessionStorage.removeItem('qc.localUnlocked');
+    tokenStore.setLocal(true); localStorage.removeItem(OFFLINE_USER_KEY);
+    set({ user: null, status: 'unauthenticated' });
+  },
+  async resumeOnline() {
+    if (!navigator.onLine || !get().user) return;
+    const account = get().user!.id;
+    try {
+    if (tokenStore.isLocal()) {
+      const refreshToken = tokenStore.refresh();
+      if (!refreshToken) throw new Error('سجّل الدخول مع الإنترنت لتفعيل المزامنة؛ بياناتك المحلية محفوظة');
+      const { data } = await api.post('/auth/refresh', { refreshToken });
+      if (get().user?.id !== account || data.user?.id !== account) throw new Error('تغيّر الحساب أثناء التحقق من الجلسة');
+      await tokenStore.set(data.accessToken, data.refreshToken, data.user.id);
+    }
+    const { data } = await api.get('/auth/me');
+    if (get().user?.id === account) { cacheOfflineUser(data); set({ user: data }); }
+    } catch (error) {
+      if (axios.isAxiosError(error) && [400, 401, 403].includes(error.response?.status || 0)) {
+        await tokenStore.clear(); window.dispatchEvent(new Event('qc:session-rejected'));
+      }
+      throw error;
     }
   },
 
@@ -150,14 +213,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 /** Stores the freshly issued tokens and loads the richer /auth/me profile. */
 async function adoptSession(
-  data: { accessToken: string; refreshToken: string },
+  data: { accessToken: string; refreshToken: string; user?: AuthUser },
   set: (partial: Partial<AuthState>) => void,
 ) {
   // Signing in on a tab that already held a session must not inherit its cache.
+  await queryClient.cancelQueries();
+  localStorage.removeItem(OFFLINE_USER_KEY);
   resetQueryCache();
-  tokenStore.set(data.accessToken, data.refreshToken);
+  await tokenStore.set(data.accessToken, data.refreshToken, data.user?.id);
+  sessionStorage.removeItem('qc.localUnlocked');
   const me = await api.get('/auth/me');
   cacheOfflineUser(me.data as AuthUser);
   set({ user: me.data, status: 'authenticated' });
   return me.data as AuthUser;
 }
+
+window.addEventListener('qc:session-rejected', () => {
+  const user = useAuthStore.getState().user;
+  if (user) forgetAccountOfflineLogin(user.id, user.username);
+  localStorage.removeItem(OFFLINE_USER_KEY); sessionStorage.removeItem('qc.localUnlocked');
+  disconnectSocket(); resetQueryCache();
+  useAuthStore.setState({ user: null, status: 'unauthenticated' });
+});
+window.addEventListener('qc:tokens-updated', ((event: CustomEvent<AuthUser>) => {
+  const current = useAuthStore.getState().user;
+  if (!current || event.detail?.id !== current.id) return;
+  disconnectSocket(); cacheOfflineUser(event.detail);
+  useAuthStore.setState({ user: event.detail });
+}) as EventListener);

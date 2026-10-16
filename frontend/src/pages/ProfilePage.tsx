@@ -1,4 +1,6 @@
+import { passwordError } from '@/lib/validation';
 import { NativePushSettings } from '@/components/NativePush';
+import { Link } from 'react-router-dom';
 import { ChangeEvent, FormEvent, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -52,7 +54,7 @@ export default function ProfilePage() {
     e.preventDefault();
     const next: Record<string, string> = {};
     if (!currentPassword) next.currentPassword = 'كلمة المرور الحالية مطلوبة';
-    if (newPassword.length < 4) next.newPassword = 'كلمة المرور الجديدة 4 أحرف على الأقل';
+    if (passwordError(newPassword)) next.newPassword = passwordError(newPassword);
     if (newPassword !== confirmPassword) next.confirmPassword = 'كلمتا المرور غير متطابقتين';
     if (newPassword && newPassword === currentPassword) next.newPassword = 'يجب أن تختلف عن الحالية';
     setErrors(next);
@@ -103,12 +105,13 @@ export default function ProfilePage() {
             className="mt-5 w-full"
             icon={<IconLogout size={16} />}
             onClick={async () => {
-              await logout();
-              navigate('/login', { replace: true });
+              try { await logout(); navigate('/login', { replace: true }); }
+              catch (error) { toast.error(apiError(error)); }
             }}
           >
             تسجيل الخروج
           </Button>
+          <Link to="/account-deletion" className="mt-3 block py-3 text-center text-sm font-bold text-red-700">طلب حذف الحساب والبيانات</Link>
         </Card>
 
         <div className="space-y-5 lg:col-span-2">
@@ -185,7 +188,7 @@ export default function ProfilePage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 error={errors.newPassword}
-                hint="4 أحرف على الأقل"
+                hint="12 حرفًا على الأقل"
                 dir="ltr"
               />
               <Input

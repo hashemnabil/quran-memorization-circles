@@ -26,6 +26,7 @@ test('role workflows and production security regressions over HTTP', { timeout: 
   const sessions: Partial<Record<Role, any>> = {};
   let circle: any, hiddenCircle: any, student: any, hiddenStudent: any;
   let course: any, template: any, conversation: any;
+  const registryRecordId = randomUUID();
   let teacherId: string;
   const recoveryId = randomUUID();
   const request = async (method: string, path: string, role?: Role, body?: unknown, expected?: number) => {
@@ -94,6 +95,23 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('GET', `/students/${student.id}`, Role.SUPERVISOR);
       await request('GET', '/users', Role.TEACHER, undefined, 403);
       assert.equal((await request('GET', '/students/me', Role.STUDENT)).id, student.id);
+    });
+    await t.test('registry invitation and account deletion verify identity without granting access to another account', async () => {
+      await db.registryUser.create({ data: { id: registryRecordId, nationalId: `9${Date.now()}` } });
+      const record = await db.registryUser.findUniqueOrThrow({ where: { id: registryRecordId } });
+      await request('POST', '/registry/access', undefined, { nationalId: record.nationalId }, 400);
+      await request('POST', `/registry/admin/users/${registryRecordId}/invitation`, Role.TEACHER, {}, 403);
+      const invitation = await request('POST', `/registry/admin/users/${registryRecordId}/invitation`, Role.ADMIN, {});
+      assert.equal((await request('POST', '/registry/access', undefined, { nationalId: record.nationalId, invitation: invitation.invitation })).user.id, registryRecordId);
+      await request('POST', '/support/account-deletion', Role.STUDENT, { currentPassword: 'incorrect' }, 400);
+      const supportBefore = await request('GET', '/support/stats', Role.SUPPORT);
+      const deletion = await request('POST', '/support/account-deletion', Role.STUDENT, { currentPassword: password, userId: ids.TEACHER, reason: 'Test request only' });
+      assert.equal(deletion.createdById, ids.STUDENT); assert.equal(deletion.category, 'ACCOUNT_DELETION');
+      assert.deepEqual(await request('GET', '/support/stats', Role.SUPPORT), supportBefore);
+      await request('GET', `/support/${deletion.id}`, Role.TEACHER, undefined, 403);
+      await request('GET', `/support/${deletion.id}`, Role.STUDENT);
+      assert(await db.user.findUnique({ where: { id: ids.STUDENT } }));
+      await request('GET', `/exams/eligibility/${hiddenStudent.id}`, Role.EXAM_COMMITTEE, undefined, 403);
     });
     await t.test('chat directory and writes enforce student, teacher and supervisor relationships', async () => {
       const stranger = await db.user.create({ data: { username: `stranger${suffix}`, fullName: 'Unrelated student', role: Role.STUDENT, passwordHash } });
@@ -187,6 +205,14 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('POST', `/courses/${course.id}/students`, Role.ADMIN, { studentIds: [student.id] });
       await request('POST', `/courses/${course.id}/attendance`, Role.TEACHER, { date: '2026-01-01', entries: [{ studentId: student.id, status: 'PRESENT' }] });
       assert.equal(await db.courseAttendance.count({ where: { courseId: course.id } }), 1);
+      await db.course.update({ where: { id: course.id }, data: { instructorId: ids.ADMIN } });
+      for (const path of [`/courses/${course.id}`, `/courses/${course.id}/attendance/sheet?date=2026-01-01`, `/courses/${course.id}/attendance/history`, `/courses/${course.id}/attendance/2026-01-01`]) {
+        await request('GET', path, Role.TEACHER, undefined, 403);
+      }
+      await request('POST', `/courses/${course.id}/attendance`, Role.TEACHER, { date: '2026-01-01', entries: [{ studentId: student.id, status: 'ABSENT' }] }, 403);
+      const scopedCourses = await request('GET', `/courses?instructorId=${ids.ADMIN}`, Role.TEACHER);
+      assert.equal(scopedCourses.data.some((item: any) => item.id === course.id), false);
+      await db.course.update({ where: { id: course.id }, data: { instructorId: ids.TEACHER } });
       const ticket = await request('POST', '/support', Role.STUDENT, { subject: `Test ${suffix}`, description: 'Test support request' });
       await request('POST', `/support/${ticket.id}/reply`, Role.SUPPORT, { body: 'Test support response' });
       await request('GET', '/notifications', Role.STUDENT);
@@ -221,7 +247,8 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       assert.deepEqual(responses.map((response) => response.status).sort(), [200, 401]);
       const winning = await responses.find((response) => response.ok)!.json();
       sessions.ADMIN = winning;
-      await request('PATCH', '/auth/change-password', Role.ADMIN, { currentPassword: password, newPassword: '4827' });
+      await request('PATCH', '/auth/change-password', Role.ADMIN, { currentPassword: password, newPassword: '4827' }, 400);
+      await request('PATCH', '/auth/change-password', Role.ADMIN, { currentPassword: password, newPassword: 'School River 27' });
       await request('GET', '/auth/me', Role.ADMIN, undefined, 401);
       await request('POST', '/auth/refresh', undefined, { refreshToken: winning.refreshToken }, 401);
     });
@@ -232,6 +259,7 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('GET', '/auth/me', Role.SUPPORT, undefined, 401);
     });
   } finally {
+    await db.registryUser.deleteMany({ where: { id: registryRecordId } });
     await db.supportTicket.deleteMany({ where: { id: recoveryId } });
     // All records belong to synthetic identities in the disposable database.
     if (conversation?.id) await db.conversation.deleteMany({ where: { id: conversation.id } });

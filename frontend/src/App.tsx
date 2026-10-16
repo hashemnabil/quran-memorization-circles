@@ -13,6 +13,7 @@ import { RedirectIfAuthenticated, RequireAuth, RequireRole } from '@/components/
 import LoginPage from '@/pages/LoginPage';
 import PrivacyPage from '@/pages/PrivacyPage';
 import AboutPage from '@/pages/AboutPage';
+import AccountDeletionPage from '@/pages/AccountDeletionPage';
 import BroadcastPage from '@/pages/BroadcastPage';
 import PasswordRequestsPage from '@/pages/PasswordRequestsPage';
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
@@ -101,6 +102,7 @@ export default function App() {
       <Routes>
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/about" element={<AboutPage />} />
+      <Route path="/account-deletion" element={<AccountDeletionPage />} />
       <Route path="/register" element={<RegistryLoginPage />} />
       <Route path="/register/data" element={<RegistryDataPage />} />
       <Route

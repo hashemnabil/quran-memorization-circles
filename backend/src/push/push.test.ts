@@ -8,8 +8,8 @@ import { ChangePasswordDto } from '../auth/dto/auth.dto';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-test('four-character chosen passwords validate, shorter passwords do not', async () => {
-  assert.equal((await validate(plainToInstance(ChangePasswordDto, { currentPassword: 'existing', newPassword: '4827' }))).length, 0);
+test('new chosen passwords require twelve characters while the current legacy password is accepted', async () => {
+  assert.equal((await validate(plainToInstance(ChangePasswordDto, { currentPassword: '4827', newPassword: 'School River 27' }))).length, 0);
   assert((await validate(plainToInstance(ChangePasswordDto, { currentPassword: 'existing', newPassword: '482' }))).length > 0);
 });
 test('provider credentials remain server-side, and missing setup never attempts a send', async () => {

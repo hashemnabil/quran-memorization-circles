@@ -93,7 +93,7 @@ export class UploadsService {
       } catch (error) {
         // A cloud outage must not stop an administrator setting a logo, so we
         // fall back to local storage and say so in the log rather than failing.
-        this.logger.error(`تعذر الرفع إلى Cloudinary، سيتم الحفظ محلياً: ${String(error)}`);
+        this.logger.error('Cloud image upload unavailable; using local image storage');
       }
     }
     return this.uploadLocally(file, folder, ext, ownerId);
@@ -139,8 +139,7 @@ export class UploadsService {
     );
 
     if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`Cloudinary ${response.status}: ${detail.slice(0, 200)}`);
+      throw new Error(`Cloud image upload failed (${response.status})`);
     }
 
     const body = (await response.json()) as { secure_url?: string; public_id?: string };
@@ -196,7 +195,7 @@ export class UploadsService {
       if (/res\.cloudinary\.com/i.test(url)) return await this.removeFromCloudinary(url);
       return await this.removeLocally(url);
     } catch (error) {
-      this.logger.warn(`تعذر حذف الملف ${url}: ${String(error)}`);
+      this.logger.warn('Image cleanup failed; no private URL or provider response was logged');
       return false;
     }
   }

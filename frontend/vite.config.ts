@@ -33,7 +33,7 @@ export default defineConfig({
       const assets = Object.keys(bundle).filter((name) => /\.(?:js|css|woff2)$/.test(name)).sort().map((name) => `/${name}`);
       const digest = createHash('sha256').update(template).update(JSON.stringify(assets)).digest('hex').slice(0, 20);
       const worker = template.replace('__SHELL_CACHE_NAME__', `quran-circles-shell-${digest}`)
-        .replace('__PRECACHE_ASSETS__', JSON.stringify([...assets, '/favicon.svg', '/manifest.webmanifest', '/brand-logo.png', '/icons/icon-192.png', '/icons/icon-512.png']));
+        .replace('__PRECACHE_ASSETS__', JSON.stringify([...assets, '/favicon.svg', '/manifest.webmanifest', '/brand-logo.png', '/icons/icon-192.png', '/icons/icon-512.png', '/onboarding/quran-mosque.jpg', '/onboarding/quran-study.jpg', '/onboarding/quran-detail.jpg']));
       this.emitFile({ type: 'asset', fileName: 'service-worker.js', source: worker });
     },
   }],

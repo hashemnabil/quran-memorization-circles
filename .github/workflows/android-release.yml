@@ -13,11 +13,11 @@ on:
       version_name:
         description: 'Release version (major.minor.patch)'
         required: true
-        default: '1.0.0'
+        default: '1.1.0'
       version_code:
         description: 'Increasing Android version code'
         required: true
-        default: '2'
+        default: '3'
 permissions:
   contents: read
 jobs:
@@ -83,15 +83,24 @@ jobs:
           "$build_tools/aapt" dump badging "$apk" > release-manifest.txt
           if grep -q 'application-debuggable' release-manifest.txt; then echo 'Debuggable release refused'; exit 1; fi
           sha256sum "$apk" frontend/android/app/build/outputs/bundle/release/app-release.aab > SHA256SUMS.txt
+      - name: Prepare simple download package
+        run: |
+          mkdir -p release-download
+          cp frontend/android/app/build/outputs/apk/release/app-release.apk release-download/Halaqat-${{ inputs.version_name }}.apk
+          cp frontend/android/app/build/outputs/bundle/release/app-release.aab release-download/Halaqat-${{ inputs.version_name }}.aab
+          cp release-signature.txt release-manifest.txt release-download/
+          cd release-download
+          sha256sum *.apk *.aab > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: halaqat-release-${{ inputs.version_name }}-${{ inputs.version_code }}
-          path: |
-            frontend/android/app/build/outputs/apk/release/app-release.apk
-            frontend/android/app/build/outputs/bundle/release/app-release.aab
-            release-signature.txt
-            release-manifest.txt
-            SHA256SUMS.txt
+          path: release-download/*
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: halaqat-web-${{ inputs.version_name }}
+          path: frontend/dist/*
           if-no-files-found: error
           retention-days: 30
       - name: Remove temporary private key

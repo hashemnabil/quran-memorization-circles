@@ -6,6 +6,19 @@ import { FullSyncService } from './sync-all.service';
 import { UpdateStudentDto, StudentQuestionnaireDto } from '../students/dto/student.dto';
 import { StudentsService } from '../students/students.service';
 
+test('broadcast replay validates role and reuses the transaction receipt after a lost acknowledgement', async () => {
+  const { service } = fixture(); let broadcasts = 0;
+  const dispatch = FullSyncService.prototype as any;
+  (service as any).apply = dispatch.apply.bind(service);
+  (service as any).services = () => ({ notifications: { broadcast: async (actor: any) => { if (actor.role !== Role.ADMIN) throw new Error('Forbidden'); broadcasts++; return { recipientCount: 2 }; } } });
+  const op = { ...operation(), table: 'notifications', action: 'broadcast', data: { title: 'Hello', body: 'Message', audience: 'STUDENT', selection: 'ALL', userIds: [] } };
+  assert.equal((await service.push(user, { operations: [op] })).outcomes[0].status, 'applied');
+  assert.equal((await service.push(user, { operations: [op] })).outcomes[0].status, 'applied');
+  assert.equal(broadcasts, 1);
+  assert.equal((await service.push({ ...user, role: Role.STUDENT }, { operations: [{ ...op, opId: randomUUID() }] })).outcomes[0].status, 'rejected');
+  assert.equal((await service.push(user, { operations: [{ ...op, opId: randomUUID(), data: { ...op.data, audience: 'INVALID' } }] })).outcomes[0].status, 'rejected');
+});
+
 const user = { id: randomUUID(), role: Role.ADMIN, fullName: 'Admin', username: 'admin', email: null };
 function fixture() {
   const receipts = new Map<string, any>(); let calls = 0;

@@ -5,6 +5,38 @@ import { Role, StudentFileRequestStatus } from '@prisma/client';
 import { NotificationsService } from './notifications.service';
 import { ChatService } from '../chat/chat.service';
 import { CertificatesService } from '../certificates/certificates.service';
+import { SupportService } from '../support/support.service';
+import { randomUUID } from 'node:crypto';
+
+test('only administrators broadcast, with current active recipients inside the selected role', async () => {
+  let where: any; const sent: any[] = [];
+  const service = new NotificationsService({ user: { findMany: async (query: any) => { where = query.where; return [{ id: 'student-one' }]; } } } as any, {} as any);
+  service.notifyMany = async (ids, notice) => { sent.push({ ids, notice }); return ids; };
+  const actor: any = { id: 'admin', role: Role.ADMIN };
+  const dto: any = { title: ' Title ', body: ' Message ', audience: 'STUDENT', selection: 'SELECTED', userIds: ['student-one'] };
+  await assert.rejects(service.broadcast({ ...actor, role: Role.TEACHER }, dto));
+  assert.equal((await service.broadcast(actor, dto)).recipientCount, 1);
+  assert.deepEqual(where, { isActive: true, deletedAt: null, role: 'STUDENT', id: { in: ['student-one'] } });
+  assert.equal(sent[0].notice.title, 'Title');
+  await assert.rejects(service.broadcast(actor, { ...dto, userIds: [] }));
+  await assert.rejects(service.broadcast(actor, { ...dto, userIds: ['student-one', 'outside-role'] }));
+  assert.equal(sent.length, 1);
+});
+
+test('password recovery reaches administrators only and a lost-response retry reuses its ticket', async () => {
+  let saved: any; let count = 0; const notices: any[] = [];
+  const prisma: any = { supportTicket: { findUnique: async () => saved, create: async ({ data }: any) => { saved = { ...data, number: 25 }; count++; return saved; } } };
+  const service = new SupportService(prisma, { log: async () => undefined } as any, { notifyRoles: async (...args: any[]) => { notices.push(args); } } as any, {} as any);
+  const dto = { requestId: randomUUID(), contactName: 'Student', contactPhone: '0591234567', subject: 'طلب تغيير كلمة المرور', description: 'Student identity submitted for manual review' };
+  assert.equal((await service.createPublic(dto, 'client')).number, 25);
+  assert.equal((await service.createPublic(dto, 'client')).number, 25);
+  assert.equal(count, 1); assert.equal(saved.category, 'PASSWORD_RESET');
+  assert.deepEqual(notices[0][0], [Role.ADMIN]); assert.equal(notices.length, 1);
+  await assert.rejects(service.createPublic({ ...dto, description: 'Changed payload' }, 'client'));
+  const recordService = new SupportService({ supportTicket: { findFirst: async () => saved } } as any, {} as any, {} as any, {} as any);
+  await assert.rejects(recordService.findOne({ id: 'support', role: Role.SUPPORT } as any, saved.id));
+  await assert.rejects(recordService.update({ id: 'support', role: Role.SUPPORT } as any, saved.id, { status: 'RESOLVED' }));
+});
 
 test('bulk notifications deliver complete persisted rows, deduplicate recipients and tolerate socket failures', async () => {
   const events: any[] = [];

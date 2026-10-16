@@ -64,11 +64,10 @@ api.defaults.adapter = async (config) => {
     if (local !== undefined) return response(await settleLocalWrite(local));
   }
   if (method === 'get' && config.responseType !== 'blob') {
-    const downloaded = await db.meta.get(`${account}:downloadedAt`);
     const localTable = path.split('/').filter(Boolean)[0];
     const hasPending = db.tables.some(table => table.name === localTable) &&
       await db.table(localTable).where('accountId').equals(account).filter((row: any) => row.synced === 0).count() > 0;
-    if (downloaded || !navigator.onLine || hasPending) {
+    if (!navigator.onLine || hasPending) {
       const local = await localRead(path, { ...config.params });
       if (local !== undefined) return response(local);
       const cached = await db.responses.get(responseKey(account, path, config.params));
@@ -80,7 +79,20 @@ api.defaults.adapter = async (config) => {
         if (prefetched !== undefined) return response(prefetched);
       }
     }
-    const result = await networkAdapter(config);
+    let result;
+    try { result = await networkAdapter(config); }
+    catch (error) {
+      if (axios.isAxiosError(error) && !error.response) {
+        const local = await localRead(path, { ...config.params });
+        if (local !== undefined) return response(local);
+        const cached = await db.responses.get(responseKey(account, path, config.params));
+        if (cached) return response(cached.data);
+        const url = new URL(path, 'https://local.invalid');
+        const prefetched = await readPrefetched(account, url.pathname, { ...Object.fromEntries(url.searchParams), ...config.params });
+        if (prefetched !== undefined) return response(prefetched);
+      }
+      throw error;
+    }
     let data = result.data;
     if (typeof data === 'string') { try { data = JSON.parse(data); } catch { /* Non-JSON responses are preserved verbatim. */ } }
     await rememberRead(path, config.params, data);

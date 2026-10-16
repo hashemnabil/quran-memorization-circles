@@ -27,6 +27,7 @@ test('role workflows and production security regressions over HTTP', { timeout: 
   let circle: any, hiddenCircle: any, student: any, hiddenStudent: any;
   let course: any, template: any, conversation: any;
   let teacherId: string;
+  const recoveryId = randomUUID();
   const request = async (method: string, path: string, role?: Role, body?: unknown, expected?: number) => {
     const response = await fetch(`${base}/api${path}`, {
       method, headers: { 'Content-Type': 'application/json', ...(role && sessions[role] ? { Authorization: `Bearer ${sessions[role].accessToken}` } : {}) },
@@ -57,6 +58,28 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('GET', '/auth/me', Role.PARENT, undefined, 401);
       await request('GET', '/users', undefined, undefined, 401);
       assert.equal((await request('GET', '/health')).status, 'ok');
+    });
+    await t.test('targeted broadcasts are administrator-only and replay once; recovery requests are private', async () => {
+      const title = `Broadcast ${suffix}`;
+      const data = { title, body: 'Administrative notice', audience: 'STUDENT', selection: 'SELECTED', userIds: [ids.STUDENT] };
+      await request('POST', '/notifications/broadcast', Role.TEACHER, data, 403);
+      const operation = { opId: randomUUID(), entityId: randomUUID(), table: 'notifications', action: 'broadcast', data };
+      const first = await request('POST', '/sync-all', Role.ADMIN, { operations: [operation] });
+      assert.equal(first.outcomes[0].status, 'applied');
+      assert.equal(first.outcomes[0].data.recipientCount, 1);
+      await request('POST', '/sync-all', Role.ADMIN, { operations: [operation] });
+      assert.equal(await db.notification.count({ where: { title, userId: ids.STUDENT } }), 1);
+      assert.equal(await db.notification.count({ where: { title, userId: ids.TEACHER } }), 0);
+      const bad = await request('POST', '/sync-all', Role.ADMIN, { operations: [{ ...operation, opId: randomUUID(), data: { ...data, userIds: [ids.TEACHER] } }] });
+      assert.equal(bad.outcomes[0].status, 'rejected');
+      const payload = { requestId: recoveryId, contactName: `Recovery ${suffix}`, contactPhone: '0591234567', subject: 'طلب تغيير كلمة المرور', description: 'Identity details for administration review' };
+      const recovery = await request('POST', '/support/public', undefined, payload, 201);
+      assert.equal((await request('POST', '/support/public', undefined, payload, 201)).number, recovery.number);
+      const listing = await request('GET', '/support?category=PASSWORD_RESET', Role.ADMIN);
+      assert(listing.data.some((row: any) => row.id === recoveryId));
+      await request('GET', `/support/${recoveryId}`, Role.SUPPORT, undefined, 403);
+      await request('PATCH', `/support/${recoveryId}`, Role.SUPPORT, { status: 'RESOLVED' }, 403);
+      assert(await db.notification.count({ where: { userId: ids.ADMIN, link: `/support/${recoveryId}` } }));
     });
     await t.test('admin creates circles/students; teacher and supervisor see only their scope', async () => {
       circle = await request('POST', '/circles', Role.ADMIN, { name: `Allowed ${suffix}`, code: `A${suffix}`, primaryTeacherId: teacherId, supervisorId: ids.SUPERVISOR });
@@ -209,6 +232,7 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('GET', '/auth/me', Role.SUPPORT, undefined, 401);
     });
   } finally {
+    await db.supportTicket.deleteMany({ where: { id: recoveryId } });
     // All records belong to synthetic identities in the disposable database.
     if (conversation?.id) await db.conversation.deleteMany({ where: { id: conversation.id } });
     if (course?.id) await db.course.deleteMany({ where: { id: course.id } });

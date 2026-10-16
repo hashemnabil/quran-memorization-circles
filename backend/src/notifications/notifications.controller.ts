@@ -1,6 +1,8 @@
-import { Controller, Delete, Get, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AuthUser, CurrentUser } from '../common/decorators';
+import { AuthUser, CurrentUser, Roles } from '../common/decorators';
+import { Role } from '@prisma/client';
+import { BroadcastDto } from './broadcast.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { NotificationsService } from './notifications.service';
 
@@ -9,6 +11,12 @@ import { NotificationsService } from './notifications.service';
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly service: NotificationsService) {}
+
+  @Post('broadcast')
+  @Roles(Role.ADMIN)
+  broadcast(@CurrentUser() user: AuthUser, @Body() dto: BroadcastDto) {
+    return this.service.broadcast(user, dto);
+  }
 
   @Get()
   @ApiOperation({ summary: 'قائمة إشعارات المستخدم الحالي' })

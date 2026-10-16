@@ -3,6 +3,7 @@
 // retried when connectivity returns.
 
 type PendingSupport = {
+  requestId?: string;
   id: string;
   contactName: string;
   contactPhone?: string | null;
@@ -43,6 +44,7 @@ export async function savePendingSupport(payload: Omit<PendingSupport, 'id' | 'c
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error ?? new Error('Could not save pending support'));
     });
+    window.dispatchEvent(new Event('qc:pending-support'));
     return item;
   } finally { db.close(); }
 }
@@ -73,7 +75,12 @@ export async function removePendingSupport(id: string): Promise<void> {
 import axios from 'axios';
 import { api } from '@/lib/api';
 
-export async function syncPendingSupport(): Promise<{ applied: number; retried: number }>
+let pendingSync: Promise<{ applied: number; retried: number }> | undefined;
+export function syncPendingSupport(): Promise<{ applied: number; retried: number }> {
+  if (!navigator.onLine) return Promise.resolve({ applied: 0, retried: 0 });
+  return pendingSync ||= flushPendingSupport().finally(() => { pendingSync = undefined; });
+}
+async function flushPendingSupport(): Promise<{ applied: number; retried: number }>
 {
   const all = await listPendingSupport();
   let applied = 0;
@@ -81,6 +88,7 @@ export async function syncPendingSupport(): Promise<{ applied: number; retried: 
   for (const item of all) {
     try {
       await api.post('/support/public', {
+        requestId: item.requestId || (/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.id) ? item.id : undefined),
         contactName: item.contactName,
         contactPhone: item.contactPhone || undefined,
         contactEmail: item.contactEmail || undefined,

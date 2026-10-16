@@ -70,24 +70,20 @@ test('student questionnaire rejects academic and account fields in offline repla
   }
 });
 
-test('questionnaire updates the authenticated student record and cannot target another student', async () => {
-  const writes: any[] = [];
-  const actor = { ...user, role: Role.STUDENT };
-  const ownId = randomUUID();
-  const tx = {
-    student: { update: async (args: any) => { writes.push(args); } },
-    user: { update: async () => undefined },
-  };
-  const prisma = { student: { findFirst: async (args: any) => {
-    assert.deepEqual(args.where, { userId: actor.id, deletedAt: null });
-    return { id: ownId };
-  } }, $transaction: async (run: any) => run(tx) };
-  const students = new StudentsService(prisma as any, {} as any, { log: async () => undefined } as any, {} as any);
-  students.getMyProfile = async () => ({ id: ownId, address: 'Updated home' });
-  await assert.rejects(students.updateMyQuestionnaire(actor, { address: 'Other home' }, randomUUID()));
-  assert.equal(writes.length, 0);
-  await students.updateMyQuestionnaire(actor, { address: 'Updated home' }, ownId);
-  assert.deepEqual(writes, [{ where: { id: ownId }, data: { address: 'Updated home' } }]);
+test('legacy questionnaire creates a pending review and preserves the canonical profile', async () => {
+  const actor = { ...user, role: Role.STUDENT }, ownId = randomUUID();
+  const requests: any[] = [];
+  const findFirst = async () => ({ id: ownId, fullName: 'Student', address: 'Before' });
+  const tx: any = { $queryRaw: async () => [], student: { findFirst },
+    profileReview: { findFirst: async () => null, create: async ({ data }: any) => { requests.push(data); return { ...data, id: 'review', status: 'PENDING' }; } },
+    user: { findMany: async () => [] }, syncChange: { create: async () => ({}) }, notification: { create: async ({ data }: any) => ({ ...data, id: 'notice' }) } };
+  const prisma: any = { student: { findFirst }, $transaction: async (run: any) => run(tx) };
+  const students = new StudentsService(prisma, {} as any, { log: async () => undefined } as any, {} as any);
+  students.getMyProfile = async () => ({ id: ownId, address: 'Before' });
+  await assert.rejects(students.updateMyQuestionnaire(actor, { address: 'Other' }, randomUUID()));
+  const result = await students.updateMyQuestionnaire(actor, { address: 'After' }, ownId);
+  assert.equal(result.address, 'Before'); assert.equal(result.verificationRequest.status, 'PENDING');
+  assert.equal(requests[0].patch.address, 'After'); assert.equal(requests[0].base.address, 'Before');
   await assert.rejects(students.updateMyQuestionnaire(user, { address: 'No' }));
 });
 

@@ -1,3 +1,4 @@
+import { Role } from '@prisma/client';
 import {
   BadRequestException,
   Injectable,
@@ -157,6 +158,9 @@ export class AuthService {
    * it is the login identity and only the administration may reassign it.
    */
   async updateProfile(user: AuthUser, dto: UpdateProfileDto) {
+    if ([Role.STUDENT, Role.TEACHER].includes(user.role as any) && ['fullName', 'phone', 'email'].some(key => dto[key] !== undefined)) {
+      throw new BadRequestException('يرجى إرسال تعديل البيانات من صفحة التحقق لمراجعة الإدارة');
+    }
     const current = await this.prisma.user.findUnique({
       where: { id: user.id },
       select: { avatarUrl: true },

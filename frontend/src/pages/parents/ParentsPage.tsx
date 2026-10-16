@@ -209,7 +209,7 @@ function ParentFormModal({ onClose }: { onClose: () => void }) {
     if (phoneErr) next.phone = phoneErr;
     const altPhoneErr = phoneError(form.altPhone);
     if (altPhoneErr) next.altPhone = altPhoneErr;
-    if (form.password.length < 6) next.password = 'كلمة المرور 6 أحرف على الأقل';
+    if (form.password.length < 4) next.password = 'كلمة المرور 4 أحرف على الأقل';
     setErrors(next);
     if (Object.keys(next).length) return;
     create.mutate(Object.fromEntries(Object.entries(form).filter(([, v]) => v !== '')));

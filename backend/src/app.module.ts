@@ -1,3 +1,5 @@
+import { PushModule } from './push/push.module';
+import { ProfileReviewsModule } from './profile-reviews/profile-reviews.module';
 import { HealthController } from './health.controller';
 import { validateEnvironment } from './production-config';
 import { Module } from '@nestjs/common';
@@ -71,6 +73,8 @@ import { SchedulesModule } from './schedules/schedules.module';
     MediaActivitiesModule,
     OfflineSyncModule,
     SchedulesModule,
+    ProfileReviewsModule,
+    PushModule,
   ],
 })
 export class AppModule {}

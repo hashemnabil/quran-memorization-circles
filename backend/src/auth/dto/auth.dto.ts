@@ -32,9 +32,9 @@ export class ChangePasswordDto {
   @IsNotEmpty({ message: 'كلمة المرور الحالية مطلوبة' })
   currentPassword: string;
 
-  @ApiProperty({ minLength: 6 })
+  @ApiProperty({ minLength: 4 })
   @IsString()
-  @MinLength(6, { message: 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل' })
+  @MinLength(4, { message: 'كلمة المرور الجديدة يجب أن تكون 4 أحرف على الأقل' })
   @MaxLength(128)
   newPassword: string;
 }

@@ -72,27 +72,42 @@ test('student create and edit succeed through full-sync including an empty optio
   }
 });
 
-test('student questionnaire sync updates the same administrative record and rejects another student', { skip: !available }, async () => {
+test('legacy questionnaire sync waits for approval, then updates the same record and rejects another student', { skip: !available }, async () => {
   const db = new PrismaService();
-  const userId = randomUUID(), studentId = randomUUID(), otherId = randomUUID();
+  const userId = randomUUID(), studentId = randomUUID(), otherId = randomUUID(), adminId = randomUUID();
   const service = new FullSyncService(db, new ConfigService());
   const actor = { id: userId, role: Role.STUDENT, fullName: 'Student', username: userId, email: null } as any;
   try {
-    await db.user.create({ data: { id: userId, username: userId, fullName: 'Student', passwordHash: 'test-only', role: Role.STUDENT } });
+    await db.user.createMany({ data: [
+      { id: userId, username: userId, fullName: 'Student', passwordHash: 'test-only', role: Role.STUDENT },
+      { id: adminId, username: adminId, fullName: 'Administrator', passwordHash: 'test-only', role: Role.ADMIN },
+    ] });
     await db.student.createMany({ data: [{ id: studentId, userId, code: `SELF-${studentId}`, fullName: 'Student' }, { id: otherId, code: `OTHER-${otherId}`, fullName: 'Other student' }] });
     const saved = await service.push(actor, { operations: [{ opId: randomUUID(), entityId: studentId, table: 'students', action: 'questionnaire', data: { address: 'My new address', guardianName: 'Guardian', guardianPhone: '0591234567' } }] });
     assert.equal(saved.outcomes[0].status, 'applied', JSON.stringify(saved));
     assert.equal(saved.outcomes[0].data.selfAccountId, userId);
-    const adminPull = await service.pull({ id: userId, role: Role.ADMIN } as any, 'students', 1, new Set([studentId]));
+    const request = saved.outcomes[0].data.verificationRequest;
+    assert.equal(request.status, 'PENDING'); assert.equal(request.subjectId, studentId);
+    const admin = { id: adminId, role: Role.ADMIN, fullName: 'Administrator' } as any;
+    const before = await service.pull(admin, 'students', 1, new Set([studentId]));
+    assert.equal(before.data.find((row: any) => row.id === studentId)?.address, null);
+    const operation = { opId: randomUUID(), entityId: request.id, table: 'profileReviews', action: 'decision', data: { status: 'APPROVED' } };
+    const approved = await service.push(admin, { operations: [operation] });
+    assert.equal(approved.outcomes[0].status, 'applied', JSON.stringify(approved));
+    const adminPull = await service.pull(admin, 'students', 1, new Set([studentId]));
     assert.equal(adminPull.data.find((row: any) => row.id === studentId)?.address, 'My new address');
+    const count = await db.notification.count({ where: { userId } });
+    assert.equal((await service.push(admin, { operations: [operation] })).outcomes[0].status, 'applied');
+    assert.equal(await db.notification.count({ where: { userId } }), count);
     const denied = await service.push(actor, { operations: [{ opId: randomUUID(), entityId: otherId, table: 'students', action: 'questionnaire', data: { fullName: 'Tampered' } }] });
     assert.equal(denied.outcomes[0].status, 'rejected');
     assert.equal((await db.student.findUnique({ where: { id: otherId } }))?.fullName, 'Other student');
   } finally {
     await db.student.deleteMany({ where: { id: { in: [studentId, otherId] } } });
-    await db.activityLog.deleteMany({ where: { userId } });
-    await db.processedOperation.deleteMany({ where: { accountId: userId } });
-    await db.user.deleteMany({ where: { id: userId } });
+    await db.profileReview.deleteMany({ where: { requesterId: userId } });
+    await db.activityLog.deleteMany({ where: { userId: { in: [userId, adminId] } } });
+    await db.processedOperation.deleteMany({ where: { accountId: { in: [userId, adminId] } } });
+    await db.user.deleteMany({ where: { id: { in: [userId, adminId] } } });
     await db.$disconnect();
   }
 });

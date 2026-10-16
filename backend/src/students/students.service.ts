@@ -1,3 +1,4 @@
+import { ProfileReviewsService } from '../profile-reviews/profile-reviews.service';
 import {
   BadRequestException,
   ConflictException,
@@ -100,21 +101,8 @@ export class StudentsService {
     const student = await this.prisma.student.findFirst({ where: { userId: user.id, deletedAt: null }, select: { id: true } });
     if (!student) throw new NotFoundException('ملف الطالب غير مرتبط بهذا الحساب');
     if (expectedId && expectedId !== student.id) throw new ForbiddenException('يمكنك تعديل ملفك فقط');
-    // Explicit allowlist also protects internal callers and offline replay.
-    const fields = ['fullName', 'address', 'nationalId', 'fatherNationalId', 'guardianName', 'guardianPhone', 'guardianRelation'];
-    const data = Object.fromEntries(fields.filter(field => dto[field] !== undefined).map(field => [field, dto[field]]));
-    if (dto.birthDate) data.birthDate = new Date(dto.birthDate);
-    try {
-      await this.prisma.$transaction(async tx => {
-        await tx.student.update({ where: { id: student.id }, data });
-        await tx.user.update({ where: { id: user.id }, data: { fullName: dto.fullName } });
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('رقم الهوية مسجل لطالب آخر');
-      throw error;
-    }
-    await this.activity.log({ userId: user.id, action: 'student.questionnaire', summary: 'حدّث الطالب استبيان بياناته', entityType: 'Student', entityId: student.id });
-    return this.getMyProfile(user);
+    const verificationRequest = await new ProfileReviewsService(this.prisma).submit(user, { ...dto }, undefined, expectedId);
+    return { ...await this.getMyProfile(user), verificationRequest };
   }
 
   async getMyHistory(user: AuthUser) {
@@ -665,7 +653,7 @@ export class StudentsService {
   }
 
   async createAccountForStudent(actor: AuthUser, id: string, password?: string) {
-    if (password !== undefined && (typeof password !== 'string' || password.length < 6 || password.length > 128)) throw new BadRequestException('كلمة المرور يجب أن تكون بين 6 و128 حرفًا');
+    if (password !== undefined && (typeof password !== 'string' || password.length < 4 || password.length > 128)) throw new BadRequestException('كلمة المرور يجب أن تكون بين 4 و128 حرفًا');
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (student.userId) throw new ConflictException('الطالب لديه حساب دخول بالفعل');
@@ -683,7 +671,7 @@ export class StudentsService {
   }
 
   async resetStudentAccountPassword(actor: AuthUser, id: string, password?: string) {
-    if (password !== undefined && (typeof password !== 'string' || password.length < 6 || password.length > 128)) throw new BadRequestException('كلمة المرور يجب أن تكون بين 6 و128 حرفًا');
+    if (password !== undefined && (typeof password !== 'string' || password.length < 4 || password.length > 128)) throw new BadRequestException('كلمة المرور يجب أن تكون بين 4 و128 حرفًا');
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, include: { user: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (!student.user) throw new BadRequestException('الطالب لا يملك حساب دخول');

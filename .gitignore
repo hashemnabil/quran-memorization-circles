@@ -15,3 +15,7 @@ Thumbs.db
 .env*
 !.env.example
 .evn
+**/google-services.json
+**/GoogleService-Info.plist
+*service-account*.json
+*.p8

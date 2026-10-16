@@ -1,3 +1,4 @@
+import { ProfileReviewsService } from '../profile-reviews/profile-reviews.service';
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, Role } from '@prisma/client';
@@ -209,11 +210,8 @@ export class TeachersService {
     // A teacher may only edit their own contact details, never employment data.
     if (actor.role === Role.TEACHER) {
       if (actor.teacherId !== id) throw new ForbiddenException('لا تملك صلاحية التعديل');
-      const allowed = ['phone', 'email', 'address', 'qualification', 'specialization'];
-      const attempted = Object.keys(dto).filter((k) => dto[k] !== undefined && !allowed.includes(k));
-      if (attempted.length) {
-        throw new ForbiddenException('لا تملك صلاحية تعديل البيانات الإدارية');
-      }
+      const verificationRequest = await new ProfileReviewsService(this.prisma).submit(actor, { ...dto }, undefined, id);
+      return { ...await this.findOne(actor, id), verificationRequest };
     }
 
     if (dto.nationalId && dto.nationalId !== teacher.nationalId) {

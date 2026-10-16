@@ -29,8 +29,8 @@ export default function StudentPortalPage() {
   });
   const submitPassword = (event: FormEvent) => {
     event.preventDefault();
-    if (!currentPassword || newPassword.length < 6 || newPassword !== confirmPassword || newPassword === currentPassword) {
-      setPasswordError(!currentPassword ? 'كلمة المرور المؤقتة مطلوبة' : newPassword.length < 6 ? 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل' : newPassword !== confirmPassword ? 'كلمتا المرور غير متطابقتين' : 'اختر كلمة مرور مختلفة عن المؤقتة');
+    if (!currentPassword || newPassword.length < 4 || newPassword !== confirmPassword || newPassword === currentPassword) {
+      setPasswordError(!currentPassword ? 'كلمة المرور المؤقتة مطلوبة' : newPassword.length < 4 ? 'كلمة المرور الجديدة يجب أن تكون 4 أحرف على الأقل' : newPassword !== confirmPassword ? 'كلمتا المرور غير متطابقتين' : 'اختر كلمة مرور مختلفة عن المؤقتة');
       return;
     }
     setPasswordError('');
@@ -55,7 +55,7 @@ export default function StudentPortalPage() {
         <Card title="تعيين كلمة مرور جديدة">
           <form onSubmit={submitPassword} className="grid gap-4">
             <Input label="كلمة المرور المؤقتة" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required dir="ltr" />
-            <Input label="كلمة المرور الجديدة" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required hint="6 أحرف على الأقل" dir="ltr" />
+            <Input label="كلمة المرور الجديدة" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required hint="4 أحرف على الأقل" dir="ltr" />
             <Input label="تأكيد كلمة المرور الجديدة" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required dir="ltr" />
             {passwordError && <p role="alert" className="text-sm text-red-600">{passwordError}</p>}
             <Button type="submit" loading={changePassword.isPending}>حفظ كلمة المرور</Button>

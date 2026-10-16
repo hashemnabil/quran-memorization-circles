@@ -848,6 +848,8 @@ model Notification {
   id        String           @id @default(uuid())
   userId    String
   type      NotificationType
+  pushQueuedAt DateTime?
+  pushDeliveries PushDelivery[]
   title     String
   body      String?
   link      String?
@@ -860,7 +862,56 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
+  @@index([pushQueuedAt, createdAt])
   @@map("notifications")
+}
+
+model ProfileReview {
+  id String @id @default(uuid())
+  kind String
+  subjectId String
+  requesterId String
+  patch Json
+  base Json
+  status String @default("PENDING")
+  reason String?
+  reviewedById String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([requesterId, createdAt])
+  @@index([kind, status, createdAt])
+  @@map("profile_reviews")
+}
+
+model PushDevice {
+  id String @id @default(uuid())
+  installationId String @unique
+  userId String
+  platform String
+  token String @unique
+  enabled Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deliveries PushDelivery[]
+  @@index([userId, enabled])
+  @@map("push_devices")
+}
+
+model PushDelivery {
+  id String @id @default(uuid())
+  notificationId String
+  deviceId String
+  status String @default("PENDING")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  lastError String?
+  createdAt DateTime @default(now())
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  device PushDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  @@unique([notificationId, deviceId])
+  @@index([status, nextAttemptAt])
+  @@map("push_deliveries")
 }
 
 // ---------------------------------------------------------------------------

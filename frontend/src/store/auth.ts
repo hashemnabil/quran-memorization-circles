@@ -91,7 +91,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
     await queryClient.cancelQueries();
     await assertNoPendingWrites(accountId);
+    // Invalidate account-scoped background writers before clearing their stores.
+    localStorage.removeItem(OFFLINE_USER_KEY);
     await clearAccountData(accountId);
+    if (typeof caches !== 'undefined') await caches.delete('quran-circles-images');
     await import('@/lib/native-push').then(module => module.disableNativePush()).catch(() => undefined);
     try {
       if (navigator.onLine) await api.post('/auth/logout', { refreshToken: tokenStore.refresh() });
@@ -115,7 +118,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       clearOfflineReplica(accountId),
     ]);
     } catch (error) {
-      if (get().user) set({ user: previous, status: previous ? 'authenticated' : 'unauthenticated' });
+      if (get().user) {
+        if (previous) cacheOfflineUser(previous);
+        set({ user: previous, status: previous ? 'authenticated' : 'unauthenticated' });
+      }
       throw error;
     } finally { tokenStore.setClosing(false); }
   },

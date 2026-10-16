@@ -26,12 +26,12 @@ for (const [role, paths] of Object.entries(destinations)) {
     page.on('response', (response) => { if (response.url().includes('/api/') && response.status() >= 500) errors.push(`HTTP ${response.status()} ${new URL(response.url()).pathname}`); });
     await login(page, role);
     const initialSidebar = page.getByRole('navigation', { name: 'أقسام التطبيق', exact: true });
-    for (const group of await initialSidebar.getByRole('button', { expanded: false }).all()) await group.click();
+    while (await initialSidebar.getByRole('button', { expanded: false }).count()) await initialSidebar.getByRole('button', { expanded: false }).first().click();
     const visiblePaths = await initialSidebar.getByRole('link').evaluateAll(links => links.map(link => link.getAttribute('href')!));
     const allPaths = [...new Set([...paths, ...visiblePaths, ...(['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role) ? reports.map(report => `/documents/${report}`) : []), '/notifications', '/chat', '/support', '/profile'])];
     for (const path of allPaths) {
       const sidebar = page.getByRole('navigation', { name: 'أقسام التطبيق', exact: true });
-      for (const group of await sidebar.getByRole('button', { expanded: false }).all()) await group.click();
+      while (await sidebar.getByRole('button', { expanded: false }).count()) await sidebar.getByRole('button', { expanded: false }).first().click();
       const link = sidebar.locator(`a[href="${path}"]`);
       if (await link.count()) await link.click();
       else await page.goto(path);

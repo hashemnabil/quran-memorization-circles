@@ -12,6 +12,10 @@ import { NotificationsService } from './notifications.service';
 export class NotificationsController {
   constructor(private readonly service: NotificationsService) {}
 
+  @Get('recipients')
+  @Roles(Role.ADMIN)
+  recipients() { return this.service.recipients(); }
+
   @Post('broadcast')
   @Roles(Role.ADMIN)
   broadcast(@CurrentUser() user: AuthUser, @Body() dto: BroadcastDto) {

@@ -22,7 +22,7 @@ export async function prefetchSections(send: Send, account: string, currentAccou
   if (manager) paths.add(`/staff-attendance/sheet?date=${today}`);
   if (['ADMIN', 'SUPPORT'].includes(role)) paths.add('/support/staff');
   if (['ADMIN', 'EXAM_COMMITTEE'].includes(role)) paths.add('/exams/examiners');
-  if (role === 'ADMIN') ['/users', '/users/stats', '/parents', '/announcements', '/certificates/templates', '/certificates/issued', '/certificates/requests', '/dashboard/activity', '/students/accounts'].forEach(path => paths.add(path));
+  if (role === 'ADMIN') ['/users', '/users/stats', '/parents', '/announcements', '/certificates/templates', '/certificates/issued', '/certificates/requests', '/dashboard/activity', '/students/accounts', '/notifications/recipients'].forEach(path => paths.add(path));
   if (role === 'ADMIN') {
     paths.add('/registry/admin/stats'); paths.add('/registry/admin/users');
     paths.add(`/certificates/monthly-report-data?from=${today.slice(0, 7)}-01&to=${today}`);
@@ -42,6 +42,7 @@ export async function prefetchSections(send: Send, account: string, currentAccou
   }
   let failure: unknown;
   const dependencies: Record<string, string[]> = {
+    notifications: ['users', 'students', 'circles', 'teacher_profiles', 'circle_teachers', 'broadcast_activity_v1'],
     settings: ['school_settings'], announcements: ['announcements'], users: ['users', 'teacher_profiles', 'circle_teachers', 'circles', 'students', 'chat_contact_policy'],
     support: ['support_tickets', 'ticket_messages', 'users'], chat: ['conversations', 'conversation_members', 'messages', 'users', 'circle_teachers', 'circles', 'students', 'chat_contact_policy'],
     parents: ['parent_profiles', 'students', 'circles', 'users'], transfers: ['transfer_requests', 'students'],
@@ -97,7 +98,7 @@ export async function prefetchSections(send: Send, account: string, currentAccou
     }
     await db.meta.put({ key: key(account, path), value: { data, rows: paginated ? rows : Array.isArray(data) ? data : undefined, paginated, registry, savedAt: new Date().toISOString() } satisfies Snapshot });
     // Exact request caches must not override a newer permission-filtered snapshot offline.
-    if (path === '/users/directory' || path.startsWith('/chat/conversations')) {
+    if (['/users/directory', '/dashboard/activity', '/notifications/recipients'].includes(path) || path.startsWith('/chat/conversations')) {
       await db.responses.where('accountId').equals(account).filter(row => {
         try { return JSON.parse(row.key)[1] === path; } catch { return false; }
       }).delete();
@@ -131,6 +132,7 @@ export async function prefetchSections(send: Send, account: string, currentAccou
   if (failure) throw failure;
   if (pending.length) throw new Error('انقطع تنزيل البيانات؛ ستتم إعادة المحاولة تلقائيًا');
   await db.meta.put({ key: `${account}:sectionsDownloadedAt`, value: new Date().toISOString() });
+  if (!changedEntities || changedEntities.includes('broadcast_activity_v1')) await db.meta.put({ key: `${account}:broadcastActivityV1`, value: true });
   if (!changedEntities || changedEntities.includes('chat_contact_policy')) await db.meta.put({ key: `${account}:chatContactPolicyV1`, value: true });
 }
 

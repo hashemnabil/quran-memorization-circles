@@ -360,6 +360,14 @@ async function refreshOnce(options: { forceDownload?: boolean; checkDelta?: bool
     window.dispatchEvent(new Event('halaqat:changed'));
   }
   const downloadedAt = (await db.meta.get(`${account}:downloadedAt`))?.value;
+  // Add the full activity archive and recipient directory once, preserving
+  // existing entity cursors rather than restarting the application download.
+  if (downloadedAt && preloadSections && !(await db.meta.get(`${account}:broadcastActivityV1`))?.value) {
+    await preloadSections(account, ['broadcast_activity_v1']);
+    if (currentAccount() !== account) return;
+    await db.meta.put({ key: `${account}:broadcastActivityV1`, value: true });
+    window.dispatchEvent(new Event('halaqat:changed'));
+  }
   // Upgrade only contact snapshots once; never restart the full application download.
   if (downloadedAt && preloadSections && !(await db.meta.get(`${account}:chatContactPolicyV1`))?.value) {
     await preloadSections(account, ['chat_contact_policy']);

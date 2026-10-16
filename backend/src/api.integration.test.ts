@@ -96,6 +96,26 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('GET', '/users', Role.TEACHER, undefined, 403);
       assert.equal((await request('GET', '/students/me', Role.STUDENT)).id, student.id);
     });
+    await t.test('broadcast directory and circle targeting are administrator-only and activity reaches the first stored records', async () => {
+      await request('GET', '/notifications/recipients', Role.TEACHER, undefined, 403);
+      const directory = await request('GET', '/notifications/recipients', Role.ADMIN);
+      assert(directory.users.some((item: any) => item.id === ids.STUDENT && item.circleId === circle.id));
+      assert(directory.users.some((item: any) => item.id === ids.TEACHER));
+      const title = `Circle broadcast ${suffix}`;
+      const dto = { title, body: 'Circle notice', audience: 'CIRCLE', circleId: circle.id, selection: 'ALL', userIds: [] };
+      const result = await request('POST', '/notifications/broadcast', Role.ADMIN, dto);
+      assert.equal(result.recipientCount, 1);
+      assert.equal(await db.notification.count({ where: { title, userId: ids.STUDENT } }), 1);
+      assert.equal(await db.notification.count({ where: { title, userId: ids.TEACHER } }), 0);
+      await request('POST', '/notifications/broadcast', Role.ADMIN, { ...dto, selection: 'SELECTED', userIds: [ids.TEACHER] }, 400);
+      await db.activityLog.createMany({ data: Array.from({ length: 121 }, (_, index) => ({ userId: ids.ADMIN, action: 'TEST_HISTORY', summary: `History ${suffix} ${index}`, createdAt: new Date(Date.UTC(2001, 0, 1) + index * 1000) })) });
+      await request('GET', '/dashboard/activity', Role.STUDENT, undefined, 403);
+      const first = await request('GET', `/dashboard/activity?search=History%20${suffix}&page=1&limit=50&sortOrder=asc`, Role.ADMIN);
+      const last = await request('GET', `/dashboard/activity?search=History%20${suffix}&page=3&limit=50&sortOrder=asc`, Role.ADMIN);
+      assert.equal(first.meta.total, 121); assert.equal(first.data[0].summary, `History ${suffix} 0`);
+      assert.equal(last.data.length, 21); assert.equal(last.data[20].summary, `History ${suffix} 120`);
+      await request('GET', '/dashboard/activity?limit=201', Role.ADMIN, undefined, 400);
+    });
     await t.test('registry invitation and account deletion verify identity without granting access to another account', async () => {
       await db.registryUser.create({ data: { id: registryRecordId, nationalId: `9${Date.now()}` } });
       const record = await db.registryUser.findUniqueOrThrow({ where: { id: registryRecordId } });
@@ -259,6 +279,7 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('GET', '/auth/me', Role.SUPPORT, undefined, 401);
     });
   } finally {
+    await db.activityLog.deleteMany({ where: { action: 'TEST_HISTORY', summary: { contains: suffix } } });
     await db.registryUser.deleteMany({ where: { id: registryRecordId } });
     await db.supportTicket.deleteMany({ where: { id: recoveryId } });
     // All records belong to synthetic identities in the disposable database.

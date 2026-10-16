@@ -13,8 +13,19 @@ beforeEach(async () => {
   online = false; account = 'account-a';
   for (const table of db.tables) await table.clear();
   configureOffline(async () => { throw new Error('network unavailable'); }, () => account);
+  await db.meta.put({ key: `${account}:broadcastActivityV1`, value: true });
 });
 after(() => db.close());
+
+test('recipient and activity upgrade runs once without resetting existing entity cursors', async () => {
+  online = true; const domains: any[] = [];
+  await db.meta.bulkPut([{ key: `${account}:downloadedAt`, value: 'ready' }, { key: `${account}:chatContactPolicyV1`, value: true }, { key: `${account}:deltaCursor`, value: '50' }]);
+  await db.meta.delete(`${account}:broadcastActivityV1`);
+  configureOffline(async () => { throw new Error('Unexpected full download'); }, () => account, async (_account, changed) => { domains.push(changed); });
+  await refreshOffline(); await refreshOffline();
+  assert.deepEqual(domains, [['broadcast_activity_v1']]);
+  assert.equal((await db.meta.get(`${account}:deltaCursor`))?.value, '50');
+});
 
 test('contact policy upgrade refreshes only contact domains once without restarting the download', async () => {
   online = true; const domains: any[] = [];

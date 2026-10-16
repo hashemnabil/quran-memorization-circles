@@ -41,8 +41,11 @@ export class NotificationsService {
     if (!dto.title.trim() || !dto.body.trim()) throw new BadRequestException('العنوان ونص الإشعار مطلوبان');
     if (dto.selection === 'SELECTED' && !dto.userIds.length) throw new BadRequestException('حدد مستلمًا واحدًا على الأقل');
     if (dto.selection === 'ALL' && dto.userIds.length) throw new BadRequestException('لا ترسل قائمة أشخاص عند اختيار الجميع');
+    if (dto.audience === 'CIRCLE') {
+      if (!dto.circleId || !await this.prisma.circle.findFirst({ where: { id: dto.circleId, deletedAt: null }, select: { id: true } })) throw new BadRequestException('اختر حلقة موجودة');
+    } else if (dto.circleId) throw new BadRequestException('اختيار الحلقة متاح لفئة الحلقات فقط');
     const users = await this.prisma.user.findMany({ where: { isActive: true, deletedAt: null,
-      ...(dto.audience === 'ALL' ? {} : { role: dto.audience as Role }),
+      ...(dto.audience === 'ALL' ? {} : dto.audience === 'STAFF' ? { role: { in: [Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE] } } : dto.audience === 'CIRCLE' ? { role: Role.STUDENT, studentProfile: { circleId: dto.circleId, deletedAt: null } } : { role: dto.audience as Role }),
       ...(dto.selection === 'SELECTED' ? { id: { in: dto.userIds } } : {}),
     }, select: { id: true } });
     if (!users.length || dto.selection === 'SELECTED' && users.length !== dto.userIds.length)
@@ -50,6 +53,17 @@ export class NotificationsService {
     await this.notifyMany(users.map(user => user.id), { type: NotificationType.ANNOUNCEMENT,
       title: dto.title.trim(), body: dto.body.trim(), data: { sentBy: actor.id, source: 'ADMIN_BROADCAST' } });
     return { recipientCount: users.length };
+  }
+
+  /** Administrator-only directory, independent of the paginated staff list. */
+  async recipients() {
+    const [users, circles, withoutAccounts] = await Promise.all([
+      this.prisma.user.findMany({ where: { isActive: true, deletedAt: null, role: { not: Role.PARENT } }, orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+        select: { id: true, fullName: true, username: true, role: true, studentProfile: { select: { circleId: true, deletedAt: true } } } }),
+      this.prisma.circle.findMany({ where: { deletedAt: null }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+      this.prisma.student.findMany({ where: { deletedAt: null, userId: null }, select: { id: true, fullName: true, circleId: true }, orderBy: { fullName: 'asc' } }),
+    ]);
+    return { users: users.filter(user => !user.studentProfile?.deletedAt).map(({ studentProfile, ...user }) => ({ ...user, circleId: studentProfile?.circleId || null })), circles, studentsWithoutAccounts: withoutAccounts };
   }
 
   /** Persists a notification and pushes it over the socket if the user is connected. */

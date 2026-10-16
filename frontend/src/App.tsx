@@ -15,6 +15,7 @@ import PrivacyPage from '@/pages/PrivacyPage';
 import AboutPage from '@/pages/AboutPage';
 import AccountDeletionPage from '@/pages/AccountDeletionPage';
 import BroadcastPage from '@/pages/BroadcastPage';
+import ActivityPage from '@/pages/ActivityPage';
 import PasswordRequestsPage from '@/pages/PasswordRequestsPage';
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 import StudentPortalPage from '@/pages/StudentPortalPage';
@@ -126,6 +127,7 @@ export default function App() {
         <Route path="profile-reviews/teachers" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="TEACHER" /></RequireRole>} />
         <Route path="settings/offline" element={<OfflineSettingsPage />} />
         <Route path="admin/notifications" element={<RequireRole roles={['ADMIN']}><BroadcastPage /></RequireRole>} />
+        <Route path="admin/activity" element={<RequireRole roles={['ADMIN']}><ActivityPage /></RequireRole>} />
         <Route path="admin/password-requests" element={<RequireRole roles={['ADMIN']}><PasswordRequestsPage /></RequireRole>} />
         <Route index element={currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />

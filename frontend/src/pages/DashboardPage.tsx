@@ -422,7 +422,7 @@ function AdminDashboard({ data }: { data: any }) {
           )}
         </Card>
 
-        <Card title="النشاط الأخير">
+        <Card title="النشاط الأخير" action={<Link to="/admin/activity" className="inline-flex min-h-11 items-center font-bold text-primary-700">عرض الكل</Link>}>
           {data.activity?.length ? (
             <ul className="space-y-3">
               {data.activity.slice(0, 8).map((entry: any) => (

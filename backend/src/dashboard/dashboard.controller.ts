@@ -3,6 +3,9 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser, Roles } from '../common/decorators';
 import { DashboardService } from './dashboard.service';
+import { PaginationDto } from '../common/dto/pagination.dto';
+
+class ActivityQueryDto extends PaginationDto { limit = 200; }
 
 @ApiTags('لوحة المعلومات')
 @ApiBearerAuth()
@@ -19,7 +22,7 @@ export class DashboardController {
   @Get('activity')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'سجل النشاط العام' })
-  activity(@Query('limit') limit?: string) {
-    return this.service.activity(limit ? parseInt(limit, 10) : 30);
+  activity(@Query() query: ActivityQueryDto) {
+    return this.service.activity(query);
   }
 }

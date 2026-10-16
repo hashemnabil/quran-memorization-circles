@@ -9,6 +9,7 @@ import { json, urlencoded } from 'express';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { loginLimiter } from './auth/login-limiter';
 
 
 export function configureApp(app: NestExpressApplication) {
@@ -16,16 +17,22 @@ export function configureApp(app: NestExpressApplication) {
   // PDF data URLs are stored with issued records; allow bounded, larger JSON bodies.
   app.use(json({ limit: '12mb' }));
   app.use(urlencoded({ extended: true, limit: '12mb' }));
+  const proxyHops = Number(config.get('TRUST_PROXY_HOPS') || 0);
+  if (Number.isInteger(proxyHops) && proxyHops > 0 && proxyHops <= 3) app.set('trust proxy', proxyHops);
+  app.use(loginLimiter());
 
   const prefix = config.get<string>('API_PREFIX') || 'api';
   app.setGlobalPrefix(prefix);
 
-  app.use(
-    helmet({
+  const apiHeaders = helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
-      contentSecurityPolicy: false,
-    }),
-  );
+      contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+  });
+  const docsHeaders = helmet({ contentSecurityPolicy: { directives: { scriptSrc: ["'self'", "'unsafe-inline'"], styleSrc: ["'self'", "'unsafe-inline'"] } } });
+  app.use((req, res, next) => {
+    const docsEnabled = config.get('NODE_ENV') !== 'production' || config.get('ENABLE_API_DOCS') === 'true';
+    return (docsEnabled && req.path.startsWith(`/${prefix}/docs`) ? docsHeaders : apiHeaders)(req, res, next);
+  });
 
   const origins = (config.get<string>('CORS_ORIGINS') || 'http://localhost:5173')
     .split(',')

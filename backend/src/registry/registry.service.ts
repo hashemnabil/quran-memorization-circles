@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueryRegistryUsersDto, UpdateRegistryUserDto } from './dto/registry.dto';
 
-type RegistryToken = { sub: string; kind: 'registry-user' };
+type RegistryToken = { sub: string; kind: string };
 
 @Injectable()
 export class RegistryService {
@@ -17,15 +17,16 @@ export class RegistryService {
   ) {}
 
   private normalizeId(value: string) {
-    return value.trim().replace(/\\s+/g, '');
+    return value.trim().replace(/\s+/g, '');
   }
 
   private async verifyToken(token: string) {
     try {
       const payload = await this.jwt.verifyAsync<RegistryToken>(token, {
         secret: this.config.get<string>('JWT_ACCESS_SECRET'),
+        audience: 'registry', issuer: 'halaqat-registry',
       });
-      if (payload.kind !== 'registry-user' || !payload.sub) throw new Error('invalid');
+      if (payload.kind !== 'registry-user-v2' || !payload.sub) throw new Error('invalid');
       const user = await this.prisma.registryUser.findFirst({ where: { id: payload.sub, isActive: true } });
       if (!user) throw new Error('inactive');
       return user;
@@ -34,13 +35,23 @@ export class RegistryService {
     }
   }
 
-  async access(nationalId: string) {
+  async invitation(id: string) {
+    const user = await this.prisma.registryUser.findFirst({ where: { id, isActive: true }, select: { id: true } });
+    if (!user) throw new NotFoundException('السجل غير موجود أو غير نشط');
+    const invitation = await this.jwt.signAsync({ sub: id, kind: 'registry-invite' }, { secret: this.config.get<string>('JWT_ACCESS_SECRET'), audience: 'registry-invite', issuer: 'halaqat-registry', expiresIn: '7d' });
+    return { invitation, message: 'دعوة خاصة لصاحب السجل، صالحة 7 أيام. لا تنشرها للعامة.' };
+  }
+  async access(nationalId: string, invitation?: string) {
     const id = this.normalizeId(nationalId);
-    const user = await this.prisma.registryUser.findFirst({ where: { nationalId: id, isActive: true } });
-    if (!user) throw new NotFoundException('رقم الهوية غير موجود في النظام.');
+    let claim: RegistryToken;
+    try { claim = await this.jwt.verifyAsync<RegistryToken>(invitation || '', { secret: this.config.get<string>('JWT_ACCESS_SECRET'), audience: 'registry-invite', issuer: 'halaqat-registry' });
+      if (claim.kind !== 'registry-invite') throw new Error('invalid');
+    } catch { throw new UnauthorizedException('بيانات الدخول أو الدعوة غير صحيحة'); }
+    const user = await this.prisma.registryUser.findFirst({ where: { id: claim.sub, nationalId: id, isActive: true } });
+    if (!user) throw new UnauthorizedException('بيانات الدخول أو الدعوة غير صحيحة');
     const accessToken = await this.jwt.signAsync(
-      { sub: user.id, kind: 'registry-user' },
-      { secret: this.config.get<string>('JWT_ACCESS_SECRET'), expiresIn: '30m' },
+      { sub: user.id, kind: 'registry-user-v2' },
+      { secret: this.config.get<string>('JWT_ACCESS_SECRET'), audience: 'registry', issuer: 'halaqat-registry', expiresIn: '30m' },
     );
     return { accessToken, user: this.present(user) };
   }
@@ -173,7 +184,7 @@ export class RegistryService {
     for (const row of rows as Record<string, unknown>[]) {
       const raw = row.national_id ?? row.nationalId ?? row['رقم الهوية'];
       const id = raw == null ? '' : this.normalizeId(String(raw));
-      if (!/^\\d{3,30}$/.test(id)) { invalid++; continue; }
+      if (!/^\d{3,30}$/.test(id)) { invalid++; continue; }
       if (seen.has(id)) { duplicates++; continue; }
       seen.add(id); ids.push(id);
     }

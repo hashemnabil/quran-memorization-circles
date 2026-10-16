@@ -5,12 +5,13 @@ import { Role } from '@prisma/client';
 import { FullSyncService } from './sync-all.service';
 import { UpdateStudentDto, StudentQuestionnaireDto } from '../students/dto/student.dto';
 import { StudentsService } from '../students/students.service';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 
 test('broadcast replay validates role and reuses the transaction receipt after a lost acknowledgement', async () => {
   const { service } = fixture(); let broadcasts = 0;
   const dispatch = FullSyncService.prototype as any;
   (service as any).apply = dispatch.apply.bind(service);
-  (service as any).services = () => ({ notifications: { broadcast: async (actor: any) => { if (actor.role !== Role.ADMIN) throw new Error('Forbidden'); broadcasts++; return { recipientCount: 2 }; } } });
+  (service as any).services = () => ({ notifications: { broadcast: async (actor: any) => { if (actor.role !== Role.ADMIN) throw new ForbiddenException(); broadcasts++; return { recipientCount: 2 }; } } });
   const op = { ...operation(), table: 'notifications', action: 'broadcast', data: { title: 'Hello', body: 'Message', audience: 'STUDENT', selection: 'ALL', userIds: [] } };
   assert.equal((await service.push(user, { operations: [op] })).outcomes[0].status, 'applied');
   assert.equal((await service.push(user, { operations: [op] })).outcomes[0].status, 'applied');
@@ -132,7 +133,7 @@ test('same operation id with a changed payload is rejected', async () => {
 });
 test('a rejected operation stops dependent operations', async () => {
   const { service } = fixture(); let calls = 0;
-  (service as any).apply = async () => { calls++; throw new Error('Conflict'); };
+  (service as any).apply = async () => { calls++; throw new BadRequestException('Conflict'); };
   const result = await service.push(user, { operations: [operation(), operation()] });
   assert.equal(calls, 1); assert.equal(result.outcomes.length, 1);
   assert.equal(result.outcomes[0].status, 'rejected');

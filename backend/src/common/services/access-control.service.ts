@@ -104,11 +104,9 @@ export class AccessControlService {
     switch (user.role) {
       case Role.ADMIN:
         return {};
-      // The exam committee never browses students, but it does read the ones
-      // attached to the exams it grades, so the scope stays open while the
-      // student *pages* are closed to it at the route level.
       case Role.EXAM_COMMITTEE:
-        return {};
+        // Keep the shared pending queue functional, but never authorize unrelated students.
+        return { OR: [{ examRequests: { some: {} } }, { exams: { some: {} } }] };
       case Role.SUPERVISOR:
       case Role.TEACHER: {
         const ids = await this.ownCircleIds(user);

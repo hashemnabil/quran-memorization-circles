@@ -15,7 +15,11 @@ export class RegistryController {
   @Post('access')
   @Public()
   @ApiOperation({ summary: 'التحقق من رقم الهوية وإنشاء جلسة مستخدم' })
-  access(@Body() dto: RegistryAccessDto) { return this.service.access(dto.nationalId); }
+  access(@Body() dto: RegistryAccessDto) { return this.service.access(dto.nationalId, dto.invitation); }
+
+  @Post('admin/users/:id/invitation')
+  @Roles(Role.ADMIN)
+  invitation(@Param('id') id: string) { return this.service.invitation(id); }
 
   @Get('me')
   @Public()

@@ -1,3 +1,4 @@
+import { assertNewPassword } from '../common/validators/password';
 import { ProfileReviewsService } from '../profile-reviews/profile-reviews.service';
 import {
   BadRequestException,
@@ -653,7 +654,7 @@ export class StudentsService {
   }
 
   async createAccountForStudent(actor: AuthUser, id: string, password?: string) {
-    if (password !== undefined && (typeof password !== 'string' || password.length < 4 || password.length > 128)) throw new BadRequestException('كلمة المرور يجب أن تكون بين 4 و128 حرفًا');
+    if (password !== undefined) assertNewPassword(password);
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (student.userId) throw new ConflictException('الطالب لديه حساب دخول بالفعل');
@@ -671,7 +672,7 @@ export class StudentsService {
   }
 
   async resetStudentAccountPassword(actor: AuthUser, id: string, password?: string) {
-    if (password !== undefined && (typeof password !== 'string' || password.length < 4 || password.length > 128)) throw new BadRequestException('كلمة المرور يجب أن تكون بين 4 و128 حرفًا');
+    if (password !== undefined) assertNewPassword(password);
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, include: { user: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (!student.user) throw new BadRequestException('الطالب لا يملك حساب دخول');

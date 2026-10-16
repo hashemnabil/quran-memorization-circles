@@ -183,7 +183,8 @@ export class UsersService {
       }
     }
 
-    const user = await this.prisma.user.update({
+    const user = await this.prisma.$transaction(async tx => {
+      const updated = await tx.user.update({
       where: { id },
       data: {
         fullName: dto.fullName,
@@ -198,9 +199,10 @@ export class UsersService {
         ...(dto.password ? { passwordHash: await this.hash(dto.password) } : {}),
       },
       select: USER_SELECT,
+      });
+      if (dto.password || dto.isActive === false || dto.role && dto.role !== current.role) await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+      return updated;
     });
-
-    if (dto.password) await this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
 
     if (dto.avatarUrl !== undefined) {
       await this.uploads.removeIfReplaced(current.avatarUrl, user.avatarUrl, '*');
@@ -221,15 +223,9 @@ export class UsersService {
     const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
     if (!user) throw new NotFoundException('المستخدم غير موجود');
 
-    await this.prisma.user.update({
-      where: { id },
-      data: { passwordHash: await this.hash(dto.newPassword) },
-    });
-
-    // Any session created with the old password is invalidated.
-    await this.prisma.refreshToken.updateMany({
-      where: { userId: id, revokedAt: null },
-      data: { revokedAt: new Date() },
+    await this.prisma.$transaction(async tx => {
+      await tx.user.update({ where: { id }, data: { passwordHash: await this.hash(dto.newPassword), mustChangePassword: true } });
+      await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
     });
 
     await this.activity.log({

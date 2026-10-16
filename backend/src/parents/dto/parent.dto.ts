@@ -1,3 +1,4 @@
+import { NewPassword } from '../../common/validators/password';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
@@ -28,9 +29,9 @@ export class CreateParentDto {
   @MaxLength(160)
   email?: string | null;
 
-  @ApiProperty({ minLength: 4 })
+  @ApiProperty({ minLength: 12 })
   @IsString()
-  @MinLength(4, { message: 'كلمة المرور يجب أن تكون 4 أحرف على الأقل' })
+  @NewPassword()
   password: string;
 
   @ApiProperty()

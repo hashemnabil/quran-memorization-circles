@@ -69,10 +69,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (status >= 500) {
-      this.logger.error(
-        `${request.method} ${request.url} -> ${status}`,
-        exception instanceof Error ? exception.stack : String(exception),
-      );
+      // Prisma stack/messages may include SQL parameters, hashes and personal data.
+      this.logger.error(`${request.method} -> ${status} (${exception instanceof Prisma.PrismaClientKnownRequestError ? exception.code : 'SERVER_ERROR'})`);
     }
 
     response.status(status).json({

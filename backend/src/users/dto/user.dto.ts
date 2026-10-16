@@ -1,3 +1,4 @@
+import { NewPassword } from '../../common/validators/password';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
@@ -35,9 +36,9 @@ export class CreateUserDto {
   @MaxLength(160)
   email?: string | null;
 
-  @ApiProperty({ minLength: 4 })
+  @ApiProperty({ minLength: 12 })
   @IsString()
-  @MinLength(4, { message: 'كلمة المرور يجب أن تكون 4 أحرف على الأقل' })
+  @NewPassword()
   @MaxLength(128)
   password: string;
 
@@ -81,9 +82,9 @@ export class CreateUserDto {
 export class UpdateUserDto extends PartialType(CreateUserDto) {}
 
 export class ResetPasswordDto {
-  @ApiProperty({ minLength: 4 })
+  @ApiProperty({ minLength: 12 })
   @IsString()
-  @MinLength(4, { message: 'كلمة المرور يجب أن تكون 4 أحرف على الأقل' })
+  @NewPassword()
   @MaxLength(128)
   newPassword: string;
 

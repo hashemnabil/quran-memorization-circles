@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useRef,
   useId,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
@@ -102,8 +103,8 @@ export function StatCard({
     <Wrapper
       onClick={onClick}
       className={cx(
-        'card card-hover flex items-center gap-4 p-4 text-right w-full',
-        onClick && 'cursor-pointer',
+        'card flex items-center gap-4 p-4 text-right w-full',
+        onClick && 'card-hover cursor-pointer',
       )}
     >
       {icon && (
@@ -272,6 +273,7 @@ export function Button({
     <button
       {...props}
       disabled={props.disabled || loading}
+      aria-busy={loading || undefined}
       className={cx(variants[variant], size === 'sm' && 'btn-sm', className)}
     >
       {loading ? <Spinner size={16} /> : icon}
@@ -313,16 +315,35 @@ export function Modal({
   footer?: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  const titleId = useId();
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') || []).filter(element => element.getClientRects().length > 0);
+    const frame = requestAnimationFrame(() => (focusable()[0] || dialogRef.current)?.focus());
+    const onKey = (e: KeyboardEvent) => {
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      if (dialogs[dialogs.length - 1] !== dialogRef.current) return;
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeRef.current(); }
+      if (e.key !== 'Tab') return;
+      const elements = focusable(); const first = elements[0]; const last = elements[elements.length - 1];
+      if (!first) { e.preventDefault(); dialogRef.current?.focus(); }
+      else if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     return () => {
+      cancelAnimationFrame(frame);
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -334,13 +355,16 @@ export function Modal({
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
+        ref={dialogRef}
+        tabIndex={-1}
         className={cx(
           'app-dialog relative z-10 w-full rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl animate-slide-up',
           sizes[size],
         )}
       >
         <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h3 className="text-base font-bold text-slate-800">{title}</h3>
+          <h3 id={titleId} className="text-base font-bold text-slate-800">{title}</h3>
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"

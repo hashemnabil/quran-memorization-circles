@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import NotificationRecord from '@/components/NotificationRecord';
+import { canOpenPath } from '@/config/navigation';
 import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -49,6 +51,14 @@ interface ExamStats {
 interface Examiner {
   id: string;
   fullName: string;
+}
+
+function ExamStudentName({ student }: { student: { id: string; fullName: string } }) {
+  const role = useAuthStore(state => state.user?.role);
+  const path = `/students/${student.id}`;
+  return role && canOpenPath(role, path)
+    ? <Link to={path} className="font-bold text-slate-800 hover:text-primary-700">{student.fullName}</Link>
+    : <span className="font-bold text-slate-800">{student.fullName}</span>;
 }
 
 /** Show the exact sections selected in a request, especially combined requests. */
@@ -118,6 +128,7 @@ export default function ExamsPage() {
         }
       />
 
+      <NotificationRecord />
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="طلبات بالانتظار" value={stats.data?.pendingRequests ?? 0} icon={<IconClock size={20} />} tone="amber" />
         <StatCard label="اختبارات مجدولة" value={stats.data?.scheduled ?? 0} icon={<IconCalendar size={20} />} tone="sky" />
@@ -258,9 +269,7 @@ function RequestsTab({ canManage }: { canManage: boolean }) {
                   {data.data.map((r) => (
                     <tr key={r.id}>
                       <td>
-                        <Link to={`/students/${r.student.id}`} className="font-bold text-slate-800 hover:text-primary-700">
-                          {r.student.fullName}
-                        </Link>
+                        <ExamStudentName student={r.student} />
                         <span className="block text-[11px] text-slate-400">{r.student.circle?.name ?? '—'}</span>
                       </td>
                       <td className="text-sm">
@@ -418,9 +427,7 @@ function ExamsTab({ mode, canManage }: { mode: 'scheduled' | 'history'; canManag
                   {data.data.map((exam) => (
                     <tr key={exam.id}>
                       <td>
-                        <Link to={`/students/${exam.student.id}`} className="font-bold text-slate-800 hover:text-primary-700">
-                          {exam.student.fullName}
-                        </Link>
+                        <ExamStudentName student={exam.student} />
                         <span className="block text-[11px] text-slate-400">{exam.student.circle?.name ?? '—'}</span>
                       </td>
                       <td className="text-sm">{describeExamSections(exam.section, exam.sections)}</td>

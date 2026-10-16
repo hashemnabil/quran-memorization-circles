@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { canVisitStudentRoute } from '@/lib/student-route-policy';
 import type { Role } from '@/types';
 import {
   IconCamera,
@@ -85,7 +86,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/documents/attendance', label: 'تقرير الحضور والغياب', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/documents/recitations', label: 'تقرير التسميع اليومي', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/exams', label: 'تقرير الاختبارات والنتائج', icon: <IconAward size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE'] },
+      { to: '/documents/exams', label: 'تقرير الاختبارات والنتائج', icon: <IconAward size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/documents/student', label: 'الملف الشامل للطالب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/documents/circles', label: 'إحصائية الحلقات والمحفظين', icon: <IconCircleGroup size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/documents/students', label: 'سجل الطلاب', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
@@ -162,6 +163,7 @@ export function rolesForPath(path?: string | null): Role[] | null {
  * them by the school's own notice.
  */
 export function canOpenPath(role: Role, path?: string | null): boolean {
+  if (role === 'STUDENT') return !!path && canVisitStudentRoute(path.split(/[?#]/)[0].replace(/\/+$/, '') || '/');
   const roles = rolesForPath(path);
   return roles === null ? true : roles.includes(role);
 }

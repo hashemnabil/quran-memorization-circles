@@ -9,6 +9,147 @@ const fixtures: Record<string, any[]> = {
   dutyTeachers: [{ id: '00000000-0000-4000-8000-000000000005', fullName: 'محفظ النظام' }],
 };
 
+for (const width of [1280, 390]) {
+  test(`student header, notification destination and services open on first click at ${width}px`, async ({ page, context }) => {
+    const identity = { ...user, role: 'STUDENT' };
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    const notification = { id: '00000000-0000-4000-8000-000000000009', title: 'مراجعة بياناتك', type: 'SYSTEM', link: '/verify-profile', isRead: false, createdAt: new Date().toISOString() };
+    const review = { id: fixtures.students[0].id, kind: 'STUDENT', profile: { ...fixtures.students[0], selfAccountId: account }, requests: [] };
+    await page.setViewportSize({ width, height: 844 });
+    await page.addInitScript(identity => {
+      localStorage.setItem('qc.accessToken', 'test-token');
+      localStorage.setItem('qc.offlineUser', JSON.stringify(identity));
+    }, identity);
+    await page.route('**/api/**', route => {
+      const url = new URL(route.request().url());
+      if (url.pathname === '/api/auth/me') return route.fulfill({ json: identity });
+      if (url.pathname === '/api/settings/public') return route.fulfill({ json: { name: 'Test' } });
+      if (url.pathname === '/api/profile-reviews/me') return route.fulfill({ json: review });
+      if (url.pathname.endsWith('/unread-count')) return route.fulfill({ json: { count: 1 } });
+      if (url.pathname.includes('/announcements') || url.pathname === '/api/chat/conversations') return route.fulfill({ json: [] });
+      if (url.pathname === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+      if (url.pathname === '/api/sync-all/delta') return route.fulfill({ json: { cursor: '0', tables: {}, changedEntities: [], hasMore: false } });
+      if (url.pathname === '/api/sync-all') {
+        if (route.request().method() === 'POST') return route.fulfill({ json: { outcomes: route.request().postDataJSON().operations.map((op: any) => ({ opId: op.opId, status: 'applied', data: { ...notification, isRead: true } })) } });
+        const table = url.searchParams.get('table');
+        return route.fulfill({ json: { data: table === 'notifications' ? [notification] : table === 'students' ? [review.profile] : [], meta: { hasNextPage: false } } });
+      }
+      return route.fulfill({ json: { data: [], meta: { page: 1, total: 0, totalPages: 1, hasNextPage: false } } });
+    });
+    await page.goto('/profile');
+    await expect(page.getByRole('button', { name: 'قائمة الحساب', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+    await page.getByRole('link', { name: 'الإشعارات', exact: true }).first().click();
+    await expect(page).toHaveURL(/\/notifications$/);
+    await page.getByRole('button', { name: /مراجعة بياناتك/ }).click();
+    await expect(page).toHaveURL(/\/verify-profile$/);
+    await page.getByRole('button', { name: 'تعديل بياناتي', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'إرسال للتحقق', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+    await page.getByRole('link', { name: 'المحادثات', exact: true }).first().click();
+    await expect(page).toHaveURL(/\/chat$/);
+    // Cache the support screen, then exercise a real sidebar link while offline.
+    await page.goto('/support');
+    await expect(page.locator('main h1').first()).toBeVisible();
+    await context.setOffline(true);
+    if (width < 1024) await page.getByRole('button', { name: 'فتح القائمة', exact: true }).click();
+    const sidebar = page.getByRole('navigation', { name: 'أقسام التطبيق', exact: true }).filter({ visible: true });
+    const communication = sidebar.getByRole('button', { name: /التواصل/ });
+    if (await communication.getAttribute('aria-expanded') === 'false') await communication.click();
+    await sidebar.getByRole('link', { name: 'الإشعارات', exact: true }).click();
+    await expect(page).toHaveURL(/\/notifications$/);
+    await expect(page.getByRole('heading', { name: 'الإشعارات', exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+}
+
+test('notification links open their exact exam and request records offline, including completed requests', async ({ page, context }) => {
+  const student = fixtures.students[0];
+  const exam = { id: '20000000-0000-4000-8000-000000000001', status: 'COMPLETED', student, scheduledAt: '2026-10-15T10:00:00Z', score: 95, result: 'PASSED', section: { name: 'Test section' } };
+  const request = { id: '20000000-0000-4000-8000-000000000002', status: 'APPROVED', student, createdAt: '2026-10-15T10:00:00Z', section: exam.section, teacher: { user: { fullName: 'Teacher' } } };
+  const transfer = { id: '20000000-0000-4000-8000-000000000003', status: 'REJECTED', kind: 'STUDENT_TRANSFER', student, reason: 'Transfer reason', decisionNote: 'Transfer rejected', requestedBy: user };
+  const suspension = { id: '20000000-0000-4000-8000-000000000004', status: 'REJECTED', student, reason: 'Suspension reason', decisionNote: 'Suspension rejected', requestedBy: user };
+  const records: Record<string, any> = { [`/exams/${exam.id}`]: exam, [`/exams/requests/${request.id}`]: request, [`/transfers/${transfer.id}`]: transfer, [`/suspensions/${suspension.id}`]: suspension };
+  const notifications = Object.keys(records).map((link, index) => ({ id: `30000000-0000-4000-8000-00000000000${index}`, title: `Notice ${index}`, type: 'SYSTEM', link, isRead: false, createdAt: '2026-10-15T00:00:00Z' }));
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(identity => {
+    localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity));
+  }, user);
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url()); const path = url.pathname.replace(/^\/api/, '');
+    if (path === '/auth/me') return route.fulfill({ json: user });
+    if (path === '/settings/public') return route.fulfill({ json: { name: 'Test' } });
+    if (path.endsWith('/unread-count')) return route.fulfill({ json: { count: 4 } });
+    if (records[path]) return route.fulfill({ json: records[path] });
+    if (['/announcements/active', '/chat/conversations', '/suspensions/active', '/users/directory'].includes(path)) return route.fulfill({ json: [] });
+    if (path === '/exams/stats') return route.fulfill({ json: { pendingRequests: 0, scheduled: 0, completed: 1, passed: 1, failed: 0, passRate: 100 } });
+    if (path === '/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+    if (path === '/sync-all/delta') return route.fulfill({ json: { cursor: '0', tables: {}, changedEntities: [], hasMore: false } });
+    const data = path === '/transfers' ? [transfer] : path === '/suspensions' ? [suspension] : [];
+    if (path === '/sync-all') {
+      const table = url.searchParams.get('table');
+      const rows = table === 'exams' ? [exam] : table === 'examRequests' ? [request] : table === 'notifications' ? notifications : [];
+      return route.fulfill({ json: { data: rows, meta: { hasNextPage: false } } });
+    }
+    return route.fulfill({ json: { data, meta: { page: 1, total: data.length, totalPages: 1, hasNextPage: false } } });
+  });
+  await page.goto('/notifications');
+  await expect.poll(() => page.evaluate(account => new Promise(resolve => {
+    const open = indexedDB.open('halaqatFull'); open.onsuccess = () => {
+      const database = open.result; const read = database.transaction('meta').objectStore('meta').get(`${account}:sectionsDownloadedAt`);
+      read.onsuccess = () => { resolve(Boolean(read.result)); database.close(); };
+    };
+  }), account)).toBe(true);
+  await context.setOffline(true);
+  for (const notice of notifications) {
+    await page.getByRole('button', { name: new RegExp(notice.title) }).click();
+    await expect(page).toHaveURL(url => url.pathname === notice.link);
+    const details = page.getByRole('definition');
+    await expect(details.filter({ hasText: student.fullName })).toBeVisible();
+    if (notice.link.startsWith('/transfers/')) await expect(details.filter({ hasText: 'Transfer rejected' })).toBeVisible();
+    if (notice.link.startsWith('/suspensions/')) await expect(details.filter({ hasText: 'Suspension rejected' })).toBeVisible();
+    await page.locator('header').getByRole('link', { name: 'الإشعارات', exact: true }).click();
+  }
+  await expect(page.getByRole('button', { name: 'تعليم الكل كمقروء', exact: true })).toHaveCount(0);
+  await page.locator('li').filter({ has: page.getByRole('button', { name: /Notice 0/ }) }).getByRole('button', { name: 'حذف', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Notice 0/ })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('exam committee tabs work without offering forbidden student files or reports', async ({ page }) => {
+  const identity = { ...user, role: 'EXAM_COMMITTEE' };
+  const student = fixtures.students[0];
+  const request = { id: '40000000-0000-4000-8000-000000000001', status: 'PENDING', student, section: { name: 'Exam section' }, createdAt: '2026-10-15T00:00:00Z', teacher: { user: { fullName: 'Teacher' } } };
+  const exam = { ...request, id: '40000000-0000-4000-8000-000000000002', status: 'SCHEDULED', scheduledAt: '2026-10-15T10:00:00Z' };
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, identity);
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/auth/me') return route.fulfill({ json: identity });
+    if (url.pathname === '/api/settings/public') return route.fulfill({ json: { name: 'Test' } });
+    if (url.pathname === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+    if (url.pathname === '/api/sync-all/delta') return route.fulfill({ json: { cursor: '0', tables: {}, changedEntities: [], hasMore: false } });
+    if (url.pathname.endsWith('/unread-count')) return route.fulfill({ json: { count: 0 } });
+    if (url.pathname.includes('/announcements')) return route.fulfill({ json: [] });
+    let data: any[] = [];
+    if (url.pathname === '/api/sync-all') {
+      const table = url.searchParams.get('table'); data = table === 'exams' ? [exam] : table === 'examRequests' ? [request] : [];
+    }
+    return route.fulfill({ json: { data, meta: { page: 1, total: data.length, totalPages: 1, hasNextPage: false } } });
+  });
+  await page.goto('/exams');
+  await expect(page.getByRole('cell', { name: student.fullName, exact: false })).toBeVisible();
+  await expect(page.locator(`a[href="/students/${student.id}"]`)).toHaveCount(0);
+  await expect(page.locator('a[href="/documents/exams"]')).toHaveCount(0);
+  await page.getByRole('button', { name: /الاختبارات المجدولة/ }).click();
+  await expect(page.getByRole('cell', { name: student.fullName, exact: false })).toBeVisible();
+  await expect(page.locator(`a[href="/students/${student.id}"]`)).toHaveCount(0);
+  await page.getByRole('button', { name: 'سجل الاختبارات', exact: true }).click();
+  await expect(page.getByText('لا توجد اختبارات في السجل', { exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('administrator creates a user and student account, resets password offline and syncs on reconnect', async ({ page, context }) => {
   const received: any[] = [];
   await page.addInitScript(identity => {

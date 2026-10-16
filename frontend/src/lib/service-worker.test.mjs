@@ -17,7 +17,7 @@ function install({ existing = false, broken = false, mismatch = false } = {}) {
     delete: async (key) => { deleted.push(key); return entries.delete(key); },
   };
   const source = readFileSync(new URL('../service-worker.template.js', import.meta.url), 'utf8')
-    .replace('__SHELL_CACHE_NAME__', 'quran-circles-shell-test').replace('__PRECACHE_ASSETS__', JSON.stringify(['/assets/app.js', '/assets/shared.js']));
+    .replace('__SHELL_CACHE_NAME__', 'quran-circles-shell-test').replace('__PRECACHE_ASSETS__', JSON.stringify(['/assets/app.js', '/assets/shared.js', '/assets/arabic.woff2']));
   vm.runInNewContext(source, {
     URL, Response, caches,
     self: { location: { origin: 'https://school.example' }, addEventListener: (name, handler) => { handlers[name] = handler; }, skipWaiting: async () => {} },
@@ -42,4 +42,5 @@ test('worker refuses mismatched HTML and precaches every emitted chunk before ac
   const wrong = install({ mismatch: true }); await assert.rejects(wrong.promise);
   const good = install(); await good.promise;
   assert.equal(good.entries.get('quran-circles-shell-test').has('https://school.example/assets/shared.js'), true);
+  assert.equal(good.entries.get('quran-circles-shell-test').has('https://school.example/assets/arabic.woff2'), true);
 });

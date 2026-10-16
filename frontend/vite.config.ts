@@ -30,10 +30,10 @@ export default defineConfig({
     name: 'complete-offline-shell',
     generateBundle(_options, bundle) {
       const template = readFileSync(path.resolve(__dirname, 'src/service-worker.template.js'), 'utf8');
-      const assets = Object.keys(bundle).filter((name) => /\.(?:js|css)$/.test(name)).sort().map((name) => `/${name}`);
+      const assets = Object.keys(bundle).filter((name) => /\.(?:js|css|woff2)$/.test(name)).sort().map((name) => `/${name}`);
       const digest = createHash('sha256').update(template).update(JSON.stringify(assets)).digest('hex').slice(0, 20);
       const worker = template.replace('__SHELL_CACHE_NAME__', `quran-circles-shell-${digest}`)
-        .replace('__PRECACHE_ASSETS__', JSON.stringify([...assets, '/favicon.svg', '/manifest.webmanifest']));
+        .replace('__PRECACHE_ASSETS__', JSON.stringify([...assets, '/favicon.svg', '/manifest.webmanifest', '/brand-logo.png', '/icons/icon-192.png', '/icons/icon-512.png']));
       this.emitFile({ type: 'asset', fileName: 'service-worker.js', source: worker });
     },
   }],

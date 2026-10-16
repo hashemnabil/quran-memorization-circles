@@ -4,7 +4,10 @@ import { SecureStorage, KeychainAccess } from '@aparajita/capacitor-secure-stora
 let nativeReady: Promise<void> | undefined;
 async function prepare() {
   if (!Capacitor.isNativePlatform()) return;
-  if (!Capacitor.isPluginAvailable('SecureStorage')) throw new Error('إضافة التخزين الآمن غير متاحة؛ يلزم تحديث بناء التطبيق');
+  // The plugin registers a JS native wrapper, so isPluginAvailable alone also
+  // returns true in an outdated APK that lacks the actual native implementation.
+  const header = (Capacitor as unknown as { PluginHeaders?: Array<{ name: string; methods?: Array<{ name: string }> }> }).PluginHeaders?.find(plugin => plugin.name === 'SecureStorage');
+  if (!header?.methods?.some(method => method.name === 'internalGetItem')) throw new Error('إضافة التخزين الآمن غير متاحة؛ يلزم تحديث بناء التطبيق');
   nativeReady ||= (async () => {
     await SecureStorage.setSynchronize(false);
     await SecureStorage.setDefaultKeychainAccess(KeychainAccess.whenUnlockedThisDeviceOnly);

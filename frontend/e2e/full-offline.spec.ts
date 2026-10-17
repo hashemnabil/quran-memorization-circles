@@ -21,11 +21,13 @@ for (const rejected of [false, true]) {
     const profile = await mkdtemp(join(tmpdir(), 'qc-offline-'));
     const origin = String(info.project.use.baseURL);
     const password = 'Local Browser Passphrase 27';
-    let context: BrowserContext | undefined; let logins = 0; let posts = 0; let allowLogin = true;
+    let context: BrowserContext | undefined; let logins = 0; let posts = 0; let allowLogin = true; let offlineMode = false;
     let serverRows: any[] = [];
     const start = async (offline: boolean) => {
+      offlineMode = offline;
       context = await chromium.launchPersistentContext(profile, { headless: true, offline, baseURL: origin, channel: info.project.use.channel, viewport: { width: 1280, height: 900 } });
       await context.route('**/api/**', route => {
+        if (offlineMode) return route.abort('internetdisconnected');
         const url = new URL(route.request().url()); const path = url.pathname;
         if (path === '/api/auth/login') {
           const input = route.request().postDataJSON();
@@ -97,16 +99,17 @@ for (const rejected of [false, true]) {
       page = await start(true); await signIn(page);
       expect((await queue(page))[0].opId).toBe(pending.opId);
       allowLogin = !rejected;
+      offlineMode = false;
       await context!.setOffline(false);
       if (rejected) {
         await expect(page).toHaveURL(/\/login$/); expect(posts).toBe(0);
         expect((await queue(page))[0].opId).toBe(pending.opId);
-        await context!.setOffline(true); await signIn(page);
+        offlineMode = true; await context!.setOffline(true); await signIn(page);
         expect((await queue(page))[0].opId).toBe(pending.opId);
       } else {
         await expect.poll(async () => (await queue(page)).length, { timeout: 20000 }).toBe(0);
         expect(logins).toBe(2); expect(posts).toBe(1); expect(serverRows[0].status).toBe('ABSENT');
-        await context!.setOffline(true);
+        offlineMode = true; await context!.setOffline(true);
         await page.goto(`${origin}/attendance?circleId=${circleId}`);
         await expect(page.getByText(fixtures.students[0].fullName, { exact: true })).toBeVisible();
       }
@@ -116,11 +119,13 @@ for (const rejected of [false, true]) {
 
 test('student first password change preserves offline login with the new password', async ({ page, context }) => {
   const identity = { ...user, role: 'STUDENT', mustChangePassword: true };
+  const student = { ...fixtures.students[0], selfAccountId: account };
   const initialPassword = 'Temporary Student Password 27';
   const newPassword = 'My New Student Password 42';
-  let serverPassword = initialPassword; let logins = 0;
+  let serverPassword = initialPassword; let logins = 0; let offlineMode = false;
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/**', route => {
+    if (offlineMode) return route.abort('internetdisconnected');
     const url = new URL(route.request().url()); const path = url.pathname;
     if (path === '/api/auth/login') {
       if (route.request().postDataJSON().password !== serverPassword) return route.fulfill({ status: 401, json: {} });
@@ -135,11 +140,11 @@ test('student first password change preserves offline login with the new passwor
     if (path === '/api/auth/me') return route.fulfill({ json: identity });
     if (path === '/api/announcements/active' || path === '/api/chat/conversations') return route.fulfill({ json: [] });
     if (path === '/api/settings/public') return route.fulfill({ json: { name: schoolName } });
-    if (path === '/api/students/me') return route.fulfill({ json: fixtures.students[0] });
+    if (path === '/api/students/me') return route.fulfill({ json: student });
     if (path === '/api/students/me/history') return route.fulfill({ json: { exams: [], recitations: [], attendance: [] } });
     if (path === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
     if (path === '/api/sync-all/delta') return route.fulfill({ json: { cursor: '0', tables: {}, changedEntities: [], hasMore: false } });
-    if (path === '/api/sync-all') return route.fulfill({ json: { data: fixtures[url.searchParams.get('table') || ''] || [], meta: { hasNextPage: false } } });
+    if (path === '/api/sync-all') return route.fulfill({ json: { data: url.searchParams.get('table') === 'students' ? [student] : fixtures[url.searchParams.get('table') || ''] || [], meta: { hasNextPage: false } } });
     return route.fulfill({ json: { data: [], meta: { hasNextPage: false, total: 0 } } });
   });
   await page.goto('/login');
@@ -147,11 +152,14 @@ test('student first password change preserves offline login with the new passwor
   await page.getByLabel('كلمة المرور', { exact: true }).fill(initialPassword);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
   await page.getByLabel(/^كلمة المرور المؤقتة/).fill(initialPassword);
+  await expect.poll(() => page.evaluate(account => new Promise<boolean>(resolve => {
+    const open = indexedDB.open('halaqatFull'); open.onsuccess = () => { const database = open.result; const read = database.transaction('students').objectStore('students').getAll(); read.onsuccess = () => { database.close(); resolve(read.result.some(row => row.accountId === account && row.__sealedLocal)); }; };
+  }), account)).toBe(true);
   await page.getByLabel(/^كلمة المرور الجديدة/).fill(newPassword);
   await page.getByLabel(/^تأكيد كلمة المرور الجديدة/).fill(newPassword);
   await page.getByRole('button', { name: 'حفظ كلمة المرور', exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
-  await context.setOffline(true);
+  offlineMode = true; await context.setOffline(true);
   await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
   await page.getByLabel('كلمة المرور', { exact: true }).fill(newPassword);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();

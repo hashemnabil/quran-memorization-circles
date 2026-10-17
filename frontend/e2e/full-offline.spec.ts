@@ -114,6 +114,52 @@ for (const rejected of [false, true]) {
   });
 }
 
+test('student first password change preserves offline login with the new password', async ({ page, context }) => {
+  const identity = { ...user, role: 'STUDENT', mustChangePassword: true };
+  const initialPassword = 'Temporary Student Password 27';
+  const newPassword = 'My New Student Password 42';
+  let serverPassword = initialPassword; let logins = 0;
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url()); const path = url.pathname;
+    if (path === '/api/auth/login') {
+      if (route.request().postDataJSON().password !== serverPassword) return route.fulfill({ status: 401, json: {} });
+      logins++; return route.fulfill({ json: { user: identity, accessToken: 'student-access', refreshToken: 'student-refresh' } });
+    }
+    if (path === '/api/auth/change-password') {
+      const input = route.request().postDataJSON();
+      if (input.currentPassword !== serverPassword) return route.fulfill({ status: 400, json: {} });
+      serverPassword = input.newPassword; identity.mustChangePassword = false;
+      return route.fulfill({ json: { success: true } });
+    }
+    if (path === '/api/auth/me') return route.fulfill({ json: identity });
+    if (path === '/api/announcements/active' || path === '/api/chat/conversations') return route.fulfill({ json: [] });
+    if (path === '/api/settings/public') return route.fulfill({ json: { name: schoolName } });
+    if (path === '/api/students/me') return route.fulfill({ json: fixtures.students[0] });
+    if (path === '/api/students/me/history') return route.fulfill({ json: { exams: [], recitations: [], attendance: [] } });
+    if (path === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+    if (path === '/api/sync-all/delta') return route.fulfill({ json: { cursor: '0', tables: {}, changedEntities: [], hasMore: false } });
+    if (path === '/api/sync-all') return route.fulfill({ json: { data: fixtures[url.searchParams.get('table') || ''] || [], meta: { hasNextPage: false } } });
+    return route.fulfill({ json: { data: [], meta: { hasNextPage: false, total: 0 } } });
+  });
+  await page.goto('/login');
+  await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
+  await page.getByLabel('كلمة المرور', { exact: true }).fill(initialPassword);
+  await page.getByRole('button', { name: 'دخول', exact: true }).click();
+  await page.getByLabel(/^كلمة المرور المؤقتة/).fill(initialPassword);
+  await page.getByLabel(/^كلمة المرور الجديدة/).fill(newPassword);
+  await page.getByLabel(/^تأكيد كلمة المرور الجديدة/).fill(newPassword);
+  await page.getByRole('button', { name: 'حفظ كلمة المرور', exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await context.setOffline(true);
+  await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
+  await page.getByLabel('كلمة المرور', { exact: true }).fill(newPassword);
+  await page.getByRole('button', { name: 'دخول', exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === '/' || url.pathname === '/student');
+  await expect(page.getByRole('heading', { name: fixtures.students[0].fullName, exact: true })).toBeVisible();
+  expect(logins).toBe(1); expect(errors).toEqual([]);
+});
+
 test('public deletion entry identifies the school and production CSP blocks injected inline scripts', async ({ page }) => {
   await page.route('**/api/**', route => route.fulfill({ json: { name: schoolName } }));
   await page.goto('/account-deletion');

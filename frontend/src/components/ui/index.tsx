@@ -525,7 +525,7 @@ export function Avatar({
   const [open, setOpen] = useState(false);
   useEffect(() => setFailed(false), [src, cachedSrc]);
 
-  const showImage = !!src && !failed;
+  const showImage = !!cachedSrc && !failed;
 
   return (
     <span className={cx('relative inline-block shrink-0', className)} style={{ width: size, height: size }}>

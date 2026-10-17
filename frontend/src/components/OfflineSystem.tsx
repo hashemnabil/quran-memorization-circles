@@ -40,7 +40,7 @@ export default function OfflineSystem() {
         // Visible screens must leave their cached offline results as soon as
         // the server session is verified, even if the sync cursor is unchanged.
         if (refreshReads || wasLocal) await queryClient.invalidateQueries();
-        await (initial ? initOffline() : refreshOffline());
+        await (initial ? initOffline() : refreshOffline({ checkDelta: refreshReads }));
       }
       catch (e) { if (active) setError(e instanceof Error ? e.message : String(e)); }
       finally {
@@ -79,7 +79,7 @@ export default function OfflineSystem() {
     update();
     // Let the first screen render and issue its interactive requests first.
     const locallyUnlocked = tokenStore.isLocal();
-    const initialTimer = setTimeout(() => { void synchronize(true, locallyUnlocked); }, locallyUnlocked ? 0 : 1200);
+    const initialTimer = setTimeout(() => { void synchronize(true, true); }, locallyUnlocked ? 0 : 1200);
     const listener = Network.addListener('networkStatusChange', (status) => {
       if (!active) return;
       connectivityChanged(status.connected);

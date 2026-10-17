@@ -7,6 +7,15 @@ const STORE = 'snapshots';
 
 type Snapshot = { accountId: string; savedAt: number; state: DehydratedState };
 
+function restoreSnapshot(state: DehydratedState) {
+  // Persisted data is a fallback, never proof that the server is unchanged.
+  // Keep timestamps for hydration ordering, but force mounted queries to read
+  // through the network-first adapter, including queries with infinite staleTime.
+  hydrate(queryClient, { ...state, queries: state.queries.map(query => ({
+    ...query, state: { ...query.state, isInvalidated: true },
+  })) });
+}
+
 function openDb(): Promise<IDBDatabase> {
   if (typeof indexedDB === 'undefined') return Promise.reject(new Error('IndexedDB unavailable'));
   return new Promise((resolve, reject) => {
@@ -25,7 +34,7 @@ export async function restoreQueryCache(accountId: string, stillCurrent: () => b
   if (!accountId || !stillCurrent()) return false;
   const local = await localDb.meta.get(`${accountId}:querySnapshot`);
   if (!stillCurrent()) return false;
-  if (local?.value?.accountId === accountId) { hydrate(queryClient, local.value.state); return true; }
+  if (local?.value?.accountId === accountId) { restoreSnapshot(local.value.state); return true; }
   const db = await openDb();
   try {
     const snapshot = await new Promise<Snapshot | undefined>((resolve, reject) => {
@@ -39,7 +48,7 @@ export async function restoreQueryCache(accountId: string, stillCurrent: () => b
     await localDb.meta.put({ key: `${accountId}:querySnapshot`, value: snapshot });
     await clearLegacySnapshot(accountId);
     if (!stillCurrent()) return false;
-    hydrate(queryClient, snapshot.state);
+    restoreSnapshot(snapshot.state);
     return true;
   } finally { db.close(); }
 }

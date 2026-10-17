@@ -139,5 +139,7 @@ test('a late query snapshot cannot hydrate the next account after logout or swit
     assert.equal(queryClient.getQueryData(['account-isolation']), undefined);
     assert.equal(await restoreQueryCache('alpha', () => true), true);
     assert.equal(queryClient.getQueryData(['account-isolation']), 'Private alpha snapshot');
+    assert.equal(queryClient.getQueryState(['account-isolation'])?.isInvalidated, true,
+      'restored data must not suppress the next server read');
   } finally { queryClient.clear(); }
 });

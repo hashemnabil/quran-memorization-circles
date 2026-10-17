@@ -6,6 +6,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { api } from './api';
 
 export const nativePushAvailable = () => Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('PushNotifications');
+export class PushSetupError extends Error {}
 const installationKey = 'halaqat.push.installation';
 async function installationId() {
   const existing = (await Preferences.get({ key: installationKey })).value;
@@ -18,15 +19,15 @@ export function notificationLink(data: any) {
   return typeof link === 'string' && /^\/(?!\/)[a-zA-Z0-9/_?=&%-]*$/.test(link) ? link : '/notifications';
 }
 async function configured() {
-  const { data } = await api.get('/push/config');
+  const { data } = await api.get('/push/config', { timeout: 15000 });
   return !!data[Capacitor.getPlatform()];
 }
 export async function enableNativePush() {
-  if (!nativePushAvailable()) throw new Error('هذه الميزة متاحة في نسخة الجوال المحدّثة');
-  if (!navigator.onLine) throw new Error('اتصل بالإنترنت لتفعيل إشعارات الجوال');
-  if (!await configured()) throw new Error('خدمة إشعارات الجوال تحتاج إعداد Firebase أو Apple من الإدارة');
+  if (!nativePushAvailable()) throw new PushSetupError('هذه الميزة متاحة في نسخة الجوال المحدّثة');
+  if (!navigator.onLine) throw new PushSetupError('اتصل بالإنترنت لتفعيل إشعارات الجوال');
+  if (!await configured()) throw new PushSetupError('خدمة الإشعارات غير مهيأة على الخادم؛ يلزم إعداد Firebase لأندرويد أو Apple لآيفون، ثم إعادة المحاولة');
   const permission = await PushNotifications.requestPermissions();
-  if (permission.receive !== 'granted') throw new Error('لم يُمنح إذن الإشعارات؛ فعّله من إعدادات الجوال');
+  if (permission.receive !== 'granted') throw new PushSetupError('لم يُمنح إذن الإشعارات؛ فعّله من إعدادات الجوال');
   if (Capacitor.getPlatform() === 'android') {
     await LocalNotifications.requestPermissions();
     await LocalNotifications.createChannel({ id: 'halaqat-updates', name: 'إشعارات الحلقات', importance: 4, visibility: 0 });

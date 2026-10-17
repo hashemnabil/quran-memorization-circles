@@ -104,54 +104,34 @@ async function buildPrintableCertificate(studentName: string, title: string, kin
 
 async function buildMonthlyReportPdf(student: any, from: string, to: string, templateUrl?: string, layout?: any) {
   let pdf: PDFDocument;
-  if (templateUrl?.startsWith('data:application/pdf;base64,')) {
-    const raw = atob(templateUrl.split(',')[1]);
-    pdf = await PDFDocument.load(Uint8Array.from(raw, ch => ch.charCodeAt(0)));
+  const uploaded = Boolean(templateUrl?.startsWith('data:application/pdf;base64,'));
+  if (uploaded) { pdf = await PDFDocument.load(Uint8Array.from(atob(templateUrl!.split(',')[1]), ch => ch.charCodeAt(0))); }
+  else { pdf = await PDFDocument.create(); pdf.addPage([842,595]); }
+  const page=pdf.getPages()[0]; if(!page) throw new Error('ملف القالب لا يحتوي على صفحات');
+  const {width,height}=page.getSize(); const canvas=document.createElement('canvas'); canvas.width=1684; canvas.height=1190;
+  const ctx=canvas.getContext('2d'); if(!ctx) throw new Error('تعذر تجهيز التقرير');
+  const sx=canvas.width/842, sy=canvas.height/595;
+  const text=(v:unknown,x:number,y:number,size:number,color='#173d32',weight='400')=>{ctx.save();ctx.direction='rtl';ctx.textAlign='center';ctx.fillStyle=color;ctx.font=weight+' '+(size*2)+'px Tahoma,Arial,sans-serif';ctx.fillText(String(v??''),x*sx,y*sy,780*sx);ctx.restore();};
+  const box=(x:number,y:number,w:number,h:number,fill:string,stroke?:string)=>{ctx.save();ctx.beginPath();ctx.roundRect(x*sx,y*sy,w*sx,h*sy,12*sx);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke();}ctx.restore();};
+  if(!uploaded){
+    ctx.fillStyle='#f7f8f4';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#c7a45c';ctx.lineWidth=10;ctx.strokeRect(30,30,1624,1130);ctx.strokeStyle='#e4d5b0';ctx.lineWidth=3;ctx.strokeRect(46,46,1592,1098);
+    box(64,60,714,104,'#173d32');text('حلقات تحفيظ القرآن الكريم',421,91,16,'#e7d4a1','600');text('التقرير الشهري للطالب',421,129,27,'#ffffff','700');
+    text(student.fullName,421,184,24,'#173d32','700');text('رقم الطالب: '+student.code+'   •   الحلقة: '+student.circleName,421,211,13,'#64756d','500');
+    box(42,228,758,39,'#eee7d6');text('الفترة: '+from+'  —  '+to,421,253,13,'#173d32','600');
+    const stats=[{x:42,l:'أيام الحضور',v:student.attendance?.present??0,c:'#2f7d5b'},{x:236,l:'الغياب بدون عذر',v:student.attendance?.absent??0,c:'#b54747'},{x:430,l:'جلسات التسميع',v:student.recitations?.sessions??0,c:'#4267a9'},{x:624,l:'الصفحات المسجلة',v:Number(student.recitations?.pages??0).toFixed(1),c:'#a87927'}];
+    for(const s of stats){box(s.x,280,176,88,'#fff','#e1e6df');text(s.l,s.x+88,306,11,'#64756d','500');text(s.v,s.x+88,344,25,s.c,'700');}
+    box(42,386,370,111,'#fff','#e1e6df');text('ملخص التسميع',227,410,15,'#173d32','700');text('النقاط: '+Number(student.recitations?.points??0).toFixed(1),227,437,12,'#465a50','500');text('الأخطاء: '+(student.recitations?.mistakes??0)+'   •   التنبيهات: '+(student.recitations?.warnings??0),227,461,12,'#465a50','500');text('الأجزاء المحفوظة: '+Number(student.memorizedParts??0).toFixed(1),227,482,11,'#465a50','500');
+    box(430,386,370,111,'#fff','#e1e6df');text('التقييم العام',615,410,15,'#173d32','700');text(student.evaluation||'غير محدد',615,440,18,'#a87927','700');const note=String(student.evaluationNote||'لا توجد ملاحظات');text(note.length>48?note.slice(0,45)+'…':note,615,470,11,'#465a50','400');
+    text('أُعدّ التقرير من السجلات المسجلة في النظام خلال الفترة المحددة',421,535,10,'#7a877f','400');
   } else {
-    pdf = await PDFDocument.create();
-    pdf.addPage([842, 595]);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const lines:Array<[string,number,string]>=[['التقرير الشهري لحلقات تحفيظ القرآن الكريم',.22,'bold 32px Tahoma,Arial'],['اسم الطالب: '+student.fullName+' | الرقم: '+student.code,.32,'bold 25px Tahoma,Arial'],['الحلقة: '+student.circleName,.39,'23px Tahoma,Arial'],['الفترة: '+from+' إلى '+to,.46,'22px Tahoma,Arial'],['الحضور: '+student.attendance.present+' | الغياب: '+student.attendance.absent+' | بعذر: '+student.attendance.excused+' | سجلات: '+student.attendance.recorded,.55,'21px Tahoma,Arial'],['جلسات التسميع: '+student.recitations.sessions+' | الصفحات: '+Number(student.recitations.pages).toFixed(1),.63,'21px Tahoma,Arial'],['النقاط: '+Number(student.recitations.points).toFixed(1)+' | الأخطاء: '+student.recitations.mistakes+' | التنبيهات: '+student.recitations.warnings,.70,'21px Tahoma,Arial'],['التقييم العام: '+(student.evaluation||'غير محدد'),.78,'bold 22px Tahoma,Arial'],['ملاحظات التقييم: '+(student.evaluationNote||'لا توجد'),.85,'19px Tahoma,Arial']];
+    const positions=layout?.reportPositions??{},keys=['heading','student','circle','period','attendance','recitations','scores','evaluation','notes'];
+    lines.forEach(([line,ratio,font],i)=>{const p=positions[keys[i]]??{};const x=Number.isFinite(Number(p.x))?Math.min(95,Math.max(5,Number(p.x))):50;const y=Number.isFinite(Number(p.y))?Math.min(95,Math.max(5,Number(p.y))):ratio*100;ctx.fillStyle='#173d32';ctx.font=font;ctx.fillText(line,canvas.width*x/100,canvas.height*y/100,canvas.width*.9);});
   }
-  const page = pdf.getPages()[0];
-  if (!page) throw new Error('ملف القالب لا يحتوي على صفحات');
-  const { width, height } = page.getSize();
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1400, Math.round(width * 2));
-  canvas.height = Math.max(950, Math.round(height * 2));
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('تعذر تجهيز التقرير');
-  ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.fillStyle = '#173d32';
-  const x = canvas.width / 2;
-  const lines: Array<[string, number, string]> = [
-    ['التقرير الشهري لحلقات تحفيظ القرآن الكريم', 0.22, 'bold 32px Tahoma, Arial'],
-    ['اسم الطالب: ' + student.fullName + '  |  الرقم: ' + student.code, 0.32, 'bold 25px Tahoma, Arial'],
-    ['الحلقة: ' + student.circleName, 0.39, '23px Tahoma, Arial'],
-    ['الفترة: ' + from + ' إلى ' + to, 0.46, '22px Tahoma, Arial'],
-    ['الحضور: ' + student.attendance.present + ' | الغياب: ' + student.attendance.absent + ' | بعذر: ' + student.attendance.excused + ' | سجلات: ' + student.attendance.recorded, 0.55, '21px Tahoma, Arial'],
-    ['جلسات التسميع: ' + student.recitations.sessions + ' | الصفحات: ' + Number(student.recitations.pages).toFixed(1), 0.63, '21px Tahoma, Arial'],
-    ['النقاط: ' + Number(student.recitations.points).toFixed(1) + ' | الأخطاء: ' + student.recitations.mistakes + ' | التنبيهات: ' + student.recitations.warnings, 0.70, '21px Tahoma, Arial'],
-    ['التقييم العام: ' + (student.evaluation || 'غير محدد'), 0.78, 'bold 22px Tahoma, Arial'],
-    ['ملاحظات التقييم: ' + (student.evaluationNote || 'لا توجد'), 0.85, '19px Tahoma, Arial'],
-  ];
-  const positions = layout?.reportPositions ?? {};
-  const reportKeys = ['heading','student','circle','period','attendance','recitations','scores','evaluation','notes'];
-  for (let i = 0; i < lines.length; i++) {
-    const [text, ratio, font] = lines[i];
-    const pos = positions[reportKeys[i]] ?? {};
-    const px = Number.isFinite(Number(pos.x)) ? Math.min(95, Math.max(5, Number(pos.x))) : 50;
-    const py = Number.isFinite(Number(pos.y)) ? Math.min(95, Math.max(5, Number(pos.y))) : ratio * 100;
-    ctx.font = font;
-    ctx.fillText(text, canvas.width * px / 100, canvas.height * py / 100, canvas.width * 0.9);
-  }
-  for (const item of (layout?.reportCustomTexts ?? [])) { if (item && typeof item.text === 'string' && item.text.trim()) { ctx.fillStyle = item.color || '#173d32'; ctx.font = (item.bold ? 'bold ' : '') + Math.max(8, Math.min(72, Number(item.fontSize) || 18)) + 'px Tahoma, Arial, sans-serif'; ctx.fillText(item.text, canvas.width * Math.min(95, Math.max(5, Number(item.x) || 50)) / 100, canvas.height * Math.min(95, Math.max(5, Number(item.y) || 50)) / 100, canvas.width * 0.9); } }
-  const png = await pdf.embedPng(await new Promise<Uint8Array>((resolve, reject) => canvas.toBlob(async blob => {
-    if (!blob) { reject(new Error('تعذر تجهيز التقرير')); return; }
-    resolve(new Uint8Array(await blob.arrayBuffer()));
-  }, 'image/png')));
-  page.drawImage(png, { x: 0, y: 0, width, height });
-  const bytes = await pdf.save();
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return 'data:application/pdf;base64,' + btoa(binary);
+  for(const item of (layout?.reportCustomTexts??[]))if(item&&typeof item.text==='string'&&item.text.trim()){ctx.fillStyle=item.color||'#173d32';ctx.font=(item.bold?'bold ':'')+Math.max(8,Math.min(72,Number(item.fontSize)||18))+'px Tahoma,Arial,sans-serif';ctx.fillText(item.text,canvas.width*Math.min(95,Math.max(5,Number(item.x)||50))/100,canvas.height*Math.min(95,Math.max(5,Number(item.y)||50))/100,canvas.width*.9);}
+  const png=await pdf.embedPng(await new Promise<Uint8Array>((resolve,reject)=>canvas.toBlob(async blob=>{if(!blob){reject(new Error('تعذر تجهيز التقرير'));return;}resolve(new Uint8Array(await blob.arrayBuffer()));},'image/png')));
+  page.drawImage(png,{x:0,y:0,width,height});const bytes=await pdf.save();let binary='';for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return 'data:application/pdf;base64,'+btoa(binary);
 }
 
 export default function CertificatesAdminPage() {
@@ -167,6 +147,7 @@ export default function CertificatesAdminPage() {
   const [customTextY,setCustomTextY]=useState(50);
   const [customTextSize,setCustomTextSize]=useState(20);
   const [customTextTarget,setCustomTextTarget]=useState('certificate');
+  const [previewTarget,setPreviewTarget]=useState<'certificate'|'report'>('certificate');
   const addCustomText=()=>{try{const next=JSON.parse(design);const key=customTextTarget==='certificate'?'customTexts':'reportCustomTexts';next[key]=[...(next[key]||[]),{text:customTextValue,x:customTextX,y:customTextY,fontSize:customTextSize,bold:false,color:'#173d32'}];setDesign(JSON.stringify(next,null,2));setCustomTextValue('');toast.success('أُضيف النص للتصميم؛ احفظ القالب لحفظ التعديل.');}catch{toast.error('إعدادات التصميم غير صالحة؛ أصلح JSON أولًا.');}};
   const [decisionNotes,setDecisionNotes]=useState<Record<string,string>>({});
   const [fileUrls,setFileUrls]=useState<Record<string,string>>({});
@@ -201,6 +182,7 @@ export default function CertificatesAdminPage() {
     return urls;
   },onSuccess:async(urls)=>{const printWindow=printWindowRef.current;printWindowRef.current=null;try{await mergePdfDataUrls(urls);if(printWindow&&!printWindow.closed)printWindow.close();toast.success('تم إصدار '+urls.length+' شهادة وتنزيلها في ملف PDF واحد، وحُفظت النسخ الفردية بحسابات الطلاب.');}catch{if(printWindow&&!printWindow.closed)printWindow.close();toast.error('تم حفظ السجلات، لكن تعذر تجهيز ملف PDF الجماعي.');}setSelectedStudentIds([]);await refresh();},onError:e=>{if(printWindowRef.current&&!printWindowRef.current.closed)printWindowRef.current.close();printWindowRef.current=null;toast.error(e instanceof Error?e.message:apiError(e));}});
 
+  const updatePreviewPosition=(target:'certificate'|'report',key:string,x:number,y:number)=>{try{const next=JSON.parse(design);const bucket=target==='certificate'?'positions':'reportPositions';if(key.startsWith('custom-')){const customKey=target==='certificate'?'customTexts':'reportCustomTexts';const index=Number(key.slice(7));next[customKey]=next[customKey]||[];if(next[customKey][index])next[customKey][index]={...next[customKey][index],x,y};}else{next[bucket]=next[bucket]||{};next[bucket][key]={...(next[bucket][key]||{}),x,y};}setDesign(JSON.stringify(next,null,2));}catch{toast.error('تعذر تعديل موضع العنصر؛ راجع إعدادات التصميم.');}};
   return <div className="space-y-6" dir="rtl">
     <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-end sm:justify-between">
       <div><h1 className="text-xl font-bold text-slate-900">الشهادات والتقارير</h1><p className="mt-1 text-sm text-slate-500">إدارة القوالب والشهادات وتقارير الطلاب.</p></div>
@@ -237,6 +219,15 @@ export default function CertificatesAdminPage() {
 
         <div className="md:col-span-2 rounded-xl border border-slate-200 p-4"><p className="font-semibold">أماكن عناصر التقرير الشهري</p><p className="mb-3 text-sm text-slate-500">عدّل موقع كل سطر في التقرير بنفس طريقة الشهادة، بالقيم المئوية من عرض الصفحة وارتفاعها.</p><div className="grid gap-3 sm:grid-cols-2">{[{key:"heading",label:"عنوان التقرير"},{key:"student",label:"اسم الطالب والرقم"},{key:"circle",label:"الحلقة"},{key:"period",label:"الفترة"},{key:"attendance",label:"الحضور والغياب"},{key:"recitations",label:"جلسات التسميع والصفحات"},{key:"scores",label:"النقاط والأخطاء"},{key:"evaluation",label:"التقييم العام"},{key:"notes",label:"ملاحظات التقييم"}].map(field=>{const parsed=(()=>{try{return JSON.parse(design)}catch{return {}}})();const pos=parsed.reportPositions?.[field.key]||{};return <div key={field.key} className="rounded-lg bg-slate-50 p-3"><p className="mb-2 text-sm font-semibold">{field.label}</p><div className="grid grid-cols-2 gap-2"><label className="text-xs">X — أفقي<input type="number" min="5" max="95" className="mt-1 w-full rounded border p-2" value={pos.x??50} onChange={e=>{const next=JSON.parse(design);next.reportPositions=next.reportPositions||{};next.reportPositions[field.key]={...(next.reportPositions[field.key]||{}),x:Number(e.target.value)};setDesign(JSON.stringify(next,null,2));}} /></label><label className="text-xs">Y — عمودي<input type="number" min="5" max="95" className="mt-1 w-full rounded border p-2" value={pos.y??50} onChange={e=>{const next=JSON.parse(design);next.reportPositions=next.reportPositions||{};next.reportPositions[field.key]={...(next.reportPositions[field.key]||{}),y:Number(e.target.value)};setDesign(JSON.stringify(next,null,2));}} /></label></div></div>})}</div></div>
         <div className="md:col-span-2 rounded-xl border p-4 space-y-3">
+        <div className="md:col-span-2 rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold text-slate-900">معاينة التصميم — اسحب النص لمكانه</p><p className="mt-1 text-sm text-slate-600">اسحب عناصر الشهادة أو عناصر قالب PDF المرفوع لتحديد مواضعها. التقرير الافتراضي له تصميم جاهز؛ مواضع التقرير قابلة للسحب عند استخدام قالب PDF مرفوع.</p></div><div className="flex rounded-xl border bg-white p-1"><button type="button" onClick={()=>setPreviewTarget('certificate')} className={previewTarget==='certificate'?'rounded-lg bg-emerald-800 px-3 py-2 text-sm font-semibold text-white':'rounded-lg px-3 py-2 text-sm text-slate-600'}>الشهادة</button><button type="button" onClick={()=>setPreviewTarget('report')} className={previewTarget==='report'?'rounded-lg bg-emerald-800 px-3 py-2 text-sm font-semibold text-white':'rounded-lg px-3 py-2 text-sm text-slate-600'}>التقرير</button></div></div>
+          <div className="mx-auto mt-4 w-full max-w-4xl"><div onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const key=e.dataTransfer.getData('text/plain');if(!key)return;const rect=e.currentTarget.getBoundingClientRect();updatePreviewPosition(previewTarget,key,Math.max(5,Math.min(95,Math.round((e.clientX-rect.left)/rect.width*100))),Math.max(5,Math.min(95,Math.round((e.clientY-rect.top)/rect.height*100))));}} className="relative aspect-[842/595] overflow-hidden rounded-lg border-4 border-double border-amber-600 bg-[#fffdf7] shadow-xl">
+          {fileUrl.startsWith('data:application/pdf;base64,')?<iframe title="معاينة قالب الشهادة" src={fileUrl+'#toolbar=0&navpanes=0&scrollbar=0&view=FitH'} className="pointer-events-none absolute inset-0 h-full w-full border-0"/>:<div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#ffffff_0%,_#f8f5e9_100%)]"><div className="absolute inset-[2.5%] rounded border border-amber-200"/>{previewTarget==='report'&&<><div className="absolute inset-x-[3.8%] top-[5%] h-[18%] rounded-xl bg-emerald-900"/><div className="absolute inset-x-[5%] top-[28%] h-[8%] rounded-lg bg-amber-100"/><div className="absolute inset-x-[5%] top-[42%] h-[18%] rounded-lg border border-slate-200 bg-white"/><div className="absolute inset-x-[5%] bottom-[12%] h-[19%] rounded-lg border border-slate-200 bg-white"/></>}</div>}
+          {previewTarget==='certificate' ? [{key:'heading',label:'شهادة تقدير وإنجاز',font:18},{key:'intro',label:'تُمنح هذه الشهادة إلى',font:12},{key:'studentName',label:'اسم الطالب',font:22},{key:'kind',label:'نوع الإنجاز',font:12},{key:'title',label:'عنوان الشهادة',font:10},{key:'date',label:'تاريخ الإصدار',font:10}].map(field=>{const d=JSON.parse(design);const defaults:any={heading:35,intro:44,studentName:53,kind:63,title:70,date:78};const p=d.positions?.[field.key]||{};return <div key={field.key} draggable={previewTarget==='certificate'||fileUrl.startsWith('data:application/pdf;base64,')} onDragStart={e=>{if(previewTarget==='certificate'||fileUrl.startsWith('data:application/pdf;base64,'))e.dataTransfer.setData('text/plain',field.key)}} title="اسحب لتغيير المكان" style={{position:'absolute',left:((p.x??50)+'%'),top:((p.y??defaults[field.key])+'%'),transform:'translate(-50%,-50%)',fontSize:field.font+'px',fontWeight:field.key==='heading'||field.key==='studentName'?'700':'500',color:field.key==='heading'?'#9b762f':'#173d32',whiteSpace:'nowrap',cursor:'grab',border:'1px dashed #b28b42',borderRadius:6,padding:'2px 6px',background:'rgba(255,255,255,.78)',zIndex:2}}>{field.label}</div>})
+          : [{key:'heading',label:'التقرير الشهري',font:16},{key:'student',label:'اسم الطالب والرقم',font:12},{key:'circle',label:'الحلقة',font:11},{key:'period',label:'الفترة الزمنية',font:11},{key:'attendance',label:'الحضور والغياب',font:10},{key:'recitations',label:'جلسات التسميع والصفحات',font:10},{key:'scores',label:'النقاط والأخطاء',font:10},{key:'evaluation',label:'التقييم العام',font:11},{key:'notes',label:'ملاحظات التقييم',font:10}].map(field=>{const d=JSON.parse(design);const defaults:any={heading:22,student:32,circle:39,period:46,attendance:55,recitations:63,scores:70,evaluation:78,notes:85};const p=d.reportPositions?.[field.key]||{};return <div key={field.key} draggable onDragStart={e=>e.dataTransfer.setData('text/plain',field.key)} title="اسحب لتغيير المكان" style={{position:'absolute',left:((p.x??50)+'%'),top:((p.y??defaults[field.key])+'%'),transform:'translate(-50%,-50%)',fontSize:field.font+'px',fontWeight:field.key==='heading'?'700':'500',color:field.key==='heading'?'#ffffff':'#173d32',whiteSpace:'nowrap',cursor:'grab',border:'1px dashed #b28b42',borderRadius:6,padding:'2px 6px',background:field.key==='heading'?'transparent':'rgba(255,255,255,.88)',zIndex:2}}>{field.label}</div>})}
+          {(previewTarget==='certificate'?(JSON.parse(design).customTexts||[]):(JSON.parse(design).reportCustomTexts||[])).map((item:any,i:number)=><div key={'custom-'+i} draggable onDragStart={e=>e.dataTransfer.setData('text/plain','custom-'+i)} title="اسحب لتغيير المكان" style={{position:'absolute',left:(Math.max(5,Math.min(95,Number(item.x)||50))+'%'),top:(Math.max(5,Math.min(95,Number(item.y)||50))+'%'),transform:'translate(-50%,-50%)',fontSize:Math.max(8,Math.min(32,Number(item.fontSize)||18))+'px',fontWeight:item.bold?'700':'500',color:item.color||'#173d32',whiteSpace:'nowrap',cursor:'grab',border:'1px dashed #b28b42',borderRadius:6,padding:'2px 6px',background:'rgba(255,255,255,.8)',zIndex:3}}>{item.text}</div>)}
+          </div><p className="mt-2 text-center text-xs text-slate-500">اسحب العناوين والنصوص داخل الورقة. لا تُحذف بيانات القالب عند تعديل التصميم.</p></div>
+        </div>
           <p className="font-semibold">إضافة نص مخصص للقالب</p>
           <p className="text-sm text-slate-500">اكتب أي عبارة إضافية وحدد موضعها وحجمها، سواء للشهادة أو للتقرير. تظهر عند إصدار الملفات بعد حفظ القالب.</p>
           <div className="grid gap-3 sm:grid-cols-2">

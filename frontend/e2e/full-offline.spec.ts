@@ -1,4 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, chromium, type BrowserContext } from '@playwright/test';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 const account = '00000000-0000-4000-8000-000000000001';
 const circleId = '00000000-0000-4000-8000-000000000002';
 const user = { id: account, username: 'offline-test', fullName: 'مدير الاختبار', role: 'ADMIN', isActive: true, mustChangePassword: false };
@@ -9,6 +12,107 @@ const fixtures: Record<string, any[]> = {
   teachers: [{ id: '00000000-0000-4000-8000-000000000004', isActive: true, user: { id: 'teacher-user', fullName: 'معلم أوفلاين', isActive: true }, circleRoles: [] }],
   dutyTeachers: [{ id: '00000000-0000-4000-8000-000000000005', fullName: 'محفظ النظام' }],
 };
+
+for (const rejected of [false, true]) {
+  test(`password login survives real browser process restarts offline; reconnect ${rejected ? 'rejects revoked authorization without losing edits' : 'validates authorization and syncs once'}`, async ({}, info) => {
+    test.setTimeout(120000);
+    // Chromium's IndexedDB backing-store path exceeds Windows' path limit under
+    // the repository's long test-results path. Keep this disposable profile short.
+    const profile = await mkdtemp(join(tmpdir(), 'qc-offline-'));
+    const origin = String(info.project.use.baseURL);
+    const password = 'Local Browser Passphrase 27';
+    let context: BrowserContext | undefined; let logins = 0; let posts = 0; let allowLogin = true;
+    let serverRows: any[] = [];
+    const start = async (offline: boolean) => {
+      context = await chromium.launchPersistentContext(profile, { headless: true, offline, baseURL: origin, channel: info.project.use.channel, viewport: { width: 1280, height: 900 } });
+      await context.route('**/api/**', route => {
+        const url = new URL(route.request().url()); const path = url.pathname;
+        if (path === '/api/auth/login') {
+          const input = route.request().postDataJSON();
+          if (!allowLogin || input.username !== user.username || input.password !== password) return route.fulfill({ status: 401, json: { message: 'الحساب غير متاح' } });
+          logins++; return route.fulfill({ json: { user, accessToken: `restart-access-${logins}`, refreshToken: `restart-refresh-${logins}` } });
+        }
+        if (path === '/api/auth/me') return route.fulfill({ status: allowLogin ? 200 : 401, json: allowLogin ? user : { message: 'الحساب غير متاح' } });
+        if (path === '/api/settings/public' || path === '/api/settings') return route.fulfill({ json: { name: schoolName } });
+        if (path === '/api/announcements/active') return route.fulfill({ json: [] });
+        if (path === '/api/dashboard/overview') return route.fulfill({ json: { role: 'ADMIN', counts: {}, pending: {}, weeklyAttendance: [], attendanceToday: { present: 0, absent: 0, excused: 0 }, evaluationBreakdown: [], activity: [] } });
+        if (path === '/api/circles/options') return route.fulfill({ json: fixtures.circles });
+        if (path === '/api/attendance/sheet') return route.fulfill({ json: { circle: fixtures.circles[0], date: url.searchParams.get('date'), canSubmit: true, students: fixtures.students.map(student => ({ ...student, attendance: serverRows.find(row => row.studentId === student.id) || null })) } });
+        if (path === '/api/notifications/recipients') return route.fulfill({ json: { users: [user], circles: fixtures.circles, studentsWithoutAccounts: [] } });
+        if (path === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+        if (path === '/api/sync-all/delta') return route.fulfill({ json: { cursor: '0', tables: {}, changedEntities: [], hasMore: false } });
+        if (path === '/api/sync-all') {
+          if (route.request().method() === 'POST') {
+            if (!allowLogin || logins < 2 || route.request().headers().authorization !== `Bearer restart-access-${logins}`) return route.fulfill({ status: 401, json: { message: 'Server validation required' } });
+            posts++; const operations = route.request().postDataJSON().operations;
+            serverRows = operations.flatMap((op: any) => op.data.entries.map((entry: any) => ({ ...entry, id: `row-${entry.studentId}`, circleId: op.data.circleId, date: op.data.date, updatedAt: new Date().toISOString() })));
+            return route.fulfill({ json: { outcomes: operations.map((op: any) => ({ opId: op.opId, status: 'applied', data: { rows: serverRows } })) } });
+          }
+          return route.fulfill({ json: { data: fixtures[url.searchParams.get('table') || ''] || [], meta: { hasNextPage: false } } });
+        }
+        return route.fulfill({ json: { data: [], meta: { hasNextPage: false, total: 0, totalPages: 1 } } });
+      });
+      const page = await context.newPage();
+      for (const other of context.pages()) if (other !== page) await other.close();
+      return page;
+    };
+    const signIn = async (page: Awaited<ReturnType<typeof start>>) => {
+      await page.goto(`${origin}/login`);
+      await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
+      await page.getByLabel('كلمة المرور', { exact: true }).fill(password);
+      await page.getByRole('button', { name: 'دخول', exact: true }).click();
+      await expect(page).not.toHaveURL(/\/login$/);
+    };
+    const queue = (page: Awaited<ReturnType<typeof start>>) => page.evaluate(() => new Promise<any[]>(resolve => {
+      const open = indexedDB.open('halaqatFull'); open.onsuccess = () => { const database = open.result; const read = database.transaction('queue').objectStore('queue').getAll(); read.onsuccess = () => { database.close(); resolve(read.result); }; };
+    }));
+    try {
+      let page = await start(false); await signIn(page);
+      await page.goto(`${origin}/attendance?circleId=${circleId}`);
+      await expect(page.getByText(fixtures.students[0].fullName, { exact: true })).toBeVisible();
+      await expect.poll(() => page.evaluate(account => new Promise<boolean>(resolve => {
+        const open = indexedDB.open('halaqatFull'); open.onsuccess = () => { const database = open.result; const read = database.transaction('meta').objectStore('meta').get(`${account}:downloadedAt`); read.onsuccess = () => { database.close(); resolve(Boolean(read.result?.__sealedLocal)); }; };
+      }), account)).toBe(true);
+      await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+      // Ordinary logout must preserve the encrypted verifier and local work.
+      await page.goto(`${origin}/profile`);
+      await page.locator('main').getByRole('button', { name: 'تسجيل الخروج', exact: true }).click();
+      await expect(page).toHaveURL(/\/login$/);
+      await context!.close(); context = undefined;
+
+      page = await start(true); await signIn(page);
+      expect(logins).toBe(1); // No API login was possible in the restarted process.
+      await page.goto(`${origin}/attendance?circleId=${circleId}`);
+      await expect(page.getByText(fixtures.students[0].fullName, { exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'تعيين الكل غائب', exact: true }).click();
+      await page.getByRole('button', { name: 'حفظ الكشف', exact: true }).first().click();
+      await expect.poll(async () => (await queue(page)).length).toBe(1);
+      const pending = (await queue(page))[0]; expect(pending.__sealedLocal).toBeTruthy(); expect(JSON.stringify(pending)).not.toContain(fixtures.students[0].fullName);
+      await page.goto(`${origin}/profile`);
+      await page.locator('main').getByRole('button', { name: 'تسجيل الخروج', exact: true }).click();
+      await expect(page).toHaveURL(/\/login$/);
+      expect((await queue(page))[0].opId).toBe(pending.opId);
+      await context!.close(); context = undefined;
+
+      page = await start(true); await signIn(page);
+      expect((await queue(page))[0].opId).toBe(pending.opId);
+      allowLogin = !rejected;
+      await context!.setOffline(false);
+      if (rejected) {
+        await expect(page).toHaveURL(/\/login$/); expect(posts).toBe(0);
+        expect((await queue(page))[0].opId).toBe(pending.opId);
+        await context!.setOffline(true); await signIn(page);
+        expect((await queue(page))[0].opId).toBe(pending.opId);
+      } else {
+        await expect.poll(async () => (await queue(page)).length, { timeout: 20000 }).toBe(0);
+        expect(logins).toBe(2); expect(posts).toBe(1); expect(serverRows[0].status).toBe('ABSENT');
+        await context!.setOffline(true);
+        await page.goto(`${origin}/attendance?circleId=${circleId}`);
+        await expect(page.getByText(fixtures.students[0].fullName, { exact: true })).toBeVisible();
+      }
+    } finally { await context?.close(); await rm(profile, { recursive: true, force: true }); }
+  });
+}
 
 test('public deletion entry identifies the school and production CSP blocks injected inline scripts', async ({ page }) => {
   await page.route('**/api/**', route => route.fulfill({ json: { name: schoolName } }));

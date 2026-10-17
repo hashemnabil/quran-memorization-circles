@@ -3,6 +3,10 @@
  * only endpoints with server-side idempotency and a domain-specific conflict policy.
  */
 import { validateAttendancePayload } from './attendance-validation.js';
+import { openValue, sealValue } from '../local-encryption';
+
+const stored = (item: OutboxOperation) => ({ ...item, payload: sealValue(item.accountId, `legacy-outbox:${item.id}`, item.payload), lastError: item.lastError ? sealValue(item.accountId, `legacy-error:${item.id}`, item.lastError) : undefined });
+const opened = (item: any): OutboxOperation => ({ ...item, payload: openValue(item.accountId, `legacy-outbox:${item.id}`, item.payload), lastError: item.lastError ? openValue(item.accountId, `legacy-error:${item.id}`, item.lastError) : undefined });
 
 export type OutboxOperation = {
   id: string; accountId: string; resource: string;
@@ -56,7 +60,7 @@ export async function enqueueOfflineOperation(
   try {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).add(item);
+      tx.objectStore(STORE).add(stored(item));
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error ?? new Error('تعذر حفظ التعديل محلياً'));
       tx.onabort = () => reject(tx.error ?? new Error('أُلغي حفظ التعديل'));
@@ -70,7 +74,7 @@ export async function listOfflineOperations(accountId: string): Promise<OutboxOp
   try {
     return await new Promise((resolve, reject) => {
       const req = db.transaction(STORE, 'readonly').objectStore(STORE).index('accountId').getAll(accountId);
-      req.onsuccess = () => resolve((req.result as OutboxOperation[]).sort((a, b) => a.createdAt - b.createdAt));
+      req.onsuccess = () => { try { resolve(req.result.map(opened).sort((a: OutboxOperation, b: OutboxOperation) => a.createdAt - b.createdAt)); } catch (error) { reject(error); } };
       req.onerror = () => reject(req.error ?? new Error('تعذر قراءة التعديلات المحفوظة'));
     });
   } finally { db.close(); }
@@ -94,8 +98,8 @@ export async function blockOfflineOperation(id: string, accountId: string, reaso
       const tx = db.transaction(STORE, 'readwrite'); const store = tx.objectStore(STORE);
       const req = store.get(id);
       req.onsuccess = () => {
-        const item = req.result as OutboxOperation | undefined;
-        if (item?.accountId === accountId) store.put({ ...item, state: 'blocked', attempts: item.attempts + 1, lastError: reason });
+        const item = req.result;
+        if (item?.accountId === accountId) { try { store.put(stored({ ...opened(item), state: 'blocked', attempts: item.attempts + 1, lastError: reason })); } catch (error) { reject(error); tx.abort(); } }
       };
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error ?? new Error('تعذر تحديث حالة التعديل'));
@@ -113,15 +117,25 @@ export async function recordOfflineRetry(id: string, accountId: string, reason: 
       const store = tx.objectStore(STORE);
       const req = store.get(id);
       req.onsuccess = () => {
-        const item = req.result as OutboxOperation | undefined;
+        const item = req.result;
         if (item?.accountId === accountId && item.state === 'pending') {
-          store.put({ ...item, attempts: item.attempts + 1, lastError: reason });
+          try { store.put(stored({ ...opened(item), attempts: item.attempts + 1, lastError: reason })); } catch (error) { reject(error); tx.abort(); }
         }
       };
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error ?? new Error('تعذر تسجيل محاولة المزامنة'));
     });
   } finally { db.close(); }
+}
+
+export async function protectLegacyOutbox(accountId: string) {
+  const items = await listOfflineOperations(accountId);
+  const database = await openDb();
+  try { await new Promise<void>((resolve, reject) => {
+    const tx = database.transaction(STORE, 'readwrite');
+    try { for (const item of items) tx.objectStore(STORE).put(stored(item)); } catch (error) { reject(error); tx.abort(); }
+    tx.oncomplete = () => resolve(); tx.onerror = tx.onabort = () => reject(tx.error || new Error('تعذر تشفير العمليات القديمة؛ لم تُمسح'));
+  }); } finally { database.close(); }
 }
 
 

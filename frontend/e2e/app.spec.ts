@@ -82,16 +82,16 @@ test('student can reload the cached shell and file screen in airplane mode and r
   await expect(page.getByRole('heading', { name: 'ملفاتي', exact: true })).toBeVisible();
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
-  // Persistence is debounced; poll the snapshot transaction rather than a fixed sleep.
-  await expect.poll(() => page.evaluate(async () => new Promise<boolean>((resolve) => {
-    const request = indexedDB.open('quran-circles-query-cache', 1);
+  // The account query snapshot is encrypted in the primary database.
+  await expect.poll(() => page.evaluate(account => new Promise<boolean>((resolve) => {
+    const request = indexedDB.open('halaqatFull');
     request.onsuccess = () => {
-      const db = request.result; if (!db.objectStoreNames.contains('snapshots')) { db.close(); resolve(false); return; }
-      const read = db.transaction('snapshots').objectStore('snapshots').getAll();
-      read.onsuccess = () => { db.close(); resolve(read.result.some((entry) => entry.state.queries.some((query) => query.queryKey[0] === 'student-files'))); };
+      const database = request.result;
+      const read = database.transaction('meta').objectStore('meta').get(account + ':querySnapshot');
+      read.onsuccess = () => { database.close(); resolve(Boolean(read.result?.__sealedLocal)); };
     };
     request.onerror = () => resolve(false);
-  }))).toBe(true);
+  }), fixtures.accounts.STUDENT.id)).toBe(true);
   await context.setOffline(true); await page.reload();
   await expect(page.getByRole('heading', { name: 'ملفاتي', exact: true })).toBeVisible();
   await expect(page.getByText('غير متصل', { exact: true })).toBeVisible();

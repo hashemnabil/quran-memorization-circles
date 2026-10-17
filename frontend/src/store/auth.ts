@@ -3,35 +3,39 @@ import axios from 'axios';
 import { api, tokenStore } from '@/lib/api';
 import { clearHeartbeat, expireStaleSession } from '@/lib/session';
 import { resetQueryCache, queryClient } from '@/lib/queryClient';
-import { clearPersistedQueryCache } from '@/lib/offline/queryCache';
+import { clearPersistedQueryCache, persistQueryCache } from '@/lib/offline/queryCache';
 import { clearOfflineOperations } from '@/lib/offline/outbox';
 import { clearOfflineReplica } from '@/lib/offline/changeFeed';
 import type { AuthUser, Role } from '@/types';
-import { rememberOfflineLogin, unlockOfflineLogin, forgetOfflineLogin, forgetAccountOfflineLogin } from '@/lib/offline-login';
+import { rememberOfflineLogin, unlockOfflineLogin, forgetAccountOfflineLogin } from '@/lib/offline-login';
 import { assertNoPendingWrites, clearAccountData } from '@/lib/account-cleanup';
 import { disconnectSocket } from '@/lib/socket';
 import { credentialStorage } from '@/lib/credential-storage';
+import { cacheActiveIdentity, clearActiveIdentity, readActiveIdentity } from '@/lib/active-identity';
+import { persistDataSession, restoreDataSession, lockDataSession, protectLocalAccount } from '@/lib/local-data-session';
+import { db } from '@/lib/db';
+import { forgetEncryptionMarker } from '@/lib/local-encryption';
+import { cacheReconnectCredentials, restoreReconnectCredentials, clearReconnectCredentials, type ReconnectCredentials } from '@/lib/reconnect-credentials';
 
 const OFFLINE_USER_KEY = 'qc.offlineUser';
 const allowedRoles: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'STUDENT', 'SUPPORT'];
+// Supplied password stays in RAM plus encrypted tab storage until verification;
+// it is never included in tokens, IndexedDB, localStorage, exports or logs.
+let reconnectCredentials: ReconnectCredentials | undefined;
+let onlineVerification: Promise<void> | undefined;
 
 function cacheOfflineUser(user: AuthUser) {
   // Store only the minimum identity needed to render the signed-in shell offline.
   // Private profile/contact fields remain in the account-scoped query cache.
   try {
-    localStorage.setItem(OFFLINE_USER_KEY, JSON.stringify({
-      id: user.id, username: user.username, fullName: user.fullName,
-      role: user.role, isActive: user.isActive,
-      mustChangePassword: user.mustChangePassword ?? false,
-    }));
+    cacheActiveIdentity(user);
   } catch { /* Offline identity is best-effort when storage is unavailable. */ }
 }
 
 function readOfflineUser(): AuthUser | null {
   try {
-    const raw = localStorage.getItem(OFFLINE_USER_KEY);
-    if (!raw) return null;
-    const user = JSON.parse(raw) as Partial<AuthUser>;
+    const user = readActiveIdentity() as Partial<AuthUser> | null;
+    if (!user) return null;
     if (typeof user.id !== 'string' || typeof user.username !== 'string' ||
         typeof user.fullName !== 'string' || !allowedRoles.includes(user.role as Role) ||
         user.isActive !== true) return null;
@@ -45,6 +49,7 @@ interface AuthState {
   status: 'idle' | 'loading' | 'authenticated' | 'unauthenticated';
   login: (username: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
+  forgetDevice: () => Promise<void>;
   lock: () => void;
   resumeOnline: () => Promise<void>;
   loadSession: () => Promise<void>;
@@ -60,10 +65,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const unlock = async () => {
       try {
         const session = await unlockOfflineLogin(username, password);
+        await protectLocalAccount(session.user.id);
+        await persistDataSession(session.user.id).catch(() => undefined);
         resetQueryCache();
-        await tokenStore.ready();
-        if (tokenStore.owner() && tokenStore.owner() !== session.user.id) await tokenStore.clear();
+        await tokenStore.ready().catch(() => undefined);
+        if (tokenStore.owner() && tokenStore.owner() !== session.user.id) await tokenStore.clear().catch(() => undefined);
         tokenStore.setLocal(true);
+        reconnectCredentials = { account: session.user.id, username: username.trim().toLowerCase(), password };
+        cacheReconnectCredentials(reconnectCredentials);
         sessionStorage.setItem('qc.localUnlocked', session.user.id);
         cacheOfflineUser(session.user);
         set({ user: session.user, status: 'authenticated' });
@@ -75,15 +84,43 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try { ({ data } = await api.post('/auth/login', { username, password })); }
     catch (error) {
       if (axios.isAxiosError(error) && !error.response) return unlock();
-      if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status || 0)) forgetOfflineLogin(username);
       throw error;
     }
+    await restoreDataSession(data.user.id).catch(() => undefined);
+    await rememberOfflineLogin(username, password, data.user, data);
+    await protectLocalAccount(data.user.id);
+    await persistDataSession(data.user.id);
     const user = await adoptSession(data, set);
-    await rememberOfflineLogin(username, password, user, data).catch(() => undefined);
+    reconnectCredentials = undefined;
+    clearReconnectCredentials();
     return user;
   },
 
   async logout() {
+    const user = get().user;
+    tokenStore.setClosing(true); set({ status: 'loading' });
+    try {
+      await queryClient.cancelQueries();
+      if (user) await persistQueryCache(user.id);
+      await import('@/lib/native-push').then(module => module.disableNativePush()).catch(() => undefined);
+      if (navigator.onLine) await api.post('/auth/logout', { refreshToken: tokenStore.refresh() }, { timeout: 5000 }).catch(() => undefined);
+    } finally {
+      // A storage/plugin error must never restore an authenticated shell after
+      // its key was locked. Each cleanup runs even if an earlier one fails.
+      try { await tokenStore.clear(); }
+      finally {
+        try { await lockDataSession(user?.id); }
+        finally {
+          reconnectCredentials = undefined; clearReconnectCredentials(); disconnectSocket();
+          clearActiveIdentity(); sessionStorage.removeItem('qc.localUnlocked');
+          clearHeartbeat(); resetQueryCache(); set({ user: null, status: 'unauthenticated' });
+          tokenStore.setClosing(false);
+        }
+      }
+    }
+  },
+
+  async forgetDevice() {
     const accountId = get().user?.id ?? '';
     const previous = get().user;
     tokenStore.setClosing(true);
@@ -106,12 +143,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     disconnectSocket();
     sessionStorage.removeItem('qc.localUnlocked');
     if (get().user?.username) forgetAccountOfflineLogin(accountId, get().user!.username);
+    await lockDataSession(accountId); forgetEncryptionMarker(accountId);
+    reconnectCredentials = undefined; clearReconnectCredentials(); clearActiveIdentity();
     clearHeartbeat();
     try { localStorage.removeItem(OFFLINE_USER_KEY); } catch { /* ignore unavailable storage */ }
     // Nothing the previous account loaded may survive into the next session.
     resetQueryCache();
     set({ user: null, status: 'unauthenticated' });
-    // Explicit logout removes cached private reads for this account from this device.
+    // Explicit device removal, unlike ordinary logout, erases private local reads.
     await Promise.all([
       clearPersistedQueryCache(accountId),
       clearOfflineOperations(accountId),
@@ -128,12 +167,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async loadSession() {
     try { await tokenStore.ready(); } catch { set({ status: 'unauthenticated', user: null }); return; }
+    const owner = tokenStore.owner();
+    if (owner) {
+      try {
+        await restoreDataSession(owner);
+        const identity = (await db.meta.get(`${owner}:identity`))?.value;
+        if (identity?.id === owner) cacheOfflineUser(identity);
+      } catch { set({ status: 'unauthenticated', user: null }); return; }
+    }
     expireStaleSession();
     const accessToken = tokenStore.access();
     if (!accessToken) {
       const local = readOfflineUser();
-      if (!navigator.onLine && local && sessionStorage.getItem('qc.localUnlocked') === local.id) {
-        tokenStore.setLocal(true); set({ user: local, status: 'authenticated' }); return;
+      if (local && sessionStorage.getItem('qc.localUnlocked') === local.id) {
+        try {
+          await restoreDataSession(local.id);
+          reconnectCredentials = restoreReconnectCredentials(local.id);
+          if (reconnectCredentials) {
+            tokenStore.setLocal(true); set({ user: local, status: 'authenticated' }); return;
+          }
+        } catch { /* The local password can unlock again without a network request. */ }
       }
       set({ status: 'unauthenticated', user: null });
       return;
@@ -167,7 +220,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Preserve tokens after temporary network failures; only an explicit
       // authentication rejection should force a fresh sign-in.
       if (status === 401 || status === 403) {
-        const previous = readOfflineUser(); if (previous) forgetAccountOfflineLogin(previous.id, previous.username);
         await tokenStore.clear(); localStorage.removeItem(OFFLINE_USER_KEY);
       }
       set({ user: null, status: 'unauthenticated' });
@@ -176,28 +228,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   lock() {
     disconnectSocket(); resetQueryCache(); sessionStorage.removeItem('qc.localUnlocked');
-    tokenStore.setLocal(true); localStorage.removeItem(OFFLINE_USER_KEY);
+    reconnectCredentials = undefined;
+    clearReconnectCredentials();
+    void lockDataSession(get().user?.id).catch(() => undefined);
+    void tokenStore.clear().catch(() => undefined); tokenStore.setLocal(true); clearActiveIdentity();
     set({ user: null, status: 'unauthenticated' });
   },
   async resumeOnline() {
     if (!navigator.onLine || !get().user) return;
+    if (onlineVerification) return onlineVerification;
     const account = get().user!.id;
-    try {
+    onlineVerification = (async () => { try {
     if (tokenStore.isLocal()) {
       const refreshToken = tokenStore.refresh();
-      if (!refreshToken) throw new Error('سجّل الدخول مع الإنترنت لتفعيل المزامنة؛ بياناتك المحلية محفوظة');
-      const { data } = await api.post('/auth/refresh', { refreshToken });
+      let data;
+      if (reconnectCredentials?.account === account) {
+        ({ data } = await api.post('/auth/login', { username: reconnectCredentials.username, password: reconnectCredentials.password }));
+      } else {
+        if (!refreshToken) throw new Error('أدخل كلمة المرور لإعادة التحقق؛ بياناتك المحلية محفوظة');
+        ({ data } = await api.post('/auth/refresh', { refreshToken }));
+      }
       if (get().user?.id !== account || data.user?.id !== account) throw new Error('تغيّر الحساب أثناء التحقق من الجلسة');
       await tokenStore.set(data.accessToken, data.refreshToken, data.user.id);
     }
     const { data } = await api.get('/auth/me');
-    if (get().user?.id === account) { cacheOfflineUser(data); set({ user: data }); }
+    if (get().user?.id === account) {
+      await db.meta.put({ key: `${account}:identity`, value: data });
+      if (get().user?.id === account) { cacheOfflineUser(data); set({ user: data }); reconnectCredentials = undefined; clearReconnectCredentials(); }
+    }
     } catch (error) {
       if (axios.isAxiosError(error) && [400, 401, 403].includes(error.response?.status || 0)) {
         await tokenStore.clear(); window.dispatchEvent(new Event('qc:session-rejected'));
       }
       throw error;
-    }
+    } })().finally(() => { onlineVerification = undefined; });
+    return onlineVerification;
   },
 
   setUser(user) {
@@ -224,14 +289,17 @@ async function adoptSession(
   sessionStorage.removeItem('qc.localUnlocked');
   const me = await api.get('/auth/me');
   cacheOfflineUser(me.data as AuthUser);
+  await db.meta.put({ key: `${me.data.id}:identity`, value: me.data });
   set({ user: me.data, status: 'authenticated' });
   return me.data as AuthUser;
 }
 
 window.addEventListener('qc:session-rejected', () => {
-  const user = useAuthStore.getState().user;
-  if (user) forgetAccountOfflineLogin(user.id, user.username);
-  localStorage.removeItem(OFFLINE_USER_KEY); sessionStorage.removeItem('qc.localUnlocked');
+  const account = useAuthStore.getState().user?.id;
+  void lockDataSession(account).catch(() => undefined);
+  reconnectCredentials = undefined;
+  clearReconnectCredentials();
+  clearActiveIdentity(); sessionStorage.removeItem('qc.localUnlocked');
   disconnectSocket(); resetQueryCache();
   useAuthStore.setState({ user: null, status: 'unauthenticated' });
 });

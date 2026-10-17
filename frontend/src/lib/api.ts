@@ -8,6 +8,7 @@ import { prefetchSections, readPrefetched } from './offline-prefetch';
 import { credentialStorage } from './credential-storage';
 import { createSessionStore } from './session-store';
 import { assertNoPendingWrites } from './account-cleanup';
+import { readActiveIdentity } from './active-identity';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
 const CONFIGURED_API_URL = import.meta.env.VITE_API_URL?.trim();
@@ -34,18 +35,18 @@ configureOffline(async (method, path, data) => {
   const response = await api.request({ method, url: path, data, adapter: networkAdapter });
   return response.data;
 }, () => {
-  try { return JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.id || ''; } catch { return ''; }
+  try { return readActiveIdentity()?.id || ''; } catch { return ''; }
 }, async (account, changedEntities) => {
-  const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+  const user = readActiveIdentity();
   await prefetchSections(async (method, path, headers) => (await api.request({ method, url: path, headers, adapter: networkAdapter })).data,
-    account, () => { try { return JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.id || ''; } catch { return ''; } }, user?.role || '', changedEntities);
+    account, () => { try { return readActiveIdentity()?.id || ''; } catch { return ''; } }, user?.role || '', changedEntities);
 });
 api.defaults.adapter = async (config) => {
   const path = config.url || ''; const method = (config.method || 'get').toLowerCase();
   if (path === '/auth/change-password') await assertNoPendingWrites(accountId());
   // Authentication and sync are network boundaries, never optimistic local successes.
   if (method === 'get' && path === '/auth/me' && (!navigator.onLine || tokenStore.isLocal())) {
-    const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+    const user = readActiveIdentity();
     if (user) return { data: user, status: 200, statusText: 'Local', headers: {}, config };
   }
   if (/^\/(auth|sync|offline-sync)(\/|\?|$)/.test(path) || path.startsWith('/sync-all') || path.startsWith('/registry') && !path.startsWith('/registry/admin/')) return networkAdapter(config);

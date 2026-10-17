@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { installLocalEncryption } from './local-encryption';
 
 export const entityTables = ['students', 'circles', 'teachers', 'attendance', 'recitations', 'exams', 'behaviors', 'notifications', 'courses', 'examRequests', 'mediaPlans', 'teacherDuties', 'dutyTeachers', 'users', 'studentAccounts', 'profileReviews'] as const;
 export type EntityTable = typeof entityTables[number];
@@ -20,6 +21,7 @@ class HalaqatDatabase extends Dexie {
   responses!: Table<{ key: string; accountId: string; data: any }, string>;
   constructor() {
     super('halaqatFull');
+    installLocalEncryption(this);
     // Compound primary keys prevent one account reading another account's data.
     const schema: Record<string, string> = {};
     for (const table of entityTables) schema[table] = '[accountId+id], accountId, circleId, studentId, updatedAt, synced, pendingDelete';

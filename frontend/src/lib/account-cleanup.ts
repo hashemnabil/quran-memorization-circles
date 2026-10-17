@@ -3,7 +3,7 @@ import { listOfflineOperations } from './offline/outbox';
 export async function assertNoPendingWrites(account: string) {
   if (!account) return;
   if (await db.queue.where('accountId').equals(account).count() || (await listOfflineOperations(account)).length)
-    throw Object.assign(new Error('لديك تعديلات معلّقة. زامنها أو احتفظ بنسخة احتياطية، ثم أكمل تسجيل الخروج أو تغيير كلمة المرور. يمكنك قفل التطبيق محليًا دون فقدها.'), { localWriteRejected: true });
+    throw Object.assign(new Error('لديك تعديلات معلّقة. زامنها قبل حذف بيانات الحساب من الجهاز أو تغيير كلمة المرور. يمكنك تسجيل الخروج أو قفل التطبيق دون فقدها.'), { localWriteRejected: true });
 }
 export async function clearAccountData(account: string) {
   await assertNoPendingWrites(account);

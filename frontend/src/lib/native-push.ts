@@ -1,3 +1,4 @@
+import { readActiveIdentity } from './active-identity';
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { PushNotifications } from '@capacitor/push-notifications';
@@ -11,7 +12,7 @@ async function installationId() {
   if (existing) return existing;
   const id = crypto.randomUUID(); await Preferences.set({ key: installationKey, value: id }); return id;
 }
-function currentAccount() { try { return JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.id; } catch { return undefined; } }
+function currentAccount() { try { return readActiveIdentity()?.id; } catch { return undefined; } }
 export function notificationLink(data: any) {
   const link = data?.link;
   return typeof link === 'string' && /^\/(?!\/)[a-zA-Z0-9/_?=&%-]*$/.test(link) ? link : '/notifications';

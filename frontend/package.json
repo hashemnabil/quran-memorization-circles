@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test:e2e:offline": "playwright test --config playwright.offline.config.ts",
-    "test:full-offline": "node --import tsx --test src/lib/offline-engine.test.ts src/lib/local-api.test.ts src/lib/db-migration.test.ts src/lib/offline-prefetch.test.ts src/lib/offline-login.test.ts src/lib/queued-credentials.test.ts src/lib/security-session.test.ts",
+    "test:full-offline": "node --import tsx --test src/lib/offline-engine.test.ts src/lib/local-api.test.ts src/lib/db-migration.test.ts src/lib/offline-prefetch.test.ts src/lib/offline-login.test.ts src/lib/queued-credentials.test.ts src/lib/security-session.test.ts src/lib/local-encryption.test.ts",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test:offline": "node --test src/lib/service-worker.test.mjs src/lib/pdf-download.test.mjs src/lib/student-route-policy.test.mjs src/lib/offline/attendance-validation.test.mjs src/lib/offline/retry-policy.test.mjs && node --import tsx --test src/lib/offline/outbox-sync.test.ts src/lib/offline/feed-replica.test.ts",
@@ -43,6 +43,7 @@
     "react-router-dom": "^7.18.4",
     "recharts": "^2.14.1",
     "socket.io-client": "^4.8.1",
+    "tweetnacl": "1.0.3",
     "zustand": "^5.0.2"
   },
   "devDependencies": {

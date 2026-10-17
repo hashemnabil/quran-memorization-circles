@@ -37,7 +37,7 @@ export default function OfflineStatus() {
       // Recovery requests must reach administration even when the requester cannot sign in.
       if (navigator.onLine) void syncPendingSupport().catch(() => null);
       if (navigator.onLine && accountId) {
-        void syncOfflineOperations(accountId, replayOfflineOperation).then(async (report) => {
+        void useAuthStore.getState().resumeOnline().then(() => syncOfflineOperations(accountId, replayOfflineOperation)).then(async (report) => {
           if (report.applied > 0) {
             // A successful replay changes server data; refresh affected reads.
             await Promise.all([

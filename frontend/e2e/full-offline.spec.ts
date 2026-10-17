@@ -507,9 +507,10 @@ test('password recovery collects account identity and queues a request offline',
 });
 
 test('online reads use the server and persist the fresh record for the next offline visit', async ({ page, context }) => {
-  let name = 'اسم من الخادم'; let reads = 0;
+  let name = 'اسم من الخادم'; let reads = 0; let disconnected = false;
   await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
   await page.route('**/api/**', route => {
+    if (disconnected) return route.abort('internetdisconnected');
     const url = new URL(route.request().url()); const path = url.pathname;
     if (path === '/api/auth/me') return route.fulfill({ json: user });
     if (path === '/api/announcements/active') return route.fulfill({ json: [] });
@@ -524,7 +525,15 @@ test('online reads use the server and persist the fresh record for the next offl
   name = 'تعديل جديد على الخادم'; const before = reads;
   await page.reload(); await expect(page.getByText(name, { exact: true })).toBeVisible(); expect(reads).toBeGreaterThan(before);
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
-  await context.setOffline(true); await page.reload(); await expect(page.getByText(name, { exact: true })).toBeVisible();
+  disconnected = true; await context.setOffline(true); await page.reload(); await expect(page.getByText(name, { exact: true })).toBeVisible();
+  // Reconnect while staying on the same screen: fresh server data must replace
+  // the local result without a reload, navigation or manual sync button.
+  name = 'بيانات أحدث بعد عودة الاتصال'; const offlineReads = reads;
+  disconnected = false; await context.setOffline(false);
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  expect(reads).toBeGreaterThan(offlineReads);
+  disconnected = true; await context.setOffline(true);
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
 });
 
 test('all recipient accounts, educational staff and circle students remain selectable after an offline reload', async ({ page, context }) => {

@@ -5,6 +5,7 @@ import { initOffline, refreshOffline } from '@/lib/offline-engine';
 import { useAuthStore } from '@/store/auth';
 import { queryClient } from '@/lib/queryClient';
 import { getSyncProgress } from '@/lib/sync-progress';
+import { tokenStore } from '@/lib/api';
 
 export default function OfflineSystem() {
   const account = useAuthStore((state) => state.user?.id);
@@ -24,18 +25,29 @@ export default function OfflineSystem() {
     let running = false;
     let changedDuringSync = false;
     let remoteChangedDuringSync = false;
+    let refreshAfterSync = false;
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     let remoteTimer: ReturnType<typeof setTimeout> | undefined;
     const update = () => { if (active) void refresh(); };
-    const synchronize = async (initial = false) => {
-      if (running || !active || !navigator.onLine) return;
+    const synchronize = async (initial = false, refreshReads = false) => {
+      if (!active || !navigator.onLine) return;
+      if (running) { refreshAfterSync ||= refreshReads; return; }
       running = true; setError('');
-      try { await useAuthStore.getState().resumeOnline(); await (initial ? initOffline() : refreshOffline()); }
+      try {
+        const wasLocal = tokenStore.isLocal();
+        await useAuthStore.getState().resumeOnline();
+        if (!active || useAuthStore.getState().user?.id !== account) return;
+        // Visible screens must leave their cached offline results as soon as
+        // the server session is verified, even if the sync cursor is unchanged.
+        if (refreshReads || wasLocal) await queryClient.invalidateQueries();
+        await (initial ? initOffline() : refreshOffline());
+      }
       catch (e) { if (active) setError(e instanceof Error ? e.message : String(e)); }
       finally {
         running = false;
         if (active) {
           update();
+          if (refreshAfterSync) { refreshAfterSync = false; void synchronize(false, true); }
           if (changedDuringSync) { changedDuringSync = false; void queryClient.invalidateQueries(); }
           if (remoteChangedDuringSync) { remoteChangedDuringSync = false; remoteTimer = setTimeout(() => { void synchronize(); }, 750); }
         }
@@ -43,7 +55,12 @@ export default function OfflineSystem() {
     };
     // Reconnection only resumes known pending work. The realtime connection
     // announces the current server revision, including changes missed offline.
-    const start = () => { setOnline(navigator.onLine); if (navigator.onLine) void synchronize(); };
+    const connectivityChanged = (connected: boolean) => {
+      setOnline(connected);
+      if (connected) void synchronize(false, true);
+      else void queryClient.invalidateQueries();
+    };
+    const start = () => connectivityChanged(navigator.onLine);
     const changed = () => {
       update();
       if (running) { changedDuringSync = true; return; }
@@ -60,11 +77,11 @@ export default function OfflineSystem() {
     window.addEventListener('halaqat:remote-change', remoteChanged);
     update();
     // Let the first screen render and issue its interactive requests first.
-    const initialTimer = setTimeout(() => { void synchronize(true); }, 1200);
+    const locallyUnlocked = tokenStore.isLocal();
+    const initialTimer = setTimeout(() => { void synchronize(true, locallyUnlocked); }, locallyUnlocked ? 0 : 1200);
     const listener = Network.addListener('networkStatusChange', (status) => {
       if (!active) return;
-      setOnline(status.connected);
-      if (status.connected) void synchronize();
+      connectivityChanged(status.connected);
     });
     window.addEventListener('online', start); window.addEventListener('offline', start);
     window.addEventListener('halaqat:changed', changed);

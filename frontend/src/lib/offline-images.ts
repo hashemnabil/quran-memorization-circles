@@ -11,7 +11,7 @@ export async function cachedImage(url: string, expectedAccount?: string): Promis
   if (!navigator.onLine) return undefined;
   const base = (import.meta.env?.VITE_API_URL || 'https://quran-memorization-circles.onrender.com/api').replace(/\/api\/?$/, '');
   const source = Capacitor.isNativePlatform() && url.startsWith('/') ? `${base}${url}` : url;
-  const response = await fetch(source, { credentials: 'same-origin', cache: 'force-cache' });
+  const response = await fetch(source, { credentials: 'same-origin', cache: 'no-store' });
   if (!response.ok || !response.headers.get('content-type')?.startsWith('image/')) return undefined;
   const blob = await response.blob();
   // A request started by the previous account must not restore its private

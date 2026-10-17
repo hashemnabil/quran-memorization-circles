@@ -9,6 +9,7 @@ import { IconAward, IconBook, IconClipboard } from '@/components/ui/Icons';
 import { formatDateShort, formatParts } from '@/lib/format';
 import StudentQuestionnaire from '@/components/StudentQuestionnaire';
 import { passwordError as newPasswordError } from '@/lib/validation';
+import { rememberOfflineLogin } from '@/lib/offline-login';
 
 export default function StudentPortalPage() {
   const [now, setNow] = useState(Date.now);
@@ -20,7 +21,11 @@ export default function StudentPortalPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const changePassword = useMutation({
-    mutationFn: () => api.patch('/auth/change-password', { currentPassword, newPassword }),
+    mutationFn: async () => {
+      const result = await api.patch('/auth/change-password', { currentPassword, newPassword });
+      if (user) await rememberOfflineLogin(user.username, newPassword, { ...user, mustChangePassword: false });
+      return result;
+    },
     onSuccess: async () => {
       toast.success('تم تغيير كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.');
       await logout();

@@ -1,9 +1,9 @@
 import { dehydrate, hydrate, type DehydratedState } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
+import { queryClient } from '../queryClient';
+import { db as localDb } from '../db';
 
 const DB_NAME = 'quran-circles-query-cache';
 const STORE = 'snapshots';
-const MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
 type Snapshot = { accountId: string; savedAt: number; state: DehydratedState };
 
@@ -21,8 +21,11 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export async function restoreQueryCache(accountId: string): Promise<boolean> {
-  if (!accountId) return false;
+export async function restoreQueryCache(accountId: string, stillCurrent: () => boolean): Promise<boolean> {
+  if (!accountId || !stillCurrent()) return false;
+  const local = await localDb.meta.get(`${accountId}:querySnapshot`);
+  if (!stillCurrent()) return false;
+  if (local?.value?.accountId === accountId) { hydrate(queryClient, local.value.state); return true; }
   const db = await openDb();
   try {
     const snapshot = await new Promise<Snapshot | undefined>((resolve, reject) => {
@@ -30,8 +33,12 @@ export async function restoreQueryCache(accountId: string): Promise<boolean> {
       request.onsuccess = () => resolve(request.result as Snapshot | undefined);
       request.onerror = () => reject(request.error ?? new Error('Could not read query cache'));
     });
-    if (!snapshot || snapshot.accountId !== accountId) return false;
-    if (navigator.onLine && Date.now() - snapshot.savedAt > MAX_AGE) { await clearPersistedQueryCache(accountId); return false; }
+    if (!snapshot || snapshot.accountId !== accountId || !stillCurrent()) return false;
+    // Migrate only after the encrypted replacement is durable. Cache age never
+    // disables offline access; live authorization remains the server's job.
+    await localDb.meta.put({ key: `${accountId}:querySnapshot`, value: snapshot });
+    await clearLegacySnapshot(accountId);
+    if (!stillCurrent()) return false;
     hydrate(queryClient, snapshot.state);
     return true;
   } finally { db.close(); }
@@ -41,19 +48,15 @@ export async function persistQueryCache(accountId: string): Promise<void> {
   if (!accountId) return;
   const state = dehydrate(queryClient, { shouldDehydrateQuery: (query) => query.state.status === 'success' && query.state.data !== undefined });
   const snapshot: Snapshot = { accountId, savedAt: Date.now(), state };
-  const db = await openDb();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(snapshot);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error ?? new Error('Could not save query cache'));
-      tx.onabort = () => reject(tx.error ?? new Error('Query cache save aborted'));
-    });
-  } finally { db.close(); }
+  await localDb.meta.put({ key: `${accountId}:querySnapshot`, value: snapshot });
+  await clearLegacySnapshot(accountId);
 }
 
 export async function clearPersistedQueryCache(accountId: string): Promise<void> {
+  if (accountId) await localDb.meta.delete(`${accountId}:querySnapshot`);
+  await clearLegacySnapshot(accountId);
+}
+async function clearLegacySnapshot(accountId: string): Promise<void> {
   if (!accountId || typeof indexedDB === 'undefined') return;
   const db = await openDb();
   try {
@@ -64,4 +67,18 @@ export async function clearPersistedQueryCache(accountId: string): Promise<void>
       tx.onerror = () => reject(tx.error ?? new Error('Could not clear query cache'));
     });
   } finally { db.close(); }
+}
+
+export async function migrateLegacyQueryCache(accountId: string) {
+  const database = await openDb();
+  try {
+    const snapshot = await new Promise<Snapshot | undefined>((resolve, reject) => {
+      const read = database.transaction(STORE).objectStore(STORE).get(accountId);
+      read.onsuccess = () => resolve(read.result); read.onerror = () => reject(read.error);
+    });
+    if (snapshot?.accountId === accountId) {
+      if (!(await localDb.meta.get(`${accountId}:querySnapshot`))) await localDb.meta.put({ key: `${accountId}:querySnapshot`, value: snapshot });
+      await clearLegacySnapshot(accountId);
+    }
+  } finally { database.close(); }
 }

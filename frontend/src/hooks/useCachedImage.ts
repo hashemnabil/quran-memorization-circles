@@ -9,5 +9,6 @@ export function useCachedImage(src?: string | null) {
     if (src && account) void cachedImage(src).then((blob) => { if (blob && active) { objectUrl = URL.createObjectURL(blob); setCached(objectUrl); } }).catch(() => undefined);
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [src, account]);
-  return cached || src;
+  const bundled = src?.startsWith('/brand-') || src?.startsWith('/assets/') || /^(data:|blob:)/.test(src || '');
+  return cached || (account && !bundled ? undefined : src);
 }

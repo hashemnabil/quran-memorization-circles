@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { rememberOfflineLogin, unlockOfflineLogin, forgetAccountOfflineLogin } from './offline-login';
 
-test('offline unlock survives a local lock, restores identity only and full logout removes account aliases', async () => {
+test('offline unlock survives a local lock, restores no tokens and explicit device removal clears account aliases', async () => {
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
     getItem: (key: string) => storage.get(key) ?? null,

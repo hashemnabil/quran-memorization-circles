@@ -1,4 +1,5 @@
 /** Account-bound, commit-ordered replica. Transport and identity are injected. */
+import { openValue, sealValue } from '../local-encryption';
 export type ReplicaRow = { id: string; updatedAt?: string; deletedAt?: string | null; [key: string]: unknown };
 type Resource = 'student' | 'circle';
 type Meta = { accountId: string; seq?: string; scopeVersion?: string; lastPulledAt: number; cursor?: string };
@@ -51,7 +52,7 @@ async function write(meta: Meta, edits: Edit[], replace: boolean, active: () => 
         const key = `${meta.accountId}:${edit.entity}:${edit.id}`;
         if (edit.operation === 'DELETE') store.delete(key);
         else store.put({ key, accountId: meta.accountId, resource: edit.entity, id: edit.id,
-          updatedAt: edit.data?.updatedAt || '', deletedAt: edit.data?.deletedAt || null, data: edit.data });
+          updatedAt: edit.data?.updatedAt || '', deletedAt: edit.data?.deletedAt || null, data: sealValue(meta.accountId, key, edit.data) });
       }
       tx.objectStore('meta').put(meta);
     };
@@ -67,9 +68,22 @@ export async function readReplica(accountId: string, resource: Resource, include
   const db = await open();
   try { return await new Promise((resolve, reject) => {
     const r = db.transaction('rows').objectStore('rows').index('accountResource').getAll([accountId, resource]);
-    r.onsuccess = () => resolve(r.result.filter(row => includeDeleted || !row.deletedAt).map(row => row.data));
+    r.onsuccess = () => { try { resolve(r.result.filter(row => includeDeleted || !row.deletedAt).map(row => openValue(row.accountId, row.key, row.data))); } catch (error) { reject(error); } };
     r.onerror = () => reject(r.error);
   }); } finally { db.close(); }
+}
+export async function protectLegacyReplica(accountId: string) {
+  const database = await open();
+  try { await new Promise<void>((resolve, reject) => {
+    const tx = database.transaction('rows', 'readwrite'); const store = tx.objectStore('rows');
+    const request = store.index('accountId').openCursor(IDBKeyRange.only(accountId));
+    request.onsuccess = () => {
+      const cursor = request.result; if (!cursor) return;
+      try { const row = cursor.value; cursor.update({ ...row, data: sealValue(accountId, row.key, openValue(accountId, row.key, row.data)) }); cursor.continue(); }
+      catch (error) { reject(error); tx.abort(); }
+    };
+    tx.oncomplete = () => resolve(); tx.onabort = tx.onerror = () => reject(tx.error || new Error('تعذر تشفير النسخة القديمة؛ لم تُمسح'));
+  }); } finally { database.close(); }
 }
 function sequence(value: unknown): value is string { return typeof value === 'string' && /^(0|[1-9]\d*)$/.test(value) && value.length <= 19 && BigInt(value) <= 9223372036854775807n; }
 type Transport = (path: string, params?: Record<string, string | number>) => Promise<any>;

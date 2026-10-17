@@ -50,6 +50,10 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method === 'GET' && request.destination === 'image') {
+    // Private account images belong in encrypted IndexedDB, never a shared
+    // plaintext CacheStorage bucket. Bundled public branding stays available.
+    const publicAsset = url.origin === self.location.origin && (url.pathname === '/brand-logo.png' || url.pathname === '/favicon.svg' || url.pathname.startsWith('/onboarding/') || url.pathname.startsWith('/assets/'));
+    if (!publicAsset) { event.respondWith(fetch(request, { cache: 'no-store' })); return; }
     event.respondWith((async () => {
       const cache = await caches.open('quran-circles-images');
       const cached = await cache.match(request) || (url.origin === self.location.origin ? await caches.match(request, { ignoreVary: true }) : undefined);

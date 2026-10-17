@@ -71,7 +71,7 @@ export default function App() {
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let unsubscribe: (() => void) | undefined;
-    void restoreQueryCache(currentUser.id).catch(() => false).finally(() => {
+    void restoreQueryCache(currentUser.id, () => active && useAuthStore.getState().user?.id === currentUser.id).catch(() => false).finally(() => {
       if (!active) return;
       // Signal that this account's durable snapshot has been restored before
       // background refreshes can replace cached reads with network responses.

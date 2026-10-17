@@ -5,8 +5,8 @@
  * offline. When online, the API remains authoritative and expired/revoked
  * tokens are handled by the normal authentication flow.
  *
- * On shared devices, users should explicitly choose "تسجيل الخروج" to remove
- * the local session and account-scoped cached data.
+ * Logout locks encrypted local data and removes the active session. Only the
+ * separate explicit device-removal action erases the offline account copy.
  */
 const HEARTBEAT_KEY = 'qc.lastSeen';
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -30,7 +30,7 @@ export function clearHeartbeat() {
 /**
  * Kept for compatibility with the session bootstrap. A browser/app restart is
  * not proof that the user intended to log out, especially when offline.
- * Explicit logout clears tokens and the user's private cache.
+ * Explicit logout clears tokens but retains the encrypted offline account copy.
  */
 export function expireStaleSession(): boolean {
   writeHeartbeat();

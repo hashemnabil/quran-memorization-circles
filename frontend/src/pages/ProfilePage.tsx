@@ -19,9 +19,10 @@ import {
 } from '@/components/ui/Icons';
 import { EMPLOYMENT_LABELS, ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateTime, formatParts } from '@/lib/format';
+import { rememberOfflineLogin } from '@/lib/offline-login';
 
 export default function ProfilePage() {
-  const { user, logout, setUser } = useAuthStore();
+  const { user, logout, forgetDevice, setUser } = useAuthStore();
   const navigate = useNavigate();
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -39,7 +40,11 @@ export default function ProfilePage() {
   });
 
   const changePassword = useMutation({
-    mutationFn: () => api.patch('/auth/change-password', { currentPassword, newPassword }),
+    mutationFn: async () => {
+      const result = await api.patch('/auth/change-password', { currentPassword, newPassword });
+      if (user) await rememberOfflineLogin(user.username, newPassword, { ...user, mustChangePassword: false });
+      return result;
+    },
     onSuccess: async () => {
       toast.success('تم تغيير كلمة المرور، يرجى تسجيل الدخول مجدداً');
       await logout();
@@ -111,6 +116,11 @@ export default function ProfilePage() {
           >
             تسجيل الخروج
           </Button>
+            <p className="mt-2 text-xs leading-6 text-slate-500">تبقى بياناتك مشفرة على الجهاز، ويمكنك الدخول بكلمة مرورك دون نت. التعديلات المعلقة تبقى محفوظة.</p>
+            <Button variant="secondary" className="mt-3 w-full" onClick={async () => {
+              if (!window.confirm('حذف بيانات هذا الحساب من هذا الجهاز وإلغاء الدخول دون نت؟ لا يمكن الحذف بوجود تعديلات غير مزامنة.')) return;
+              try { await forgetDevice(); navigate('/login', { replace: true }); } catch (error) { toast.error(apiError(error)); }
+            }}>حذف بيانات الحساب من هذا الجهاز</Button>
           <Link to="/account-deletion" className="mt-3 block py-3 text-center text-sm font-bold text-red-700">طلب حذف الحساب والبيانات</Link>
         </Card>
 

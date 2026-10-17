@@ -1,3 +1,4 @@
+import { readActiveIdentity } from './active-identity';
 import { db, entityTables, type EntityTable } from './db';
 import { accountId, get, mergeRows, remove, save, update } from './offline-engine';
 
@@ -124,33 +125,33 @@ export function responseKey(account: string, path: string, params: any) {
 }
 export async function localWrite(method: string, path: string, data: any): Promise<any | undefined> {
   if (path === '/notifications/broadcast' && method === 'post') {
-    const actor = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+    const actor = readActiveIdentity();
     if (actor?.role !== 'ADMIN') throw Object.assign(new Error('إرسال الإشعارات متاح للإدارة فقط'), { localWriteRejected: true });
     return save('notifications', { ...data, pendingDelete: 1 }, 'broadcast');
   }
   const parts = path.split('/').filter(Boolean);
-  if (method === 'post' && path === '/profile-reviews' || method === 'patch' && path === '/students/me/questionnaire' || method === 'patch' && parts[0] === 'teachers' && JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.role === 'TEACHER') {
-    const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
-    if (!['STUDENT', 'TEACHER'].includes(user?.role)) throw Object.assign(new Error('طلب التحقق للطالب والمحفظ فقط'), { localWriteRejected: true });
+  if (method === 'post' && path === '/profile-reviews' || method === 'patch' && path === '/students/me/questionnaire' || method === 'patch' && parts[0] === 'teachers' && readActiveIdentity()?.role === 'TEACHER') {
+    const user = readActiveIdentity();
+    if (!user || !['STUDENT', 'TEACHER'].includes(user.role)) throw Object.assign(new Error('طلب التحقق للطالب والمحفظ فقط'), { localWriteRejected: true });
     if ((await get('profileReviews')).some(row => row.status === 'PENDING')) throw Object.assign(new Error('لديك طلب بانتظار المراجعة'), { localWriteRejected: true });
     return save('profileReviews', { kind: user.role, requesterId: user.id, patch: path === '/profile-reviews' ? data.patch : data, status: 'PENDING', createdAt: new Date().toISOString() }, 'create');
   }
   if (method === 'patch' && parts[0] === 'profile-reviews' && parts[2] === 'decision') {
-    const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+    const user = readActiveIdentity();
     if (user?.role !== 'ADMIN') throw Object.assign(new Error('المراجعة للإدارة فقط'), { localWriteRejected: true });
     const pending = await db.queue.where('accountId').equals(accountId()).filter(op => op.table === 'profileReviews' && op.entityId === parts[1]).first();
     if (pending && !pending.error) throw Object.assign(new Error('لديك قرار بانتظار المزامنة'), { localWriteRejected: true });
     return save('profileReviews', { ...data, id: parts[1] }, 'decision');
   }
   if (parts[0] === 'users' && (method === 'post' && parts.length === 1 || method === 'patch' && parts.length <= 3 && (!parts[2] || parts[2] === 'reset-password'))) {
-    const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+    const user = readActiveIdentity();
     if (user?.role !== 'ADMIN') throw Object.assign(new Error('إدارة الحسابات متاحة للإدارة فقط'), { localWriteRejected: true });
     return save('users', { ...data, ...(parts[1] ? { id: parts[1] } : {}), credentialPending: true, ...(method === 'post' ? { activationPending: true } : {}) },
       method === 'post' ? 'create' : parts[2] === 'reset-password' ? 'reset-password' : 'update');
   }
   if (parts[0] === 'students' && parts[2] === 'account' && method === 'post' &&
       (parts.length === 3 || parts.length === 4 && parts[3] === 'reset-password')) {
-    const user = JSON.parse(localStorage.getItem('qc.offlineUser') || 'null');
+    const user = readActiveIdentity();
     if (user?.role !== 'ADMIN') throw Object.assign(new Error('إدارة الحسابات متاحة للإدارة فقط'), { localWriteRejected: true });
     const student = (await get('students')).find(row => row.id === parts[1]);
     const existing = (await get('studentAccounts')).find(row => row.id === parts[1]);

@@ -9,6 +9,7 @@ import { configureOffline, syncAll } from './offline-engine';
 import { enqueueOfflineOperation, listOfflineOperations, clearOfflineOperations } from './offline/outbox';
 import { readReplica, clearReplica } from './offline/feed-replica';
 import { cacheReconnectCredentials, restoreReconnectCredentials, clearReconnectCredentials } from './reconnect-credentials';
+import { cacheActiveIdentity, readActiveIdentity, clearActiveIdentity } from './active-identity';
 
 const storage = new Map<string, string>();
 const identity = { id: 'alpha', username: 'alpha', fullName: 'Private person', role: 'TEACHER' as const, isActive: true };
@@ -18,7 +19,7 @@ Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value:
 Object.defineProperty(globalThis, 'window', { configurable: true, value: new EventTarget() });
 let online = false;
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { get onLine() { return online; } } });
-beforeEach(async () => { lockDataKeys(); for (const account of ['alpha', 'beta']) forgetEncryptionMarker(account); storage.clear(); online = false; await db.open(); for (const table of db.tables) await table.clear(); await clearOfflineOperations('alpha'); await clearReplica('alpha'); });
+beforeEach(async () => { lockDataKeys(); for (const account of ['alpha', 'beta']) forgetEncryptionMarker(account); storage.clear(); tab.clear(); online = false; await db.open(); for (const table of db.tables) await table.clear(); await clearOfflineOperations('alpha'); await clearReplica('alpha'); });
 after(() => db.close());
 async function raw(table: string) {
   return new Promise<any[]>((resolve, reject) => {
@@ -112,4 +113,14 @@ test('reload verification is encrypted, bound to the unlocked account and remove
   assert.equal(restoreReconnectCredentials('beta'), undefined);
   activateDataKey('alpha', key); assert.deepEqual(restoreReconnectCredentials('alpha'), value);
   clearReconnectCredentials(); assert.equal(restoreReconnectCredentials('alpha'), undefined);
+});
+
+test('account routing remains tab scoped and clearing identity invalidates background writers', () => {
+  cacheActiveIdentity(identity);
+  assert(!storage.get('qc.offlineUser')?.includes(identity.fullName));
+  // A second tab can publish a different persistent routing hint without
+  // changing the first tab's active account or its data scope.
+  localStorage.setItem('qc.offlineUser', JSON.stringify({ id: 'beta', role: 'STUDENT', isActive: true }));
+  assert.equal(readActiveIdentity()?.id, 'alpha');
+  clearActiveIdentity(); assert.equal(readActiveIdentity(), null);
 });

@@ -129,7 +129,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await queryClient.cancelQueries();
     await assertNoPendingWrites(accountId);
     // Invalidate account-scoped background writers before clearing their stores.
-    localStorage.removeItem(OFFLINE_USER_KEY);
+    clearActiveIdentity();
     await clearAccountData(accountId);
     if (typeof caches !== 'undefined') await caches.delete('quran-circles-images');
     await import('@/lib/native-push').then(module => module.disableNativePush()).catch(() => undefined);
@@ -220,7 +220,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Preserve tokens after temporary network failures; only an explicit
       // authentication rejection should force a fresh sign-in.
       if (status === 401 || status === 403) {
-        await tokenStore.clear(); localStorage.removeItem(OFFLINE_USER_KEY);
+        await tokenStore.clear(); clearActiveIdentity();
       }
       set({ user: null, status: 'unauthenticated' });
     }
@@ -283,7 +283,7 @@ async function adoptSession(
 ) {
   // Signing in on a tab that already held a session must not inherit its cache.
   await queryClient.cancelQueries();
-  localStorage.removeItem(OFFLINE_USER_KEY);
+  clearActiveIdentity();
   resetQueryCache();
   await tokenStore.set(data.accessToken, data.refreshToken, data.user?.id);
   sessionStorage.removeItem('qc.localUnlocked');

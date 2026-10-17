@@ -412,7 +412,9 @@ test('public privacy page and support dialog work with keyboard focus contained 
   const trigger = page.getByRole('button', { name: 'الدعم الفني', exact: true });
   await trigger.click();
   const close = dialog.getByRole('button', { name: 'إغلاق', exact: true });
-  await close.focus(); await page.keyboard.press('Shift+Tab');
+  // Wait for the dialog's animation-frame autofocus before keyboard traversal.
+  // Manually focusing here races that autofocus and can reset the wrapped focus.
+  await expect(close).toBeFocused(); await page.keyboard.press('Shift+Tab');
   await expect(dialog.getByRole('button', { name: 'إرسال الطلب', exact: true })).toBeFocused();
   await page.keyboard.press('Tab'); await expect(close).toBeFocused();
   await page.keyboard.press('Escape'); await expect(trigger).toBeFocused();

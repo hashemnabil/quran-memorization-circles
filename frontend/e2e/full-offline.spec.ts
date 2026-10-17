@@ -508,10 +508,11 @@ test('password recovery collects account identity and queues a request offline',
 
 test('online reads use the server and persist the fresh record for the next offline visit', async ({ page, context }) => {
   let name = 'اسم من الخادم'; let reads = 0; let disconnected = false;
-  await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
+  const password = 'Connection Transition Password 27';
   await page.route('**/api/**', route => {
     if (disconnected) return route.abort('internetdisconnected');
     const url = new URL(route.request().url()); const path = url.pathname;
+    if (path === '/api/auth/login') return route.fulfill({ json: { user, accessToken: 'test-token', refreshToken: 'test-refresh' } });
     if (path === '/api/auth/me') return route.fulfill({ json: user });
     if (path === '/api/announcements/active') return route.fulfill({ json: [] });
     if (path === '/api/circles/options') return route.fulfill({ json: [] });
@@ -520,12 +521,27 @@ test('online reads use the server and persist the fresh record for the next offl
     if (path === '/api/sync-all') return route.fulfill({ json: { data: url.searchParams.get('table') === 'students' ? [{ ...fixtures.students[0], fullName: 'نسخة محلية قديمة' }] : [], meta: { hasNextPage: false } } });
     return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
   });
+  await page.goto('/login');
+  await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
+  await page.getByLabel('كلمة المرور', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'دخول', exact: true }).click();
+  await expect(page).not.toHaveURL(/\/login$/);
   await page.goto('/students'); await expect(page.getByText(name, { exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(account => new Promise(resolve => { const request = indexedDB.open('halaqatFull'); request.onsuccess = () => { const db = request.result; const read = db.transaction('meta').objectStore('meta').get(`${account}:downloadedAt`); read.onsuccess = () => { resolve(Boolean(read.result)); db.close(); }; }; }), account)).toBe(true);
   name = 'تعديل جديد على الخادم'; const before = reads;
   await page.reload(); await expect(page.getByText(name, { exact: true })).toBeVisible(); expect(reads).toBeGreaterThan(before);
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   disconnected = true; await context.setOffline(true); await page.reload(); await expect(page.getByText(name, { exact: true })).toBeVisible();
+  // Enter a real password-unlocked local session with no server tokens. An
+  // ordinary online-manager refetch alone still reads locally in this mode.
+  await page.goto('/profile');
+  await page.locator('main').getByRole('button', { name: 'تسجيل الخروج', exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
+  await page.getByLabel('كلمة المرور', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'دخول', exact: true }).click();
+  await expect(page).not.toHaveURL(/\/login$/);
+  await page.goto('/students'); await expect(page.getByText(name, { exact: true })).toBeVisible();
   // Reconnect while staying on the same screen: fresh server data must replace
   // the local result without a reload, navigation or manual sync button.
   name = 'بيانات أحدث بعد عودة الاتصال'; const offlineReads = reads;

@@ -58,7 +58,8 @@ export default function OfflineSystem() {
     const connectivityChanged = (connected: boolean) => {
       setOnline(connected);
       if (connected) void synchronize(false, true);
-      else void queryClient.invalidateQueries();
+      // Keep visible data and unsaved form input intact on disconnect. Further
+      // requests already switch to the local adapter without remounting forms.
     };
     const start = () => connectivityChanged(navigator.onLine);
     const changed = () => {

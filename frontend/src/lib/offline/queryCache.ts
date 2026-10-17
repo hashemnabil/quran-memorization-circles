@@ -21,9 +21,10 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export async function restoreQueryCache(accountId: string): Promise<boolean> {
-  if (!accountId) return false;
+export async function restoreQueryCache(accountId: string, stillCurrent: () => boolean): Promise<boolean> {
+  if (!accountId || !stillCurrent()) return false;
   const local = await localDb.meta.get(`${accountId}:querySnapshot`);
+  if (!stillCurrent()) return false;
   if (local?.value?.accountId === accountId) { hydrate(queryClient, local.value.state); return true; }
   const db = await openDb();
   try {
@@ -32,11 +33,12 @@ export async function restoreQueryCache(accountId: string): Promise<boolean> {
       request.onsuccess = () => resolve(request.result as Snapshot | undefined);
       request.onerror = () => reject(request.error ?? new Error('Could not read query cache'));
     });
-    if (!snapshot || snapshot.accountId !== accountId) return false;
+    if (!snapshot || snapshot.accountId !== accountId || !stillCurrent()) return false;
     // Migrate only after the encrypted replacement is durable. Cache age never
     // disables offline access; live authorization remains the server's job.
     await localDb.meta.put({ key: `${accountId}:querySnapshot`, value: snapshot });
     await clearLegacySnapshot(accountId);
+    if (!stillCurrent()) return false;
     hydrate(queryClient, snapshot.state);
     return true;
   } finally { db.close(); }

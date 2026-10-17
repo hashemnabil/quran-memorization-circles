@@ -10,6 +10,8 @@ import { enqueueOfflineOperation, listOfflineOperations, clearOfflineOperations 
 import { readReplica, clearReplica } from './offline/feed-replica';
 import { cacheReconnectCredentials, restoreReconnectCredentials, clearReconnectCredentials } from './reconnect-credentials';
 import { cacheActiveIdentity, readActiveIdentity, clearActiveIdentity } from './active-identity';
+import { queryClient } from './queryClient';
+import { persistQueryCache, restoreQueryCache } from './offline/queryCache';
 
 const storage = new Map<string, string>();
 const identity = { id: 'alpha', username: 'alpha', fullName: 'Private person', role: 'TEACHER' as const, isActive: true };
@@ -123,4 +125,19 @@ test('account routing remains tab scoped and clearing identity invalidates backg
   localStorage.setItem('qc.offlineUser', JSON.stringify({ id: 'beta', role: 'STUDENT', isActive: true }));
   assert.equal(readActiveIdentity()?.id, 'alpha');
   clearActiveIdentity(); assert.equal(readActiveIdentity(), null);
+});
+
+test('a late query snapshot cannot hydrate the next account after logout or switching', async () => {
+  activateDataKey('alpha', crypto.getRandomValues(new Uint8Array(32)));
+  try {
+    queryClient.setQueryData(['account-isolation'], 'Private alpha snapshot');
+    await persistQueryCache('alpha'); queryClient.clear();
+    let current = true;
+    const restoring = restoreQueryCache('alpha', () => current);
+    current = false;
+    assert.equal(await restoring, false);
+    assert.equal(queryClient.getQueryData(['account-isolation']), undefined);
+    assert.equal(await restoreQueryCache('alpha', () => true), true);
+    assert.equal(queryClient.getQueryData(['account-isolation']), 'Private alpha snapshot');
+  } finally { queryClient.clear(); }
 });

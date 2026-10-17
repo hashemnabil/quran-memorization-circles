@@ -10,8 +10,8 @@ const weekdays=['الأحد','الاثنين','الثلاثاء','الأربعا
 const load=<T,>(key:string):T[]=>{try{const x=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(x)?x:[]}catch{return []}};
 const dl=(name:string,text:string)=>{const u=URL.createObjectURL(new Blob([text],{type:'application/json;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u)};
 export default function CommitteesPage(){
- const [committees,setCommittees]=useState<Committee[]>(()=>load(COMMITTEES_KEY));
- const [marks,setMarks]=useState<Mark[]>(()=>load(MARKS_KEY));
+ const [committees,setCommittees]=useState<Committee[]>(()=>load<Committee>(COMMITTEES_KEY));
+ const [marks,setMarks]=useState<Mark[]>(()=>load<Mark>(MARKS_KEY));
  const [editing,setEditing]=useState<Committee|null>(null);
  const [active,setActive]=useState<Committee|null>(null);
  const [student,setStudent]=useState(''); const [scope,setScope]=useState(''); const [judgments,setJudgments]=useState('10'); const [recitation,setRecitation]=useState('90'); const [mistakes,setMistakes]=useState('0'); const [alerts,setAlerts]=useState('0'); const [note,setNote]=useState('');

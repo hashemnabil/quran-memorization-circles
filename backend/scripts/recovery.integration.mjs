@@ -11,7 +11,7 @@ assert(['localhost', '127.0.0.1'].includes(source.hostname) && source.pathname =
 const name = `quran_recovery_${randomBytes(6).toString('hex')}`;
 const target = new URL(source); target.pathname = `/${name}`;
 const admin = new PrismaClient({ datasources: { db: { url: source.href } } });
-const fixture = new PrismaClient({ datasources: { db: { url: target.href } } });
+let fixture;
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 const cli = fileURLToPath(new URL('../node_modules/prisma/build/index.js', import.meta.url));
 const env = { ...process.env, DATABASE_URL: target.href, DIRECT_URL: target.href };
@@ -21,8 +21,12 @@ const run = args => {
 };
 let created = false;
 try {
+  // Initialize the native query engine sequentially. Two clients constructed
+  // before either connects can race library initialization in Prisma 5.
+  await admin.$connect();
   await admin.$executeRawUnsafe(`CREATE DATABASE "${name}"`); created = true;
   run(['migrate', 'deploy']);
+  fixture = new PrismaClient({ datasources: { db: { url: target.href } } });
   const student = await fixture.student.create({ data: { code: '320261234', fullName: 'Recovery test student', status: 'ACTIVITY' } });
   // Reproduce the supplied production metadata: application tables exist, but
   // six newer tables and Prisma migration history are missing.
@@ -58,7 +62,7 @@ try {
   console.log('Recovery preserved the existing student, restored all six tables, and enabled journal and receipt writes.');
   console.log('The additive review/push recovery also preserved student data and created working request and delivery records.');
 } finally {
-  await fixture.$disconnect();
+  await fixture?.$disconnect();
   if (created) await admin.$executeRawUnsafe(`DROP DATABASE "${name}"`);
   await admin.$disconnect();
 }

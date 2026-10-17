@@ -54,6 +54,8 @@ import { ForbiddenPage, NotFoundPage } from '@/pages/ErrorPages';
 import RegistryLoginPage from '@/pages/RegistryLoginPage';
 import RegistryDataPage from '@/pages/RegistryDataPage';
 import RegistryAdminPage from '@/pages/RegistryAdminPage';
+import MeetingsPage from '@/pages/MeetingsPage';
+import CommitteesPage from '@/pages/CommitteesPage';
 
 export default function App() {
   const loadSession = useAuthStore((s) => s.loadSession);
@@ -128,6 +130,8 @@ export default function App() {
         <Route path="settings/offline" element={<OfflineSettingsPage />} />
         <Route path="admin/notifications" element={<RequireRole roles={['ADMIN']}><BroadcastPage /></RequireRole>} />
         <Route path="admin/activity" element={<RequireRole roles={['ADMIN']}><ActivityPage /></RequireRole>} />
+        <Route path="admin/meetings" element={<RequireRole roles={['ADMIN', 'SUPERVISOR']}><MeetingsPage /></RequireRole>} />
+        <Route path="admin/committees" element={<RequireRole roles={['ADMIN', 'EXAM_COMMITTEE']}><CommitteesPage /></RequireRole>} />
         <Route path="admin/password-requests" element={<RequireRole roles={['ADMIN']}><PasswordRequestsPage /></RequireRole>} />
         <Route index element={currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />

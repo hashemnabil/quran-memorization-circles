@@ -67,7 +67,7 @@ function describeRequest(r: ExamRequest): string {
   if (r.requestedHizb != null) parts.push(`حزب ${r.requestedHizb}`);
   if (r.requestedJuz != null) parts.push(`جزء ${r.requestedJuz}`);
   if (r.requestedCombined != null) {
-    const stage = r.note?.match(/نوع الاختبار: مجتمعة \\d+ (داخلي|خارجي)/)?.[1];
+    const stage = r.note?.match(/نوع الاختبار: مجتمعة \d+ (داخلي|خارجي)/)?.[1];
     parts.push(`مجتمعة ${r.requestedCombined}${stage ? ` ${stage}` : ''}`);
   }
   if (parts.length) return parts.join(' + ');

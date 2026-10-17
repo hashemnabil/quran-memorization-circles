@@ -510,14 +510,19 @@ function ScheduleModal({ request, onClose }: { request: ExamRequest; onClose: ()
   const [examinerId, setExaminerId] = useState('');
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
+  const [committeeNumber, setCommitteeNumber] = useState('');
+  const [committees] = useState<Array<{id:string;number:string;date:string;location:string;members:string;weekday:string}>>(() => {
+    try { const value = JSON.parse(localStorage.getItem('indibat.committees.v1') || '[]'); return Array.isArray(value) ? value : []; } catch { return []; }
+  });
+  const selectedCommittee = committees.find(item => item.number === committeeNumber);
 
   const mutation = useMutation({
     mutationFn: () =>
       api.post(`/exams/requests/${request.id}/schedule`, {
         scheduledAt: new Date(scheduledAt).toISOString(),
         examinerId: examinerId || undefined,
-        location: location || undefined,
-        notes: notes || undefined,
+        location: location || selectedCommittee?.location || undefined,
+        notes: [selectedCommittee ? `اللجنة رقم ${selectedCommittee.number} — ${selectedCommittee.date} (${selectedCommittee.weekday}) — ${selectedCommittee.location} — الأعضاء: ${selectedCommittee.members}` : '', notes.trim()].filter(Boolean).join(' | ') || undefined,
       }),
     onSuccess: () => {
       toast.success('تمت جدولة الاختبار');
@@ -546,6 +551,11 @@ function ScheduleModal({ request, onClose }: { request: ExamRequest; onClose: ()
       <div className="space-y-3">
         <p className="text-sm text-slate-500">المطلوب: {describeRequest(request)}</p>
         <Input label="موعد الاختبار" type="datetime-local" required value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+        {committees.length > 0 && <Select label="اللجنة" value={committeeNumber} onChange={(e) => setCommitteeNumber(e.target.value)} required>
+          <option value="">اختر اللجنة</option>
+          {committees.map((committee) => <option key={committee.id} value={committee.number}>لجنة {committee.number} — {committee.date} — {committee.location || 'دون مكان'}</option>)}
+        </Select>}
+        {selectedCommittee && <p className="rounded-lg bg-slate-50 p-3 text-xs leading-6 text-slate-600">اليوم: {selectedCommittee.weekday} · المكان: {selectedCommittee.location || '—'} · الأعضاء: {selectedCommittee.members || '—'}</p>}
         <Select label="الممتحن" value={examinerId} onChange={(e) => setExaminerId(e.target.value)}>
           <option value="">غير محدد</option>
           {examiners.data?.map((u) => (

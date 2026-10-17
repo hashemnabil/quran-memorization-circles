@@ -1,3 +1,4 @@
+import { NewPassword } from '../../common/validators/password';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
@@ -23,6 +24,7 @@ export class RefreshDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(512)
   refreshToken: string;
 }
 
@@ -30,11 +32,12 @@ export class ChangePasswordDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty({ message: 'كلمة المرور الحالية مطلوبة' })
+  @MaxLength(128)
   currentPassword: string;
 
-  @ApiProperty({ minLength: 6 })
+  @ApiProperty({ minLength: 12 })
   @IsString()
-  @MinLength(6, { message: 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل' })
+  @NewPassword()
   @MaxLength(128)
   newPassword: string;
 }

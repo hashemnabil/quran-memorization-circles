@@ -848,6 +848,8 @@ model Notification {
   id        String           @id @default(uuid())
   userId    String
   type      NotificationType
+  pushQueuedAt DateTime?
+  pushDeliveries PushDelivery[]
   title     String
   body      String?
   link      String?
@@ -860,7 +862,56 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
+  @@index([pushQueuedAt, createdAt])
   @@map("notifications")
+}
+
+model ProfileReview {
+  id String @id @default(uuid())
+  kind String
+  subjectId String
+  requesterId String
+  patch Json
+  base Json
+  status String @default("PENDING")
+  reason String?
+  reviewedById String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([requesterId, createdAt])
+  @@index([kind, status, createdAt])
+  @@map("profile_reviews")
+}
+
+model PushDevice {
+  id String @id @default(uuid())
+  installationId String @unique
+  userId String
+  platform String
+  token String @unique
+  enabled Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deliveries PushDelivery[]
+  @@index([userId, enabled])
+  @@map("push_devices")
+}
+
+model PushDelivery {
+  id String @id @default(uuid())
+  notificationId String
+  deviceId String
+  status String @default("PENDING")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  lastError String?
+  createdAt DateTime @default(now())
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  device PushDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  @@unique([notificationId, deviceId])
+  @@index([status, nextAttemptAt])
+  @@map("push_deliveries")
 }
 
 // ---------------------------------------------------------------------------
@@ -1292,4 +1343,82 @@ model MediaActivity {
   @@index([activityDate])
   @@index([type, activityDate])
   @@map("media_activities")
+}
+
+
+// ---------------------------------------------------------------------------
+// Durable change log for cross-device synchronization. Never store credentials
+// or token material in this log; the database trigger uses a denylist as defense
+// in depth and sync APIs must still project entity-specific allowlists.
+// ---------------------------------------------------------------------------
+model SyncChange {
+  seq        BigInt   @id @default(autoincrement())
+  entity     String
+  entityId   String
+  operation  String
+  payload    Json?
+  changedAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([entity, entityId, seq])
+  @@index([seq])
+  @@map("sync_changes")
+}
+
+/// Server-side idempotency ledger. The composite key is scoped to the account.
+model ProcessedOperation {
+  opId       String   @db.VarChar(128)
+  accountId  String
+  result     Json?
+  processedAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([opId, accountId])
+  @@index([accountId, processedAt])
+  @@map("processed_operations")
+}
+
+
+// Administration-owned editorial calendar. Not exposed to media-team roles.
+model MediaPlan {
+  id        String   @id @default(uuid())
+  date      DateTime @db.Date
+  day       String
+  activity  String
+  idea      String
+  content   String
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@map("media_plans")
+}
+
+// Multiple teachers can be assigned to one duty date.
+model TeacherDuty {
+  id        String   @id @default(uuid())
+  date      DateTime @db.Date
+  day       String
+  note      String?
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  assignments TeacherDutyAssignment[]
+
+  @@index([date])
+  @@map("teacher_duties")
+}
+
+// Reminder flags are persisted to avoid duplicate notifications on restarts.
+model TeacherDutyAssignment {
+  id         String @id @default(uuid())
+  dutyId     String
+  teacherUserId String
+  assignedNotifiedAt DateTime?
+  dayBeforeNotifiedAt DateTime?
+  morningNotifiedAt DateTime?
+  duty TeacherDuty @relation(fields: [dutyId], references: [id], onDelete: Cascade)
+
+  @@unique([dutyId, teacherUserId])
+  @@index([teacherUserId])
+  @@map("teacher_duty_assignments")
 }

@@ -1,4 +1,6 @@
-import { useEffect } from 'react';
+import ProfileVerificationPage, { ProfileReviewsPage } from '@/pages/ProfileVerificationPage';
+import { lazy, Suspense, useEffect } from 'react';
+import { LoadingState } from '@/components/ui';
 import AppLaunchGate from '@/components/AppLaunchGate';
 import { Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth';
@@ -9,25 +11,32 @@ import AppLayout from '@/components/layout/AppLayout';
 import { RedirectIfAuthenticated, RequireAuth, RequireRole } from '@/components/RouteGuards';
 
 import LoginPage from '@/pages/LoginPage';
-import DashboardPage from '@/pages/DashboardPage';
+import PrivacyPage from '@/pages/PrivacyPage';
+import AboutPage from '@/pages/AboutPage';
+import AccountDeletionPage from '@/pages/AccountDeletionPage';
+import BroadcastPage from '@/pages/BroadcastPage';
+import ActivityPage from '@/pages/ActivityPage';
+import PasswordRequestsPage from '@/pages/PasswordRequestsPage';
+const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 import StudentPortalPage from '@/pages/StudentPortalPage';
-import ReportsPage from '@/pages/ReportsPage';
+const ReportsPage = lazy(() => import('@/pages/ReportsPage'));
 import StudentAccountsPage from '@/pages/students/StudentAccountsPage';
 import StudentFilesPage from '@/pages/StudentFilesPage';
-import CertificatesAdminPage from '@/pages/CertificatesAdminPage';
+const CertificatesAdminPage = lazy(() => import('@/pages/CertificatesAdminPage'));
 import MediaActivitiesPage from '@/pages/MediaActivitiesPage';
+import { MediaSchedulePage, TeacherDutyPage } from '@/pages/SchedulesPage';
 import CirclesPage from '@/pages/circles/CirclesPage';
 import CircleDetailsPage from '@/pages/circles/CircleDetailsPage';
 import StudentsPage from '@/pages/students/StudentsPage';
-import StudentDetailsPage from '@/pages/students/StudentDetailsPage';
+const StudentDetailsPage = lazy(() => import('@/pages/students/StudentDetailsPage'));
 import TeachersPage from '@/pages/teachers/TeachersPage';
 import TeacherDetailsPage from '@/pages/teachers/TeacherDetailsPage';
 import AttendancePage from '@/pages/attendance/AttendancePage';
 import RecitationsPage from '@/pages/recitations/RecitationsPage';
-import ExamsPage from '@/pages/exams/ExamsPage';
+const ExamsPage = lazy(() => import('@/pages/exams/ExamsPage'));
 import TransfersPage from '@/pages/transfers/TransfersPage';
 import SuspensionsPage from '@/pages/suspensions/SuspensionsPage';
-import ChatPage from '@/pages/chat/ChatPage';
+const ChatPage = lazy(() => import('@/pages/chat/ChatPage'));
 import NotificationsPage from '@/pages/NotificationsPage';
 import SupportPage from '@/pages/support/SupportPage';
 import SupportTicketPage from '@/pages/support/SupportTicketPage';
@@ -39,6 +48,7 @@ import CoursesPage from '@/pages/courses/CoursesPage';
 import CourseDetailsPage from '@/pages/courses/CourseDetailsPage';
 import AnnouncementsPage from '@/pages/announcements/AnnouncementsPage';
 import SettingsPage from '@/pages/SettingsPage';
+import OfflineSettingsPage from '@/pages/OfflineSettingsPage';
 import ProfilePage from '@/pages/ProfilePage';
 import { ForbiddenPage, NotFoundPage } from '@/pages/ErrorPages';
 import RegistryLoginPage from '@/pages/RegistryLoginPage';
@@ -61,8 +71,11 @@ export default function App() {
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let unsubscribe: (() => void) | undefined;
-    void restoreQueryCache(currentUser.id).catch(() => false).finally(() => {
+    void restoreQueryCache(currentUser.id, () => active && useAuthStore.getState().user?.id === currentUser.id).catch(() => false).finally(() => {
       if (!active) return;
+      // Signal that this account's durable snapshot has been restored before
+      // background refreshes can replace cached reads with network responses.
+      window.dispatchEvent(new CustomEvent('qc:offline-cache-restored', { detail: { accountId: currentUser.id } }));
       unsubscribe = queryClient.getQueryCache().subscribe(() => {
         if (timer) clearTimeout(timer);
         timer = setTimeout(() => {
@@ -86,7 +99,11 @@ export default function App() {
 
   return (
     <AppLaunchGate>
+      <Suspense fallback={<LoadingState />}>
       <Routes>
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/account-deletion" element={<AccountDeletionPage />} />
       <Route path="/register" element={<RegistryLoginPage />} />
       <Route path="/register/data" element={<RegistryDataPage />} />
       <Route
@@ -105,13 +122,22 @@ export default function App() {
           </RequireAuth>
         }
       >
+        <Route path="verify-profile" element={<RequireRole roles={['STUDENT', 'TEACHER']}><ProfileVerificationPage /></RequireRole>} />
+        <Route path="profile-reviews/students" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="STUDENT" /></RequireRole>} />
+        <Route path="profile-reviews/teachers" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="TEACHER" /></RequireRole>} />
+        <Route path="settings/offline" element={<OfflineSettingsPage />} />
+        <Route path="admin/notifications" element={<RequireRole roles={['ADMIN']}><BroadcastPage /></RequireRole>} />
+        <Route path="admin/activity" element={<RequireRole roles={['ADMIN']}><ActivityPage /></RequireRole>} />
+        <Route path="admin/password-requests" element={<RequireRole roles={['ADMIN']}><PasswordRequestsPage /></RequireRole>} />
         <Route index element={currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
-        <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
-        <Route path="documents/:report" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
+        <Route path="reports" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><ReportsPage /></RequireRole>} />
+        <Route path="documents/:report" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><ReportsPage /></RequireRole>} />
         <Route path="student-accounts" element={<RequireRole roles={['ADMIN']}><StudentAccountsPage /></RequireRole>} />
         <Route path="certificates-admin" element={<RequireRole roles={['ADMIN']}><CertificatesAdminPage /></RequireRole>} />
         <Route path="media-activities" element={<RequireRole roles={['ADMIN', 'SUPERVISOR']}><MediaActivitiesPage /></RequireRole>} />
+        <Route path="media-schedule" element={<RequireRole roles={['ADMIN']}><MediaSchedulePage /></RequireRole>} />
+        <Route path="teacher-duties" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><TeacherDutyPage /></RequireRole>} />
         <Route path="my-files" element={<RequireRole roles={['STUDENT']}><StudentFilesPage /></RequireRole>} />
 
         {/* The exam committee works from the exam queue only, so the circle
@@ -298,6 +324,7 @@ export default function App() {
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       </Routes>
+      </Suspense>
     </AppLaunchGate>
   );
 }

@@ -59,7 +59,6 @@ export default function ChatPage() {
   const { data: conversations, isLoading: loadingList } = useQuery({
     queryKey: ['chat', 'conversations'],
     queryFn: async () => (await api.get<Conversation[]>('/chat/conversations')).data,
-    refetchInterval: 45000,
   });
 
   // The detail endpoint carries the member list and the moderation flags.
@@ -148,6 +147,10 @@ export default function ChatPage() {
     const onRead = () => {
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['chat', 'unread'] });
+    };
+    const onInbox = (event: { conversationId: string }) => {
+      if (event.conversationId === id && document.visibilityState === 'visible') markRead.mutate(id!);
     };
     const onConversationUpdated = () => {
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', id] });
@@ -157,11 +160,13 @@ export default function ChatPage() {
     socket.on('typing', onTyping);
     socket.on('chat:message-edited', onEdited);
     socket.on('chat:read', onRead);
+    socket.on('chat:inbox', onInbox);
     socket.on('chat:conversation-updated', onConversationUpdated);
     return () => {
       socket.off('typing', onTyping);
       socket.off('chat:message-edited', onEdited);
       socket.off('chat:read', onRead);
+      socket.off('chat:inbox', onInbox);
       socket.off('chat:conversation-updated', onConversationUpdated);
     };
   }, [id, user.id, queryClient]);
@@ -460,7 +465,7 @@ export default function ChatPage() {
               {active && !active.canPost ? (
                 <p className="flex items-center justify-center gap-2 border-t border-slate-100 px-4 py-4 text-center text-xs text-slate-500">
                   <IconLock size={14} />
-                  {active.isClosed
+                  {active.contactRestricted ? 'التواصل مع أعضاء هذه المحادثة غير متاح حسب صلاحياتك الحالية.' : active.isClosed
                     ? 'هذه المجموعة مغلقة، لا يمكن إرسال رسائل جديدة.'
                     : 'الإرسال في هذه المجموعة متاح لمشرفيها فقط.'}
                 </p>

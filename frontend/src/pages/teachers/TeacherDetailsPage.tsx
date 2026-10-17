@@ -60,7 +60,8 @@ export default function TeacherDetailsPage() {
         subtitle={`${teacher.qualification ?? 'معلم'} • ${EMPLOYMENT_LABELS[teacher.employmentType]}`}
         action={
           <>
-            {canEdit && (
+            {isSelf && user.role === 'TEACHER' && <Link to="/verify-profile"><Button size="sm" variant="secondary">تحقق من بياناتي</Button></Link>}
+            {canEdit && user.role === 'ADMIN' && (
               <Button size="sm" variant="secondary" icon={<IconEdit size={15} />} onClick={() => setModal('edit')}>
                 تعديل
               </Button>

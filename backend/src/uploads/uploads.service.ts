@@ -1,9 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'crypto';
 import { existsSync, mkdirSync } from 'fs';
 import { unlink, writeFile } from 'fs/promises';
-import { extname, join, resolve } from 'path';
+import { extname, join, resolve, sep } from 'path';
 
 export type UploadFolder = 'avatars' | 'logos' | 'courses';
 
@@ -13,12 +13,11 @@ export interface UploadResult {
   publicId?: string;
 }
 
-const ALLOWED_EXT = ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif'];
+const ALLOWED_EXT = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
 const ALLOWED_MIME = [
   'image/png',
   'image/jpeg',
   'image/webp',
-  'image/svg+xml',
   'image/gif',
 ];
 
@@ -60,7 +59,7 @@ export class UploadsService {
    * LAN) can actually fetch.
    */
   publicBaseUrl(): string {
-    const configured = this.config.get<string>('PUBLIC_URL');
+    const configured = this.config.get<string>('PUBLIC_URL') || this.config.get<string>('RENDER_EXTERNAL_URL');
     if (configured) return configured.replace(/\/+$/, '');
     const port = this.config.get<string>('PORT') || '4000';
     return `http://localhost:${port}`;
@@ -70,27 +69,34 @@ export class UploadsService {
     if (!file) throw new BadRequestException('لم يتم اختيار ملف');
     const ext = extname(file.originalname || '').toLowerCase();
     if (!ALLOWED_EXT.includes(ext) || !ALLOWED_MIME.includes(file.mimetype)) {
-      throw new BadRequestException('صيغة الملف غير مدعومة (png, jpg, webp, gif, svg)');
+      throw new BadRequestException('صيغة الملف غير مدعومة (png, jpg, webp, gif)');
     }
+    const bytes = file.buffer;
+    const detected = bytes?.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? 'image/png'
+      : bytes?.[0] === 255 && bytes?.[1] === 216 && bytes?.[2] === 255 ? 'image/jpeg'
+      : bytes?.subarray(0, 4).toString() === 'RIFF' && bytes?.subarray(8, 12).toString() === 'WEBP' ? 'image/webp'
+      : ['GIF87a', 'GIF89a'].includes(bytes?.subarray(0, 6).toString()) ? 'image/gif' : null;
+    const expectedExt = { 'image/png': ['.png'], 'image/jpeg': ['.jpg', '.jpeg'], 'image/webp': ['.webp'], 'image/gif': ['.gif'] };
+    if (!detected || detected !== file.mimetype || !expectedExt[detected].includes(ext)) throw new BadRequestException('محتوى الملف لا يطابق صيغة الصورة');
     const maxMb = parseInt(this.config.get('MAX_UPLOAD_SIZE_MB') || '5', 10);
-    if (file.size > maxMb * 1024 * 1024) {
+    if (!Number.isFinite(maxMb) || maxMb < 1 || file.size > maxMb * 1024 * 1024 || file.buffer.length > maxMb * 1024 * 1024) {
       throw new BadRequestException(`حجم الملف يتجاوز الحد المسموح (${maxMb} ميجابايت)`);
     }
     return ext;
   }
 
-  async upload(file: Express.Multer.File, folder: UploadFolder): Promise<UploadResult> {
+  async upload(file: Express.Multer.File, folder: UploadFolder, ownerId: string): Promise<UploadResult> {
     const ext = this.assertAcceptable(file);
     if (this.isCloudinaryConfigured()) {
       try {
-        return await this.uploadToCloudinary(file, folder);
+        return await this.uploadToCloudinary(file, folder, ownerId);
       } catch (error) {
         // A cloud outage must not stop an administrator setting a logo, so we
         // fall back to local storage and say so in the log rather than failing.
-        this.logger.error(`تعذر الرفع إلى Cloudinary، سيتم الحفظ محلياً: ${String(error)}`);
+        this.logger.error('Cloud image upload unavailable; using local image storage');
       }
     }
-    return this.uploadLocally(file, folder, ext);
+    return this.uploadLocally(file, folder, ext, ownerId);
   }
 
   // --- Cloudinary ----------------------------------------------------------
@@ -103,11 +109,13 @@ export class UploadsService {
   private async uploadToCloudinary(
     file: Express.Multer.File,
     folder: UploadFolder,
+    ownerId: string,
   ): Promise<UploadResult> {
     const timestamp = Math.floor(Date.now() / 1000);
     const params: Record<string, string> = {
       folder: `quran-circles/${folder}`,
       timestamp: String(timestamp),
+      public_id: `${folder.slice(0, -1)}-${ownerId}-${randomBytes(16).toString('hex')}`,
     };
 
     const toSign = Object.keys(params)
@@ -131,8 +139,7 @@ export class UploadsService {
     );
 
     if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`Cloudinary ${response.status}: ${detail.slice(0, 200)}`);
+      throw new Error(`Cloud image upload failed (${response.status})`);
     }
 
     const body = (await response.json()) as { secure_url?: string; public_id?: string };
@@ -147,12 +154,13 @@ export class UploadsService {
     file: Express.Multer.File,
     folder: UploadFolder,
     ext: string,
+    ownerId: string,
   ): Promise<UploadResult> {
     const root = join(process.cwd(), this.config.get<string>('UPLOAD_DIR') || 'uploads');
     const dir = join(root, folder);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
-    const name = `${folder.slice(0, -1)}-${Date.now()}-${randomBytes(4).toString('hex')}${ext}`;
+    const name = `${folder.slice(0, -1)}-${ownerId}-${Date.now()}-${randomBytes(4).toString('hex')}${ext}`;
     await writeFile(join(dir, name), file.buffer);
 
     // Absolute, not `/uploads/...`: the frontend is served from a different
@@ -172,21 +180,30 @@ export class UploadsService {
    * already vanished, or a cloud call that fails, must never block the update
    * that triggered it, so every failure is logged and swallowed.
    */
-  async remove(url?: string | null): Promise<boolean> {
+  async remove(url?: string | null, ownerId?: string): Promise<boolean> {
     if (!url) return false;
+    if (typeof url !== 'string') throw new BadRequestException('رابط الصورة غير صالح');
+    // Older filenames have no ownership proof; only administrators may delete them.
+    // A supplied URL is never evidence of file ownership.
+    if (!ownerId) return false;
+    if (ownerId !== '*') {
+      const path = /^https?:\/\//i.test(url) ? new URL(url).pathname : url;
+      const filename = path.split('/').pop() || '';
+      if (!['avatar', 'logo', 'course'].some((prefix) => filename.startsWith(`${prefix}-${ownerId}-`))) throw new ForbiddenException('لا تملك صلاحية حذف هذه الصورة');
+    }
     try {
       if (/res\.cloudinary\.com/i.test(url)) return await this.removeFromCloudinary(url);
       return await this.removeLocally(url);
     } catch (error) {
-      this.logger.warn(`تعذر حذف الملف ${url}: ${String(error)}`);
+      this.logger.warn('Image cleanup failed; no private URL or provider response was logged');
       return false;
     }
   }
 
   /** Deletes `previous` only when the picture actually changed. */
-  async removeIfReplaced(previous?: string | null, next?: string | null) {
+  async removeIfReplaced(previous?: string | null, next?: string | null, ownerId?: string) {
     if (!previous || previous === next) return false;
-    return this.remove(previous);
+    try { return await this.remove(previous, ownerId); } catch { return false; }
   }
 
   /**
@@ -202,6 +219,8 @@ export class UploadsService {
 
   private async removeFromCloudinary(url: string): Promise<boolean> {
     if (!this.isCloudinaryConfigured()) return false;
+    const parsed = new URL(url);
+    if (parsed.hostname !== 'res.cloudinary.com' || !parsed.pathname.startsWith(`/${this.cloudName}/image/upload/`)) return false;
     const publicId = this.publicIdFromUrl(url);
     if (!publicId) return false;
 
@@ -226,6 +245,7 @@ export class UploadsService {
   private async removeLocally(url: string): Promise<boolean> {
     // Accepts both the absolute URL we hand out and the legacy `/uploads/...`
     // form still sitting in older rows.
+    if (/^https?:\/\//i.test(url) && new URL(url).origin !== new URL(this.publicBaseUrl()).origin) return false;
     const path = /^https?:\/\//i.test(url) ? new URL(url).pathname : url;
     const match = /\/uploads\/([^/]+)\/([^/?#]+)$/.exec(path);
     if (!match) return false;
@@ -234,7 +254,7 @@ export class UploadsService {
     const root = resolve(process.cwd(), this.config.get<string>('UPLOAD_DIR') || 'uploads');
     const target = resolve(root, folder, decodeURIComponent(name));
     // Never follow a crafted path out of the uploads directory.
-    if (!target.startsWith(root)) return false;
+    if (!target.startsWith(`${root}${sep}`)) return false;
     if (!existsSync(target)) return false;
 
     await unlink(target);

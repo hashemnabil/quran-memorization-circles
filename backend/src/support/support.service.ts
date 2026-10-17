@@ -6,8 +6,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AuthUser } from '../common/decorators';
 import { paginate } from '../common/dto/pagination.dto';
+import * as bcrypt from 'bcryptjs';
 import {
   CreateTicketDto,
+  AccountDeletionDto,
   PublicTicketDto,
   QueryTicketsDto,
   ReplyTicketDto,
@@ -33,7 +35,16 @@ export class SupportService {
     return user.role === Role.SUPPORT || user.role === Role.ADMIN;
   }
 
-  async create(actor: AuthUser, dto: CreateTicketDto) {
+  async requestDeletion(actor: AuthUser, dto: AccountDeletionDto) {
+    const account = await this.prisma.user.findFirst({ where: { id: actor.id, isActive: true, deletedAt: null }, select: { passwordHash: true } });
+    if (!account || !await bcrypt.compare(dto.currentPassword, account.passwordHash)) throw new BadRequestException('تعذر التحقق من بيانات الحساب');
+    const existing = await this.prisma.supportTicket.findFirst({ where: { createdById: actor.id, category: 'ACCOUNT_DELETION', deletedAt: null, status: { in: ['OPEN', 'IN_PROGRESS'] } }, include: TICKET_INCLUDE });
+    if (existing) return existing;
+    return this.create(actor, { subject: 'طلب حذف حسابي وبياناتي', category: 'ACCOUNT_DELETION', priority: TicketPriority.HIGH,
+      description: `طلب صاحب الحساب حذف حسابه وبياناته بعد التحقق من كلمة المرور الحالية.\n${dto.reason?.trim() || ''}\nيجب أن تحدد الإدارة السجلات التي يمكن حذفها أو إخفاء هويتها وما يتطلب احتفاظًا مشروعًا قبل التنفيذ.` }, true);
+  }
+  async create(actor: AuthUser, dto: CreateTicketDto, verifiedDeletion = false) {
+    if (['ACCOUNT_DELETION', 'PASSWORD_RESET'].includes(dto.category || '') && !verifiedDeletion) throw new BadRequestException('استخدم صفحة الطلب المخصصة للتحقق من الهوية');
     const ticket = await this.prisma.supportTicket.create({
       data: {
         subject: dto.subject,
@@ -48,9 +59,9 @@ export class SupportService {
       include: TICKET_INCLUDE,
     });
 
-    await this.notifications.notifyRoles([Role.SUPPORT, Role.ADMIN], {
+    await this.notifications.notifyRoles(verifiedDeletion ? [Role.ADMIN] : [Role.SUPPORT, Role.ADMIN], {
       type: NotificationType.SUPPORT_TICKET,
-      title: 'طلب دعم فني جديد',
+      title: verifiedDeletion ? 'طلب حذف حساب وبيانات يحتاج مراجعة الإدارة' : 'طلب دعم فني جديد',
       body: `${actor.fullName}: ${dto.subject}`,
       link: `/support/${ticket.id}`,
     });
@@ -63,6 +74,8 @@ export class SupportService {
       entityId: ticket.id,
     });
 
+    await this.notifications.notify({ userId: actor.id, type: NotificationType.SUPPORT_TICKET,
+      title: `تم تقديم طلبك #${ticket.number}`, body: 'طلبك بانتظار المراجعة', link: `/support/${ticket.id}` });
     return ticket;
   }
 
@@ -74,13 +87,21 @@ export class SupportService {
    * the support queue.
    */
   async createPublic(dto: PublicTicketDto, clientKey: string) {
+    if (dto.requestId) {
+      const existing = await this.prisma.supportTicket.findUnique({ where: { id: dto.requestId }, select: { number: true, subject: true, description: true, contactName: true, contactPhone: true, contactEmail: true, createdById: true } });
+      if (existing) {
+        if (existing.createdById || existing.subject !== dto.subject || existing.description !== dto.description || existing.contactName !== dto.contactName || (existing.contactPhone || '') !== (dto.contactPhone || '') || (existing.contactEmail || '') !== (dto.contactEmail || '')) throw new BadRequestException('معرف الطلب مستخدم لبيانات مختلفة');
+        return { number: existing.number, message: 'سبق استلام الطلب؛ لا حاجة لإرساله مرة أخرى' };
+      }
+    }
     this.assertNotFlooding(clientKey);
 
     const ticket = await this.prisma.supportTicket.create({
       data: {
+        ...(dto.requestId ? { id: dto.requestId } : {}),
         subject: dto.subject,
         description: dto.description,
-        category: 'تعذر تسجيل الدخول',
+        category: dto.subject === 'طلب تغيير كلمة المرور' ? 'PASSWORD_RESET' : 'تعذر تسجيل الدخول',
         priority: TicketPriority.HIGH,
         createdById: null,
         contactName: dto.contactName,
@@ -90,9 +111,9 @@ export class SupportService {
       select: { id: true, number: true, createdAt: true },
     });
 
-    await this.notifications.notifyRoles([Role.SUPPORT, Role.ADMIN], {
+    await this.notifications.notifyRoles(dto.subject === 'طلب تغيير كلمة المرور' ? [Role.ADMIN] : [Role.SUPPORT, Role.ADMIN], {
       type: NotificationType.SUPPORT_TICKET,
-      title: 'طلب دعم من صفحة الدخول',
+      title: dto.subject === 'طلب تغيير كلمة المرور' ? 'طلب تغيير كلمة مرور جديد' : 'طلب دعم من صفحة الدخول',
       body: `${dto.contactName}: ${dto.subject}`,
       link: `/support/${ticket.id}`,
     });
@@ -140,6 +161,7 @@ export class SupportService {
   async findAll(user: AuthUser, query: QueryTicketsDto) {
     const where: Prisma.SupportTicketWhereInput = {
       deletedAt: null,
+      ...(query.category ? { category: query.category } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.priority ? { priority: query.priority } : {}),
       ...(query.assignedToId ? { assignedToId: query.assignedToId } : {}),
@@ -152,6 +174,8 @@ export class SupportService {
           }
         : {}),
     };
+
+    if (user.role !== Role.ADMIN) where.AND = [{ OR: [{ category: null }, { category: { notIn: ['PASSWORD_RESET', 'ACCOUNT_DELETION'] } }, { category: 'ACCOUNT_DELETION', createdById: user.id }] }];
 
     // Non-staff users only ever see their own tickets. The assignee filter is
     // dropped too — it is a way to enumerate other people's queues.
@@ -189,6 +213,8 @@ export class SupportService {
       },
     });
     if (!ticket) throw new NotFoundException('طلب الدعم غير موجود');
+    if (ticket.category === 'PASSWORD_RESET' && user.role !== Role.ADMIN) throw new ForbiddenException('هذا الطلب مخصص للإدارة');
+    if (ticket.category === 'ACCOUNT_DELETION' && user.role !== Role.ADMIN && ticket.createdById !== user.id) throw new ForbiddenException('لا تملك صلاحية الوصول إلى الطلب');
     if (!this.isStaff(user) && ticket.createdById !== user.id) {
       throw new ForbiddenException('لا تملك صلاحية الوصول إلى هذا الطلب');
     }
@@ -201,6 +227,8 @@ export class SupportService {
       include: { createdBy: { select: { id: true, fullName: true } } },
     });
     if (!ticket) throw new NotFoundException('طلب الدعم غير موجود');
+    if (ticket.category === 'PASSWORD_RESET' && actor.role !== Role.ADMIN) throw new ForbiddenException('هذا الطلب مخصص للإدارة');
+    if (ticket.category === 'ACCOUNT_DELETION' && actor.role !== Role.ADMIN && ticket.createdById !== actor.id) throw new ForbiddenException('لا تملك صلاحية الوصول إلى الطلب');
 
     const staff = this.isStaff(actor);
     if (!staff && ticket.createdById !== actor.id) {
@@ -234,6 +262,10 @@ export class SupportService {
       },
     });
 
+    if (staff && ticket.status === TicketStatus.OPEN && ticket.createdById) {
+      await this.notifications.notify({ userId: ticket.createdById, type: NotificationType.SUPPORT_TICKET,
+        title: `طلبك #${ticket.number} قيد المعالجة`, body: 'بدأ فريق الدعم معالجة الطلب', link: `/support/${id}` });
+    }
     if (!message.isInternal) {
       const recipient = staff ? ticket.createdById : ticket.assignedToId;
       if (recipient && recipient !== actor.id) {
@@ -270,6 +302,9 @@ export class SupportService {
 
     const ticket = await this.prisma.supportTicket.findFirst({ where: { id, deletedAt: null } });
     if (!ticket) throw new NotFoundException('طلب الدعم غير موجود');
+    if (ticket.category === 'PASSWORD_RESET' && actor.role !== Role.ADMIN) throw new ForbiddenException('هذا الطلب مخصص للإدارة');
+    if (ticket.category === 'PASSWORD_RESET' && dto.category && dto.category !== 'PASSWORD_RESET') throw new BadRequestException('لا يمكن تغيير نوع طلب استعادة الحساب');
+    if (ticket.category === 'ACCOUNT_DELETION' && (actor.role !== Role.ADMIN || dto.category && dto.category !== 'ACCOUNT_DELETION')) throw new ForbiddenException('طلبات الحذف مخصصة للإدارة ولا يمكن تغيير نوعها');
 
     if (dto.assignedToId) {
       const assignee = await this.prisma.user.findFirst({
@@ -277,7 +312,7 @@ export class SupportService {
           id: dto.assignedToId,
           deletedAt: null,
           isActive: true,
-          role: { in: [Role.SUPPORT, Role.ADMIN] },
+          role: { in: ['PASSWORD_RESET', 'ACCOUNT_DELETION'].includes(ticket.category || '') ? [Role.ADMIN] : [Role.SUPPORT, Role.ADMIN] },
         },
       });
       if (!assignee) throw new BadRequestException('المستخدم المحدد ليس من فريق الدعم');
@@ -331,6 +366,7 @@ export class SupportService {
       deletedAt: null,
       ...(this.isStaff(user) ? {} : { createdById: user.id }),
     };
+    if (user.role !== Role.ADMIN) base.AND = [{ OR: [{ category: null }, { category: { notIn: ['PASSWORD_RESET', 'ACCOUNT_DELETION'] } }, { category: 'ACCOUNT_DELETION', createdById: user.id }] }];
 
     const grouped = await this.prisma.supportTicket.groupBy({
       by: ['status'],
@@ -346,7 +382,7 @@ export class SupportService {
       total: Object.values(counts).reduce((a, b) => a + b, 0),
       assignedToMe: this.isStaff(user)
         ? await this.prisma.supportTicket.count({
-            where: { deletedAt: null, assignedToId: user.id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+            where: { ...base, assignedToId: user.id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
           })
         : 0,
     };

@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face { font-family: 'Tajawal'; font-style: normal; font-weight: 400; font-display: swap; src: url('@fontsource/tajawal/files/tajawal-arabic-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Tajawal'; font-style: normal; font-weight: 500; font-display: swap; src: url('@fontsource/tajawal/files/tajawal-arabic-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Tajawal'; font-style: normal; font-weight: 700; font-display: swap; src: url('@fontsource/tajawal/files/tajawal-arabic-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Tajawal'; font-style: normal; font-weight: 800; font-display: swap; src: url('@fontsource/tajawal/files/tajawal-arabic-800-normal.woff2') format('woff2'); }
+
 @layer base {
   :root {
     color-scheme: light;
@@ -19,10 +24,11 @@
 
   body {
     @apply text-slate-800 font-sans antialiased;
-    background: radial-gradient(ellipse at 85% 0%, rgba(216,243,227,.34), transparent 32%), linear-gradient(180deg, #f7faf8 0%, #f3f7f5 48%, #f8faf9 100%);
+    background: #f4f6f8;
     font-family: 'Cairo', 'Tajawal', 'Segoe UI', system-ui, sans-serif;
     font-feature-settings: 'kern';
     text-rendering: optimizeLegibility;
+    line-height: 1.7;
   }
 
   button,
@@ -71,10 +77,10 @@
 
 @layer components {
   .sidebar-shell {
-    background:
-      radial-gradient(ellipse at 0% 0%, rgba(78, 182, 134, 0.18), transparent 34%),
-      linear-gradient(165deg, #103b2c 0%, #123f30 48%, #092a20 100%);
-    box-shadow: inset -1px 0 0 rgba(255,255,255,0.045), 8px 0 32px rgba(9,36,27,0.08);
+    background: #12372d;
+    box-shadow: inset -1px 0 0 rgba(255,255,255,.08);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .sidebar-nav-item {
@@ -88,7 +94,7 @@
     right: 0;
     width: 3px;
     border-radius: 999px 0 0 999px;
-    background: #e8c263;
+    background: #86d5b2;
     content: "";
     opacity: 0;
     transform: scaleY(.55);
@@ -103,6 +109,7 @@
 
   .sidebar-nav-icon {
     color: #c5ded2;
+    background: rgba(255,255,255,.04);
     transition: color .18s ease, background .18s ease, transform .18s ease;
   }
 
@@ -113,8 +120,13 @@
   }
 
   .sidebar-nav-active {
-    background: linear-gradient(100deg, rgba(255,255,255,.14), rgba(255,255,255,.075));
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.075), 0 5px 14px rgba(0,0,0,.07);
+    background: rgba(255,255,255,.1);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.09);
+  }
+
+  .sidebar-nav-active .sidebar-nav-icon {
+    color: #c7f5df;
+    background: rgba(134,213,178,.13);
   }
 
   .sidebar-nav-active::before {
@@ -123,13 +135,67 @@
   }
 
   .app-topbar {
-    box-shadow: 0 4px 18px rgba(20,64,48,.035);
+    padding-top: env(safe-area-inset-top, 0px);
+    box-shadow: 0 1px 3px rgba(15,23,42,.025);
+    background: rgba(255,255,255,.96);
+    backdrop-filter: blur(16px);
+  }
+
+  .app-icon-button {
+    @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-600 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-800;
+  }
+
+  .app-icon {
+    flex-shrink: 0;
+    vertical-align: middle;
+  }
+
+  .mobile-navigation {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 35;
+    display: flex;
+    justify-content: space-around;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid #e2e8ed;
+    background: rgba(255,255,255,.97);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 -4px 20px rgba(15,23,42,.04);
+  }
+
+  .mobile-navigation-item {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 52px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border-radius: 12px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+    transition: color .18s ease, background-color .18s ease;
+  }
+
+  .mobile-navigation-active {
+    color: #186346;
+    background: #edf7f1;
+  }
+
+  .app-workspace {
+    width: 100%;
+    max-width: 1600px;
+    margin-inline: auto;
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
   }
 
   .card {
     @apply rounded-2xl border bg-white shadow-card;
-    border-color: #e3ebe6;
-    box-shadow: 0 2px 5px rgba(20, 64, 48, 0.025), 0 8px 24px rgba(20, 64, 48, 0.045);
+    border-color: #e2e8ed;
+    box-shadow: 0 1px 3px rgba(15,23,42,.025), 0 6px 20px rgba(18,55,45,.035);
   }
 
   h1, h2, h3, h4 {
@@ -155,6 +221,8 @@
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold
            transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap;
+    min-height: 44px;
+    touch-action: manipulation;
   }
   .btn-primary {
     @apply btn bg-primary-700 text-white hover:bg-primary-800 focus-visible:ring-primary-500 shadow-sm;
@@ -174,6 +242,7 @@
   }
   .btn-sm {
     @apply px-3 py-1.5 text-xs rounded-lg;
+    min-height: 36px;
   }
 
   .field {
@@ -187,6 +256,7 @@
            focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100
            disabled:bg-slate-50 disabled:text-slate-500;
     border-color: #dce7e0;
+    min-height: 46px;
   }
   .label {
     @apply block text-sm font-semibold text-slate-700 mb-1.5;
@@ -239,3 +309,61 @@
     @apply animate-pulse rounded-lg bg-slate-200;
   }
 }
+
+@media (max-width: 1023px) {
+  .app-shell { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .app-shell .app-workspace { padding-inline: 16px; }
+}
+@media (max-width: 639px) {
+  .app-workspace .input, .app-workspace .field,
+  .app-dialog .input, .app-dialog .field { min-height: 48px; font-size: 16px; }
+  .page-heading { gap: 16px; }
+  .page-heading-actions { width: 100%; }
+  .page-heading-actions > .btn { flex: 1; }
+  .app-workspace .card { border-radius: 16px; }
+  .app-workspace .table-wrap { overscroll-behavior-x: contain; }
+  .app-workspace .card > header { padding: 14px 16px; }
+  .app-dialog { max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 12px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .app-dialog-body { max-height: calc(100dvh - 180px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); overscroll-behavior: contain; }
+  .app-dialog header > button { min-height: 44px; min-width: 44px; }
+  .table-wrap { max-width: 100%; overscroll-behavior-x: contain; }
+  .app-workspace .btn-sm { min-height: 44px; }
+}
+
+.login-screen {
+  display: grid; min-height: 100dvh; place-items: center;
+  padding: max(32px, env(safe-area-inset-top, 0px)) 20px max(32px, env(safe-area-inset-bottom, 0px));
+  background: radial-gradient(ellipse at 0 0, #deeee5, transparent 55%), #f4f7f5;
+}
+.login-panel { width: 100%; max-width: 440px; padding: 36px; border: 1px solid #e2e9e5; border-radius: 28px; background: #fff; box-shadow: 0 16px 64px rgba(18,55,45,.07); }
+.login-brand { position: relative; margin: -36px -36px 28px; padding: 30px 24px 26px; border-radius: 27px 27px 0 0; background: radial-gradient(ellipse at 0 0, rgba(161,202,175,.16), transparent 70%), #12372d; border-bottom: 3px solid #d6b76a; }
+.login-brand-mark { display: block; width: 100px; height: 100px; padding: 5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 6px rgba(255,255,255,.06); }
+.login-panel .input { min-height: 50px; font-size: 16px; background: #fbfcfb; }
+.login-panel .btn-primary { min-height: 50px; }
+.launch-logo { display: grid; place-items: center; animation: launch-reveal .9s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes launch-reveal { from { opacity: 0; transform: translateY(12px) scale(.92); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.onboarding-screen { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; overflow-y: auto; padding: max(24px, env(safe-area-inset-top, 0px)) 28px max(28px, env(safe-area-inset-bottom, 0px)); background: #12372d; color: white; }
+.onboarding-illustration { display: grid; place-items: center; width: 160px; height: 160px; border: 1px solid rgba(255,255,255,.14); border-radius: 44px; background: rgba(255,255,255,.06); color: #b7e7ce; box-shadow: 0 0 0 18px rgba(255,255,255,.025); }
+@media (max-width: 479px) { .login-panel { padding: 28px 24px; border-radius: 24px; } .login-brand { margin: -28px -24px 26px; padding: 26px 22px 24px; border-radius: 23px 23px 0 0; } }
+@media (prefers-reduced-motion: reduce) { .launch-logo { animation: none; } }
+
+.skip-to-content { position: fixed; inset-inline-start: 16px; top: -100px; z-index: 250; padding: 10px 18px; border-radius: 12px; background: #12372d; color: #fff; }
+.skip-to-content:focus { top: max(12px, env(safe-area-inset-top, 0px)); }
+.app-dialog { display: flex; flex-direction: column; max-height: calc(100dvh - 32px); outline: none; }
+.app-dialog > header, .app-dialog > footer { flex-shrink: 0; }
+.app-dialog-body { min-height: 0; }
+@media (max-width: 767px) {
+  .input, .field { font-size: 16px; }
+  .app-dialog { max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 12px); }
+  .mobile-navigation-item:active, .btn:active, .app-icon-button:active { transform: scale(.97); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+/* Native first-use welcome: bundled photography remains available offline. */
+.welcome-screen { position: relative; isolation: isolate; min-height: 100dvh; overflow: hidden; display: flex; flex-direction: column; padding: max(24px, env(safe-area-inset-top)) 26px max(28px, env(safe-area-inset-bottom)); background: #0c2b22; color: white; }
+.welcome-photo { position: absolute; z-index: -1; inset: 0; }
+.welcome-photo img { width: 100%; height: 72%; object-fit: cover; object-position: center 38%; }
+.welcome-photo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,22,16,.16) 0%, rgba(5,22,16,.08) 25%, rgba(12,43,34,.85) 53%, #0c2b22 74%); }
+.welcome-content { margin-top: auto; padding-top: 36vh; padding-bottom: 22px; }
+@media (min-width: 700px) { .welcome-screen { padding-left: max(32px, calc((100vw - 560px)/2)); padding-right: max(32px, calc((100vw - 560px)/2)); } }

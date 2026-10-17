@@ -1,0 +1,108 @@
+name: android-release
+on:
+  workflow_call:
+    inputs:
+      version_name:
+        required: true
+        type: string
+      version_code:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Release version (major.minor.patch)'
+        required: true
+        default: '1.1.0'
+      version_code:
+        description: 'Increasing Android version code'
+        required: true
+        default: '3'
+permissions:
+  contents: read
+jobs:
+  signed-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare private signing material
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          for (const key of ['KEYSTORE_BASE64', 'STORE_PASSWORD', 'KEY_ALIAS', 'KEY_PASSWORD']) {
+              if (!process.env[key]) throw new Error(`Missing release secret: ${key}`);
+          }
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'halaqat-release.jks'), Buffer.from(process.env.KEYSTORE_BASE64, 'base64'), { mode: 0o600 });
+          NODE
+      - run: npm ci --prefix frontend
+      - run: npm --prefix frontend run test:offline
+      - run: npm --prefix frontend run test:full-offline
+      - run: npm --prefix frontend run build
+        env:
+          VITE_API_URL: https://quran-memorization-circles.onrender.com/api
+          VITE_SOCKET_URL: https://quran-memorization-circles.onrender.com
+      - run: npm run mobile:sync -- android
+        working-directory: frontend
+      - name: Configure Firebase when provided
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          node -e "const fs=require('fs');const value=process.env.GOOGLE_SERVICES_JSON;if(value){JSON.parse(value);fs.writeFileSync('frontend/android/app/google-services.json',value);}"
+      - name: Build signed APK and Play bundle
+        working-directory: frontend/android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/halaqat-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_VERSION_NAME: ${{ inputs.version_name }}
+          ANDROID_VERSION_CODE: ${{ inputs.version_code }}
+        run: bash ./gradlew assembleRelease bundleRelease
+      - name: Verify release signature and manifest
+        run: |
+          set -euo pipefail
+          build_tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          apk="frontend/android/app/build/outputs/apk/release/app-release.apk"
+          "$build_tools/apksigner" verify --verbose --print-certs "$apk" > release-signature.txt
+          if grep -q 'CN=Android Debug' release-signature.txt; then echo 'Debug signature refused'; exit 1; fi
+          "$build_tools/aapt" dump badging "$apk" > release-manifest.txt
+          if grep -q 'application-debuggable' release-manifest.txt; then echo 'Debuggable release refused'; exit 1; fi
+          sha256sum "$apk" frontend/android/app/build/outputs/bundle/release/app-release.aab > SHA256SUMS.txt
+      - name: Prepare simple download package
+        run: |
+          mkdir -p release-download
+          cp frontend/android/app/build/outputs/apk/release/app-release.apk release-download/Halaqat-${{ inputs.version_name }}.apk
+          cp frontend/android/app/build/outputs/bundle/release/app-release.aab release-download/Halaqat-${{ inputs.version_name }}.aab
+          cp release-signature.txt release-manifest.txt release-download/
+          cd release-download
+          sha256sum *.apk *.aab > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: halaqat-release-${{ inputs.version_name }}-${{ inputs.version_code }}
+          path: release-download/*
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: halaqat-web-${{ inputs.version_name }}
+          path: frontend/dist/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Remove temporary private key
+        if: always()
+        run: rm -f -- "$RUNNER_TEMP/halaqat-release.jks"

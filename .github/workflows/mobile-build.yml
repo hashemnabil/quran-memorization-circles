@@ -6,14 +6,26 @@ on:
       - 'frontend/**'
       - '.github/workflows/mobile-build.yml'
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Build the signed production release'
+        type: boolean
+        default: false
+      version_name:
+        description: 'Release version'
+        default: '1.1.0'
+      version_code:
+        description: 'Increasing Android version code'
+        default: '3'
 jobs:
   android-debug:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.release }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - uses: actions/setup-java@v4
@@ -21,7 +33,7 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Install frontend dependencies
-        run: npm install --prefix frontend
+        run: npm ci --prefix frontend
       - name: Build web assets for native wrapper
         run: npm --prefix frontend run build
 
@@ -29,15 +41,21 @@ jobs:
           VITE_API_URL: https://quran-memorization-circles.onrender.com/api
           VITE_SOCKET_URL: https://quran-memorization-circles.onrender.com
 
-      - name: Generate Android project
+      - name: Generate Android project if missing
+        if: ${{ hashFiles('frontend/android/app/build.gradle') == '' }}
         working-directory: frontend
-        run: npx cap add android
+        run: npm run mobile:add:android
       - name: Sync Capacitor assets
         working-directory: frontend
-        run: npx cap sync android
+        run: npm run mobile:sync -- android
+      - name: Configure optional Firebase Android project
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          node -e "const fs=require('fs');const value=process.env.GOOGLE_SERVICES_JSON;if(value){JSON.parse(value);fs.writeFileSync('frontend/android/app/google-services.json',value);}"
       - name: Assemble debug APK
         working-directory: frontend/android
-        run: ./gradlew assembleDebug
+        run: bash ./gradlew assembleDebug
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -45,3 +63,10 @@ jobs:
           path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
+  android-release:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+    uses: ./.github/workflows/android-release.yml
+    with:
+      version_name: ${{ inputs.version_name }}
+      version_code: ${{ inputs.version_code }}
+    secrets: inherit

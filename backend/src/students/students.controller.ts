@@ -14,6 +14,7 @@ import {
   SetStudentPhotoDto,
   SurahCompletionDto,
   UpdateStudentDto,
+  StudentQuestionnaireDto,
 } from './dto/student.dto';
 import { StudentsService } from './students.service';
 
@@ -35,6 +36,12 @@ export class StudentsController {
   @ApiOperation({ summary: 'ملف الطالب الحالي وسجلاته الخاصة' })
   getMyProfile(@CurrentUser() user: AuthUser) {
     return this.service.getMyProfile(user);
+  }
+
+  @Patch('me/questionnaire')
+  @Roles(Role.STUDENT)
+  updateMyQuestionnaire(@CurrentUser() user: AuthUser, @Body() dto: StudentQuestionnaireDto) {
+    return this.service.updateMyQuestionnaire(user, dto);
   }
 
   @Get('import-template')

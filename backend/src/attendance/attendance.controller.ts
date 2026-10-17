@@ -13,8 +13,20 @@ import {
 @ApiTags('الحضور والغياب')
 @ApiBearerAuth()
 @Controller('attendance')
+@Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT, Role.PARENT)
 export class AttendanceController {
   constructor(private readonly service: AttendanceService) {}
+
+  @Get('offline-bundle')
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
+  @ApiOperation({ summary: 'حزمة أولية محدودة الصلاحيات للاستخدام دون إنترنت في الحضور' })
+  offlineBundle(
+    @CurrentUser() user: AuthUser,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.offlineBundle(user, cursor, limit === undefined ? 500 : Number(limit));
+  }
 
   @Get('sheet')
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)

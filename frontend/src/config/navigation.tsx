@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
+import { canVisitStudentRoute } from '@/lib/student-route-policy';
 import type { Role } from '@/types';
 import {
+  IconCamera,
   IconAward,
   IconBell,
   IconBook,
@@ -32,7 +34,7 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-const ALL: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'PARENT', 'SUPPORT'];
+const ALL: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'PARENT', 'SUPPORT', 'STUDENT'];
 
 /**
  * The single source of truth for the sidebar. Each entry declares which roles
@@ -48,24 +50,31 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'شؤون إدارية',
     items: [
+      { to: '/admin/notifications', label: 'إرسال الإشعارات', icon: <IconBell size={19} />, roles: ['ADMIN'] },
+      { to: '/admin/activity', label: 'سجل النشاط', icon: <IconCalendar size={19} />, roles: ['ADMIN'] },
+      { to: '/admin/password-requests', label: 'طلبات تغيير كلمة المرور', icon: <IconUser size={19} />, roles: ['ADMIN'] },
+      { to: '/profile-reviews/teachers', label: 'تحقق من بيانات المحفظ', icon: <IconUser size={19} />, roles: ['ADMIN'] },
+      { to: '/teacher-duties', label: 'جدول نظام المحفّظين', icon: <IconCalendar size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/circles', label: 'الحلقات', icon: <IconCircleGroup size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/courses', label: 'الدورات', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/staff/attendance', label: 'حضور الكادر', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
       { to: '/staff', label: 'دليل الكادر', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
-      { to: '/teachers', label: 'المعلمين', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
+      { to: '/teachers', label: 'المعلمين', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
       { to: '/supervisors', label: 'المشرفين', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
     ],
   },
   {
     title: 'الإعلام',
     items: [
-      { to: '/media-activities', label: 'سجل الإعلام', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
+      { to: '/media-schedule', label: 'جدول الإعلام', icon: <IconCamera size={19} />, roles: ['ADMIN'] },
+      { to: '/media-activities', label: 'سجل الإعلام', icon: <IconCamera size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
       { to: '/announcements', label: 'الإعلانات', icon: <IconBell size={19} />, roles: ['ADMIN'] },
     ],
   },
   {
     title: 'شؤون الطلبة',
     items: [
+      { to: '/profile-reviews/students', label: 'تحقق من بيانات الطالب', icon: <IconUser size={19} />, roles: ['ADMIN'] },
       { to: '/students', label: 'الطلاب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/attendance', label: 'الحضور والغياب', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/recitations', label: 'التسميع اليومي', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
@@ -80,7 +89,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/documents/attendance', label: 'تقرير الحضور والغياب', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/documents/recitations', label: 'تقرير التسميع اليومي', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/exams', label: 'تقرير الاختبارات والنتائج', icon: <IconAward size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE'] },
+      { to: '/documents/exams', label: 'تقرير الاختبارات والنتائج', icon: <IconAward size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/documents/student', label: 'الملف الشامل للطالب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/documents/circles', label: 'إحصائية الحلقات والمحفظين', icon: <IconCircleGroup size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/documents/students', label: 'سجل الطلاب', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
@@ -99,7 +108,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'التواصل',
     items: [
       { to: '/chat', label: 'المحادثات', icon: <IconChat size={19} />, roles: ALL, badge: 'chat' },
-      { to: '/notifications', label: 'الإشعارات', icon: <IconCalendar size={19} />, roles: ALL, badge: 'notifications' },
+      { to: '/notifications', label: 'الإشعارات', icon: <IconBell size={19} />, roles: ALL, badge: 'notifications' },
       { to: '/support', label: 'الدعم الفني', icon: <IconLifeBuoy size={19} />, roles: ALL, badge: 'support' },
     ],
   },
@@ -113,6 +122,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'الملف الشخصي',
     items: [
+      { to: '/about', label: 'معلومات عن البرنامج', icon: <IconBook size={19} />, roles: ALL },
+      { to: '/verify-profile', label: 'تحقق من بياناتي', icon: <IconUser size={19} />, roles: ['TEACHER', 'STUDENT'] },
       { to: '/profile', label: 'الملف الشخصي', icon: <IconUser size={19} />, roles: ALL },
     ],
   },
@@ -156,6 +167,7 @@ export function rolesForPath(path?: string | null): Role[] | null {
  * them by the school's own notice.
  */
 export function canOpenPath(role: Role, path?: string | null): boolean {
+  if (role === 'STUDENT') return !!path && canVisitStudentRoute(path.split(/[?#]/)[0].replace(/\/+$/, '') || '/');
   const roles = rolesForPath(path);
   return roles === null ? true : roles.includes(role);
 }

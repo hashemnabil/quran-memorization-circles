@@ -1,3 +1,6 @@
+import { passwordError } from '@/lib/validation';
+import { NativePushSettings } from '@/components/NativePush';
+import { Link } from 'react-router-dom';
 import { ChangeEvent, FormEvent, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -16,9 +19,10 @@ import {
 } from '@/components/ui/Icons';
 import { EMPLOYMENT_LABELS, ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateTime, formatParts } from '@/lib/format';
+import { rememberOfflineLogin } from '@/lib/offline-login';
 
 export default function ProfilePage() {
-  const { user, logout, setUser } = useAuthStore();
+  const { user, logout, forgetDevice, setUser } = useAuthStore();
   const navigate = useNavigate();
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -36,7 +40,11 @@ export default function ProfilePage() {
   });
 
   const changePassword = useMutation({
-    mutationFn: () => api.patch('/auth/change-password', { currentPassword, newPassword }),
+    mutationFn: async () => {
+      const result = await api.patch('/auth/change-password', { currentPassword, newPassword });
+      if (user) await rememberOfflineLogin(user.username, newPassword, { ...user, mustChangePassword: false });
+      return result;
+    },
     onSuccess: async () => {
       toast.success('تم تغيير كلمة المرور، يرجى تسجيل الدخول مجدداً');
       await logout();
@@ -51,7 +59,7 @@ export default function ProfilePage() {
     e.preventDefault();
     const next: Record<string, string> = {};
     if (!currentPassword) next.currentPassword = 'كلمة المرور الحالية مطلوبة';
-    if (newPassword.length < 6) next.newPassword = 'كلمة المرور الجديدة 6 أحرف على الأقل';
+    if (passwordError(newPassword)) next.newPassword = passwordError(newPassword);
     if (newPassword !== confirmPassword) next.confirmPassword = 'كلمتا المرور غير متطابقتين';
     if (newPassword && newPassword === currentPassword) next.newPassword = 'يجب أن تختلف عن الحالية';
     setErrors(next);
@@ -102,12 +110,18 @@ export default function ProfilePage() {
             className="mt-5 w-full"
             icon={<IconLogout size={16} />}
             onClick={async () => {
-              await logout();
-              navigate('/login', { replace: true });
+              try { await logout(); navigate('/login', { replace: true }); }
+              catch (error) { toast.error(apiError(error)); }
             }}
           >
             تسجيل الخروج
           </Button>
+            <p className="mt-2 text-xs leading-6 text-slate-500">تبقى بياناتك مشفرة على الجهاز، ويمكنك الدخول بكلمة مرورك دون نت. التعديلات المعلقة تبقى محفوظة.</p>
+            <Button variant="secondary" className="mt-3 w-full" onClick={async () => {
+              if (!window.confirm('حذف بيانات هذا الحساب من هذا الجهاز وإلغاء الدخول دون نت؟ لا يمكن الحذف بوجود تعديلات غير مزامنة.')) return;
+              try { await forgetDevice(); navigate('/login', { replace: true }); } catch (error) { toast.error(apiError(error)); }
+            }}>حذف بيانات الحساب من هذا الجهاز</Button>
+          <Link to="/account-deletion" className="mt-3 block py-3 text-center text-sm font-bold text-red-700">طلب حذف الحساب والبيانات</Link>
         </Card>
 
         <div className="space-y-5 lg:col-span-2">
@@ -162,8 +176,9 @@ export default function ProfilePage() {
             </Card>
           )}
 
-          <ProfileDetailsCard profile={profile} onUpdated={setUser} />
+          {['STUDENT', 'TEACHER'].includes(user.role) ? <Card title="بياناتي الشخصية"><Button onClick={() => navigate('/verify-profile')}>تحقق من بياناتي</Button></Card> : <ProfileDetailsCard profile={profile} onUpdated={setUser} />}
 
+          <NativePushSettings />
           <Card title="تغيير كلمة المرور" subtitle="سيتم إنهاء جميع جلساتك بعد التغيير">
             <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
               <Input
@@ -183,7 +198,7 @@ export default function ProfilePage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 error={errors.newPassword}
-                hint="6 أحرف على الأقل"
+                hint="12 حرفًا على الأقل"
                 dir="ltr"
               />
               <Input

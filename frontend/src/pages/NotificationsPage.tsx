@@ -42,6 +42,7 @@ export default function NotificationsPage() {
 
   const markRead = useMutation({
     mutationFn: (id: string) => api.patch(`/notifications/${id}/read`),
+    onError: (error) => toast.error(apiError(error)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
@@ -58,6 +59,7 @@ export default function NotificationsPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/notifications/${id}`),
+    onError: (error) => toast.error(apiError(error)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
@@ -80,6 +82,7 @@ export default function NotificationsPage() {
       return;
     }
     if (canOpenPath(role, notification.link)) navigate(notification.link);
+    else toast.error('هذا الإشعار لا يرتبط بصفحة متاحة لحسابك');
   };
 
   /** Whether the row should look clickable at all. */
@@ -116,7 +119,7 @@ export default function NotificationsPage() {
       <Card padded={false}>
         {isLoading ? (
           <LoadingState />
-        ) : isError ? (
+        ) : isError && !data ? (
           <ErrorState message="تعذر تحميل الإشعارات" onRetry={() => refetch()} />
         ) : !data?.data.length ? (
           <EmptyState

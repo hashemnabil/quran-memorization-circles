@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -41,6 +41,14 @@ import type {
 
 type Draft = Record<string, { status: AttendanceStatus; note?: string }>;
 
+function mayUseOfflineAttendanceFallback(error: unknown): boolean {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
+  if (!axios.isAxiosError(error)) return false;
+  if (!error.response) return true;
+  const status = error.response.status;
+  return status === 408 || status === 429 || status >= 500;
+}
+
 export default function AttendancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -50,12 +58,27 @@ export default function AttendancePage() {
   const [circleId, setCircleId] = useState(searchParams.get('circleId') ?? '');
   const [date, setDate] = useState(todayInput());
   const [draft, setDraft] = useState<Draft>({});
+  const draftSheet = useRef('');
+  const draftEdited = useRef(false);
+  const editDraft: typeof setDraft = (value) => { draftEdited.current = true; setDraft(value); };
   /** Set the moment a sheet is saved, so the confirmation shows before the refetch lands. */
   const [justSaved, setJustSaved] = useState<{ circleId: string; date: string } | null>(null);
 
   const { data: circles } = useQuery({
     queryKey: ['circles', 'options'],
-    queryFn: async () => (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data,
+    queryFn: async () => {
+      try {
+        return (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data;
+      } catch (error) {
+        if (!mayUseOfflineAttendanceFallback(error)) throw error;
+        const bundle = queryClient.getQueryData<{
+          accountId: string;
+          circles: Pick<Circle, 'id' | 'name' | 'code'>[];
+        }>(['offline', 'attendance-bundle', accountId]);
+        if (bundle?.accountId === accountId && bundle.circles.length) return bundle.circles;
+        throw error;
+      }
+    },
   });
 
   // Default to the first circle the user can access.
@@ -80,12 +103,39 @@ export default function AttendancePage() {
     refetch,
   } = useQuery({
     queryKey: ['attendance', 'sheet', circleId, date],
-    queryFn: async () =>
-      (await api.get<AttendanceSheet>('/attendance/sheet', { params: { circleId, date } })).data,
+    queryFn: async () => {
+      try {
+        return (await api.get<AttendanceSheet>('/attendance/sheet', { params: { circleId, date } })).data;
+      } catch (error) {
+        if (!mayUseOfflineAttendanceFallback(error)) throw error;
+        const bundle = queryClient.getQueryData<{
+          accountId: string;
+          circles: Array<Pick<Circle, 'id' | 'name' | 'code' | 'scheduleDays' | 'startTime'>>;
+          students: Array<{ id: string; circleId: string | null; code: string; fullName: string; status: string; evaluation: string }>;
+        }>(['offline', 'attendance-bundle', accountId]);
+        if (bundle?.accountId !== accountId) throw error;
+        const circle = bundle.circles.find((item) => item.id === circleId);
+        if (!circle) throw error;
+        const students = bundle.students.filter((student) => student.circleId === circleId);
+        // A cached empty circle is a valid roster; render the empty state.
+        // A roster is sufficient to prepare a draft, but not to prove the server
+        // has not already recorded this date. The UI warns before the user queues it.
+        return {
+          circle,
+          date,
+          alreadyRecorded: false,
+          canSubmit: true,
+          submittedAt: null,
+          submittedBy: null,
+          offlineFallback: true,
+          students: students.map((student) => ({ ...student, attendance: null })),
+        } as AttendanceSheet;
+      }
+    },
     enabled: !!circleId && !!date,
   });
 
-  // Reset the draft whenever a new sheet loads, pre-filling saved values.
+  // Refresh roster data without discarding an in-progress sheet.
   useEffect(() => {
     if (!sheet) return;
     const next: Draft = {};
@@ -94,10 +144,22 @@ export default function AttendancePage() {
         ? { status: s.attendance.status, note: s.attendance.note ?? undefined }
         : { status: 'PRESENT' };
     });
-    setDraft(next);
-  }, [sheet]);
+    const key = `${accountId}:${circleId}:${date}`;
+    if (draftSheet.current !== key) {
+      draftSheet.current = key;
+      draftEdited.current = false;
+      setDraft(next);
+    } else {
+      setDraft(previous => draftEdited.current
+        ? Object.fromEntries(Object.entries(next).map(([id, value]) => [id, previous[id] ?? value])) as Draft
+        : next);
+    }
+  }, [sheet, accountId, circleId, date]);
 
   const save = useMutation({
+    // TanStack must run the handler offline so it can persist the durable outbox.
+    // Default online mode pauses the mutation in memory and never reaches onError.
+    networkMode: 'always',
     mutationFn: () =>
       api.post('/attendance', {
         circleId,
@@ -163,7 +225,7 @@ export default function AttendancePage() {
     (justSaved?.circleId === circleId && justSaved?.date === date);
 
   const setAll = (status: AttendanceStatus) => {
-    setDraft((prev) => Object.fromEntries(Object.keys(prev).map((id) => [id, { status }])) as Draft);
+    editDraft((prev) => Object.fromEntries(Object.keys(prev).map((id) => [id, { status }])) as Draft);
   };
 
   return (
@@ -204,6 +266,12 @@ export default function AttendancePage() {
               )}
             </div>
           </Card>
+
+          {sheet && (sheet as AttendanceSheet & { offlineFallback?: boolean }).offlineFallback && !submitted && (
+            <div role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+              أنت تعمل من نسخة الحضور المحفوظة محلياً. لا يمكن التأكد دون اتصال إن كان كشف هذا اليوم قد سُجّل مسبقاً؛ عند عودة الإنترنت سيتحقق الخادم من التكرار أو التعارض قبل اعتماد التعديل.
+            </div>
+          )}
 
           {!circleId ? (
             <Card>
@@ -283,7 +351,7 @@ export default function AttendancePage() {
                         <StatusPicker
                           value={entry.status}
                           onChange={(status) =>
-                            setDraft((prev) => ({ ...prev, [student.id]: { ...prev[student.id], status } }))
+                            editDraft((prev) => ({ ...prev, [student.id]: { ...prev[student.id], status } }))
                           }
                         />
 
@@ -293,7 +361,7 @@ export default function AttendancePage() {
                             placeholder="سبب العذر"
                             value={entry.note ?? ''}
                             onChange={(e) =>
-                              setDraft((prev) => ({
+                              editDraft((prev) => ({
                                 ...prev,
                                 [student.id]: { ...prev[student.id], note: e.target.value },
                               }))
@@ -337,6 +405,7 @@ function StatusPicker({
         <button
           key={status}
           type="button"
+          aria-pressed={value === status}
           onClick={() => onChange(status)}
           className={cx(
             'rounded-lg border font-bold transition',

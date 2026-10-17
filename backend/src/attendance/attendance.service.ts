@@ -1,5 +1,7 @@
+import { createAbsenceAlerts } from './absence-alerts';
+import { applyAttendanceEntries } from './attendance-write';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AttendanceStatus, NotificationType, Prisma } from '@prisma/client';
+import { AttendanceStatus, Notification, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { ActivityService } from '../common/services/activity.service';
@@ -28,6 +30,52 @@ export class AttendanceService {
     private readonly activity: ActivityService,
     private readonly notifications: NotificationsService,
   ) {}
+
+  /**
+   * A small, permission-scoped bootstrap for offline attendance.
+   * Student rows are cursor-paginated so large schools never silently truncate.
+   * Only roster fields needed to prepare an attendance sheet are returned.
+   */
+  async offlineBundle(user: AuthUser, cursor?: string, requestedLimit = 500) {
+    const limit = Math.min(500, Math.max(1, Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 500));
+    const allowed = await this.acl.accessibleCircleIds(user);
+    const circleWhere: Prisma.CircleWhereInput = {
+      deletedAt: null,
+      isActive: true,
+      ...(allowed !== null ? { id: { in: allowed } } : {}),
+    };
+    const circles = await this.prisma.circle.findMany({
+      where: circleWhere,
+      select: { id: true, name: true, code: true, scheduleDays: true, startTime: true },
+      orderBy: { id: 'asc' },
+    });
+    const circleIds = circles.map((circle) => circle.id);
+    const rows = circleIds.length
+      ? await this.prisma.student.findMany({
+          where: {
+            circleId: { in: circleIds },
+            deletedAt: null,
+            status: { in: ['ACTIVE', 'SUSPENDED'] },
+          },
+          select: { id: true, circleId: true, code: true, fullName: true, status: true, evaluation: true },
+          orderBy: { id: 'asc' },
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+          take: limit + 1,
+        })
+      : [];
+    const hasMore = rows.length > limit;
+    const students = hasMore ? rows.slice(0, limit) : rows;
+    return {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      accountId: user.id,
+      circles,
+      students,
+      nextCursor: hasMore ? students[students.length - 1]?.id ?? null : null,
+      complete: !hasMore,
+      pageSize: limit,
+    };
+  }
 
   /** The roster for a circle on a date, pre-filled with whatever was already recorded. */
   async sheet(user: AuthUser, query: AttendanceSheetQueryDto) {
@@ -87,90 +135,45 @@ export class AttendanceService {
       throw new BadRequestException('لا يمكن تسجيل الحضور لتاريخ مستقبلي');
     }
 
-    // One submission per circle per day. The form disappears in the UI too, but
-    // this is the check that actually prevents a duplicate — a correction after
-    // the fact goes through `updateRecord`, one student at a time.
-    const existing = await this.prisma.attendance.findMany({
-      where: { circleId: dto.circleId, date },
-      select: { studentId: true, status: true, note: true },
-    });
-    if (existing.length > 0) {
-      // A mobile client may lose the HTTP response after the transaction commits.
-      // Treat an exact replay of the same complete sheet as success, but never
-      // silently overwrite a sheet that has since changed.
-      const submitted = new Map(dto.entries.map((entry) => [
-        entry.studentId,
-        { status: entry.status, note: entry.status === AttendanceStatus.EXCUSED ? entry.note ?? null : null },
-      ]));
-      const identical =
-        existing.length === dto.entries.length &&
-        submitted.size === dto.entries.length &&
-        existing.every((row) => {
-          const candidate = submitted.get(row.studentId);
-          return !!candidate && candidate.status === row.status && candidate.note === row.note;
-        });
-      if (identical) {
-        return {
-          message: 'كشف الحضور محفوظ مسبقاً بنفس البيانات',
-          date: dto.date,
-          circleId: dto.circleId,
-          count: existing.length,
-          idempotentReplay: true,
-        };
-      }
-      throw new BadRequestException(
-        'تم حفظ كشف حضور هذه الحلقة لهذا اليوم ببيانات مختلفة، ويمكن تعديل حضور أي طالب من سجل الحضور',
-      );
+    // Concurrent submissions from different accounts are serialized per circle/day.
+    // PRESENT wins over either absence state, regardless of which request arrives first.
+    // Other conflicting non-present states keep the first saved value; use history corrections
+    // when an authorized staff member needs to change a saved record deliberately.
+    const studentIds = dto.entries.map((entry) => entry.studentId);
+    if (new Set(studentIds).size !== studentIds.length) {
+      throw new BadRequestException('يوجد طالب مكرر في كشف الحضور');
     }
-
-    // Every student in the payload must actually belong to this circle.
-    const studentIds = dto.entries.map((e) => e.studentId);
     const students = await this.prisma.student.findMany({
       where: { id: { in: studentIds }, circleId: dto.circleId, deletedAt: null },
       select: { id: true, fullName: true, parentId: true, parentProfile: { select: { userId: true } } },
     });
-    if (students.length !== new Set(studentIds).size) {
+    if (students.length !== studentIds.length) {
       throw new BadRequestException('بعض الطلاب المحددين لا ينتمون إلى هذه الحلقة');
     }
 
-    await this.prisma.$transaction(
-      dto.entries.map((entry) =>
-        this.prisma.attendance.upsert({
-          where: { studentId_date: { studentId: entry.studentId, date } },
-          create: {
-            studentId: entry.studentId,
-            circleId: dto.circleId,
-            date,
-            status: entry.status,
-            // The reason only belongs to an excused absence.
-            note: entry.status === AttendanceStatus.EXCUSED ? entry.note ?? null : null,
-            recordedById: actor.id,
-          },
-          update: {
-            status: entry.status,
-            circleId: dto.circleId,
-            note: entry.status === AttendanceStatus.EXCUSED ? entry.note ?? null : null,
-            recordedById: actor.id,
-          },
-        }),
-      ),
-    );
+    const newlyAbsentIds: string[] = [];
+    const savedNotices: Notification[] = [];
+    let changedCount = 0;
+    await this.prisma.$transaction(async (tx) => {
+      // PostgreSQL transaction-scoped lock prevents two accounts from both observing
+      // an empty sheet and then racing to overwrite each other's attendance statuses.
+      await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${dto.circleId}), hashtext(${date.toISOString()}))) AS locked`;
+      const applied = await applyAttendanceEntries(tx, actor, dto, date);
+      newlyAbsentIds.push(...applied.newlyAbsentIds);
+      changedCount = applied.changedCount;
+      for (const id of [...newlyAbsentIds].sort()) savedNotices.push(...await createAbsenceAlerts(tx, id, date));
+    }, { timeout: 30000 });
+    for (const notice of savedNotices) await this.notifications.deliver(notice);
 
-    // Let parents know about an unexcused absence the same day.
-    const absentIds = dto.entries
-      .filter((e) => e.status === AttendanceStatus.ABSENT)
-      .map((e) => e.studentId);
-
-    for (const student of students.filter((s) => absentIds.includes(s.id))) {
-      if (student.parentProfile?.userId) {
-        await this.notifications.notify({
-          userId: student.parentProfile.userId,
-          type: NotificationType.ATTENDANCE,
-          title: 'تسجيل غياب',
-          body: `تم تسجيل غياب الطالب ${student.fullName} بتاريخ ${dto.date}`,
-          link: `/parent/children/${student.id}`,
-        });
-      }
+    // Replays that changed nothing must not duplicate notifications or activity logs.
+    if (changedCount === 0) {
+      return {
+        message: 'تمت معالجة كشف الحضور؛ الحالة المحفوظة هي المعتمدة',
+        date: dto.date,
+        circleId: dto.circleId,
+        count: dto.entries.length,
+        idempotentReplay: true,
+      };
     }
 
     await this.activity.log({
@@ -186,6 +189,7 @@ export class AttendanceService {
       date: dto.date,
       circleId: dto.circleId,
       count: dto.entries.length,
+      presentWinsConflicts: true,
     };
   }
 
@@ -208,7 +212,9 @@ export class AttendanceService {
     if (!record) throw new NotFoundException('سجل الحضور غير موجود');
     await this.acl.assertCircleWriteAccess(actor, record.circleId);
 
-    const updated = await this.prisma.attendance.update({
+    const savedNotices: Notification[] = [];
+    const updated = await this.prisma.$transaction(async tx => {
+      const updated = await tx.attendance.update({
       where: { id },
       data: {
         status: dto.status,
@@ -221,22 +227,12 @@ export class AttendanceService {
       },
     });
 
-    const dateLabel = record.date.toISOString().slice(0, 10);
+      if (dto.status === AttendanceStatus.ABSENT && record.status !== AttendanceStatus.ABSENT) savedNotices.push(...await createAbsenceAlerts(tx, record.studentId, record.date));
+      return updated;
+    });
+    for (const notice of savedNotices) await this.notifications.deliver(notice);
 
-    // Only a change *into* an unexcused absence is worth waking the family for.
-    if (
-      dto.status === AttendanceStatus.ABSENT &&
-      record.status !== AttendanceStatus.ABSENT &&
-      record.student.parentProfile?.userId
-    ) {
-      await this.notifications.notify({
-        userId: record.student.parentProfile.userId,
-        type: NotificationType.ATTENDANCE,
-        title: 'تعديل سجل الحضور',
-        body: `تم تسجيل غياب الطالب ${record.student.fullName} بتاريخ ${dateLabel}`,
-        link: `/parent/children/${record.student.id}`,
-      });
-    }
+    const dateLabel = record.date.toISOString().slice(0, 10);
 
     await this.activity.log({
       userId: actor.id,

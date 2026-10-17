@@ -95,6 +95,7 @@ const REQUEST_INCLUDE = {
       id: true,
       code: true,
       fullName: true,
+      userId: true,
       memorizedParts: true,
       circle: {
         select: {
@@ -279,6 +280,7 @@ export class ExamsService {
 
   private formatDateArabic(date: Date): string {
     return date.toLocaleString('ar-EG', {
+      timeZone: 'Asia/Riyadh',
       dateStyle: 'full',
       timeStyle: 'short',
     });
@@ -459,7 +461,6 @@ export class ExamsService {
     await this.acl.assertStudentAccess(user, studentId);
 
     // ✅ تشخيص المشكلة - سجل البيانات
-    this.logger.log(`🔍 جاري التحقق من أهلية الطالب: ${studentId}`);
 
     const [sections, passed, openWork] = await Promise.all([
       this.prisma.examSection.findMany({
@@ -523,9 +524,6 @@ export class ExamsService {
     ]);
 
     // ✅ تشخيص المشكلة - سجل النتائج
-    this.logger.log(`📊 عدد المقررات الكلي: ${sections.length}`);
-    this.logger.log(`📊 عدد الاختبارات المجتازة: ${passed.length}`);
-    this.logger.log(`📊 عدد الطلبات المفتوحة: ${openWork.length}`);
 
     // ✅ تأكد من أن passedIds تحتوي على المعرفات الصحيحة فقط
     const manualRecords = await this.prisma.examMilestoneRecord.findMany({
@@ -569,12 +567,10 @@ export class ExamsService {
     manualOpenIds.forEach((id) => openIds.add(id));
 
     // ✅ تشخيص المشكلة - سجل المعرفات
-    this.logger.log(`🧪 المعرفات المجتازة: ${Array.from(passedIds).join(', ') || 'لا يوجد'}`);
-    this.logger.log(`🧪 المعرفات المفتوحة: ${Array.from(openIds).join(', ') || 'لا يوجد'}`);
 
     // ✅ إذا كان هناك مقررات مجتازة ولكن الطالب لم يقدم أي اختبار، هذا يعني وجود خطأ
     if (passedIds.size > 0 && passed.length === 0) {
-      this.logger.warn(`⚠️ تحذير: يوجد ${passedIds.size} مقرر مجتاز ولكن لا يوجد اختبارات للطالب ${studentId}`);
+      this.logger.warn('Exam progression data needs administrative review');
     }
 
     const progression = sections.map((section) => {
@@ -630,7 +626,6 @@ export class ExamsService {
       }));
 
     // ✅ تشخيص المشكلة - سجل المقررات القابلة للاختيار
-    this.logger.log(`✅ المقررات المتاحة للاختيار: ${selectableSections.length}`);
 
     return {
       passedCount: passedIds.size,
@@ -827,10 +822,7 @@ export class ExamsService {
         this.assertEligible(studentId, section.id, index === 0),
       ));
     } catch (error) {
-      this.logger.error(
-        `خطأ في التحقق من أهلية الطالب ${studentId}: ${error.message}`,
-        error.stack,
-      );
+      this.logger.error('Exam eligibility validation failed');
       throw error;
     }
   }
@@ -895,6 +887,8 @@ export class ExamsService {
       entityId: request.id,
     });
 
+    await this.notifications.notify({ userId: actor.id, type: NotificationType.EXAM_REQUEST, title: 'تم تقديم الطلب', body: 'الطلب بانتظار المراجعة', link: `/exams/requests/${request.id}` });
+    if (request.studentId) await this.notifications.notifyStudent(request.studentId, { type: NotificationType.EXAM_REQUEST, title: 'تم تقديم طلب بخصوصك', body: 'الطلب بانتظار المراجعة', data: { requestId: request.id } });
     return request;
   }
 
@@ -1035,6 +1029,7 @@ export class ExamsService {
       link: `/exams/requests/${id}`,
     });
 
+    await this.notifications.notifyStudent(request.studentId, { type: NotificationType.EXAM_REQUEST, title: 'تم رفض طلب الاختبار', body: dto.reviewNote, data: { requestId: id } });
     return updated;
   }
 
@@ -1063,7 +1058,7 @@ export class ExamsService {
       throw new ForbiddenException('يمكن إلغاء الطلب من قبل المعلم صاحب الطلب أو اللجنة');
     }
 
-    return this.prisma.examRequest.update({
+    const updated = await this.prisma.examRequest.update({
       where: { id },
       data: {
         status: ExamRequestStatus.CANCELLED,
@@ -1072,6 +1067,10 @@ export class ExamsService {
       },
       include: REQUEST_INCLUDE,
     });
+    await this.notifications.notifyMany([updated.teacher.user.id], { type: NotificationType.EXAM_REQUEST, title: 'تم إلغاء طلب الاختبار', link: `/exams/requests/${id}` });
+    await this.notifications.notifyRoles([Role.ADMIN, Role.EXAM_COMMITTEE], { type: NotificationType.EXAM_REQUEST, title: 'إلغاء طلب اختبار', link: `/exams/requests/${id}` });
+    await this.notifications.notifyStudent(updated.studentId, { type: NotificationType.EXAM_REQUEST, title: 'تم إلغاء طلب الاختبار' });
+    return updated;
   }
 
   // ==========================================================================
@@ -1086,6 +1085,12 @@ export class ExamsService {
   ) {
     const when = this.formatDateArabic(scheduledAt);
     const notificationPromises: Promise<any>[] = [];
+
+    if (request.student.userId) notificationPromises.push(this.notifications.notify({
+      userId: request.student.userId, type: NotificationType.EXAM_SCHEDULED,
+      title: 'تم تحديد موعد اختبارك', body: `اختبارك في "${this.requestLabel(request)}" بتاريخ ${when}`,
+      link: '/student', data: { examId: exam.id, scheduledAt: scheduledAt.toISOString() },
+    }));
 
     if (request.teacher?.user?.id) {
       notificationPromises.push(
@@ -1240,6 +1245,18 @@ export class ExamsService {
       });
     }
 
+    if (dto.status === ExamStatus.CANCELLED && exam.status !== ExamStatus.CANCELLED) {
+      await this.notifications.notifyStudent(updated.studentId, { type: NotificationType.EXAM_REQUEST,
+        title: 'تم إلغاء اختبارك', body: dto.notes, data: { examId: updated.id } });
+      if (updated.request?.teacher?.user?.id) await this.notifications.notify({ userId: updated.request.teacher.user.id,
+        type: NotificationType.EXAM_REQUEST, title: 'تم إلغاء الاختبار', link: `/exams/${id}` });
+    }
+
+    if ((dto.scheduledAt || dto.location !== undefined) && updated.status === ExamStatus.SCHEDULED) {
+      await this.notifications.notifyStudent(updated.studentId, { type: NotificationType.EXAM_SCHEDULED,
+        title: 'تم تعديل موعد اختبارك', body: `موعد اختبارك الجديد: ${this.formatDateArabic(updated.scheduledAt)}${updated.location ? ` — ${updated.location}` : ''}`,
+        data: { examId: updated.id, scheduledAt: updated.scheduledAt.toISOString() } });
+    }
     return updated;
   }
 
@@ -1372,6 +1389,8 @@ export class ExamsService {
       });
     }
 
+    const studentAccount = await this.prisma.student.findUnique({ where: { id: exam.studentId }, select: { userId: true } });
+    if (studentAccount?.userId) recipients.push({ userId: studentAccount.userId, link: '/student' });
     const seen = new Set<string>();
     const notificationPromises: Promise<any>[] = [];
 
@@ -1528,6 +1547,8 @@ export class ExamsService {
       });
     }
 
+    await this.notifications.notifyStudent(exam.studentId, { type: NotificationType.EXAM_RESULT,
+      title: 'تم تسجيل غيابك عن الاختبار', data: { examId: id } });
     return updated;
   }
 

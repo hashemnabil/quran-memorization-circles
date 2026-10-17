@@ -4,10 +4,13 @@
   "description": "Backend for the Quran Memorization Circles Management System",
   "private": true,
   "scripts": {
+    "test:realtime-sync": "node --test -r ts-node/register src/realtime/data-change.interceptor.test.ts",
+    "test:full-offline": "node --test -r ts-node/register src/offline-sync/sync-all.service.test.ts src/schedules/schedules.service.test.ts src/certificates/certificates.service.test.ts src/exams/exam-reminders.service.test.ts src/attendance/absence-alerts.test.ts src/notifications/notification-flows.test.ts src/push/push.test.ts",
     "build": "prisma generate && nest build",
     "start": "nest start",
     "dev": "nest start --watch",
-    "start:prod": "node dist/main.js",
+    "start:prod": "node scripts/start-production.mjs",
+    "test:production-start": "node --test scripts/start-production.test.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
@@ -17,22 +20,33 @@
     "db:reset": "prisma migrate reset --force",
     "db:wipe": "ts-node -P tsconfig.seed.json prisma/reset.ts --force",
     "db:fresh": "prisma migrate reset --force --skip-seed && npm run bootstrap",
-    "db:setup": "node scripts/db-setup.mjs"
+    "db:setup": "node scripts/db-setup.mjs",
+    "test:offline-sync": "node --test -r ts-node/register src/offline-sync/offline-sync.service.test.ts",
+    "test:sync-protocol": "node --test -r ts-node/register src/offline-sync/sync.service.test.ts src/offline-sync/sync.controller.test.ts",
+    "test:attendance-replay": "node --test -r ts-node/register src/attendance/attendance.service.test.ts",
+    "test:attendance-lock-integration": "node --test -r ts-node/register src/attendance/attendance-lock.integration.test.ts",
+    "test:journal-order-integration": "node --test -r ts-node/register src/offline-sync/journal-order.integration.test.ts",
+    "test:sync-push-integration": "node --test -r ts-node/register src/offline-sync/sync-push.integration.test.ts",
+    "test:security": "node --test -r ts-node/register src/production-config.test.ts src/auth/jwt.strategy.test.ts src/common/validators/safe-url.test.ts src/uploads/uploads.service.test.ts src/security-readiness.test.ts",
+    "test:api-integration": "node --test -r ts-node/register src/api.integration.test.ts",
+    "backup": "node scripts/backup.mjs",
+    "restore": "node scripts/restore.mjs",
+    "test:backup-restore": "node scripts/backup-restore.integration.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs"
   },
   "prisma": {
     "seed": "ts-node -P tsconfig.seed.json prisma/seed.ts"
   },
   "dependencies": {
-    "@nestjs/common": "^10.4.15",
-    "@nestjs/config": "^3.3.0",
-    "@nestjs/core": "^10.4.15",
-    "@nestjs/jwt": "^10.2.0",
-    "@nestjs/passport": "^10.0.3",
-    "@nestjs/platform-express": "^10.4.15",
-    "@nestjs/platform-socket.io": "^10.4.15",
-    "@nestjs/serve-static": "^4.0.2",
-    "@nestjs/swagger": "^7.4.2",
-    "@nestjs/websockets": "^10.4.15",
+    "@nestjs/common": "^12.1.3",
+    "@nestjs/config": "^12.0.1",
+    "@nestjs/core": "^12.1.3",
+    "@nestjs/jwt": "^12.0.3",
+    "@nestjs/passport": "^12.0.0",
+    "@nestjs/platform-express": "^12.1.3",
+    "@nestjs/platform-socket.io": "^12.1.3",
+    "@nestjs/swagger": "^12.0.2",
+    "@nestjs/websockets": "^12.1.3",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
@@ -41,11 +55,10 @@
     "helmet": "^7.2.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
-    "quran-memorization-circles": "file:..",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",
@@ -59,5 +72,15 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.6.3"
+  },
+  "overrides": {
+    "multer": "^2.4.0",
+    "body-parser": "^1.20.6",
+    "lodash": "^4.17.24",
+    "js-yaml": "^4.3.2",
+    "qs": "^6.16.0"
+  },
+  "engines": {
+    "node": ">=22 <25"
   }
 }

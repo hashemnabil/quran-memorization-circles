@@ -66,7 +66,10 @@ function describeRequest(r: ExamRequest): string {
   const parts: string[] = [];
   if (r.requestedHizb != null) parts.push(`حزب ${r.requestedHizb}`);
   if (r.requestedJuz != null) parts.push(`جزء ${r.requestedJuz}`);
-  if (r.requestedCombined != null) parts.push(`مجتمعة ${r.requestedCombined}`);
+  if (r.requestedCombined != null) {
+    const stage = r.note?.match(/نوع الاختبار: مجتمعة \\d+ (داخلي|خارجي)/)?.[1];
+    parts.push(`مجتمعة ${r.requestedCombined}${stage ? ` ${stage}` : ''}`);
+  }
   if (parts.length) return parts.join(' + ');
 
   const selectedSections = r.sections?.map((entry) => entry.section.name).filter(Boolean) ?? [];
@@ -738,6 +741,8 @@ function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Stud
   const debounced = useDebounce(search);
   const [student, setStudent] = useState<Student | null>(initialStudent ?? null);
   const [sectionIds, setSectionIds] = useState<string[]>([]);
+  const [combinedSize, setCombinedSize] = useState('');
+  const [combinedStage, setCombinedStage] = useState<'داخلي' | 'خارجي'>('داخلي');
   const [note, setNote] = useState('');
 
   const students = useQuery({
@@ -762,7 +767,8 @@ function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Stud
       api.post('/exams/requests', {
         studentId: student!.id,
         sectionIds,
-        note: note || undefined,
+        requestedCombined: combinedSize ? Number(combinedSize) : undefined,
+        note: [combinedSize ? `نوع الاختبار: مجتمعة ${combinedSize} ${combinedStage}` : '', note.trim()].filter(Boolean).join(' — ') || undefined,
       }),
     onSuccess: () => {
       toast.success('تم تقديم طلب الاختبار');
@@ -812,7 +818,21 @@ function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Stud
         )}
         {student && (
           <div>
-            <p className="mb-2 text-sm font-semibold">اختر مقرراً أو مجموعة متتابعة للتسميع المجتمعة</p>
+            <div className="mb-3 grid gap-3 sm:grid-cols-2">
+              <Select label="نوع الطلب" value={combinedSize} onChange={(e) => setCombinedSize(e.target.value)}>
+                <option value="">حزب / جزء عادي</option>
+                <option value="3">مجتمعة 3</option>
+                <option value="5">مجتمعة 5</option>
+                <option value="10">مجتمعة 10</option>
+                <option value="20">مجتمعة 20</option>
+                <option value="30">مجتمعة 30</option>
+              </Select>
+              {combinedSize && <Select label="مرحلة الاختبار" value={combinedStage} onChange={(e) => setCombinedStage(e.target.value as 'داخلي' | 'خارجي')}>
+                <option value="داخلي">داخلي</option>
+                <option value="خارجي">خارجي</option>
+              </Select>}
+            </div>
+            <p className="mb-2 text-sm font-semibold">اختر الأحزاب والأجزاء التي يشملها الطلب</p>
             {eligibility.isLoading ? <LoadingState rows={3} /> : !selectableBlock.length ? (
               <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">لا توجد مقررات متاحة للطلب حالياً.</p>
             ) : (

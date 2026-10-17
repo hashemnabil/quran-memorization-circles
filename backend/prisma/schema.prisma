@@ -654,7 +654,7 @@ model ExamSection {
   kind        ExamSectionKind @default(JUZ)
   isRequired  Boolean  @default(true)
   pagesCount  Int?
-  minScore    Int      @default(60)
+  minScore    Int      @default(80)
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())

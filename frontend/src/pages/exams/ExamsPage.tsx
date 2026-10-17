@@ -542,7 +542,7 @@ function ScheduleModal({ request, onClose }: { request: ExamRequest; onClose: ()
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
-          <Button loading={mutation.isPending} disabled={!scheduledAt} onClick={() => mutation.mutate()}>
+          <Button loading={mutation.isPending} disabled={!scheduledAt || (committees.length > 0 && !committeeNumber)} onClick={() => mutation.mutate()}>
             جدولة
           </Button>
         </>

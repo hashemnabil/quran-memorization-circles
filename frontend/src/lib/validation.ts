@@ -71,7 +71,8 @@ export function emailError(value: string | undefined | null): string {
 }
 /** Mirrors the server policy for new credentials; legacy login passwords are unchanged. */
 export function passwordError(value: string): string {
-  const common = new Set(['password1234', 'password12345', 'password123456', '123456789012', '1234567890123', 'qwerty123456', 'qwertyuiop12', 'administrator', 'letmein123456', 'welcome12345']);
-  return value.length < 12 || value.length > 128 || new TextEncoder().encode(value).length > 72 || common.has(value.toLowerCase()) || /^(.)\1+$/.test(value)
-    ? 'اختر كلمة مرور من 12 حرفًا على الأقل، غير شائعة، ولا تتجاوز 72 بايت' : '';
+  if (!value) return 'كلمة المرور مطلوبة';
+  return new TextEncoder().encode(value).length > 72
+    ? 'كلمة المرور طويلة جدًا تقنيًا؛ قلّل عدد بايتات الأحرف المستخدمة'
+    : '';
 }

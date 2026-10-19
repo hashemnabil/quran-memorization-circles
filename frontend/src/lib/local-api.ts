@@ -2,9 +2,12 @@ import { readActiveIdentity } from './active-identity';
 import { db, entityTables, type EntityTable } from './db';
 import { accountId, get, mergeRows, remove, save, update } from './offline-engine';
 
-const TEMP_PASSWORD_LOWER = 'abcdefghijkmnopqrstuvwxyz';
-const TEMP_PASSWORD_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-const TEMP_PASSWORD_DIGITS = '23456789';
+const charsInRange = (start: number, end: number, excluded: number[] = []) =>
+  Array.from({ length: end - start + 1 }, (_, index) => String.fromCharCode(start + index))
+    .filter(char => !excluded.includes(char.charCodeAt(0))).join('');
+const TEMP_PASSWORD_LOWER = charsInRange(97, 122, [108, 111]);
+const TEMP_PASSWORD_UPPER = charsInRange(65, 90, [73, 79]);
+const TEMP_PASSWORD_DIGITS = charsInRange(50, 57);
 const TEMP_PASSWORD_ALL = TEMP_PASSWORD_LOWER + TEMP_PASSWORD_UPPER + TEMP_PASSWORD_DIGITS;
 
 function generateTemporaryPassword(): string {

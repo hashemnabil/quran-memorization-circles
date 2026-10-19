@@ -72,6 +72,24 @@ const LIST_SELECT = {
   },
 } satisfies Prisma.StudentSelect;
 
+function generateTemporaryPassword(): string {
+  const lower = 'abcdefghijkmnopqrstuvwxyz';
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const digits = '23456789';
+  const all = lower + upper + digits;
+  const chars = [
+    lower[randomInt(lower.length)],
+    upper[randomInt(upper.length)],
+    digits[randomInt(digits.length)],
+    ...Array.from({ length: 6 }, () => all[randomInt(all.length)]),
+  ];
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+}
+
 @Injectable()
 export class StudentsService {
   constructor(
@@ -536,7 +554,7 @@ export class StudentsService {
       if (usernameTaken) throw new ConflictException('رقم الطالب مستخدم كاسم دخول لحساب آخر');
     }
 
-    const temporaryPassword = dto.createAccount ? dto.accountPassword ?? randomInt(100000, 1000000).toString() : undefined;
+    const temporaryPassword = dto.createAccount ? dto.accountPassword ?? generateTemporaryPassword() : undefined;
     const passwordHash = temporaryPassword ? await bcrypt.hash(temporaryPassword, 12) : undefined;
     const student = await this.prisma.$transaction(async (tx) => {
       const user = dto.createAccount
@@ -686,7 +704,7 @@ export class StudentsService {
     const username = student.code.toLowerCase();
     const taken = await this.prisma.user.findFirst({ where: { username, deletedAt: null }, select: { id: true } });
     if (taken) throw new ConflictException('رقم الطالب مستخدم كاسم دخول لحساب آخر');
-    const temporaryPassword = password ?? randomInt(100000, 1000000).toString();
+    const temporaryPassword = password ?? generateTemporaryPassword();
     const user = await this.prisma.user.create({ data: {
       username, passwordHash: await bcrypt.hash(temporaryPassword, 12), fullName: student.fullName,
       phone: student.phone, role: Role.STUDENT, isActive: true, mustChangePassword: true, temporaryPasswordEncrypted: encryptTemporaryPassword(temporaryPassword),
@@ -701,7 +719,7 @@ export class StudentsService {
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, include: { user: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (!student.user) throw new BadRequestException('الطالب لا يملك حساب دخول');
-    const temporaryPassword = password ?? randomInt(100000, 1000000).toString();
+    const temporaryPassword = password ?? generateTemporaryPassword();
     await this.prisma.user.update({ where: { id: student.user.id },
       data: { passwordHash: await bcrypt.hash(temporaryPassword, 12), mustChangePassword: true, temporaryPasswordEncrypted: encryptTemporaryPassword(temporaryPassword), isActive: true } });
     await this.prisma.refreshToken.updateMany({ where: { userId: student.user.id, revokedAt: null }, data: { revokedAt: new Date() } });

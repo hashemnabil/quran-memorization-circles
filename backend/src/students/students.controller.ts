@@ -48,7 +48,7 @@ export class StudentsController {
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'تنزيل قالب استيراد الطلاب من Excel' })
   downloadImportTemplate(@Res() response: Response) {
-    const headers = ['اسم الطالب', 'رقم هوية الطالب', 'رقم هوية الأب', 'تاريخ الميلاد', 'الجنس (MALE/FEMALE)', 'جوال الطالب', 'العنوان', 'اسم ولي الأمر', 'جوال ولي الأمر', 'صلة القرابة', 'رمز الحلقة', 'ملاحظات'];
+    const headers = ['اسم الطالب', 'رقم هوية الطالب', 'رقم هوية الأب', 'تاريخ الميلاد', 'جوال الطالب', 'العنوان', 'اسم ولي الأمر', 'جوال ولي الأمر', 'صلة القرابة', 'اسم الشيخ أو الحلقة', 'ملاحظات'];
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.aoa_to_sheet([headers]);
     sheet['!cols'] = headers.map(() => ({ wch: 22 }));
@@ -81,12 +81,12 @@ export class StudentsController {
       nationalId: String(row['رقم هوية الطالب'] ?? '').trim(),
       fatherNationalId: String(row['رقم هوية الأب'] ?? '').trim(),
       birthDate: String(row['تاريخ الميلاد'] ?? '').trim(),
-      gender: String(row['الجنس (MALE/FEMALE)'] ?? '').trim().toUpperCase(),
       phone: String(row['جوال الطالب'] ?? '').trim(),
       address: String(row['العنوان'] ?? '').trim(),
       guardianName: String(row['اسم ولي الأمر'] ?? '').trim(),
       guardianPhone: String(row['جوال ولي الأمر'] ?? '').trim(),
       guardianRelation: String(row['صلة القرابة'] ?? '').trim(),
+      circleName: String(row['اسم الشيخ أو الحلقة'] ?? row['اسم الشيخ'] ?? row['اسم الحلقة'] ?? row['رمز الحلقة'] ?? '').trim(),
       circleCode: String(row['رمز الحلقة'] ?? '').trim(),
       notes: String(row['ملاحظات'] ?? '').trim(),
     })).filter((row) => Object.values(row).some((value) => value !== ''));

@@ -602,19 +602,31 @@ export class StudentsService {
       try {
         if (!row.fullName) throw new BadRequestException('اسم الطالب مطلوب');
         
-        if (row.gender && !['MALE', 'FEMALE'].includes(row.gender)) throw new BadRequestException('الجنس يجب أن يكون MALE أو FEMALE');
         let circleId: string | undefined;
-        if (row.circleCode) {
-          const circle = await this.prisma.circle.findFirst({ where: { code: row.circleCode, deletedAt: null }, select: { id: true } });
-          if (!circle) throw new BadRequestException(`رمز الحلقة غير موجود: ${row.circleCode}`);
-          circleId = circle.id;
+        const circleIdentifier = (row.circleName || row.circleCode || '').trim();
+        if (circleIdentifier) {
+          const matches = await this.prisma.circle.findMany({
+            where: {
+              deletedAt: null,
+              OR: [
+                { code: circleIdentifier },
+                { name: { equals: circleIdentifier, mode: 'insensitive' } },
+                { supervisor: { fullName: { equals: circleIdentifier, mode: 'insensitive' } } },
+                { teachers: { some: { endedAt: null, teacher: { user: { fullName: { equals: circleIdentifier, mode: 'insensitive' } } } } } },
+              ],
+            },
+            select: { id: true, name: true },
+          });
+          const uniqueMatches = matches.filter((circle, index) => matches.findIndex((candidate) => candidate.id === circle.id) === index);
+          if (!uniqueMatches.length) throw new BadRequestException(`لم يتم العثور على حلقة أو شيخ بهذا الاسم: ${circleIdentifier}`);
+          if (uniqueMatches.length > 1) throw new BadRequestException(`اسم الشيخ مرتبط بأكثر من حلقة؛ اكتب اسم الحلقة بدلاً منه: ${circleIdentifier}`);
+          circleId = uniqueMatches[0].id;
         }
         const created = await this.create(actor, {
           fullName: row.fullName,
           nationalId: row.nationalId,
           fatherNationalId: row.fatherNationalId || undefined,
           birthDate: row.birthDate || undefined,
-          gender: (row.gender || undefined) as any,
           phone: row.phone || undefined,
           address: row.address || undefined,
           guardianName: row.guardianName || undefined,

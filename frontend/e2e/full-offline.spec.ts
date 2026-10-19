@@ -362,7 +362,7 @@ test('administrator creates a user and student account, resets password offline 
     };
   }))).toBe(true);
   await context.setOffline(true);
-  await page.getByRole('combobox').selectOption(fixtures.students[0].id);
+  await page.getByRole('combobox').first().selectOption(fixtures.students[0].id);
   await page.getByRole('button', { name: 'إنشاء حساب طالب', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'الحساب وكلمة المرور' })).toBeVisible();
   await page.getByRole('button', { name: 'تم، إغلاق', exact: true }).click();

@@ -690,7 +690,7 @@ export class StudentsService {
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, include: { user: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (!student.user) throw new BadRequestException('الطالب لا يملك حساب دخول');
-    const temporaryPassword = password ?? randomBytes(9).toString('base64url');
+    const temporaryPassword = password ?? randomInt(100000, 1000000).toString();
     await this.prisma.user.update({ where: { id: student.user.id },
       data: { passwordHash: await bcrypt.hash(temporaryPassword, 12), mustChangePassword: true, temporaryPasswordEncrypted: encryptTemporaryPassword(temporaryPassword), isActive: true } });
     await this.prisma.refreshToken.updateMany({ where: { userId: student.user.id, revokedAt: null }, data: { revokedAt: new Date() } });

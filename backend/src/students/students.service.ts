@@ -714,6 +714,32 @@ export class StudentsService {
     return { studentId: id, fullName: student.fullName, username, temporaryPassword };
   }
 
+  /**
+   * Reset many student passwords through one API request. Keep bounded concurrency
+   * so bcrypt and the database are not overwhelmed when the school selects hundreds
+   * of students at once. Failures are isolated per student and reported to the caller.
+   */
+  async resetStudentAccountPasswordsBulk(actor: AuthUser, ids: string[]) {
+    if (actor.role !== Role.ADMIN) throw new ForbiddenException('إدارة حسابات الطلاب متاحة للإدارة فقط');
+    const uniqueIds = [...new Set(ids)];
+    const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+    const concurrency = 10;
+    for (let start = 0; start < uniqueIds.length; start += concurrency) {
+      const batch = uniqueIds.slice(start, start + concurrency);
+      const batchResults = await Promise.all(batch.map(async (id) => {
+        try {
+          await this.resetStudentAccountPassword(actor, id);
+          return { id, ok: true as const };
+        } catch {
+          return { id, ok: false as const, error: 'تعذر تغيير كلمة السر لهذا الطالب' };
+        }
+      }));
+      results.push(...batchResults);
+    }
+    const succeeded = results.filter((result) => result.ok).length;
+    return { total: results.length, succeeded, failed: results.length - succeeded, results };
+  }
+
   async resetStudentAccountPassword(actor: AuthUser, id: string, password?: string) {
     if (password !== undefined) assertNewPassword(password);
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, include: { user: true } });

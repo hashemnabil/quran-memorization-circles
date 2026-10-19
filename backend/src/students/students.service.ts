@@ -659,12 +659,23 @@ export class StudentsService {
         user: { select: { id: true, username: true, isActive: true, mustChangePassword: true, temporaryPasswordEncrypted: true } } },
       orderBy: { fullName: 'asc' },
     });
-    return students.filter((s) => s.user).map((s) => ({
-      id: s.id, fullName: s.fullName, nationalId: s.nationalId, fatherNationalId: s.fatherNationalId, phone: s.phone, guardianName: s.guardianName, guardianPhone: s.guardianPhone, code: s.code,
-      userId: s.user!.id, username: s.user!.username, isActive: s.user!.isActive,
-      mustChangePassword: s.user!.mustChangePassword,
-      temporaryPassword: s.user!.mustChangePassword && s.user!.temporaryPasswordEncrypted ? decryptTemporaryPassword(s.user!.temporaryPasswordEncrypted) : null,
-    }));
+    return students.filter((s) => s.user).map((s) => {
+      let temporaryPassword: string | null = null;
+      // A decryption/key mismatch must not make the entire student-account list unavailable.
+      if (s.user!.mustChangePassword && s.user!.temporaryPasswordEncrypted) {
+        try {
+          temporaryPassword = decryptTemporaryPassword(s.user!.temporaryPasswordEncrypted);
+        } catch {
+          // Keep the account visible; the administrator can reset this password if needed.
+        }
+      }
+      return {
+        id: s.id, fullName: s.fullName, nationalId: s.nationalId, fatherNationalId: s.fatherNationalId, phone: s.phone, guardianName: s.guardianName, guardianPhone: s.guardianPhone, code: s.code,
+        userId: s.user!.id, username: s.user!.username, isActive: s.user!.isActive,
+        mustChangePassword: s.user!.mustChangePassword,
+        temporaryPassword,
+      };
+    });
   }
 
   async createAccountForStudent(actor: AuthUser, id: string, password?: string) {

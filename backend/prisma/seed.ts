@@ -106,7 +106,7 @@ const HIZB_SECTIONS = Array.from({ length: 60 }, (_, i) => {
     order: (Math.floor((60 - hizb) / 2) * 3) + ((60 - hizb) % 2) + 1,
     kind: ExamSectionKind.HIZB,
     pagesCount: 10,
-    minScore: 60,
+    minScore: 80,
     isRequired: true,
     description: `اختبار حفظ وإتقان الحزب ${hizb} (من الجزء ${Math.ceil(hizb / 2)})`,
   };
@@ -120,7 +120,7 @@ const JUZ_SECTIONS = Array.from({ length: 30 }, (_, i) => {
     order: (30 - juz) * 3 + 3,
     kind: ExamSectionKind.JUZ,
     pagesCount: 20,
-    minScore: 60,
+    minScore: 80,
     isRequired: true,
     description: `اختبار حفظ وإتقان الجزء ${juz}`,
   };

@@ -865,6 +865,7 @@ export class ExamsService {
         sectionId: primary.id,
         teacherId,
         note: dto.note,
+        requestedCombined: dto.requestedCombined,
         sections: {
           create: sections.map((section) => ({ sectionId: section.id })),
         },

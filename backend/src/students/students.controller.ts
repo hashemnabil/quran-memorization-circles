@@ -133,6 +133,13 @@ export class StudentsController {
   @ApiOperation({ summary: 'حسابات الطلاب المرتبطة بملفاتهم' })
   listAccounts() { return this.service.listAccounts(); }
 
+  @Post('accounts/reset-password-bulk')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'إعادة تعيين كلمات مرور مجموعة من حسابات الطلاب بطلب واحد' })
+  resetAccountsPasswordsBulk(@CurrentUser() user: AuthUser, @Body() dto: BulkStudentIdsDto) {
+    return this.service.resetStudentAccountPasswordsBulk(user, dto.ids);
+  }
+
   @Post(':id/account')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'إنشاء حساب دخول لطالب مسجل مسبقاً' })

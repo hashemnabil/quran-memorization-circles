@@ -429,8 +429,10 @@ function UserFormModal({ user, onClose }: { user?: UserRecord; onClose: () => vo
         <Input label="الاسم الكامل" required value={form.fullName} onChange={(e) => set('fullName', e.target.value)} error={errors.fullName} className="sm:col-span-2" />
         <Input label="اسم المستخدم" required value={form.username} onChange={(e) => set('username', e.target.value)} error={errors.username} hint={USERNAME_HINT} dir="ltr" />
         {!isEdit && (
-          <Input label="كلمة المرور" required type="text" value={form.password} onChange={(e) => set('password', e.target.value)} error={errors.password} dir="ltr" />
-          <PasswordStrength value={form.password} />
+          <>
+            <Input label="كلمة المرور" required type="text" value={form.password} onChange={(e) => set('password', e.target.value)} error={errors.password} dir="ltr" />
+            <PasswordStrength value={form.password} />
+          </>
         )}
         <Select label="الدور" required value={form.role} onChange={(e) => set('role', e.target.value)}>
           {Object.entries(ROLE_LABELS).filter(([key]) => isEdit || !['STUDENT', 'PARENT'].includes(key)).map(([key, label]) => (

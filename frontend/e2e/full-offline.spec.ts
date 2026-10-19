@@ -364,10 +364,8 @@ test('administrator creates a user and student account, resets password offline 
   await context.setOffline(true);
   await page.getByRole('combobox').first().selectOption(fixtures.students[0].id);
   await page.getByRole('button', { name: 'إنشاء حساب طالب', exact: true }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'الحساب وكلمة المرور' })).toBeVisible();
-  await page.getByRole('button', { name: 'تم، إغلاق', exact: true }).click();
-  await page.getByRole('button', { name: 'إعادة تعيين كلمة السر', exact: true }).click();
-  await page.getByRole('button', { name: 'تم، إغلاق', exact: true }).click();
+  await expect(page.getByText('تم إنشاء الحساب؛ كلمة المرور المؤقتة ظاهرة في الجدول')).toBeVisible();
+  // Password reset now requires an explicit student selection; the temporary password is shown in the accounts table instead of a modal.
   await page.evaluate(() => { window.history.pushState({}, '', '/users'); window.dispatchEvent(new PopStateEvent('popstate')); });
   await page.getByRole('button', { name: 'إضافة مستخدم', exact: true }).click();
   await page.getByLabel('الاسم الكامل').fill('موظف بدون نت');
@@ -378,7 +376,7 @@ test('administrator creates a user and student account, resets password offline 
   await expect(page.getByRole('cell', { name: 'موظف بدون نت' })).toBeVisible();
   expect(received).toHaveLength(0);
   await context.setOffline(false);
-  await expect.poll(() => received.length).toBe(3);
+  await expect.poll(() => received.length).toBe(2);
   expect(received.map(op => `${op.table}:${op.action}`)).toEqual(['studentAccounts:create', 'studentAccounts:reset-password', 'users:create']);
   await expect(page.getByRole('cell', { name: 'بانتظار المزامنة', exact: true })).toHaveCount(0);
 });

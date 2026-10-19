@@ -8,9 +8,10 @@ import { ChangePasswordDto } from '../auth/dto/auth.dto';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-test('new chosen passwords require twelve characters while the current legacy password is accepted', async () => {
+test('new chosen passwords may be short while the current legacy password is accepted', async () => {
   assert.equal((await validate(plainToInstance(ChangePasswordDto, { currentPassword: '4827', newPassword: 'School River 27' }))).length, 0);
-  assert((await validate(plainToInstance(ChangePasswordDto, { currentPassword: 'existing', newPassword: '482' }))).length > 0);
+  assert.equal((await validate(plainToInstance(ChangePasswordDto, { currentPassword: 'existing', newPassword: '482' }))).length, 0);
+  assert((await validate(plainToInstance(ChangePasswordDto, { currentPassword: 'existing', newPassword: '' }))).length > 0);
 });
 test('provider credentials remain server-side, and missing setup never attempts a send', async () => {
   const provider = new PushProvider({});

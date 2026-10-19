@@ -35,7 +35,7 @@ export class ChangePasswordDto {
   @MaxLength(128)
   currentPassword: string;
 
-  @ApiProperty({ minLength: 12 })
+  @ApiProperty({ description: 'كلمة المرور الجديدة' })
   @IsString()
   @NewPassword()
   @MaxLength(128)

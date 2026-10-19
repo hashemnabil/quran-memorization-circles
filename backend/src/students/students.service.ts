@@ -9,7 +9,8 @@ import {
 } from '@nestjs/common';
 import { Evaluation, Prisma, Role, StudentStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
+import { encryptTemporaryPassword, decryptTemporaryPassword } from '../common/crypto/temporary-password';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { ActivityService } from '../common/services/activity.service';
@@ -535,12 +536,12 @@ export class StudentsService {
       if (usernameTaken) throw new ConflictException('رقم الطالب مستخدم كاسم دخول لحساب آخر');
     }
 
-    const temporaryPassword = dto.createAccount ? dto.accountPassword ?? randomBytes(9).toString('base64url') : undefined;
+    const temporaryPassword = dto.createAccount ? dto.accountPassword ?? randomInt(100000, 1000000).toString() : undefined;
     const passwordHash = temporaryPassword ? await bcrypt.hash(temporaryPassword, 12) : undefined;
     const student = await this.prisma.$transaction(async (tx) => {
       const user = dto.createAccount
         ? await tx.user.create({
-            data: { username: code.toLowerCase(), passwordHash: passwordHash!, fullName: dto.fullName, role: Role.STUDENT, isActive: true, mustChangePassword: true },
+            data: { username: code.toLowerCase(), passwordHash: passwordHash!, fullName: dto.fullName, role: Role.STUDENT, isActive: true, mustChangePassword: true, temporaryPasswordEncrypted: encryptTemporaryPassword(temporaryPassword!) },
           })
         : null;
       const created = await tx.student.create({
@@ -655,13 +656,14 @@ export class StudentsService {
     const students = await this.prisma.student.findMany({
       where: { deletedAt: null, userId: { not: null } },
       select: { id: true, fullName: true, nationalId: true, fatherNationalId: true, phone: true, guardianName: true, guardianPhone: true, code: true,
-        user: { select: { id: true, username: true, isActive: true, mustChangePassword: true } } },
+        user: { select: { id: true, username: true, isActive: true, mustChangePassword: true, temporaryPasswordEncrypted: true } } },
       orderBy: { fullName: 'asc' },
     });
     return students.filter((s) => s.user).map((s) => ({
       id: s.id, fullName: s.fullName, nationalId: s.nationalId, fatherNationalId: s.fatherNationalId, phone: s.phone, guardianName: s.guardianName, guardianPhone: s.guardianPhone, code: s.code,
       userId: s.user!.id, username: s.user!.username, isActive: s.user!.isActive,
       mustChangePassword: s.user!.mustChangePassword,
+      temporaryPassword: s.user!.mustChangePassword && s.user!.temporaryPasswordEncrypted ? decryptTemporaryPassword(s.user!.temporaryPasswordEncrypted) : null,
     }));
   }
 
@@ -673,10 +675,10 @@ export class StudentsService {
     const username = student.code.toLowerCase();
     const taken = await this.prisma.user.findFirst({ where: { username, deletedAt: null }, select: { id: true } });
     if (taken) throw new ConflictException('رقم الطالب مستخدم كاسم دخول لحساب آخر');
-    const temporaryPassword = password ?? randomBytes(9).toString('base64url');
+    const temporaryPassword = password ?? randomInt(100000, 1000000).toString();
     const user = await this.prisma.user.create({ data: {
       username, passwordHash: await bcrypt.hash(temporaryPassword, 12), fullName: student.fullName,
-      phone: student.phone, role: Role.STUDENT, isActive: true, mustChangePassword: true,
+      phone: student.phone, role: Role.STUDENT, isActive: true, mustChangePassword: true, temporaryPasswordEncrypted: encryptTemporaryPassword(temporaryPassword),
     } });
     await this.prisma.student.update({ where: { id }, data: { userId: user.id } });
     await this.activity.log({ userId: actor.id, action: 'STUDENT_ACCOUNT_CREATE', summary: `إنشاء حساب دخول للطالب: ${student.fullName}`, entityType: 'Student', entityId: id });
@@ -688,9 +690,9 @@ export class StudentsService {
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, include: { user: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (!student.user) throw new BadRequestException('الطالب لا يملك حساب دخول');
-    const temporaryPassword = password ?? randomBytes(9).toString('base64url');
+    const temporaryPassword = password ?? randomInt(100000, 1000000).toString();
     await this.prisma.user.update({ where: { id: student.user.id },
-      data: { passwordHash: await bcrypt.hash(temporaryPassword, 12), mustChangePassword: true, isActive: true } });
+      data: { passwordHash: await bcrypt.hash(temporaryPassword, 12), mustChangePassword: true, temporaryPasswordEncrypted: encryptTemporaryPassword(temporaryPassword), isActive: true } });
     await this.prisma.refreshToken.updateMany({ where: { userId: student.user.id, revokedAt: null }, data: { revokedAt: new Date() } });
     await this.activity.log({ userId: actor.id, action: 'STUDENT_ACCOUNT_PASSWORD_RESET', summary: `إعادة تعيين كلمة مرور الطالب: ${student.fullName}`, entityType: 'Student', entityId: id });
     return { studentId: id, fullName: student.fullName, username: student.user.username, temporaryPassword };

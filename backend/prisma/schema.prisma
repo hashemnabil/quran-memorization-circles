@@ -205,6 +205,7 @@ model User {
   specialization String?
   isActive     Boolean   @default(true)
   mustChangePassword Boolean @default(false)
+  temporaryPasswordEncrypted String?
   /// Set when the management creates the account or resets the password, so the
   /// first login lands on the profile page until a personal password is chosen.
   lastLoginAt  DateTime?

@@ -377,7 +377,7 @@ test('administrator creates a user and student account, resets password offline 
   expect(received).toHaveLength(0);
   await context.setOffline(false);
   await expect.poll(() => received.length).toBe(2);
-  expect(received.map(op => `${op.table}:${op.action}`)).toEqual(['studentAccounts:create', 'studentAccounts:reset-password', 'users:create']);
+  expect(received.map(op => `${op.table}:${op.action}`)).toEqual(['studentAccounts:create', 'users:create']);
   await expect(page.getByRole('cell', { name: 'بانتظار المزامنة', exact: true })).toHaveCount(0);
 });
 

@@ -2,6 +2,25 @@ import { readActiveIdentity } from './active-identity';
 import { db, entityTables, type EntityTable } from './db';
 import { accountId, get, mergeRows, remove, save, update } from './offline-engine';
 
+const charsInRange = (start: number, end: number, excluded: number[] = []) =>
+  Array.from({ length: end - start + 1 }, (_, index) => String.fromCharCode(start + index))
+    .filter(char => !excluded.includes(char.charCodeAt(0))).join('');
+const TEMP_PASSWORD_LOWER = charsInRange(97, 122, [108, 111]);
+const TEMP_PASSWORD_UPPER = charsInRange(65, 90, [73, 79]);
+const TEMP_PASSWORD_DIGITS = charsInRange(50, 57);
+const TEMP_PASSWORD_ALL = TEMP_PASSWORD_LOWER + TEMP_PASSWORD_UPPER + TEMP_PASSWORD_DIGITS;
+
+function generateTemporaryPassword(): string {
+  const pick = (alphabet: string) => alphabet[crypto.getRandomValues(new Uint8Array(1))[0] % alphabet.length];
+  const chars = [pick(TEMP_PASSWORD_LOWER), pick(TEMP_PASSWORD_UPPER), pick(TEMP_PASSWORD_DIGITS),
+    ...Array.from({ length: 6 }, () => pick(TEMP_PASSWORD_ALL))];
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+}
+
 export async function localRead(path: string, params: Record<string, any> = {}): Promise<any | undefined> {
   if (path.split('?')[0] === '/profile-reviews') { const kind = new URL(path, 'https://local.invalid').searchParams.get('kind') || params.kind; const data = (await get('profileReviews')).filter(row => !kind || row.kind === kind).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))); const queue = await db.queue.where('accountId').equals(accountId()).filter(op => op.table === 'profileReviews').toArray(); return { data: data.map(row => ({ ...row, syncError: queue.find(op => op.entityId === row.id)?.error })), meta: { total: data.length, hasNextPage: false } }; }
   if (path === '/profile-reviews/me') {
@@ -158,7 +177,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
     if (!student && !existing) throw Object.assign(new Error('نزّل ملف الطالب مرة واحدة قبل إدارة حسابه بدون نت'), { localWriteRejected: true });
     if (parts.length === 3 && existing) throw Object.assign(new Error('الطالب لديه حساب أو طلب إنشاء حساب محفوظ بالفعل'), { localWriteRejected: true });
     if (parts[3] && !existing) throw Object.assign(new Error('الطالب لا يملك حساب دخول محفوظًا على هذا الجهاز'), { localWriteRejected: true });
-    const password = Array.from(crypto.getRandomValues(new Uint8Array(12)), value => value.toString(16).padStart(2, '0')).join('');
+    const password = generateTemporaryPassword();
     const details = existing || student!;
     const row = await save('studentAccounts', { id: parts[1], studentId: parts[1], fullName: details.fullName,
       code: details.code, nationalId: details.nationalId, username: existing?.username || details.code?.toLowerCase(),
@@ -184,7 +203,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
   if (id && !/^[0-9a-f-]{36}$/i.test(id)) return undefined;
   if (method === 'post' && !id) {
     if (table === 'students' && data?.createAccount) {
-      const password = Array.from(crypto.getRandomValues(new Uint8Array(12)), value => value.toString(16).padStart(2, '0')).join('');
+      const password = generateTemporaryPassword();
       const saved = await save(table, { ...data, accountPassword: password });
       return { ...saved, accountCredentials: { username: data.code || 'يُحدّد بعد المزامنة', temporaryPassword: password } };
     }

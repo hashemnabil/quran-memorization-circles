@@ -20,6 +20,7 @@ import {
 import { EMPLOYMENT_LABELS, ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateTime, formatParts } from '@/lib/format';
 import { rememberOfflineLogin } from '@/lib/offline-login';
+import { PasswordStrength } from '@/components/PasswordStrength';
 
 export default function ProfilePage() {
   const { user, logout, forgetDevice, setUser } = useAuthStore();
@@ -198,9 +199,10 @@ export default function ProfilePage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 error={errors.newPassword}
-                hint="12 حرفًا على الأقل"
+                
                 dir="ltr"
               />
+              <PasswordStrength value={newPassword} />
               <Input
                 label="تأكيد كلمة المرور"
                 type="password"

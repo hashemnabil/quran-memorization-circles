@@ -58,11 +58,23 @@ jobs:
           VITE_SOCKET_URL: https://quran-memorization-circles.onrender.com
       - run: npm run mobile:sync -- android
         working-directory: frontend
-      - name: Configure Firebase when provided
+      - name: Configure and validate Firebase Android client
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          node -e "const fs=require('fs');const value=process.env.GOOGLE_SERVICES_JSON;if(value){JSON.parse(value);fs.writeFileSync('frontend/android/app/google-services.json',value);}"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path = 'frontend/android/app/google-services.json';
+          const config = JSON.parse(process.env.GOOGLE_SERVICES_JSON || fs.readFileSync(path, 'utf8'));
+          const packageName = 'com.abdullahschool.myapp';
+          if (!config.client?.some(client => client.client_info?.android_client_info?.package_name === packageName)) {
+            throw new Error('Firebase configuration does not match the Android package');
+          }
+          if (config.private_key || config.type === 'service_account') {
+            throw new Error('A service-account key must never be included in the Android build');
+          }
+          fs.writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
+          NODE
       - name: Build signed APK and Play bundle
         working-directory: frontend/android
         env:

@@ -20,8 +20,8 @@
 
 ## Android — إعداد Firebase لاحقًا
 
-1. أنشئ مشروعًا في Firebase وأضف تطبيق Android بالحزمة `org.qurancircles.app`.
-2. نزّل `google-services.json`. للبناء محليًا ضعه في `frontend/android/app/`؛ لبناء GitHub ضَع محتوى الملف في Repository Secret باسم `GOOGLE_SERVICES_JSON`. الملف مستثنى من Git ولا يُطبع في سجل البناء.
+1. أنشئ مشروعًا في Firebase وأضف تطبيق Android بالحزمة `com.abdullahschool.myapp`.
+2. نزّل `google-services.json`. للبناء محليًا ضعه في `frontend/android/app/`؛ لبناء GitHub ضَع محتوى الملف في Repository Secret باسم `GOOGLE_SERVICES_JSON`. إعداد عميل Android الخاص بالمشروع `halaqat-9cc95` مضاف في المستودع لأنه يحتوي معرّفات غير سرية، ويمكن للـSecret تجاوزه. مفتاح حساب الخدمة الخاص بالخادم يظل خارج المستودع ولا يدخل بناء Android.
 3. فعّل Firebase Cloud Messaging API (HTTP v1). أنشئ service account بصلاحية إرسال رسائل FCM للمشروع.
 4. ضَع القيم التالية في **بيئة الخادم فقط** على Render: `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`. المفتاح يقبل الأسطر الفعلية أو `\n`. لا تضع حساب الخدمة أو مفتاحه في الواجهة أو المستودع.
 5. أعد بناء APK. سجّل الدخول ثم «الملف الشخصي ← إشعارات الجوال ← تفعيل إشعارات الجوال» واسمح بإذن الإشعارات.

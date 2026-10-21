@@ -15,10 +15,10 @@ if (!(releaseVersionName ==~ /[0-9]+\.[0-9]+\.[0-9]+/)) {
 }
 
 android {
-    namespace "org.qurancircles.app"
+    namespace "com.abdullahschool.myapp"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "org.qurancircles.app"
+        applicationId "com.abdullahschool.myapp"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode releaseVersionCode.toInteger()

@@ -1,7 +1,7 @@
-name: Android API 24 release 1.1.1
+name: Android API 24 release 1.1.2
 on:
   push:
-    branches: [codex/android-api24-release]
+    branches: [codex/play-package-fix]
     paths: [.github/workflows/android-api24-build.yml]
 permissions:
   contents: read
@@ -9,6 +9,6 @@ jobs:
   release:
     uses: ./.github/workflows/android-release.yml
     with:
-      version_name: '1.1.1'
-      version_code: '4'
+      version_name: '1.1.2'
+      version_code: '5'
     secrets: inherit

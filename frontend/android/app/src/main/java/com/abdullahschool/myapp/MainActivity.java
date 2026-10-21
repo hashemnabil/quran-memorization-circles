@@ -1,4 +1,4 @@
-package org.qurancircles.app;
+package com.abdullahschool.myapp;
 
 import com.getcapacitor.BridgeActivity;
 import android.os.Bundle;

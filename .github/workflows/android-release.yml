@@ -82,6 +82,8 @@ jobs:
           if grep -q 'CN=Android Debug' release-signature.txt; then echo 'Debug signature refused'; exit 1; fi
           "$build_tools/aapt" dump badging "$apk" > release-manifest.txt
           if grep -q 'application-debuggable' release-manifest.txt; then echo 'Debuggable release refused'; exit 1; fi
+          grep -q "package: name='com.abdullahschool.myapp'" release-manifest.txt
+          jarsigner -verify frontend/android/app/build/outputs/bundle/release/app-release.aab
           sha256sum "$apk" frontend/android/app/build/outputs/bundle/release/app-release.aab > SHA256SUMS.txt
       - name: Prepare simple download package
         run: |

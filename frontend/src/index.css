@@ -375,3 +375,20 @@
 .welcome-photo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,22,16,.16) 0%, rgba(5,22,16,.08) 25%, rgba(12,43,34,.85) 53%, #0c2b22 74%); }
 .welcome-content { margin-top: auto; padding-top: 36vh; padding-bottom: 22px; }
 @media (min-width: 700px) { .welcome-screen { padding-left: max(32px, calc((100vw - 560px)/2)); padding-right: max(32px, calc((100vw - 560px)/2)); } }
+
+/* Consistent navigation and dashboard surfaces. */
+.sidebar-search { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #426356; border-radius: 12px; background: #204638; color: #fff; font: inherit; font-size: 13px; }
+.sidebar-search::placeholder { color: #bed5cb; }
+.sidebar-search:focus { outline: 2px solid #86d5b2; outline-offset: 2px; }
+.sidebar-shell { background: radial-gradient(ellipse at top right, #204638, transparent 65%), #12372d; }
+.sidebar-shell nav { scrollbar-width: thin; scrollbar-color: #426356 transparent; }
+.sidebar-nav-item { min-height: 46px; }
+.sidebar-nav-active { background: #245340; box-shadow: inset 0 0 0 1px #42735b; }
+.sidebar-nav-item:focus-visible { outline-color: #b7e7ce; outline-offset: -2px; }
+.app-workspace > .page-heading { padding-bottom: 20px; border-bottom: 1px solid #e2e8ed; }
+.app-workspace .card > header { background: #fcfdfc; border-radius: 16px 16px 0 0; }
+.app-workspace .table thead th { padding-block: 15px; border-bottom: 1px solid #dce7e0; }
+.app-workspace .table tbody tr:nth-child(even) { background: #fafcfb; }
+.app-workspace .table tbody tr:hover { background: #f0f7f3; }
+.app-workspace .label { line-height: 1.8; }
+@media (max-width: 639px) { .app-topbar .app-icon-button { width: 36px; height: 40px; } }

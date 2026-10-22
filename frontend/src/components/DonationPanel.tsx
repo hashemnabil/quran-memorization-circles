@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
 import { savePendingSupport } from '@/lib/offline/pendingSupport';
 import { Button, Input, Textarea } from '@/components/ui';
-import { IconHeart } from '@/components/ui/Icons';
+import { IconHeart, IconClipboard } from '@/components/ui/Icons';
 import type { SchoolSettings } from '@/types';
 
 const paymentMethods = [
@@ -100,8 +100,16 @@ function PaymentMethod({ label, number }: { label: string; number: string }) {
     try { await navigator.clipboard.writeText(number); setCopied(true); toast.success('تم نسخ الرقم'); }
     catch { toast.error('تعذر النسخ؛ يمكنك تحديد الرقم ونسخه'); }
   }
-  return <div className="donation-payment flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-    <div className="min-w-0"><p className="text-sm font-bold text-emerald-900">{label}</p><p className="mt-2 select-all break-all text-sm font-semibold text-slate-700" dir="auto">{number}</p></div>
-    <button type="button" onClick={copy} aria-label={`نسخ رقم ${label}`} className="min-h-11 shrink-0 rounded-lg border border-emerald-100 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100"><span aria-live="polite">{copied ? 'تم النسخ' : 'نسخ الرقم'}</span></button>
-  </div>;
+  const bank = label.includes('بنك') || label.includes('البنك');
+  return <article className={`donation-payment ${bank ? 'donation-payment-bank' : 'donation-payment-wallet'}`}>
+    <div className="flex items-center gap-3">
+      <span aria-hidden="true" className="donation-method-mark">{label === 'محفظة PalPay' ? 'P' : label === 'جوال' ? 'ج' : bank ? 'ب' : 'م'}</span>
+      <div className="min-w-0"><p className="text-xs font-medium text-slate-500">{bank ? 'تحويل بنكي' : 'تحويل إلى المحفظة'}</p><h3 className="mt-0.5 text-base font-extrabold text-slate-800">{label}</h3></div>
+    </div>
+    <div className="donation-account-number">
+      <p className="mb-2 text-xs font-semibold text-slate-500">{bank ? 'رقم الحساب / IBAN' : 'رقم التحويل'}</p>
+      <p className="donation-number" dir="ltr">{number}</p>
+    </div>
+    <button type="button" onClick={copy} aria-label={`نسخ رقم ${label}`} className={`donation-copy-button ${copied ? 'donation-copy-done' : ''}`}><IconClipboard size={17} /><span aria-live="polite">{copied ? 'تم نسخ الرقم' : 'نسخ رقم التحويل'}</span></button>
+  </article>;
 }

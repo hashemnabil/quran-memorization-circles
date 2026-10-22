@@ -60,7 +60,7 @@ export default function LoginPage() {
         <button type="button" onClick={() => setSupportOpen(true)} className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-primary-800"><IconLifeBuoy size={18} />الدعم الفني</button>
         <Link to="/about" className="mt-2 block py-2 text-center text-xs font-semibold text-slate-500 hover:text-primary-800">معلومات عن البرنامج</Link>
       </div>
-      <div className="mt-5 w-full max-w-[440px]"><DonationPanel settings={donationSettings || {}} compact /></div>
+      <Link to="/contribute" aria-label="المساهمة والتبرع" className="donation-entry mt-5 inline-flex items-center gap-3 rounded-full border border-emerald-200 bg-white px-6 py-3 font-bold text-emerald-900 shadow-sm"><span aria-hidden="true" className="text-2xl">♡</span>المساهمة والتبرع</Link>
       <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />
       {passwordRequestOpen && <PasswordRequestModal open onClose={() => setPasswordRequestOpen(false)} />}
     </div>

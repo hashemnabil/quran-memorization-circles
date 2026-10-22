@@ -340,6 +340,14 @@
 .login-brand-mark { display: block; width: 100px; height: 100px; padding: 5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 6px rgba(255,255,255,.06); }
 .login-panel .input { min-height: 50px; font-size: 16px; background: #fbfcfb; }
 .login-panel .btn-primary { min-height: 50px; }
+.login-panel { animation: login-enter .65s cubic-bezier(.2,.7,.2,1) both; }
+.login-brand-mark { animation: launch-reveal .9s .12s both; }
+.donation-entry { animation: login-enter .65s .2s both; transition: transform .2s, box-shadow .2s; }
+.donation-entry:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(18,55,45,.12); }
+@keyframes login-enter { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+.welcome-photo { animation: welcome-image .7s ease-out both; }
+.welcome-content { animation: login-enter .55s .1s both; }
+@keyframes welcome-image { from { opacity: 0; transform: scale(1.035); } to { opacity: 1; transform: scale(1); } }
 .launch-logo { display: grid; place-items: center; animation: launch-reveal .9s cubic-bezier(.2,.7,.2,1) both; }
 @keyframes launch-reveal { from { opacity: 0; transform: translateY(12px) scale(.92); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .onboarding-screen { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; overflow-y: auto; padding: max(24px, env(safe-area-inset-top, 0px)) 28px max(28px, env(safe-area-inset-bottom, 0px)); background: #12372d; color: white; }

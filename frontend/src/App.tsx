@@ -111,6 +111,7 @@ export default function App() {
       <Routes>
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/about" element={<AboutPage />} />
+      <Route path="/contribute" element={<DonationsPage />} />
       <Route path="/account-deletion" element={<AccountDeletionPage />} />
       <Route path="/register" element={<RegistryLoginPage />} />
       <Route path="/register/data" element={<RegistryDataPage />} />

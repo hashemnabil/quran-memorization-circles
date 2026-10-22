@@ -1,0 +1,20 @@
+{
+	"appId": "org.qurancircles.app",
+	"appName": "مدرسة عبدالله بن عمر",
+	"webDir": "dist",
+	"plugins": {
+		"PushNotifications": {
+			"presentationOptions": [
+				"badge",
+				"sound",
+				"alert"
+			]
+		}
+	},
+	"server": {
+		"androidScheme": "https"
+	},
+	"android": {
+		"allowMixedContent": false
+	}
+}

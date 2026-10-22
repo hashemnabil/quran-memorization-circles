@@ -84,6 +84,38 @@ export class AttendanceController {
     return this.service.record(user, dto);
   }
 
+  @Get('absence-permissions')
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT)
+  absencePermissions(@CurrentUser() user: AuthUser) { return this.service.absencePermissions(user); }
+
+  @Post('absence-permissions')
+  @Roles(Role.SUPERVISOR, Role.TEACHER, Role.STUDENT)
+  createAbsencePermission(@CurrentUser() user: AuthUser, @Body() body: { studentId: string; date: string; reason: string }) {
+    return this.service.createAbsencePermission(user, body);
+  }
+
+  @Patch('absence-permissions/:id/approve')
+  @Roles(Role.ADMIN)
+  approveAbsencePermission(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { decisionNote?: string }) {
+    return this.service.decideAbsencePermission(user, id, true, body?.decisionNote);
+  }
+
+  @Patch('absence-permissions/:id/reject')
+  @Roles(Role.ADMIN)
+  rejectAbsencePermission(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { decisionNote?: string }) {
+    return this.service.decideAbsencePermission(user, id, false, body?.decisionNote);
+  }
+
+  @Get('summons')
+  @Roles(Role.ADMIN)
+  summons() { return this.service.listSummons(); }
+
+  @Post('summons')
+  @Roles(Role.ADMIN)
+  createSummons(@CurrentUser() user: AuthUser, @Body() body: { studentId: string; title: string; body: string }) {
+    return this.service.createSummons(user, body);
+  }
+
   @Patch(':id')
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   @ApiOperation({ summary: 'تعديل حضور طالب واحد من سجل الحضور' })

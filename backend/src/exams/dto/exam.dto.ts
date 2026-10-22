@@ -9,6 +9,7 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsNumber,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -27,6 +28,8 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
  * existing query keep working unchanged.
  */
 export class CreateExamRequestDto {
+  @IsOptional() @IsString() @MaxLength(100)
+  combinedStage?: string;
   @ApiProperty()
   @IsUUID('4', { message: 'معرّف الطالب غير صالح' })
   studentId: string;
@@ -114,6 +117,9 @@ export class ReviewExamRequestDto {
 }
 
 export class ScheduleExamDto {
+  @ApiProperty({ description: 'اللجنة التي ستتولى الاختبار' })
+  @IsUUID('4')
+  committeeId: string;
   @ApiProperty({ example: '2026-09-01T10:00:00.000Z' })
   @IsDateString({}, { message: 'موعد الاختبار غير صالح' })
   scheduledAt: string;
@@ -150,9 +156,17 @@ export class RecordSectionScoreDto {
 }
 
 export class RecordResultDto {
+  @IsOptional() @IsNumber() @Min(0) @Max(10)
+  tajweed?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(500)
+  alerts?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(90)
+  mistakePenalty?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(90)
+  alertPenalty?: number;
   @ApiProperty({ minimum: 0, maximum: 100, description: 'الدرجة من 100 — وهي ما يحدد النجاح' })
   @Type(() => Number)
-  @IsInt({ message: 'الدرجة غير صالحة' })
+  @IsNumber({}, { message: 'الدرجة غير صالحة' })
   @Min(0)
   @Max(100)
   score: number;
@@ -212,6 +226,13 @@ export class UpdateExamDto {
   notes?: string;
 }
 
+export class HistoricalExamDto extends RecordResultDto {
+  @IsUUID('4') studentId: string;
+  @IsUUID('4') sectionId: string;
+  @IsUUID('4') committeeId: string;
+  @IsOptional() @IsString() @MaxLength(100) combinedStage?: string;
+}
+
 export class QueryExamRequestsDto extends PaginationDto {
   @ApiPropertyOptional({ enum: ExamSectionKind, description: 'تصفية حسب نوع المقرر' })
   @IsOptional()
@@ -235,6 +256,8 @@ export class QueryExamRequestsDto extends PaginationDto {
 }
 
 export class QueryExamsDto extends PaginationDto {
+  @IsOptional() @IsUUID('4')
+  committeeId?: string;
   @ApiPropertyOptional({ description: 'بحث باسم الطالب أو رقمه أو اسم المقرر' })
   @IsOptional()
   @IsString()
@@ -305,7 +328,7 @@ export class CreateSectionDto {
   @IsBoolean()
   isRequired?: boolean;
 
-  @ApiPropertyOptional({ default: 60 })
+  @ApiPropertyOptional({ default: 80 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

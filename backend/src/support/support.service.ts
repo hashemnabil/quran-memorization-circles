@@ -87,6 +87,11 @@ export class SupportService {
    * the support queue.
    */
   async createPublic(dto: PublicTicketDto, clientKey: string) {
+    const isDonationNote = dto.subject === 'ملاحظة تبرع';
+    if (isDonationNote) {
+      const campaign = await this.prisma.schoolSettings.findUnique({ where: { id: 'default' }, select: { donationsEnabled: true } });
+      if (!campaign?.donationsEnabled) throw new BadRequestException('حملة التبرعات غير مفعّلة حاليًا');
+    }
     if (dto.requestId) {
       const existing = await this.prisma.supportTicket.findUnique({ where: { id: dto.requestId }, select: { number: true, subject: true, description: true, contactName: true, contactPhone: true, contactEmail: true, createdById: true } });
       if (existing) {
@@ -101,7 +106,7 @@ export class SupportService {
         ...(dto.requestId ? { id: dto.requestId } : {}),
         subject: dto.subject,
         description: dto.description,
-        category: dto.subject === 'طلب تغيير كلمة المرور' ? 'PASSWORD_RESET' : 'تعذر تسجيل الدخول',
+        category: isDonationNote ? 'DONATION' : dto.subject === 'طلب تغيير كلمة المرور' ? 'PASSWORD_RESET' : 'تعذر تسجيل الدخول',
         priority: TicketPriority.HIGH,
         createdById: null,
         contactName: dto.contactName,
@@ -111,9 +116,9 @@ export class SupportService {
       select: { id: true, number: true, createdAt: true },
     });
 
-    await this.notifications.notifyRoles(dto.subject === 'طلب تغيير كلمة المرور' ? [Role.ADMIN] : [Role.SUPPORT, Role.ADMIN], {
+    await this.notifications.notifyRoles(isDonationNote || dto.subject === 'طلب تغيير كلمة المرور' ? [Role.ADMIN] : [Role.SUPPORT, Role.ADMIN], {
       type: NotificationType.SUPPORT_TICKET,
-      title: dto.subject === 'طلب تغيير كلمة المرور' ? 'طلب تغيير كلمة مرور جديد' : 'طلب دعم من صفحة الدخول',
+      title: isDonationNote ? 'وصلت ملاحظة من متبرع' : dto.subject === 'طلب تغيير كلمة المرور' ? 'طلب تغيير كلمة مرور جديد' : 'طلب دعم من صفحة الدخول',
       body: `${dto.contactName}: ${dto.subject}`,
       link: `/support/${ticket.id}`,
     });

@@ -65,6 +65,25 @@ test('password recovery reaches administrators only and a lost-response retry re
   await assert.rejects(recordService.update({ id: 'support', role: Role.SUPPORT } as any, saved.id, { status: 'RESOLVED' }));
 });
 
+test('donation notes are stored as admin-visible tickets and notify administrators only', async () => {
+  let saved: any; const notices: any[] = [];
+  const prisma: any = {
+    schoolSettings: { findUnique: async () => ({ donationsEnabled: true }) },
+    supportTicket: {
+      findUnique: async () => saved,
+      create: async ({ data }: any) => { saved = { ...data, id: 'donation-note', number: 31 }; return saved; },
+    },
+  };
+  const service = new SupportService(prisma, { log: async () => undefined } as any,
+    { notifyRoles: async (...args: any[]) => { notices.push(args); } } as any, {} as any);
+  await service.createPublic({ requestId: randomUUID(), contactName: 'Donor', subject: 'ملاحظة تبرع', description: 'وصلت المساهمة اليوم' }, 'donor-client');
+  assert.equal(saved.category, 'DONATION');
+  assert.deepEqual(notices[0][0], [Role.ADMIN]);
+  assert.equal(notices[0][1].title, 'وصلت ملاحظة من متبرع');
+  const disabled = new SupportService({ schoolSettings: { findUnique: async () => ({ donationsEnabled: false }) } } as any, {} as any, {} as any, {} as any);
+  await assert.rejects(disabled.createPublic({ contactName: 'Donor', subject: 'ملاحظة تبرع', description: 'note' } as any, 'other-client'));
+});
+
 test('bulk notifications deliver complete persisted rows, deduplicate recipients and tolerate socket failures', async () => {
   const events: any[] = [];
   const tx: any = { $queryRaw: async () => [], syncChange: { create: async () => ({}) },

@@ -63,10 +63,8 @@ api.defaults.adapter = async (config) => {
     if (local !== undefined) return response(await settleLocalWrite(local));
   }
   if (method === 'get' && config.responseType !== 'blob') {
-    const localTable = path.split('/').filter(Boolean)[0];
-    const hasPending = db.tables.some(table => table.name === localTable) &&
-      await db.table(localTable).where('accountId').equals(account).filter((row: any) => row.synced === 0).count() > 0;
-    if (!navigator.onLine || tokenStore.isLocal() || hasPending) {
+    const localTable = path.startsWith('/exams/requests') ? 'examRequests' : path === '/attendance/absence-permissions' ? 'absencePermissions' : path === '/attendance/summons' ? 'guardianSummons' : path.split('/').filter(Boolean)[0];
+    if (!navigator.onLine || tokenStore.isLocal()) {
       const local = await localRead(path, { ...config.params });
       if (local !== undefined) return response(local);
       const cached = await db.responses.get(responseKey(account, path, config.params));
@@ -96,6 +94,23 @@ api.defaults.adapter = async (config) => {
     if (typeof data === 'string') { try { data = JSON.parse(data); } catch { /* Non-JSON responses are preserved verbatim. */ } }
     stillCurrent();
     await rememberRead(path, config.params, data);
+    // Keep pending offline-created rows visible in server-backed collection views.
+    // The remote response remains authoritative for every row already on the server.
+    if (Array.isArray(data?.data) && db.tables.some(table => table.name === localTable)) {
+      const pending = await db.table(localTable).where('accountId').equals(account)
+        .filter((row: any) => row.synced === 0 && !row.pendingDelete).toArray();
+      const rows = [...data.data]; const seen = new Set(rows.map((row: any) => row.id));
+      for (const row of pending) if (!seen.has(row.id)) rows.push(row);
+      if (rows.length !== data.data.length) data = { ...data, data: rows, meta: data.meta ? { ...data.meta, total: Math.max(data.meta.total || 0, rows.length) } : data.meta };
+    }
+    if (path === '/attendance/sheet' && data?.students) {
+      const pending = await db.students.where('accountId').equals(account)
+        .filter((row: any) => row.synced === 0 && !row.pendingDelete && (row.circleId || row.circle?.id) === config.params?.circleId).toArray();
+      const roster = [...data.students]; const seen = new Set(roster.map((row: any) => row.id));
+      for (const student of pending) if (!seen.has(student.id)) roster.push({ ...student, attendance: null });
+      if (roster.length !== data.students.length) data = { ...data, students: roster };
+    }
+    result.data = data;
     return result;
   }
   const result = await networkAdapter(config);

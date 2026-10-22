@@ -33,6 +33,13 @@ export class SettingsController {
     return this.service.publicInfo();
   }
 
+  @Get('donations')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'معلومات حملة التبرعات للمستخدمين المسجلين' })
+  donations() {
+    return this.service.donationInfo();
+  }
+
   @Get()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إعدادات المدرسة' })

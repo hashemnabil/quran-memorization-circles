@@ -43,7 +43,7 @@ export class SettingsService {
 
     // `undefined` means "not sent, leave alone"; `null` means "the admin
     // cleared this field". Only the keys actually present are written.
-    const data: Record<string, string | null> = {};
+    const data: Record<string, string | number | boolean | null> = {};
     const keys = [
       'name',
       'mosqueName',
@@ -60,6 +60,9 @@ export class SettingsService {
       'whatsapp',
       'website',
       'academicYear',
+      'donationsEnabled', 'donationTitle', 'donationDescription', 'donationGoalAmount',
+      'donationRaisedAmount', 'donationCurrency', 'donationMethod', 'donationLink',
+      'donationBankPalestine', 'donationIslamicBank', 'donationJawwal', 'donationPalPay',
     ] as const;
     for (const key of keys) {
       const value = dto[key];
@@ -69,7 +72,7 @@ export class SettingsService {
     // The school name backs page titles and the login screen, so it falls back
     // to the default rather than becoming blank.
     if (data.name === null || data.name === '') {
-      data.name = 'حلقات تحفيظ القرآن الكريم';
+      data.name = 'مدرسة عبدالله بن عمر';
     }
 
     const updated = await this.prisma.schoolSettings.update({
@@ -106,6 +109,36 @@ export class SettingsService {
       telegram: settings.telegram,
       whatsapp: settings.whatsapp,
       website: settings.website,
+      donationsEnabled: settings.donationsEnabled,
+      donationTitle: settings.donationTitle,
+      donationDescription: settings.donationDescription,
+      donationGoalAmount: settings.donationGoalAmount,
+      donationRaisedAmount: settings.donationRaisedAmount,
+      donationCurrency: settings.donationCurrency,
+      donationMethod: settings.donationMethod,
+      donationLink: settings.donationLink,
+      donationBankPalestine: settings.donationBankPalestine,
+      donationIslamicBank: settings.donationIslamicBank,
+      donationJawwal: settings.donationJawwal,
+      donationPalPay: settings.donationPalPay,
+    };
+  }
+
+  async donationInfo() {
+    const settings = await this.get();
+    return {
+      donationsEnabled: settings.donationsEnabled,
+      donationTitle: settings.donationTitle,
+      donationDescription: settings.donationDescription,
+      donationGoalAmount: settings.donationGoalAmount,
+      donationRaisedAmount: settings.donationRaisedAmount,
+      donationCurrency: settings.donationCurrency,
+      donationMethod: settings.donationMethod,
+      donationLink: settings.donationLink,
+      donationBankPalestine: settings.donationBankPalestine,
+      donationIslamicBank: settings.donationIslamicBank,
+      donationJawwal: settings.donationJawwal,
+      donationPalPay: settings.donationPalPay,
     };
   }
 }

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import PasswordRequestModal from '@/components/PasswordRequestModal';
+import DonationPanel from '@/components/DonationPanel';
 import React, { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -13,9 +14,15 @@ import type { AuthUser, SchoolSettings } from '@/types';
 import { savePendingSupport } from '@/lib/offline/pendingSupport';
 import { BRANDING_CACHE_KEY, DEFAULT_SCHOOL_NAME, DEFAULT_SCHOOL_LOGO, cachedSchoolBranding } from '@/config/branding';
 
+const DONATION_CACHE_KEY = 'qc.publicDonationInfo';
+function readCachedDonationInfo(): Partial<SchoolSettings> | null {
+  try { return JSON.parse(localStorage.getItem(DONATION_CACHE_KEY) || 'null'); } catch { return null; }
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const [cachedBranding] = useState(cachedSchoolBranding);
+  const [cachedDonationInfo, setCachedDonationInfo] = useState(readCachedDonationInfo);
   const [passwordRequestOpen, setPasswordRequestOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(() => new URLSearchParams(window.location.search).get('support') === '1');
 
@@ -28,6 +35,13 @@ export default function LoginPage() {
     if (!settings?.name?.trim()) return;
     try { localStorage.setItem(BRANDING_CACHE_KEY, JSON.stringify({ name: settings.name, logoUrl: settings.logoUrl || DEFAULT_SCHOOL_LOGO })); } catch { /* Branding is optional when device storage is full. */ }
   }, [settings?.name, settings?.logoUrl]);
+  useEffect(() => {
+    if (!settings) return;
+    const donationInfo = Object.fromEntries(['donationsEnabled', 'donationTitle', 'donationDescription', 'donationGoalAmount', 'donationRaisedAmount', 'donationCurrency', 'donationMethod', 'donationLink', 'donationBankPalestine', 'donationIslamicBank', 'donationJawwal', 'donationPalPay'].map(key => [key, (settings as any)[key]]));
+    setCachedDonationInfo(donationInfo);
+    try { localStorage.setItem(DONATION_CACHE_KEY, JSON.stringify(donationInfo)); } catch { /* Public details are optional if storage is full. */ }
+  }, [settings]);
+  const donationSettings = settings || cachedDonationInfo;
 
   const onAuthenticated = (user: AuthUser) => {
     toast.success(`أهلاً بك، ${user.fullName}`);
@@ -46,6 +60,7 @@ export default function LoginPage() {
         <button type="button" onClick={() => setSupportOpen(true)} className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-primary-800"><IconLifeBuoy size={18} />الدعم الفني</button>
         <Link to="/about" className="mt-2 block py-2 text-center text-xs font-semibold text-slate-500 hover:text-primary-800">معلومات عن البرنامج</Link>
       </div>
+      {donationSettings?.donationsEnabled && <div className="mt-5 w-full max-w-[440px]"><DonationPanel settings={donationSettings} compact /></div>}
       <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />
       {passwordRequestOpen && <PasswordRequestModal open onClose={() => setPasswordRequestOpen(false)} />}
     </div>

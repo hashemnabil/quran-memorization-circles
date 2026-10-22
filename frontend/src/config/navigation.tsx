@@ -13,6 +13,7 @@ import {
   IconDashboard,
   IconExchange,
   IconGraduation,
+  IconHeart,
   IconLifeBuoy,
   IconPause,
   IconSettings,
@@ -50,11 +51,12 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'شؤون إدارية',
     items: [
+      { to: '/meetings', label: 'الاجتماعات', icon: <IconCalendar size={19} />, roles: ['ADMIN'] },
       { to: '/admin/notifications', label: 'إرسال الإشعارات', icon: <IconBell size={19} />, roles: ['ADMIN'] },
       { to: '/admin/activity', label: 'سجل النشاط', icon: <IconCalendar size={19} />, roles: ['ADMIN'] },
       { to: '/admin/password-requests', label: 'طلبات تغيير كلمة المرور', icon: <IconUser size={19} />, roles: ['ADMIN'] },
       { to: '/profile-reviews/teachers', label: 'تحقق من بيانات المحفظ', icon: <IconUser size={19} />, roles: ['ADMIN'] },
-      { to: '/teacher-duties', label: 'جدول نظام المحفّظين', icon: <IconCalendar size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
+      { to: '/teacher-duties', label: 'جدول انضباط المحفّظين', icon: <IconCalendar size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/circles', label: 'الحلقات', icon: <IconCircleGroup size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/courses', label: 'الدورات', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/staff/attendance', label: 'حضور الكادر', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
@@ -77,6 +79,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/profile-reviews/students', label: 'تحقق من بيانات الطالب', icon: <IconUser size={19} />, roles: ['ADMIN'] },
       { to: '/students', label: 'الطلاب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/attendance', label: 'الحضور والغياب', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
+      { to: '/absence-permissions', label: 'طلبات إذن الغياب', icon: <IconCalendar size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER', 'STUDENT'] },
       { to: '/recitations', label: 'التسميع اليومي', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/student-accounts', label: 'حسابات الطلاب', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
       { to: '/exams', label: 'الاختبارات والنتائج', icon: <IconAward size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE'] },
@@ -87,18 +90,18 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'المستندات',
     items: [
-      { to: '/documents/attendance', label: 'تقرير الحضور والغياب', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/recitations', label: 'تقرير التسميع اليومي', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/exams', label: 'تقرير الاختبارات والنتائج', icon: <IconAward size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/student', label: 'الملف الشامل للطالب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/circles', label: 'إحصائية الحلقات والمحفظين', icon: <IconCircleGroup size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/students', label: 'سجل الطلاب', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/memorization-students', label: 'سجل طلاب التحفيظ', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/activity-students', label: 'سجل طلاب النشاط', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/suspended-students', label: 'سجل طلاب المفصولين', icon: <IconPause size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/course-students', label: 'سجل طلاب الدورات', icon: <IconUsers size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/courses', label: 'حلقات الدورات', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
-      { to: '/documents/course-attendance', label: 'حضور وغياب الدورات', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
+      { to: '/documents/attendance', label: 'تقرير الحضور والغياب', icon: <IconClipboard size={19} />, roles: ['ADMIN'] },
+      { to: '/documents/recitations', label: 'تقرير التسميع اليومي', icon: <IconBook size={19} />, roles: ['ADMIN'] },
+      { to: '/documents/exams', label: 'تقرير الاختبارات والنتائج', icon: <IconAward size={19} />, roles: ['ADMIN'] },
+      { to: '/documents/student', label: 'الملف الشامل للطالب', icon: <IconGraduation size={19} />, roles: ['ADMIN'] },
+      { to: '/documents/circles', label: 'إحصائية الحلقات والمحفظين', icon: <IconCircleGroup size={19} />, roles: ['ADMIN'] },
+      { to: '/documents/students', label: 'سجل الطلاب', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
+      { to: '/documents/memorization-students', label: 'سجل طلاب التحفيظ', icon: <IconBook size={19} />, roles: ['ADMIN'] },
+      { to: '/documents/activity-students', label: 'سجل طلاب النشاط', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
+      { to: '/documents/suspended-students', label: 'سجل طلاب المفصولين', icon: <IconPause size={19} />, roles: ['ADMIN'] },
+      { to: '/documents/course-students', label: 'سجل طلاب الدورات', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
+      { to: '/documents/courses', label: 'حلقات الدورات', icon: <IconBook size={19} />, roles: ['ADMIN'] },
+      { to: '/documents/course-attendance', label: 'حضور وغياب الدورات', icon: <IconClipboard size={19} />, roles: ['ADMIN'] },
       { to: '/certificates-admin', label: 'الشهادات', icon: <IconAward size={19} />, roles: ['ADMIN'] },
       { to: '/student', label: 'ملفي الدراسي', icon: <IconGraduation size={19} />, roles: ['STUDENT'] },
       { to: '/my-files', label: 'ملفاتي', icon: <IconClipboard size={19} />, roles: ['STUDENT'] },
@@ -122,17 +125,23 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'الملف الشخصي',
     items: [
-      { to: '/about', label: 'معلومات عن البرنامج', icon: <IconBook size={19} />, roles: ALL },
+      { to: '/about', label: 'عن التطبيق', icon: <IconBook size={14} />, roles: ALL },
       { to: '/verify-profile', label: 'تحقق من بياناتي', icon: <IconUser size={19} />, roles: ['TEACHER', 'STUDENT'] },
       { to: '/profile', label: 'الملف الشخصي', icon: <IconUser size={19} />, roles: ALL },
     ],
   },
 ];
+NAV_GROUPS.push({ title: 'المشاركة', items: [{ to: '/donations', label: 'التبرعات', icon: <IconHeart size={19} />, roles: ALL }] });
 export function navigationFor(role: Role): NavGroup[] {
-  return NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => item.roles.includes(role)),
-  })).filter((group) => group.items.length > 0);
+  const visible = NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter((item) => item.roles.includes(role)) })).filter((group) => group.items.length > 0);
+  if (role === 'ADMIN') return visible;
+  const studentGroup = NAV_GROUPS.find((group) => group.items.some((item) => item.to === '/students'));
+  const adminGroup = NAV_GROUPS.find((group) => group.items.some((item) => item.to === '/meetings'));
+  const moved = [...(adminGroup?.items || []), ...(studentGroup?.items || [])].filter((item) => item.roles.includes(role));
+  const ownFiles = NAV_GROUPS.flatMap(group => group.items).filter(item => ['/student','/my-files'].includes(item.to) && item.roles.includes(role));
+  const hiddenTitles = new Set([studentGroup?.title, adminGroup?.title, NAV_GROUPS.find((group) => group.items.some((item) => item.to === '/documents/attendance'))?.title]);
+  const rest = visible.filter((group) => !hiddenTitles.has(group.title));
+  return [...rest, ...(moved.length ? [{ title: 'الحلقات والمتابعة', items: moved }] : []), ...(ownFiles.length ? [{ title: 'ملفي', items: ownFiles }] : [])];
 }
 
 // --- who may open which page ------------------------------------------------

@@ -1,4 +1,4 @@
-﻿CREATE TABLE "absence_permission_requests" (
+CREATE TABLE "absence_permission_requests" (
   "id" TEXT NOT NULL,
   "studentId" TEXT NOT NULL,
   "requesterId" TEXT NOT NULL,

@@ -113,7 +113,14 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
         (!related && request?.status !== 'PENDING' && record?.status === 'SCHEDULED');
       const requested = !pending && !liveCompleted &&
         (request?.status === 'PENDING' || (!request && record?.status === 'REQUESTED'));
-      const currentUnlocked = previousRequiredPassed;
+      const currentUnlocked = item.stage
+        ? Array.from({ length: item.stage.toJuz - item.stage.fromJuz + 1 }, (_, index) =>
+          `JUZ-${String(item.stage!.fromJuz + index).padStart(2, '0')}`).every(code =>
+            progression.some(section => section.code === code && section.isPassed) ||
+            records.some(record => record.section.code === code && record.status === 'COMPLETED' && record.score != null && record.score >= 80) ||
+            exams.some(exam => !exam.combinedStage && exam.status === 'COMPLETED' && exam.result === 'PASSED' && exam.section?.code === code)) &&
+          (!item.stage.prerequisite || exams.some(exam => exam.combinedStage === item.stage!.prerequisite && exam.status === 'COMPLETED' && exam.result === 'PASSED'))
+        : previousRequiredPassed;
       // The next row is available only when this row has actually been passed.
       previousRequiredPassed = passed;
       return { ...item, section, related, record, request, passed, pending, requested, unlocked: currentUnlocked };
@@ -122,9 +129,9 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
 
   if (loading) return <LoadingState rows={5} />;
   return (
-    <Card title="تسلسل اختبارات الأحزاب والأجزاء" padded={false}>
+    <Card title="تسلسل اختبارات الأحزاب والأجزاء والمجمّعة" padded={false}>
       <div className="border-b border-slate-100 px-5 py-3 text-xs leading-6 text-slate-500">
-        التسلسل: حزبين ثم جزء، بدءًا من الحزب ٦٠ والجزء ٣٠ نزولًا. العلامة محفوظة لكل عنصر حتى عند طلب التسميع مجتمعة.
+        التسلسل: حزبين ثم جزء، بدءًا من الحزب ٦٠ والجزء ٣٠ نزولًا. يمكنك طلب اختبار المجمّعة بعد اجتياز الأجزاء المطلوبة والمجمّعة السابقة، من زر طلب اختبار في نفس الجدول.
       </div>
       <div className="table-wrap border-0 shadow-none">
         <table className="table">

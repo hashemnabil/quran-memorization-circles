@@ -392,3 +392,9 @@
 .app-workspace .table tbody tr:hover { background: #f0f7f3; }
 .app-workspace .label { line-height: 1.8; }
 @media (max-width: 639px) { .app-topbar .app-icon-button { width: 36px; height: 40px; } }
+
+.donation-hero { position: relative; overflow: hidden; isolation: isolate; padding: clamp(24px, 4vw, 48px); border-radius: 28px; background: linear-gradient(120deg, #174d3c, #0c2c23); color: white; }
+.donation-hero-pattern { position: absolute; z-index: -1; width: 420px; height: 420px; left: -160px; top: -200px; border: 1px solid #ffffff20; border-radius: 50%; box-shadow: 0 0 0 48px #ffffff05, 0 0 0 96px #ffffff04, 0 0 0 144px #ffffff03; pointer-events: none; }
+.donations-page .donation-payment { background: #fff; border-color: #dce7e0; transition: border-color .18s, box-shadow .18s; }
+.donations-page .donation-payment:hover { border-color: #95bea7; box-shadow: 0 4px 14px #12372d08; }
+@media (max-width: 639px) { .donation-hero { border-radius: 20px; } }

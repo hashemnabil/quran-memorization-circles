@@ -13,17 +13,39 @@ export async function exportLocalPdf(title: string, rows: Record<string, unknown
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('تعذر إنشاء مستند PDF على هذا الجهاز');
   const margin = 60, bottom = 1150, lineHeight = 28;
-  const width = (canvas.width - margin * 2) / Math.max(columns.length, 1);
-  const text = (value: unknown) => value == null ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value);
-  const wrap = (value: string) => {
+  const weights = columns.map(column => /الطالب|المعلم|الحلقة|ولي الأمر|الأم|الاسم/.test(column) ? 1.8 : /تاريخ الميلاد|الهوية|رقم الطالب/.test(column) ? 1.25 : 1);
+  const unit = (canvas.width - margin * 2) / Math.max(1, weights.reduce((a, b) => a + b, 0));
+  const widths = weights.map(weight => weight * unit);
+  const positions = widths.map((_, i) => canvas.width - margin - widths.slice(0, i + 1).reduce((a, b) => a + b, 0));
+  const text = (value: unknown) => {
+    if (value == null || value === '') return '—';
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10).split('-').reverse().join('/');
+    if (typeof value === 'string' && /^\\d{4}-\\d{2}-\\d{2}(?:T.*)?$/.test(value)) return value.slice(0, 10).split('-').reverse().join('/');
+    return typeof value === 'object' ? JSON.stringify(value) : String(value);
+  };
+  const wrap = (value: string, maxWidth: number) => {
     const lines: string[] = [];
-    for (const paragraph of value.replace(/\r/g, '').split('\n')) {
+    for (const paragraph of value.replace(/\\r/g, '').split('\\n')) {
       let current = '';
-      for (const character of Array.from(paragraph)) {
-        if (current && ctx.measureText(current + character).width > width - 24) { lines.push(current); current = ''; }
-        current += character;
+      for (const word of paragraph.split(/\\s+/).filter(Boolean)) {
+        const candidate = current ? current + ' ' + word : word;
+        if (current && ctx.measureText(candidate).width > maxWidth) {
+          lines.push(current);
+          current = '';
+        }
+        if (ctx.measureText(word).width <= maxWidth) {
+          current = current ? current + ' ' + word : word;
+        } else {
+          for (const character of Array.from(word)) {
+            if (current && ctx.measureText(current + character).width > maxWidth) {
+              lines.push(current);
+              current = '';
+            }
+            current += character;
+          }
+        }
       }
-      lines.push(current || '');
+      lines.push(current);
     }
     return lines;
   };
@@ -31,7 +53,8 @@ export async function exportLocalPdf(title: string, rows: Record<string, unknown
   const drawRow = (cells: string[][], offset: number, count: number, heading: boolean, stripe = false) => {
     const height = count * lineHeight + 22;
     cells.forEach((lines, index) => {
-      const x = canvas.width - margin - (index + 1) * width;
+      const x = positions[index];
+      const width = widths[index];
       ctx.fillStyle = heading ? '#14543f' : stripe ? '#f1f6f3' : '#ffffff';
       ctx.fillRect(x, y, width, height);
       ctx.strokeStyle = '#d5e1da'; ctx.lineWidth = 1; ctx.strokeRect(x, y, width, height);
@@ -51,7 +74,7 @@ export async function exportLocalPdf(title: string, rows: Record<string, unknown
     y = 195; page++;
     if (columns.length) {
       ctx.font = 'bold 20px Tajawal';
-      const headers = columns.map(wrap);
+      const headers = columns.map((column, index) => wrap(column, widths[index] - 24));
       drawRow(headers, 0, Math.max(...headers.map(lines => lines.length)), true);
     }
     ctx.font = '20px Tajawal';
@@ -65,7 +88,7 @@ export async function exportLocalPdf(title: string, rows: Record<string, unknown
   };
   await begin();
   for (const [index, row] of rows.entries()) {
-    const cells = columns.map(column => wrap(text(row[column])));
+    const cells = columns.map((column, index) => wrap(text(row[column]), widths[index] - 24));
     const total = Math.max(1, ...cells.map(lines => lines.length));
     if (y + total * lineHeight + 22 > bottom && total * lineHeight + 22 < bottom - 300) { await flush(); await begin(); }
     let offset = 0;

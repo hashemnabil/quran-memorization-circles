@@ -1,47 +1,84 @@
 import { PDFDocument } from 'pdf-lib';
 import { drawSchoolPdfHeader } from './pdf-branding';
 
-/** Rasterized Arabic text uses the bundled font, with no server or remote font. */
+/** Arabic is drawn with the bundled font, in a paginated RTL table. */
 export async function exportLocalPdf(title: string, rows: Record<string, unknown>[]) {
   await document.fonts.load('20px Tajawal');
+  await document.fonts.load('bold 20px Tajawal');
+  const columns = [...new Set(rows.flatMap(Object.keys))];
   const pdf = await PDFDocument.create();
-  const canvas = document.createElement('canvas'); canvas.width = 1240; canvas.height = 1754;
-  const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('تعذر إنشاء مستند PDF على هذا الجهاز');
-  let y = 0; let page = 0;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1754, columns.length * 150 + 120);
+  canvas.height = 1240;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('تعذر إنشاء مستند PDF على هذا الجهاز');
+  const margin = 60, bottom = 1150, lineHeight = 28;
+  const width = (canvas.width - margin * 2) / Math.max(columns.length, 1);
+  const text = (value: unknown) => value == null ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+  const wrap = (value: string) => {
+    const lines: string[] = [];
+    for (const paragraph of value.replace(/\r/g, '').split('\n')) {
+      let current = '';
+      for (const character of Array.from(paragraph)) {
+        if (current && ctx.measureText(current + character).width > width - 24) { lines.push(current); current = ''; }
+        current += character;
+      }
+      lines.push(current || '');
+    }
+    return lines;
+  };
+  let y = 0, page = 0;
+  const drawRow = (cells: string[][], offset: number, count: number, heading: boolean, stripe = false) => {
+    const height = count * lineHeight + 22;
+    cells.forEach((lines, index) => {
+      const x = canvas.width - margin - (index + 1) * width;
+      ctx.fillStyle = heading ? '#14543f' : stripe ? '#f1f6f3' : '#ffffff';
+      ctx.fillRect(x, y, width, height);
+      ctx.strokeStyle = '#d5e1da'; ctx.lineWidth = 1; ctx.strokeRect(x, y, width, height);
+      ctx.save(); ctx.beginPath(); ctx.rect(x + 8, y + 4, width - 16, height - 8); ctx.clip();
+      ctx.fillStyle = heading ? '#ffffff' : '#1e293b';
+      ctx.textAlign = 'right'; ctx.direction = 'rtl';
+      lines.slice(offset, offset + count).forEach((line, i) => ctx.fillText(line, x + width - 12, y + 30 + i * lineHeight));
+      ctx.restore();
+    });
+    y += height;
+  };
   const begin = async () => {
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     await drawSchoolPdfHeader(ctx, canvas, { compact: true });
     ctx.font = 'bold 28px Tajawal'; ctx.textAlign = 'right'; ctx.direction = 'rtl'; ctx.fillStyle = '#14543f';
-    ctx.fillText(title, 1180, 158, 1120); y = 205; page++;
+    ctx.fillText(title, canvas.width - margin, 158, canvas.width - margin * 2);
+    y = 195; page++;
+    if (columns.length) {
+      ctx.font = 'bold 20px Tajawal';
+      const headers = columns.map(wrap);
+      drawRow(headers, 0, Math.max(...headers.map(lines => lines.length)), true);
+    }
+    ctx.font = '20px Tajawal';
   };
   const flush = async () => {
-    ctx.font = '18px Tajawal'; ctx.fillStyle = '#64748b'; ctx.fillText(`صفحة ${page}`, 1180, 1710);
+    ctx.font = '18px Tajawal'; ctx.fillStyle = '#64748b'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
+    ctx.fillText(`صفحة ${page}`, canvas.width / 2, 1200);
     const image = await pdf.embedPng(canvas.toDataURL('image/png'));
-    pdf.addPage([595.28, 841.89]).drawImage(image, { x: 0, y: 0, width: 595.28, height: 841.89 });
-  };
-  const line = async (text: string, heading = false) => {
-    ctx.font = `${heading ? 'bold ' : ''}22px Tajawal`;
-    const words = text.replace(/\r/g, '').split(/\s+/); let current = '';
-    for (const word of words) {
-      // Split even long identifiers so no field is silently clipped.
-      for (const part of word.match(/.{1,60}/gu) || ['']) {
-        const next = current ? `${current} ${part}` : part;
-        if (ctx.measureText(next).width > 1110 && current) {
-          if (y > 1640) { await flush(); await begin(); ctx.font = `${heading ? 'bold ' : ''}22px Tajawal`; }
-          ctx.fillStyle = heading ? '#14543f' : '#1e293b'; ctx.fillText(current, 1180, y); y += 36; current = part;
-        } else current = next;
-      }
-    }
-    if (y > 1640) { await flush(); await begin(); ctx.font = `${heading ? 'bold ' : ''}22px Tajawal`; }
-    ctx.fillStyle = heading ? '#14543f' : '#1e293b'; ctx.fillText(current || '—', 1180, y); y += 36;
+    const size = [canvas.width / 2.083, canvas.height / 2.083] as const;
+    pdf.addPage([size[0], size[1]]).drawImage(image, { x: 0, y: 0, width: size[0], height: size[1] });
   };
   await begin();
-  for (let i = 0; i < rows.length; i++) {
-    await line(`السجل ${i + 1}`, true);
-    for (const [key, value] of Object.entries(rows[i])) await line(`${key}: ${value == null ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value)}`);
-    y += 18;
+  for (const [index, row] of rows.entries()) {
+    const cells = columns.map(column => wrap(text(row[column])));
+    const total = Math.max(1, ...cells.map(lines => lines.length));
+    if (y + total * lineHeight + 22 > bottom && total * lineHeight + 22 < bottom - 300) { await flush(); await begin(); }
+    let offset = 0;
+    while (offset < total) {
+      const available = Math.floor((bottom - y - 22) / lineHeight);
+      if (available < 1) { await flush(); await begin(); continue; }
+      const count = Math.min(total - offset, available);
+      drawRow(cells, offset, count, false, index % 2 === 1);
+      offset += count;
+      if (offset < total) { await flush(); await begin(); }
+    }
   }
-  if (!rows.length) await line('لا توجد سجلات');
+  if (!rows.length) { ctx.fillStyle = '#64748b'; ctx.textAlign = 'right'; ctx.fillText('لا توجد سجلات', canvas.width - margin, y + 40); }
   await flush();
   return new Blob([new Uint8Array(await pdf.save())], { type: 'application/pdf' });
 }

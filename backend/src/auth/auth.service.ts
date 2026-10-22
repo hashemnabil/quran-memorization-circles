@@ -219,7 +219,7 @@ export class AuthService {
     const rounds = parseInt(this.config.get('BCRYPT_ROUNDS') || '10', 10);
     const passwordHash = await bcrypt.hash(dto.newPassword, rounds);
     await this.prisma.$transaction(async (tx) => {
-      const changed = await tx.user.updateMany({ where: { id: user.id, passwordHash: found.passwordHash }, data: { passwordHash, mustChangePassword: false, temporaryPasswordEncrypted: null } });
+      const changed = await tx.user.updateMany({ where: { id: user.id, passwordHash: found.passwordHash }, data: { passwordHash, mustChangePassword: false } });
       if (changed.count !== 1) throw new BadRequestException('تغيّرت بيانات الحساب؛ سجّل الدخول مجددًا');
       await tx.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
     });

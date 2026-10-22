@@ -1,5 +1,5 @@
 ﻿import Dexie, { type Table } from 'dexie';
-import { installLocalEncryption } from './local-encryption';
+import { installLocalEncryption, dataKey, encryptedAccount } from './local-encryption';
 
 export const entityTables = ['students', 'circles', 'teachers', 'attendance', 'staffAttendance', 'courseAttendance', 'recitations', 'exams', 'behaviors', 'notifications', 'courses', 'examRequests', 'mediaPlans', 'teacherDuties', 'dutyTeachers', 'users', 'studentAccounts', 'profileReviews', 'transfers', 'suspensions', 'meetings', 'examCommittees', 'absencePermissions', 'guardianSummons', 'preparations', 'surahCompletions', 'announcements', 'mediaActivities', 'certificateRequests', 'certificates', 'certificateTemplates', 'schoolSettings'] as const;
 export type EntityTable = typeof entityTables[number];
@@ -31,43 +31,43 @@ class HalaqatDatabase extends Dexie {
       .upgrade(tx => tx.table('meta').filter(row => /:(downloadedAt|deltaCursor)$/.test(row.key)).delete().then(() => undefined));
     this.version(4).stores({ profileReviews: '[accountId+id], accountId, kind, status, requesterId, synced' })
       .upgrade(async tx => {
-        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt')).toArray()) {
+        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt') && (!encryptedAccount(row.key.split(':')[0]) || !!dataKey(row.key.split(':')[0]))).toArray()) {
           await tx.table('meta').put({ key: row.key.replace(/:downloadedAt$/, ':needsProfileReviewsBootstrap'), value: true });
         }
       });
     this.version(5).stores(Object.fromEntries(['transfers', 'suspensions', 'meetings', 'examCommittees'].map(table => [table, '[accountId+id], accountId, studentId, status, updatedAt, synced'])))
       .upgrade(async tx => {
-        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt')).toArray()) {
+        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt') && (!encryptedAccount(row.key.split(':')[0]) || !!dataKey(row.key.split(':')[0]))).toArray()) {
           await tx.table('meta').put({ key: row.key.replace(/:downloadedAt$/, ':needsSchoolOperationsBootstrap'), value: true });
         }
       });
     this.version(6).stores({ absencePermissions: '[accountId+id], accountId, studentId, status, date, updatedAt, synced', guardianSummons: '[accountId+id], accountId, studentId, createdAt, updatedAt, synced' })
       .upgrade(async tx => {
-        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt')).toArray()) {
+        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt') && (!encryptedAccount(row.key.split(':')[0]) || !!dataKey(row.key.split(':')[0]))).toArray()) {
           await tx.table('meta').put({ key: row.key.replace(/:downloadedAt$/, ':needsAbsenceWorkflowBootstrap'), value: true });
         }
       });
     this.version(7).stores({ preparations: '[accountId+id], accountId, studentId, dueDate, completedAt, updatedAt, synced', surahCompletions: '[accountId+id], accountId, studentId, surah, updatedAt, synced' })
       .upgrade(async tx => {
-        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt')).toArray()) {
+        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt') && (!encryptedAccount(row.key.split(':')[0]) || !!dataKey(row.key.split(':')[0]))).toArray()) {
           await tx.table('meta').put({ key: row.key.replace(/:downloadedAt$/, ':needsLearningWorkflowsBootstrap'), value: true });
         }
       });
     this.version(8).stores({ announcements: '[accountId+id], accountId, isActive, publishedAt, updatedAt, synced', mediaActivities: '[accountId+id], accountId, type, activityDate, updatedAt, synced' })
       .upgrade(async tx => {
-        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt')).toArray()) {
+        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt') && (!encryptedAccount(row.key.split(':')[0]) || !!dataKey(row.key.split(':')[0]))).toArray()) {
           await tx.table('meta').put({ key: row.key.replace(/:downloadedAt$/, ':needsContentBootstrap'), value: true });
         }
       });
     this.version(9).stores({ certificateRequests: '[accountId+id], accountId, studentId, status, createdAt, synced', certificates: '[accountId+id], accountId, studentId, issuedAt, synced', certificateTemplates: '[accountId+id], accountId, kind, isActive, synced' })
       .upgrade(async tx => {
-        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt')).toArray()) {
+        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt') && (!encryptedAccount(row.key.split(':')[0]) || !!dataKey(row.key.split(':')[0]))).toArray()) {
           await tx.table('meta').put({ key: row.key.replace(/:downloadedAt$/, ':needsCertificatesBootstrap'), value: true });
         }
       });
     this.version(10).stores({ staffAttendance: '[accountId+id], accountId, userId, date, status, updatedAt, synced', courseAttendance: '[accountId+id], accountId, courseId, studentId, date, status, updatedAt, synced' })
       .upgrade(async tx => {
-        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt')).toArray()) {
+        for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt') && (!encryptedAccount(row.key.split(':')[0]) || !!dataKey(row.key.split(':')[0]))).toArray()) {
           await tx.table('meta').put({ key: row.key.replace(/:downloadedAt$/, ':needsAttendanceBootstrap'), value: true });
         }
       });

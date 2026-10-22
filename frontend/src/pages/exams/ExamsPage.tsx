@@ -179,7 +179,7 @@ export default function ExamsPage() {
               </div>
             )}
           </Card>
-          {progressStudent && <ExamProgressionTable studentId={progressStudent.id} canEditMilestones={user.role === 'ADMIN'} eligibility={progressEligibility.data} exams={progressExams.data?.data ?? []} loading={progressEligibility.isLoading || progressExams.isLoading} />}
+          {progressStudent && <ExamProgressionTable studentId={progressStudent.id} canRequest={canRequest} canEditMilestones={user.role === 'ADMIN'} eligibility={progressEligibility.data} exams={progressExams.data?.data ?? []} loading={progressEligibility.isLoading || progressExams.isLoading} />}
         </div>
       )}
 

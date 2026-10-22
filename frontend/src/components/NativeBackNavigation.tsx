@@ -23,4 +23,3 @@ export default function NativeBackNavigation() {
   }, [location.pathname, navigate]);
   return null;
 }
-

@@ -48,7 +48,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (data) {
       // Nulls from the API would make the inputs uncontrolled.
-      setForm(Object.fromEntries(Object.entries({ ...EMPTY, ...data }).map(([k, v]) => [k, v ?? ''])));
+      setForm(Object.fromEntries(Object.entries({ ...EMPTY, ...data }).map(([k, v]) => [k, ['donationGoalAmount', 'donationRaisedAmount'].includes(k) ? v ?? null : v ?? ''])));
     }
   }, [data]);
 

@@ -21,7 +21,7 @@ export default function DonationPanel({ settings, compact = false }: Props) {
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
-  if (!settings?.donationsEnabled) return null;
+  if (!settings) return null;
 
   const methods = paymentMethods.flatMap(([label, key]) => {
     const number = settings[key]?.trim();
@@ -76,7 +76,6 @@ export default function DonationPanel({ settings, compact = false }: Props) {
         </div>
       ) : <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm leading-6 text-amber-900">لم تُضف الإدارة أرقام الحسابات بعد. تواصل مع إدارة المدرسة للتأكد من طريقة المساهمة.</p>}
       {settings.donationMethod && <p className="mt-4 whitespace-pre-line text-sm leading-7 text-slate-600">{settings.donationMethod}</p>}
-      {settings.donationLink && /^https?:\/\//i.test(settings.donationLink) && <a className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-emerald-800 px-4 text-sm font-bold text-white hover:bg-emerald-900" href={settings.donationLink} target="_blank" rel="noopener noreferrer">فتح رابط المساهمة الرسمي</a>}
 
       <div className="mt-5 border-t border-slate-100 pt-5">
         <h3 className="font-bold text-slate-800">إرسال رسالة أو ملاحظة للإدارة</h3>

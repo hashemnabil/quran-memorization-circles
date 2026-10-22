@@ -398,3 +398,17 @@
 .donations-page .donation-payment { background: #fff; border-color: #dce7e0; transition: border-color .18s, box-shadow .18s; }
 .donations-page .donation-payment:hover { border-color: #95bea7; box-shadow: 0 4px 14px #12372d08; }
 @media (max-width: 639px) { .donation-hero { border-radius: 20px; } }
+
+/* Donation account cards: clear hierarchy and isolated LTR account values. */
+.donations-page { padding-bottom: 12px; }
+.donations-page .donation-hero { box-shadow: 0 14px 40px rgba(12,44,35,.12); border: 1px solid #24533f; }
+.donation-payment { --method-color: #195d47; --method-tint: #edf6f0; position: relative; min-width: 0; padding: 22px; border: 1px solid #dce7e0; border-radius: 20px; background: white; overflow: hidden; }
+.donation-payment::before { content: ''; position: absolute; inset-block: 22px auto; inset-inline-end: 0; width: 3px; height: 36px; border-radius: 4px; background: var(--method-color); }
+.donation-payment-wallet { --method-color: #375989; --method-tint: #eff4fa; }
+.donation-method-mark { display: grid; place-items: center; flex-shrink: 0; width: 46px; height: 46px; border-radius: 14px; background: var(--method-tint); color: var(--method-color); font-size: 23px; font-weight: 800; }
+.donation-account-number { margin-block: 20px 16px; padding: 16px; border: 1px solid #e7ece9; border-radius: 12px; background: #f8faf9; }
+.donation-number { min-height: 30px; text-align: left; unicode-bidi: isolate; overflow-wrap: anywhere; user-select: all; font-family: 'Segoe UI', system-ui, sans-serif; font-size: clamp(18px, 2vw, 22px); font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: .055em; line-height: 1.6; color: #203d32; }
+.donation-copy-button { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; min-height: 44px; border: 1px solid #dce7e0; border-radius: 10px; background: white; color: var(--method-color); font-size: 13px; font-weight: 700; transition: background .18s, border-color .18s; }
+.donation-copy-button:hover { background: var(--method-tint); border-color: var(--method-color); }
+.donation-copy-done { background: #edf6f0; border-color: #b0d5bf; color: #195d47; }
+@media (max-width: 639px) { .donation-payment { padding: 18px; } .donation-number { font-size: 21px; } }

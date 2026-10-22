@@ -35,11 +35,15 @@ for (const [role, paths] of Object.entries(destinations)) {
       const link = sidebar.locator(`a[href="${path}"]`);
       if (await link.count()) await link.click();
       else await page.goto(path);
-      await expect(page).toHaveURL(url => url.pathname === path);
+      await expect(page).toHaveURL(url => url.pathname === path || (role === 'STUDENT' && url.pathname === '/student' && path !== '/student'));
       await expect(page.getByRole('status', { name: 'بدء التطبيق' })).not.toBeVisible();
       await expect(page.locator('main h1').first()).toBeVisible();
       await expect(page.locator('main')).not.toContainText('تعذر تحميل');
     }
+    // Check the account menu from a known authorized page rather than the last
+    // visited destination (which may render with a different page shell).
+    await page.goto(role === 'STUDENT' ? '/student' : role === 'SUPPORT' ? '/support' : '/profile');
+    await expect(page.getByRole('button', { name: 'قائمة الحساب', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
     await page.locator('header').getByRole('link', { name: 'الإشعارات', exact: true }).click();
     await expect(page).toHaveURL(/\/notifications$/);

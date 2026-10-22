@@ -1,6 +1,7 @@
 import { ExamResultDialog as ResultModal } from '@/components/ExamResultDialog';
 import CommitteesTab, {type Committee} from './CommitteesTab';
 import CombinedTab from './CombinedTab';
+import { ExamPlanTable } from '@/components/ExamPlanTable';
 import { combinedPlan } from '@/lib/combined-plan';
 import { useState } from 'react';
 import NotificationRecord from '@/components/NotificationRecord';
@@ -667,6 +668,7 @@ function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Stud
   const debounced = useDebounce(search);
   const [student, setStudent] = useState<Student | null>(initialStudent ?? null);
   const [sectionIds, setSectionIds] = useState<string[]>([]);
+  const [planCode, setPlanCode] = useState('');
   const [note, setNote] = useState('');
 
   const students = useQuery({
@@ -691,6 +693,7 @@ function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Stud
       api.post('/exams/requests', {
         studentId: student!.id,
         sectionIds,
+        combinedStage: combinedPlan().some(stage => stage.code === planCode) ? planCode : undefined,
         note: note || undefined,
       }),
     onSuccess: () => {
@@ -709,19 +712,25 @@ function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Stud
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>إلغاء</Button>
-          <Button loading={mutation.isPending} disabled={!student || !sectionIds.length || eligibility.isLoading} onClick={() => mutation.mutate()}>
+          <Button loading={mutation.isPending} disabled={!student || (!sectionIds.length && !combinedPlan().some(stage => stage.code === planCode)) || eligibility.isLoading} onClick={() => mutation.mutate()}>
             تقديم الطلب ({sectionIds.length})
           </Button>
         </>
       }
     >
       <div className="space-y-3">
+        <ExamPlanTable selected={planCode} onSelect={student ? code => {
+          if (combinedPlan().some(stage => stage.code === code)) { setPlanCode(code); setSectionIds([]); return; }
+          const item = progression.find(item => item.code === code);
+          if (!item?.eligible) { toast.error('هذا المقرر غير متاح للطالب؛ يجب إكمال المتطلبات السابقة'); return; }
+          setPlanCode(code); setSectionIds([item.id]);
+        } : undefined} />
         {student ? (
           <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
             <span className="text-sm font-bold text-slate-800">
               {student.fullName} <span className="numeric text-xs font-normal text-slate-400">{student.code}</span>
             </span>
-            <button className="text-xs text-primary-700" onClick={() => { setStudent(null); setSectionIds([]); }}>تغيير</button>
+            <button className="text-xs text-primary-700" onClick={() => { setStudent(null); setSectionIds([]); setPlanCode(''); }}>تغيير</button>
           </div>
         ) : (
           <div>
@@ -751,7 +760,7 @@ function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Stud
                     <input
                       type="checkbox"
                       checked={sectionIds.includes(item.id)}
-                      onChange={(event) => setSectionIds((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))}
+                      onChange={(event) => { setPlanCode(''); setSectionIds((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id)); }}
                     />
                     <span>{item.name}</span>
                     <span className="mr-auto text-xs text-slate-400">{item.kind === 'HIZB' ? 'حزب' : 'جزء'}</span>

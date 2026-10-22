@@ -40,7 +40,8 @@ export default function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const accountMenu = useRef<HTMLDivElement>(null);
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ 'شؤون إدارية': false, الإعلام: false, 'شؤون الطلبة': false, المستندات: false, التواصل: false, 'نظام المدرسة': false });
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ 'المتابعة اليومية': true, 'الطلاب والحلقات': true, 'ملفي الدراسي': true });
+  const [navSearch, setNavSearch] = useState('');
   // The collapsed rail is a desktop-only preference, remembered between visits.
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
 
@@ -62,6 +63,7 @@ export default function AppLayout() {
   useEffect(() => {
     setDrawerOpen(false);
     setMenuOpen(false);
+    setNavSearch('');
   }, [location.pathname]);
 
   useEffect(() => {
@@ -116,7 +118,12 @@ export default function AppLayout() {
         : 0,
   };
 
-  const groups = navigationFor(user.role);
+  const allGroups = navigationFor(user.role);
+  const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').trim();
+  const searchTerm = normalizeSearch(navSearch);
+  const groups = allGroups.map(group => ({ ...group, items: group.items.filter(item => !searchTerm || normalizeSearch(group.title + ' ' + item.label).includes(searchTerm)) })).filter(group => group.items.length);
+  const activeGroup = allGroups.find(group => group.items.some(item => item.to === location.pathname || item.to !== '/' && location.pathname.startsWith(item.to + '/')));
+  const activeItem = activeGroup?.items.filter(item => item.to === location.pathname || item.to !== '/' && location.pathname.startsWith(item.to + '/')).sort((a,b) => b.to.length - a.to.length)[0];
 
   const handleLogout = async () => {
     try { await logout(); navigate('/login', { replace: true }); }
@@ -171,24 +178,27 @@ export default function AppLayout() {
         )}
       </div>
 
+      {!rail && <div className="px-4 pt-4">
+        <label className="block"><span className="sr-only">ابحث عن صفحة</span><input type="search" value={navSearch} onChange={event => setNavSearch(event.target.value)} placeholder="ابحث عن صفحة…" className="sidebar-search" /></label>
+      </div>}
       <nav aria-label="أقسام التطبيق" className={cx('flex-1 overflow-y-auto overflow-x-hidden overscroll-contain py-4', rail ? 'px-2' : 'px-3')}>
         {groups.map((group) => (
-          <div key={group.title} className="mb-5">
+          <div key={group.title} className="mb-3">
             {rail ? (
               <div className="mx-auto mb-2 h-px w-8 bg-white/10" aria-hidden />
-            ) : group.title === 'الرئيسية' || group.title === 'الملف الشخصي' ? null : (
+            ) : group.title === 'الرئيسية' ? null : (
               <button
                 type="button"
                 className="mb-2 flex w-full items-center justify-between rounded-lg px-3 py-2 text-right text-[11px] font-bold tracking-wide text-primary-300/90 transition hover:bg-white/5 hover:text-white"
                 onClick={() => setExpandedGroups((current) => ({ ...current, [group.title]: !current[group.title] }))}
-                aria-expanded={!!expandedGroups[group.title]}
+                aria-expanded={!!searchTerm || !!expandedGroups[group.title]}
               >
                 <span>{group.title}</span>
                 {expandedGroups[group.title] ? <IconChevronLeft size={15} /> : <IconChevronRight size={15} />}
               </button>
             )}
 
-            {(rail || group.title === 'الرئيسية' || group.title === 'الملف الشخصي' || expandedGroups[group.title]) && <ul className="space-y-0.5">
+            {(rail || !!searchTerm || group.title === 'الرئيسية' || expandedGroups[group.title]) && <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const count = item.badge ? badges[item.badge] : 0;
                 return (
@@ -242,6 +252,7 @@ export default function AppLayout() {
             </ul>}
           </div>
         ))}
+        {groups.length === 0 && !rail && <p role="status" className="px-3 py-6 text-center text-sm text-primary-200">لا توجد صفحات مطابقة</p>}
       </nav>
 
       <div className={cx('border-t border-white/10', rail ? 'p-2' : 'p-3')}>
@@ -293,7 +304,7 @@ export default function AppLayout() {
             className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
             onClick={() => setDrawerOpen(false)}
           />
-          <div className="absolute inset-y-0 right-0 w-72 animate-slide-up">
+          <div className="absolute inset-y-0 right-0 w-72 max-w-[90vw] animate-slide-up">
             {renderSidebar(false)}
           </div>
         </div>
@@ -326,8 +337,8 @@ export default function AppLayout() {
             </button>
 
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold text-slate-700">مرحباً، {user.fullName}</p>
-              <p className="text-[11px] text-slate-400">{ROLE_LABELS[user.role]}</p>
+              <p className="truncate text-sm font-bold text-slate-700">{activeItem?.label ?? 'الرئيسية'}</p>
+              <p className="truncate text-[11px] text-slate-500">{activeGroup?.title} ? {ROLE_LABELS[user.role]}</p>
             </div>
 
 

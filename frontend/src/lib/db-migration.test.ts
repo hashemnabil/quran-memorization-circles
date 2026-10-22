@@ -3,6 +3,7 @@ import Dexie from 'dexie';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { db, entityTables } from './db';
+import { activateDataKey, installLocalEncryption, lockDataKeys } from './local-encryption';
 
 test('v1 database upgrades to schedules without losing records or pending writes', async () => {
   const legacy = new Dexie('halaqatFull');
@@ -36,4 +37,23 @@ test('v3 verification upgrade preserves existing download cursors and seeds only
   assert.equal((await db.meta.get('account:needsProfileReviewsBootstrap'))?.value, true);
   assert.equal((await db.students.get(['account', 'student']))?.fullName, 'Kept');
   db.close();
+});
+
+test('upgrading with a locked saved account preserves encrypted metadata and pending edits', async () => {
+  await Dexie.delete('halaqatFull');
+  const legacy = new Dexie('halaqatFull');
+  installLocalEncryption(legacy);
+  const schema = Object.fromEntries(entityTables.map(name => [name, '[accountId+id], accountId, synced']));
+  legacy.version(3).stores({ ...schema, credentialKeys: 'accountId', queue: '++id, accountId, opId, table', meta: 'key', responses: 'key, accountId' });
+  const key = new Uint8Array(32).fill(7);
+  activateDataKey('saved-account', key);
+  await legacy.open();
+  await legacy.table('meta').put({ key: 'saved-account:downloadedAt', value: 'preserved' });
+  await legacy.table('queue').add({ accountId: 'saved-account', opId: 'pending-upgrade', table: 'students', action: 'create', entityId: 'student', data: { fullName: 'Pending student' } });
+  legacy.close(); lockDataKeys();
+  await db.open();
+  activateDataKey('saved-account', key);
+  assert.equal((await db.meta.get('saved-account:downloadedAt'))?.value, 'preserved');
+  assert.equal((await db.queue.toArray())[0].opId, 'pending-upgrade');
+  db.close(); lockDataKeys();
 });

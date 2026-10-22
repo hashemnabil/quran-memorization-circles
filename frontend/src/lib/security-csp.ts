@@ -1,5 +1,5 @@
 export function productionCsp(apiUrl?: string, socketUrl?: string) {
-  const connect = new Set(["'self'", 'https://quran-memorization-circles.onrender.com', 'wss://quran-memorization-circles.onrender.com']);
+  const connect = new Set(["'self'", 'https://res.cloudinary.com', 'https://quran-memorization-circles.onrender.com', 'wss://quran-memorization-circles.onrender.com']);
   for (const value of [apiUrl, socketUrl]) {
     if (!value || value.startsWith('/')) continue;
     const url = new URL(value);

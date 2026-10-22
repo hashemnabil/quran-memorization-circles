@@ -10,7 +10,7 @@ import type { SchoolSettings } from '@/types';
 const paymentMethods = [
   ['بنك فلسطين', 'donationBankPalestine'],
   ['البنك الإسلامي', 'donationIslamicBank'],
-  ['جوال', 'donationJawwal'],
+  ['جوال باي', 'donationJawwal'],
   ['محفظة PalPay', 'donationPalPay'],
 ] as const;
 

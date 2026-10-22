@@ -40,8 +40,8 @@ for (const [role, paths] of Object.entries(destinations)) {
       await expect(page.locator('main h1').first()).toBeVisible();
       await expect(page.locator('main')).not.toContainText('تعذر تحميل');
     }
-    // Test the account menu from an authorized page instead of relying on the
-    // last navigated route, whose shell can differ between user roles.
+    // Check the account menu from a known authorized page rather than the last
+    // visited destination (which may render with a different page shell).
     await page.goto(role === 'STUDENT' ? '/student' : role === 'SUPPORT' ? '/support' : '/profile');
     await expect(page.getByRole('button', { name: 'قائمة الحساب', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();

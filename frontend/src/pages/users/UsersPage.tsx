@@ -1,5 +1,4 @@
 import { passwordError } from '@/lib/validation';
-import { PasswordStrength } from '@/components/PasswordStrength';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -396,7 +395,7 @@ function UserFormModal({ user, onClose }: { user?: UserRecord; onClose: () => vo
     if (mailErr) next.email = mailErr;
     const phoneErr = phoneError(form.phone);
     if (phoneErr) next.phone = phoneErr;
-    if (!isEdit && passwordError(form.password)) next.password = passwordError(form.password);
+    if (!isEdit && form.password.length < 1) next.password = 'كلمة المرور أي طول تختاره';
     setErrors(next);
     if (Object.keys(next).length) return;
     mutation.mutate();
@@ -429,10 +428,7 @@ function UserFormModal({ user, onClose }: { user?: UserRecord; onClose: () => vo
         <Input label="الاسم الكامل" required value={form.fullName} onChange={(e) => set('fullName', e.target.value)} error={errors.fullName} className="sm:col-span-2" />
         <Input label="اسم المستخدم" required value={form.username} onChange={(e) => set('username', e.target.value)} error={errors.username} hint={USERNAME_HINT} dir="ltr" />
         {!isEdit && (
-          <>
-            <Input label="كلمة المرور" required type="text" value={form.password} onChange={(e) => set('password', e.target.value)} error={errors.password} dir="ltr" />
-            <PasswordStrength value={form.password} />
-          </>
+          <Input label="كلمة المرور" required type="text" value={form.password} onChange={(e) => set('password', e.target.value)} error={errors.password} dir="ltr" />
         )}
         <Select label="الدور" required value={form.role} onChange={(e) => set('role', e.target.value)}>
           {Object.entries(ROLE_LABELS).filter(([key]) => isEdit || !['STUDENT', 'PARENT'].includes(key)).map(([key, label]) => (
@@ -512,9 +508,9 @@ function ResetPasswordModal({ user, onClose }: { user: UserRecord; onClose: () =
         type="text"
         value={newPassword}
         onChange={(e) => setNewPassword(e.target.value)}
+        hint="أي طول تختاره"
         dir="ltr"
       />
-      <PasswordStrength value={newPassword} />
     </Modal>
   );
 }

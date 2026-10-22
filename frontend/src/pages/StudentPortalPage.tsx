@@ -10,7 +10,6 @@ import { formatDateShort, formatParts } from '@/lib/format';
 import StudentQuestionnaire from '@/components/StudentQuestionnaire';
 import { passwordError as newPasswordError } from '@/lib/validation';
 import { rememberOfflineLogin } from '@/lib/offline-login';
-import { PasswordStrength } from '@/components/PasswordStrength';
 
 export default function StudentPortalPage() {
   const [now, setNow] = useState(Date.now);
@@ -62,8 +61,7 @@ export default function StudentPortalPage() {
         <Card title="تعيين كلمة مرور جديدة">
           <form onSubmit={submitPassword} className="grid gap-4">
             <Input label="كلمة المرور المؤقتة" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required dir="ltr" />
-            <Input label="كلمة المرور الجديدة" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required dir="ltr" />
-            <PasswordStrength value={newPassword} />
+            <Input label="كلمة المرور الجديدة" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required hint="أي طول تختاره" dir="ltr" />
             <Input label="تأكيد كلمة المرور الجديدة" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required dir="ltr" />
             {passwordError && <p role="alert" className="text-sm text-red-600">{passwordError}</p>}
             <Button type="submit" loading={changePassword.isPending}>حفظ كلمة المرور</Button>

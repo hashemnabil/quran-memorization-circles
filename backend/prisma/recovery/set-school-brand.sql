@@ -1,4 +1,5 @@
--- Use in the production SQL editor only if the database does not apply Prisma migrations.
+-- Optional one-time branding update for installations that do not use migrations.
+-- Apply only after confirming the `default` school_settings row exists.
 ALTER TABLE public.school_settings
   ALTER COLUMN "name" SET DEFAULT 'مدرسة عبدالله بن عمر';
 

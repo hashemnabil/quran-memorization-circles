@@ -132,16 +132,24 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 NAV_GROUPS.push({ title: 'المشاركة', items: [{ to: '/donations', label: 'التبرعات', icon: <IconHeart size={19} />, roles: ALL }] });
+const SECTION_PATHS = [
+  ['الرئيسية', ['/']],
+  ['المتابعة اليومية', ['/attendance','/recitations','/exams','/absence-permissions','/teacher-duties','/staff/attendance']],
+  ['الطلاب والحلقات', ['/students','/circles','/courses','/student-accounts','/transfers','/suspensions']],
+  ['ملفي الدراسي', ['/student','/my-files']],
+  ['التقارير والشهادات', ['/documents/attendance','/documents/recitations','/documents/exams','/documents/student','/documents/circles','/certificates-admin','/documents/students','/documents/memorization-students','/documents/activity-students','/documents/suspended-students','/documents/course-students','/documents/courses','/documents/course-attendance']],
+  ['التواصل', ['/notifications','/chat','/support']],
+  ['الكادر والإدارة', ['/teachers','/supervisors','/staff','/meetings','/profile-reviews/students','/profile-reviews/teachers','/admin/password-requests','/admin/notifications','/admin/activity']],
+  ['الإعلام والمشاركة', ['/announcements','/media-schedule','/media-activities','/donations']],
+  ['الإعدادات والحساب', ['/users','/settings','/profile','/verify-profile','/about']],
+] as const;
+
 export function navigationFor(role: Role): NavGroup[] {
-  const visible = NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter((item) => item.roles.includes(role)) })).filter((group) => group.items.length > 0);
-  if (role === 'ADMIN') return visible;
-  const studentGroup = NAV_GROUPS.find((group) => group.items.some((item) => item.to === '/students'));
-  const adminGroup = NAV_GROUPS.find((group) => group.items.some((item) => item.to === '/meetings'));
-  const moved = [...(adminGroup?.items || []), ...(studentGroup?.items || [])].filter((item) => item.roles.includes(role));
-  const ownFiles = NAV_GROUPS.flatMap(group => group.items).filter(item => ['/student','/my-files'].includes(item.to) && item.roles.includes(role));
-  const hiddenTitles = new Set([studentGroup?.title, adminGroup?.title, NAV_GROUPS.find((group) => group.items.some((item) => item.to === '/documents/attendance'))?.title]);
-  const rest = visible.filter((group) => !hiddenTitles.has(group.title));
-  return [...rest, ...(moved.length ? [{ title: 'الحلقات والمتابعة', items: moved }] : []), ...(ownFiles.length ? [{ title: 'ملفي', items: ownFiles }] : [])];
+  const items = new Map(NAV_GROUPS.flatMap(group => group.items).map(item => [item.to, item]));
+  return SECTION_PATHS.map(([title, paths]) => ({ title, items: paths.flatMap(path => {
+    const item = items.get(path);
+    return item && item.roles.includes(role) ? [item] : [];
+  }) })).filter(group => group.items.length > 0);
 }
 
 // --- who may open which page ------------------------------------------------

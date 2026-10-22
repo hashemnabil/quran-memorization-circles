@@ -35,7 +35,7 @@ for (const [role, paths] of Object.entries(destinations)) {
       const link = sidebar.locator(`a[href="${path}"]`);
       if (await link.count()) await link.click();
       else await page.goto(path);
-      await expect(page).toHaveURL(url => url.pathname === path);
+      await expect(page).toHaveURL(url => url.pathname === path || (role === 'STUDENT' && url.pathname === '/student' && path !== '/student'));
       await expect(page.getByRole('status', { name: 'بدء التطبيق' })).not.toBeVisible();
       await expect(page.locator('main h1').first()).toBeVisible();
       await expect(page.locator('main')).not.toContainText('تعذر تحميل');

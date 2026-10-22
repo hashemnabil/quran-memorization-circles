@@ -1,4 +1,6 @@
 import ProfileVerificationPage, { ProfileReviewsPage } from '@/pages/ProfileVerificationPage';
+import NativeBackNavigation from '@/components/NativeBackNavigation';
+import MeetingsPage from '@/pages/MeetingsPage';
 import { lazy, Suspense, useEffect } from 'react';
 import { LoadingState } from '@/components/ui';
 import AppLaunchGate from '@/components/AppLaunchGate';
@@ -32,6 +34,7 @@ const StudentDetailsPage = lazy(() => import('@/pages/students/StudentDetailsPag
 import TeachersPage from '@/pages/teachers/TeachersPage';
 import TeacherDetailsPage from '@/pages/teachers/TeacherDetailsPage';
 import AttendancePage from '@/pages/attendance/AttendancePage';
+import AbsencePermissionsPage from '@/pages/attendance/AbsencePermissionsPage';
 import RecitationsPage from '@/pages/recitations/RecitationsPage';
 const ExamsPage = lazy(() => import('@/pages/exams/ExamsPage'));
 import TransfersPage from '@/pages/transfers/TransfersPage';
@@ -54,6 +57,7 @@ import { ForbiddenPage, NotFoundPage } from '@/pages/ErrorPages';
 import RegistryLoginPage from '@/pages/RegistryLoginPage';
 import RegistryDataPage from '@/pages/RegistryDataPage';
 import RegistryAdminPage from '@/pages/RegistryAdminPage';
+import DonationsPage from '@/pages/DonationsPage';
 
 export default function App() {
   const loadSession = useAuthStore((s) => s.loadSession);
@@ -76,6 +80,9 @@ export default function App() {
       // Signal that this account's durable snapshot has been restored before
       // background refreshes can replace cached reads with network responses.
       window.dispatchEvent(new CustomEvent('qc:offline-cache-restored', { detail: { accountId: currentUser.id } }));
+      // Cached data is only the offline fallback. On every online app launch,
+      // invalidate active reads so the server is contacted before stale rows settle.
+      if (navigator.onLine) void queryClient.invalidateQueries({ refetchType: 'active' });
       unsubscribe = queryClient.getQueryCache().subscribe(() => {
         if (timer) clearTimeout(timer);
         timer = setTimeout(() => {
@@ -99,6 +106,7 @@ export default function App() {
 
   return (
     <AppLaunchGate>
+      <NativeBackNavigation />
       <Suspense fallback={<LoadingState />}>
       <Routes>
       <Route path="/privacy" element={<PrivacyPage />} />
@@ -126,13 +134,15 @@ export default function App() {
         <Route path="profile-reviews/students" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="STUDENT" /></RequireRole>} />
         <Route path="profile-reviews/teachers" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="TEACHER" /></RequireRole>} />
         <Route path="settings/offline" element={<OfflineSettingsPage />} />
+        <Route path="donations" element={<DonationsPage />} />
         <Route path="admin/notifications" element={<RequireRole roles={['ADMIN']}><BroadcastPage /></RequireRole>} />
+        <Route path="meetings" element={<RequireRole roles={['ADMIN']}><MeetingsPage /></RequireRole>} />
         <Route path="admin/activity" element={<RequireRole roles={['ADMIN']}><ActivityPage /></RequireRole>} />
         <Route path="admin/password-requests" element={<RequireRole roles={['ADMIN']}><PasswordRequestsPage /></RequireRole>} />
         <Route index element={currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
-        <Route path="reports" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><ReportsPage /></RequireRole>} />
-        <Route path="documents/:report" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><ReportsPage /></RequireRole>} />
+        <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
+        <Route path="documents/:report" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
         <Route path="student-accounts" element={<RequireRole roles={['ADMIN']}><StudentAccountsPage /></RequireRole>} />
         <Route path="certificates-admin" element={<RequireRole roles={['ADMIN']}><CertificatesAdminPage /></RequireRole>} />
         <Route path="media-activities" element={<RequireRole roles={['ADMIN', 'SUPERVISOR']}><MediaActivitiesPage /></RequireRole>} />
@@ -253,6 +263,7 @@ export default function App() {
             </RequireRole>
           }
         />
+        <Route path="absence-permissions" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER', 'STUDENT']}><AbsencePermissionsPage /></RequireRole>} />
         <Route
           path="recitations"
           element={

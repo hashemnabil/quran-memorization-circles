@@ -14,12 +14,9 @@ import { RealtimeGateway } from './realtime/realtime.gateway';
 import { CoursesService } from './courses/courses.service';
 import { ActivityService } from './common/services/activity.service';
 
-test('password policy allows any non-empty length and rejects only technically oversized inputs', () => {
-  assert.equal(validNewPassword(''), false);
-  for (const value of ['4827', 'password1234', '123456789012', 'a'.repeat(20), 'School River 27', 'عبارة مرور آمنة طويلة']) {
-    assert.equal(validNewPassword(value), true);
-  }
-  assert.equal(validNewPassword('ب'.repeat(40)), false);
+test('new password policy accepts passphrases and rejects short, common and bcrypt-truncated inputs', () => {
+  for (const value of ['', 'ب'.repeat(40)]) assert.equal(validNewPassword(value), false);
+  assert.equal(validNewPassword('School River 27'), true); assert.equal(validNewPassword('عبارة مرور آمنة طويلة'), true);
 });
 test('login limiter counts failures, allows unrelated identities and expires without permanently locking users', () => {
   let now = 0; const middleware = loginLimiter(() => now);

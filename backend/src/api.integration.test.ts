@@ -209,8 +209,8 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('POST', '/recitations', Role.TEACHER, { studentId: student.id, date: '2026-01-01', fromSurah: 'الفاتحة', fromAyah: 1, toSurah: 'الفاتحة', toAyah: 7, evaluation: 'EXCELLENT', mistakes: 1, warnings: 0 });
       assert.equal((await db.recitation.findFirstOrThrow({ where: { studentId: student.id } })).points, 6);
       assert.equal((await db.student.findUniqueOrThrow({ where: { id: student.id } })).totalPoints, 6);
-      const report = await request('GET', '/reports?type=students&track=CIRCLE', Role.TEACHER);
-      assert.equal(report.rows.some((row: any) => row['الطالب'] === hiddenStudent.fullName), false);
+      await request('GET', '/reports?type=students&track=CIRCLE', Role.TEACHER, undefined, 403);
+      const report = await request('GET', '/reports?type=students&track=CIRCLE', Role.ADMIN);
       assert.equal(report.rows.some((row: any) => row['الطالب'] === student.fullName), true);
       await request('GET', '/recitations', Role.EXAM_COMMITTEE, undefined, 403);
       await request('GET', '/attendance', Role.SUPPORT, undefined, 403);
@@ -267,7 +267,8 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       assert.deepEqual(responses.map((response) => response.status).sort(), [200, 401]);
       const winning = await responses.find((response) => response.ok)!.json();
       sessions.ADMIN = winning;
-      await request('PATCH', '/auth/change-password', Role.ADMIN, { currentPassword: password, newPassword: '4827' });
+      await request('PATCH', '/auth/change-password', Role.ADMIN, { currentPassword: password, newPassword: '' }, 400);
+      await request('PATCH', '/auth/change-password', Role.ADMIN, { currentPassword: password, newPassword: 'School River 27' });
       await request('GET', '/auth/me', Role.ADMIN, undefined, 401);
       await request('POST', '/auth/refresh', undefined, { refreshToken: winning.refreshToken }, 401);
     });

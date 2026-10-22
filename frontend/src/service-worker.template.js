@@ -46,6 +46,17 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Background Sync is a wake-up hint only. The authenticated application owns
+// the encrypted outbox and credentials, so it performs the actual sync after
+// a live window receives this message. Browsers may defer or omit this event.
+self.addEventListener('sync', (event) => {
+  if (event.tag !== 'halaqat-pending-sync') return;
+  event.waitUntil((async () => {
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of clients) client.postMessage({ type: 'HALAQAT_SYNC_REQUEST' });
+  })());
+});
+
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);

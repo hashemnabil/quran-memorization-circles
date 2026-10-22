@@ -70,7 +70,13 @@ export default function DashboardPage() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['dashboard', 'overview'],
-    queryFn: async () => ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE'].includes(user.role) ? localDashboard(user.role) : (await api.get('/dashboard/overview')).data,
+    queryFn: async () => {
+      try { return (await api.get('/dashboard/overview')).data; }
+      catch (error) {
+        if (navigator.onLine) return localDashboard(user.role);
+        return localDashboard(user.role);
+      }
+    },
   });
 
   if (isLoading) {
@@ -131,6 +137,7 @@ export default function DashboardPage() {
         <QuickAccess role={data.role} />
       </section>
 
+      {['ADMIN','SUPERVISOR','TEACHER','EXAM_COMMITTEE'].includes(data.role)&&<section aria-label="إحصائيات المدرسة" className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">{[{label:'الحلقات',value:data.counts?.circles,path:'/circles'},{label:'الطلاب',value:data.counts?.students,path:'/students'},{label:'الدورات',value:data.counts?.courses,path:'/courses'},{label:'الاختبارات',value:data.counts?.exams,path:'/exams'},{label:'طلاب طلبوا اختبارًا',value:data.counts?.examApplicants,path:'/exams'}].map(item=><StatCard key={item.label} label={item.label} value={item.value??0}/>)}</section>}
       {data.role === 'ADMIN' && <AdminDashboard data={data} />}
       {data.role === 'SUPERVISOR' && <SupervisorDashboard data={data} />}
       {data.role === 'TEACHER' && <TeacherDashboard data={data} />}

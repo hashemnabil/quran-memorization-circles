@@ -90,6 +90,16 @@ export default function AttendancePage() {
     if (circleId) setSearchParams({ circleId }, { replace: true });
   }, [circleId, setSearchParams]);
 
+  // A student saved offline must immediately join an already-open attendance roster.
+  useEffect(() => {
+    const refresh = () => {
+      void queryClient.invalidateQueries({ queryKey: ['attendance', 'sheet'] });
+      void queryClient.invalidateQueries({ queryKey: ['circles', 'options'] });
+    };
+    window.addEventListener('halaqat:changed', refresh);
+    return () => window.removeEventListener('halaqat:changed', refresh);
+  }, [queryClient]);
+
   // The confirmation belongs to one circle on one day; picking another sheet
   // puts the form back.
   useEffect(() => {

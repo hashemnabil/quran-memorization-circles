@@ -74,8 +74,12 @@ export default function OfflineSystem() {
       clearTimeout(remoteTimer);
       remoteTimer = setTimeout(() => { void synchronize(); }, 750);
     };
+    const serviceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'HALAQAT_SYNC_REQUEST') void synchronize(false, true);
+    };
     window.addEventListener('halaqat:sync-progress', progressChanged);
     window.addEventListener('halaqat:remote-change', remoteChanged);
+    navigator.serviceWorker?.addEventListener('message', serviceWorkerMessage);
     update();
     // Let the first screen render and issue its interactive requests first.
     const locallyUnlocked = tokenStore.isLocal();
@@ -93,6 +97,7 @@ export default function OfflineSystem() {
       clearTimeout(remoteTimer);
       window.removeEventListener('halaqat:sync-progress', progressChanged);
       window.removeEventListener('halaqat:remote-change', remoteChanged);
+      navigator.serviceWorker?.removeEventListener('message', serviceWorkerMessage);
       void listener.then((handle) => handle.remove());
       window.removeEventListener('online', start); window.removeEventListener('offline', start);
       window.removeEventListener('halaqat:changed', changed);

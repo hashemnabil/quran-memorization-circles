@@ -6,6 +6,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { api } from './api';
 
 export const nativePushAvailable = () => Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('PushNotifications');
+export const nativePushClientConfigured = () => Capacitor.getPlatform() !== 'android' || import.meta.env.VITE_ANDROID_FCM_CONFIGURED === 'true';
 export class PushSetupError extends Error {}
 const installationKey = 'halaqat.push.installation';
 async function installationId() {
@@ -24,6 +25,7 @@ async function configured() {
 }
 export async function enableNativePush() {
   if (!nativePushAvailable()) throw new PushSetupError('هذه الميزة متاحة في نسخة الجوال المحدّثة');
+  if (!nativePushClientConfigured()) throw new PushSetupError('نسخة أندرويد غير مربوطة بإعداد Firebase. أضف ملف google-services.json ثم أعد بناء التطبيق؛ لم يتم طلب الإذن أو تسجيل الإشعار.');
   if (!navigator.onLine) throw new PushSetupError('اتصل بالإنترنت لتفعيل إشعارات الجوال');
   if (!await configured()) throw new PushSetupError('خدمة الإشعارات غير مهيأة على الخادم؛ يلزم إعداد Firebase لأندرويد أو Apple لآيفون، ثم إعادة المحاولة');
   const permission = await PushNotifications.requestPermissions();
@@ -36,7 +38,7 @@ export async function enableNativePush() {
   await PushNotifications.register();
 }
 export async function connectNativePush(account: string, navigate: (path: string) => void) {
-  if (!nativePushAvailable()) return () => undefined;
+  if (!nativePushAvailable() || !nativePushClientConfigured()) return () => undefined;
   let active = true; const handles: PluginListenerHandle[] = [];
   const owned = () => active && currentAccount() === account;
   handles.push(await PushNotifications.addListener('registration', token => {
@@ -64,7 +66,7 @@ export async function connectNativePush(account: string, navigate: (path: string
 }
 function hashNotification(id: string) { let hash = 0; for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) | 0; return (hash & 0x7fffffff) || 1; }
 export async function disableNativePush() {
-  if (!nativePushAvailable()) return;
+  if (!nativePushAvailable() || !nativePushClientConfigured()) return;
   const id = await installationId();
   // Remove OS-delivered previews when changing accounts, including offline logout.
   await PushNotifications.removeAllDeliveredNotifications().catch(() => undefined);

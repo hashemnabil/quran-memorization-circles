@@ -1,0 +1,23 @@
+import { useState } from 'react';
+import { useMutation,useQuery,useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { api,apiError } from '@/lib/api';
+import { combinedPlan } from '@/lib/combined-plan';
+import { Input,Button,Card,Badge,LoadingState,ErrorState } from '@/components/ui';
+import type {Student,Exam} from '@/types';
+export default function CombinedTab({canRequest}:{canRequest:boolean}) {
+  const client=useQueryClient();const [search,setSearch]=useState('');const [student,setStudent]=useState<Student>();
+  const students=useQuery({queryKey:['students','combined',search],enabled:canRequest&&search.trim().length>0&&!student,queryFn:async()=>(await api.get<any>('/students',{params:{search,limit:10}})).data});
+  const data=useQuery({queryKey:['exams','combined',student?.id],enabled:!!student,queryFn:async()=>{
+    const exams:Exam[]=[];for(let page=1;;page++){const part=(await api.get<any>('/exams',{params:{studentId:student!.id,limit:200,page}})).data;exams.push(...part.data);if(!part.meta?.hasNextPage)break;}
+    const [records,requests,sections]=await Promise.all([api.get<any[]>(`/exams/milestones/${student!.id}`),api.get<any>('/exams/requests',{params:{studentId:student!.id,limit:200}}),api.get<any[]>('/exams/sections')]);return {exams,records:records.data,requests:requests.data.data,sections:sections.data};
+  }});
+  const passed=new Set([...(data.data?.records||[]).filter(row=>row.result==='PASSED').map(row=>row.section.code),...(data.data?.exams||[]).filter(row=>row.result==='PASSED'&&!row.combinedStage).map(row=>row.section.code)]);
+  const request=useMutation({mutationFn:(stage:ReturnType<typeof combinedPlan>[number])=>api.post('/exams/requests',{studentId:student!.id,combinedStage:stage.code,sectionIds:(data.data?.sections||[]).filter(row=>{const match=/^JUZ-(\d+)$/.exec(row.code);return match&&Number(match[1])>=stage.fromJuz&&Number(match[1])<=stage.toJuz;}).map(row=>row.id)}),onSuccess:()=>{toast.success('تم حفظ طلب المجتمعة');void client.invalidateQueries({queryKey:['exams']});},onError:error=>toast.error(apiError(error))});
+  return <div className="space-y-4"><Card title="مجتمعة — داخلي وخارجي"><p className="text-sm">حزب، حزب، جزء. بعد ٣ أجزاء: مجتمعة داخلي ثم خارجي، وبعد ٥: داخلي ثم خارجي. عند كل عشرة أجزاء مرحلتان داخليتان. الاجتياز من ٨٠.</p>{student?<div className="mt-3 flex items-center justify-between"><strong>{student.fullName}</strong><Button variant="secondary" onClick={()=>setStudent(undefined)}>اختيار طالب آخر</Button></div>:<><Input label="بحث الطالب للمجتمعة" value={search} onChange={e=>setSearch(e.target.value)}/>{students.data?.data.map((row:Student)=><button key={row.id} className="block min-h-11 w-full border-b p-2 text-start" onClick={()=>setStudent(row)}>{row.fullName} · {row.code}</button>)}</>}</Card>
+    {data.isLoading?<LoadingState/>:data.isError?<ErrorState message="تعذر تحميل تسلسل المجتمعة" onRetry={()=>data.refetch()}/>:student&&combinedPlan().map(stage=>{
+      const attempts=data.data?.exams.filter(row=>row.combinedStage===stage.code)||[];const successful=attempts.some(row=>row.result==='PASSED');const open=data.data?.requests.some((row:any)=>row.combinedStage===stage.code&&['PENDING','SCHEDULED'].includes(row.status));const eligible=Array.from({length:stage.toJuz-stage.fromJuz+1},(_,i)=>`JUZ-${String(stage.fromJuz+i).padStart(2,'0')}`).every(code=>passed.has(code))&&(!stage.prerequisite||data.data?.exams.some(row=>row.combinedStage===stage.prerequisite&&row.result==='PASSED'));
+      return <Card key={stage.code} title={stage.label}><div className="flex flex-wrap items-center gap-3"><Badge>{successful?'مجتاز':open?'طلب قيد الإجراء':attempts.length?'غير مجتاز':'لم يختبر'}</Badge><span className="text-sm">المحاولات: {attempts.length} {attempts.length?`· آخر علامة: ${attempts[attempts.length-1].score??'—'}`:''}</span>{canRequest&&!successful&&!open&&<Button loading={request.isPending} disabled={!eligible} onClick={()=>request.mutate(stage)}>{attempts.length?'طلب محاولة جديدة':'طلب اختبار'}</Button>}{!eligible&&!successful&&!open&&<span className="text-xs text-slate-500">يجب اجتياز الأجزاء المطلوبة والمجتمعة السابقة</span>}</div></Card>;
+    })}
+  </div>;
+}

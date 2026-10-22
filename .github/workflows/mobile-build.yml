@@ -40,6 +40,8 @@ jobs:
         env:
           VITE_API_URL: https://quran-memorization-circles.onrender.com/api
           VITE_SOCKET_URL: https://quran-memorization-circles.onrender.com
+          VITE_ANDROID_FCM_CONFIGURED: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
+          VITE_SITE_URL: https://quran-frontend-sknr.onrender.com
 
       - name: Generate Android project if missing
         if: ${{ hashFiles('frontend/android/app/build.gradle') == '' }}

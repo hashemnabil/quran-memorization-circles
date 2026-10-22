@@ -1,6 +1,7 @@
 import { db, entityTables, type EntityTable, type LocalRow, type QueuedWrite } from './db';
 import { startSyncProgress, reportSyncProgress, finishSyncProgress } from './sync-progress';
 import { openCredentials, sealCredentials } from './queued-credentials';
+import { calculateExamGrade } from './exam-scoring';
 
 type Transport = (method: string, path: string, data?: any) => Promise<any>;
 let transport: Transport;
@@ -11,6 +12,13 @@ let refreshing: { account: string; promise: Promise<void> } | undefined;
 let networkReconciliation: { account: string; dirty: boolean; promise: Promise<void> } | undefined;
 let preloadSections: ((account: string, changedEntities?: string[]) => Promise<void>) | undefined;
 export function configureOffline(send: Transport, account: () => string, preload?: (account: string, changedEntities?: string[]) => Promise<void>) { transport = send; currentAccount = account; preloadSections = preload; }
+async function requestBackgroundSync() {
+  try {
+    if (!('serviceWorker' in navigator)) return;
+    const registration: any = await navigator.serviceWorker.ready;
+    if (registration.sync?.register) await registration.sync.register('halaqat-pending-sync');
+  } catch { /* The app's online event remains the fallback where Background Sync is unavailable. */ }
+}
 export async function noteRemoteRevision(revision: string) {
   if (!currentAccount() || typeof revision !== 'string' || !revision || revision.length > 100) return;
   const account = accountId();
@@ -36,6 +44,7 @@ export async function save(table: EntityTable, data: Record<string, any>, action
       await db.queue.add({ accountId: account, opId, table, action, entityId: id, data, createdAt: updatedAt });
     });
     window.dispatchEvent(new Event('halaqat:changed'));
+    void requestBackgroundSync();
     void syncAll().catch(() => undefined);
     return { id, accountId: account, synced: 0, updatedAt, _writeOpId: opId, _writeTable: table, message: 'تم حفظ كشف الحضور محليًا' } as LocalRow;
   }
@@ -48,6 +57,16 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     row.circleRoles ||= []; row.isActive ??= true;
   }
   delete row.password;
+  if (table === 'examRequests' && action === 'create') {
+    row.status='PENDING'; row.student = (await get('students')).find(student=>student.id===data.studentId);
+    const sections=(await db.meta.get(`${account}:reference:/exams/sections`))?.value||[];
+    row.sections=(data.sectionIds||[]).map((id:string)=>({section:sections.find((section:any)=>section.id===id)})).filter((entry:any)=>entry.section);
+    row.section=row.sections[0]?.section; row.sectionId=row.section?.id; row.teacher ||= {user:{fullName:'محفوظ محليًا'}};
+  }
+  if (table === 'exams' && action === 'result') {
+    if (data.tajweed !== undefined) { row.grading=calculateExamGrade({mistakes:data.mistakes??0,alerts:data.alerts??0,mistakePenalty:data.mistakePenalty??1,alertPenalty:data.alertPenalty??0.5,tajweed:data.tajweed});row.score=row.grading.score; }
+    row.status='COMPLETED';row.result=row.score>=80?'PASSED':'FAILED';
+  }
   delete row.newPassword; delete row.currentPassword;
   delete row.accountPassword;
   if (table === 'users') row.isActive ??= true;
@@ -104,6 +123,7 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     }
   });
   window.dispatchEvent(new Event('halaqat:changed'));
+  void requestBackgroundSync();
   void syncAll().catch(() => undefined);
   return { ...row, _writeOpId: opId, _writeTable: table };
 }
@@ -279,12 +299,20 @@ async function acknowledge(operation: QueuedWrite, server: any) {
   const table = db.table(operation.table);
   await db.transaction('rw', [...entityTables.map((name) => db.table(name)), db.queue, db.meta], async () => {
     await db.queue.delete(operation.id!);
+    if (operation.table === 'exams' && operation.action === 'schedule' && operation.data.requestId) {
+      const requestId=(await db.meta.get(`${operation.accountId}:id:${operation.data.requestId}`))?.value||operation.data.requestId;
+      await db.table('examRequests').update([operation.accountId, requestId], {status:'SCHEDULED',pendingDecision:null});
+    }
     if (operation.table === 'attendance' && operation.action === 'create') {
       await db.attendance.where('accountId').equals(operation.accountId).filter((row) => row._opId === operation.opId).delete();
       for (const row of server?.rows || []) {
         const draft = await db.attendance.where('accountId').equals(operation.accountId).filter((item) => item.synced === 0 && item.studentId === row.studentId && item.circleId === row.circleId && String(item.date).slice(0, 10) === String(row.date).slice(0, 10)).first();
         if (!draft) await db.attendance.put({ ...row, accountId: operation.accountId, synced: 1 });
       }
+      return;
+    }
+    if (['staffAttendance', 'courseAttendance'].includes(operation.table) && operation.action === 'create') {
+      await table.delete([operation.accountId, operation.entityId]);
       return;
     }
     const later = await db.queue.where('accountId').equals(operation.accountId).filter((item) => item.table === operation.table && item.entityId === operation.entityId).count();
@@ -306,7 +334,7 @@ async function acknowledge(operation: QueuedWrite, server: any) {
         }
       }
       for (const name of entityTables) await db.table(name).where('accountId').equals(operation.accountId).modify((row: any) => {
-        for (const field of ['studentId', 'circleId', 'teacherId']) if (row[field] === operation.entityId) row[field] = canonicalId;
+        for (const field of ['studentId', 'circleId', 'teacherId', 'committeeId', 'requestId']) if (row[field] === operation.entityId) row[field] = canonicalId;
       });
     }
     await table.put({ ...local, ...server, id: canonicalId, accountId: operation.accountId, synced: 1, activationPending: false, credentialPending: false });
@@ -357,6 +385,56 @@ async function refreshOnce(options: { forceDownload?: boolean; checkDelta?: bool
       if (!result.meta?.hasNextPage) break;
     }
     await db.meta.delete(`${account}:needsProfileReviewsBootstrap`);
+    window.dispatchEvent(new Event('halaqat:changed'));
+  }
+  if ((await db.meta.get(`${account}:needsSchoolOperationsBootstrap`))?.value) {
+    for (const table of ['transfers','suspensions','meetings','examCommittees'] as const) for (let page = 1; ; page++) {
+      const result = await transport('get', `/sync-all?table=${table}&page=${page}`);
+      if (currentAccount() !== account) return;
+      await mergeRows(table, result.data, account);
+      if (!result.meta?.hasNextPage) break;
+    }
+    await db.meta.delete(`${account}:needsSchoolOperationsBootstrap`);
+    window.dispatchEvent(new Event('halaqat:changed'));
+  }
+  if ((await db.meta.get(`${account}:needsAbsenceWorkflowBootstrap`))?.value) {
+    for (const table of ['absencePermissions','guardianSummons'] as const) for (let page = 1; ; page++) {
+      const result = await transport('get', `/sync-all?table=${table}&page=${page}`);
+      if (currentAccount() !== account) return;
+      await mergeRows(table, result.data, account);
+      if (!result.meta?.hasNextPage) break;
+    }
+    await db.meta.delete(`${account}:needsAbsenceWorkflowBootstrap`);
+    window.dispatchEvent(new Event('halaqat:changed'));
+  }
+  if ((await db.meta.get(`${account}:needsLearningWorkflowsBootstrap`))?.value) {
+    for (const table of ['preparations', 'surahCompletions'] as const) for (let page = 1; ; page++) {
+      const result = await transport('get', `/sync-all?table=${table}&page=${page}`);
+      if (currentAccount() !== account) return;
+      await mergeRows(table, result.data, account);
+      if (!result.meta?.hasNextPage) break;
+    }
+    await db.meta.delete(`${account}:needsLearningWorkflowsBootstrap`);
+    window.dispatchEvent(new Event('halaqat:changed'));
+  }
+  if ((await db.meta.get(`${account}:needsContentBootstrap`))?.value) {
+    for (const table of ['announcements', 'mediaActivities'] as const) for (let page = 1; ; page++) {
+      const result = await transport('get', `/sync-all?table=${table}&page=${page}`);
+      if (currentAccount() !== account) return;
+      await mergeRows(table, result.data, account);
+      if (!result.meta?.hasNextPage) break;
+    }
+    await db.meta.delete(`${account}:needsContentBootstrap`);
+    window.dispatchEvent(new Event('halaqat:changed'));
+  }
+  if ((await db.meta.get(`${account}:needsCertificatesBootstrap`))?.value) {
+    for (const table of ['certificateRequests', 'certificates', 'certificateTemplates'] as const) for (let page = 1; ; page++) {
+      const result = await transport('get', `/sync-all?table=${table}&page=${page}`);
+      if (currentAccount() !== account) return;
+      await mergeRows(table, result.data, account);
+      if (!result.meta?.hasNextPage) break;
+    }
+    await db.meta.delete(`${account}:needsCertificatesBootstrap`);
     window.dispatchEvent(new Event('halaqat:changed'));
   }
   const downloadedAt = (await db.meta.get(`${account}:downloadedAt`))?.value;
@@ -423,7 +501,7 @@ export async function exportLocal() {
 export async function importLocal(value: any) {
   const account = accountId();
   if (value?.version !== 1 || value.accountId !== account || !value.tables || !Array.isArray(value.queue)) throw new Error('ملف النسخة الاحتياطية غير صالح أو يخص حسابًا آخر');
-  for (const table of ['mediaPlans', 'teacherDuties', 'dutyTeachers', 'users', 'studentAccounts']) value.tables[table] ??= [];
+  for (const table of ['mediaPlans', 'teacherDuties', 'dutyTeachers', 'users', 'studentAccounts', 'transfers', 'suspensions', 'meetings', 'examCommittees']) value.tables[table] ??= [];
   for (const table of entityTables) {
     if (!Array.isArray(value.tables[table]) || value.tables[table].some((row: any) => typeof row.id !== 'string' || row.accountId !== account)) throw new Error('سجلات غير صالحة');
   }

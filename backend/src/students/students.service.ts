@@ -9,8 +9,7 @@ import {
 } from '@nestjs/common';
 import { Evaluation, Prisma, Role, StudentStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { randomBytes, randomInt } from 'crypto';
-import { encryptTemporaryPassword, decryptTemporaryPassword } from '../common/crypto/temporary-password';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { ActivityService } from '../common/services/activity.service';
@@ -71,24 +70,6 @@ const LIST_SELECT = {
     },
   },
 } satisfies Prisma.StudentSelect;
-
-function generateTemporaryPassword(): string {
-  const lower = 'abcdefghijkmnopqrstuvwxyz';
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const digits = '23456789';
-  const all = lower + upper + digits;
-  const chars = [
-    lower[randomInt(lower.length)],
-    upper[randomInt(upper.length)],
-    digits[randomInt(digits.length)],
-    ...Array.from({ length: 6 }, () => all[randomInt(all.length)]),
-  ];
-  for (let i = chars.length - 1; i > 0; i -= 1) {
-    const j = randomInt(i + 1);
-    [chars[i], chars[j]] = [chars[j], chars[i]];
-  }
-  return chars.join('');
-}
 
 @Injectable()
 export class StudentsService {
@@ -554,12 +535,12 @@ export class StudentsService {
       if (usernameTaken) throw new ConflictException('رقم الطالب مستخدم كاسم دخول لحساب آخر');
     }
 
-    const temporaryPassword = dto.createAccount ? dto.accountPassword ?? generateTemporaryPassword() : undefined;
+    const temporaryPassword = dto.createAccount ? dto.accountPassword ?? randomBytes(9).toString('base64url') : undefined;
     const passwordHash = temporaryPassword ? await bcrypt.hash(temporaryPassword, 12) : undefined;
     const student = await this.prisma.$transaction(async (tx) => {
       const user = dto.createAccount
         ? await tx.user.create({
-            data: { username: code.toLowerCase(), passwordHash: passwordHash!, fullName: dto.fullName, role: Role.STUDENT, isActive: true, mustChangePassword: true, temporaryPasswordEncrypted: encryptTemporaryPassword(temporaryPassword!) },
+            data: { username: code.toLowerCase(), passwordHash: passwordHash!, fullName: dto.fullName, role: Role.STUDENT, isActive: true, mustChangePassword: true },
           })
         : null;
       const created = await tx.student.create({
@@ -621,31 +602,19 @@ export class StudentsService {
       try {
         if (!row.fullName) throw new BadRequestException('اسم الطالب مطلوب');
         
+        if (row.gender && !['MALE', 'FEMALE'].includes(row.gender)) throw new BadRequestException('الجنس يجب أن يكون MALE أو FEMALE');
         let circleId: string | undefined;
-        const circleIdentifier = (row.circleName || row.circleCode || '').trim();
-        if (circleIdentifier) {
-          const matches = await this.prisma.circle.findMany({
-            where: {
-              deletedAt: null,
-              OR: [
-                { code: circleIdentifier },
-                { name: { equals: circleIdentifier, mode: 'insensitive' } },
-                { supervisor: { fullName: { equals: circleIdentifier, mode: 'insensitive' } } },
-                { teachers: { some: { endedAt: null, teacher: { user: { fullName: { equals: circleIdentifier, mode: 'insensitive' } } } } } },
-              ],
-            },
-            select: { id: true, name: true },
-          });
-          const uniqueMatches = matches.filter((circle, index) => matches.findIndex((candidate) => candidate.id === circle.id) === index);
-          if (!uniqueMatches.length) throw new BadRequestException(`لم يتم العثور على حلقة أو شيخ بهذا الاسم: ${circleIdentifier}`);
-          if (uniqueMatches.length > 1) throw new BadRequestException(`اسم الشيخ مرتبط بأكثر من حلقة؛ اكتب اسم الحلقة بدلاً منه: ${circleIdentifier}`);
-          circleId = uniqueMatches[0].id;
+        if (row.circleCode) {
+          const circle = await this.prisma.circle.findFirst({ where: { code: row.circleCode, deletedAt: null }, select: { id: true } });
+          if (!circle) throw new BadRequestException(`رمز الحلقة غير موجود: ${row.circleCode}`);
+          circleId = circle.id;
         }
         const created = await this.create(actor, {
           fullName: row.fullName,
           nationalId: row.nationalId,
           fatherNationalId: row.fatherNationalId || undefined,
           birthDate: row.birthDate || undefined,
+          gender: (row.gender || undefined) as any,
           phone: row.phone || undefined,
           address: row.address || undefined,
           guardianName: row.guardianName || undefined,
@@ -674,26 +643,14 @@ export class StudentsService {
     const students = await this.prisma.student.findMany({
       where: { deletedAt: null, userId: { not: null } },
       select: { id: true, fullName: true, nationalId: true, fatherNationalId: true, phone: true, guardianName: true, guardianPhone: true, code: true,
-        user: { select: { id: true, username: true, isActive: true, mustChangePassword: true, temporaryPasswordEncrypted: true } } },
+        user: { select: { id: true, username: true, isActive: true, mustChangePassword: true } } },
       orderBy: { fullName: 'asc' },
     });
-    return students.filter((s) => s.user).map((s) => {
-      let temporaryPassword: string | null = null;
-      // A decryption/key mismatch must not make the entire student-account list unavailable.
-      if (s.user!.mustChangePassword && s.user!.temporaryPasswordEncrypted) {
-        try {
-          temporaryPassword = decryptTemporaryPassword(s.user!.temporaryPasswordEncrypted);
-        } catch {
-          // Keep the account visible; the administrator can reset this password if needed.
-        }
-      }
-      return {
-        id: s.id, fullName: s.fullName, nationalId: s.nationalId, fatherNationalId: s.fatherNationalId, phone: s.phone, guardianName: s.guardianName, guardianPhone: s.guardianPhone, code: s.code,
-        userId: s.user!.id, username: s.user!.username, isActive: s.user!.isActive,
-        mustChangePassword: s.user!.mustChangePassword,
-        temporaryPassword,
-      };
-    });
+    return students.filter((s) => s.user).map((s) => ({
+      id: s.id, fullName: s.fullName, nationalId: s.nationalId, fatherNationalId: s.fatherNationalId, phone: s.phone, guardianName: s.guardianName, guardianPhone: s.guardianPhone, code: s.code,
+      userId: s.user!.id, username: s.user!.username, isActive: s.user!.isActive,
+      mustChangePassword: s.user!.mustChangePassword,
+    }));
   }
 
   async createAccountForStudent(actor: AuthUser, id: string, password?: string) {
@@ -704,40 +661,14 @@ export class StudentsService {
     const username = student.code.toLowerCase();
     const taken = await this.prisma.user.findFirst({ where: { username, deletedAt: null }, select: { id: true } });
     if (taken) throw new ConflictException('رقم الطالب مستخدم كاسم دخول لحساب آخر');
-    const temporaryPassword = password ?? generateTemporaryPassword();
+    const temporaryPassword = password ?? randomBytes(9).toString('base64url');
     const user = await this.prisma.user.create({ data: {
       username, passwordHash: await bcrypt.hash(temporaryPassword, 12), fullName: student.fullName,
-      phone: student.phone, role: Role.STUDENT, isActive: true, mustChangePassword: true, temporaryPasswordEncrypted: encryptTemporaryPassword(temporaryPassword),
+      phone: student.phone, role: Role.STUDENT, isActive: true, mustChangePassword: true,
     } });
     await this.prisma.student.update({ where: { id }, data: { userId: user.id } });
     await this.activity.log({ userId: actor.id, action: 'STUDENT_ACCOUNT_CREATE', summary: `إنشاء حساب دخول للطالب: ${student.fullName}`, entityType: 'Student', entityId: id });
     return { studentId: id, fullName: student.fullName, username, temporaryPassword };
-  }
-
-  /**
-   * Reset many student passwords through one API request. Keep bounded concurrency
-   * so bcrypt and the database are not overwhelmed when the school selects hundreds
-   * of students at once. Failures are isolated per student and reported to the caller.
-   */
-  async resetStudentAccountPasswordsBulk(actor: AuthUser, ids: string[]) {
-    if (actor.role !== Role.ADMIN) throw new ForbiddenException('إدارة حسابات الطلاب متاحة للإدارة فقط');
-    const uniqueIds = [...new Set(ids)];
-    const results: Array<{ id: string; ok: boolean; error?: string }> = [];
-    const concurrency = 10;
-    for (let start = 0; start < uniqueIds.length; start += concurrency) {
-      const batch = uniqueIds.slice(start, start + concurrency);
-      const batchResults = await Promise.all(batch.map(async (id) => {
-        try {
-          await this.resetStudentAccountPassword(actor, id);
-          return { id, ok: true as const };
-        } catch {
-          return { id, ok: false as const, error: 'تعذر تغيير كلمة السر لهذا الطالب' };
-        }
-      }));
-      results.push(...batchResults);
-    }
-    const succeeded = results.filter((result) => result.ok).length;
-    return { total: results.length, succeeded, failed: results.length - succeeded, results };
   }
 
   async resetStudentAccountPassword(actor: AuthUser, id: string, password?: string) {
@@ -745,9 +676,9 @@ export class StudentsService {
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, include: { user: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (!student.user) throw new BadRequestException('الطالب لا يملك حساب دخول');
-    const temporaryPassword = password ?? generateTemporaryPassword();
+    const temporaryPassword = password ?? randomBytes(9).toString('base64url');
     await this.prisma.user.update({ where: { id: student.user.id },
-      data: { passwordHash: await bcrypt.hash(temporaryPassword, 12), mustChangePassword: true, temporaryPasswordEncrypted: encryptTemporaryPassword(temporaryPassword), isActive: true } });
+      data: { passwordHash: await bcrypt.hash(temporaryPassword, 12), mustChangePassword: true, isActive: true } });
     await this.prisma.refreshToken.updateMany({ where: { userId: student.user.id, revokedAt: null }, data: { revokedAt: new Date() } });
     await this.activity.log({ userId: actor.id, action: 'STUDENT_ACCOUNT_PASSWORD_RESET', summary: `إعادة تعيين كلمة مرور الطالب: ${student.fullName}`, entityType: 'Student', entityId: id });
     return { studentId: id, fullName: student.fullName, username: student.user.username, temporaryPassword };

@@ -205,7 +205,6 @@ model User {
   specialization String?
   isActive     Boolean   @default(true)
   mustChangePassword Boolean @default(false)
-  temporaryPasswordEncrypted String?
   /// Set when the management creates the account or resets the password, so the
   /// first login lands on the profile page until a personal password is chosen.
   lastLoginAt  DateTime?
@@ -237,6 +236,9 @@ model User {
   examsExamined        Exam[]                @relation("ExamExaminer")
   evaluationsSet       StudentEvaluation[]   @relation("EvaluationAuthor")
   studentNotes         StudentNote[]
+  absencePermissionsRequested AbsencePermissionRequest[] @relation("AbsencePermissionRequester")
+  absencePermissionsDecided AbsencePermissionRequest[] @relation("AbsencePermissionDecider")
+  guardianSummonsIssued GuardianSummons[] @relation("GuardianSummonIssuer")
 
   staffAttendance         StaffAttendance[]      @relation("StaffAttendanceSubject")
   staffAttendanceRecorded StaffAttendance[]      @relation("StaffAttendanceRecorder")
@@ -441,6 +443,8 @@ model Student {
   surahCompletions  SurahCompletion[]
   certificates CertificateRecord[]
   fileRequests StudentFileRequest[]
+  absencePermissions AbsencePermissionRequest[]
+  guardianSummons GuardianSummons[]
 
   @@index([circleId])
   @@index([parentId])
@@ -523,6 +527,42 @@ model Attendance {
   @@index([date])
   @@index([status])
   @@map("attendance")
+}
+
+model AbsencePermissionRequest {
+  id           String        @id @default(uuid())
+  studentId    String
+  requesterId  String
+  date         DateTime      @db.Date
+  reason       String
+  status       RequestStatus @default(PENDING)
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  requester    User          @relation("AbsencePermissionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  decidedBy    User?         @relation("AbsencePermissionDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, date])
+  @@index([status, date])
+  @@index([requesterId, createdAt])
+  @@map("absence_permission_requests")
+}
+
+model GuardianSummons {
+  id         String   @id @default(uuid())
+  studentId  String
+  issuedById String
+  title      String
+  body       String
+  createdAt  DateTime @default(now())
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  issuedBy   User     @relation("GuardianSummonIssuer", fields: [issuedById], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+  @@map("guardian_summons")
 }
 
 model Recitation {
@@ -655,7 +695,7 @@ model ExamSection {
   kind        ExamSectionKind @default(JUZ)
   isRequired  Boolean  @default(true)
   pagesCount  Int?
-  minScore    Int      @default(60)
+  minScore    Int      @default(80)
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -679,7 +719,7 @@ model ExamMilestoneRecord {
   sectionId   String
   status      ExamMilestoneStatus @default(NOT_REQUESTED)
   result      ExamResult?
-  score       Int?
+  score       Float?
   requestedAt DateTime?
   examDate    DateTime?
   examinerName String?
@@ -735,6 +775,7 @@ model ExamRequest {
   requestedHizb     Int?
   requestedJuz      Int?
   requestedCombined Int?
+  combinedStage String?
   reviewedById String?
   reviewedAt DateTime?
   reviewNote String?
@@ -761,9 +802,12 @@ model Exam {
   examinerId  String?
   scheduledAt DateTime
   location    String?
+  committeeId String?
+  grading     Json?
+  combinedStage String?
   status      ExamStatus  @default(SCHEDULED)
   /// Grade out of 100; compared against the section's `minScore` to decide the result.
-  score       Int?
+  score       Float?
   /// Derived from `score` by the school's grading scale — never chosen by hand.
   /// Stored rather than computed on read so an official result cannot change
   /// retroactively if the scale is ever adjusted.
@@ -783,11 +827,42 @@ model Exam {
   examiner User?        @relation("ExamExaminer", fields: [examinerId], references: [id], onDelete: SetNull)
   gradedBy User?        @relation("ExamGrader", fields: [gradedById], references: [id], onDelete: SetNull)
   sections ExamSectionOnExam[]
+  committee ExamCommittee? @relation(fields: [committeeId], references: [id], onDelete: SetNull)
 
   @@index([studentId, status])
   @@index([scheduledAt])
   @@index([status])
+  @@index([committeeId])
   @@map("exams")
+}
+
+model Meeting {
+  id          String @id @default(uuid())
+  title       String
+  heldAt      DateTime
+  attendees   Json
+  sections    Json
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([heldAt])
+  @@map("meetings")
+}
+
+model ExamCommittee {
+  id          String @id @default(uuid())
+  number      String @unique
+  heldAt      DateTime
+  location    String
+  members     Json
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  exams       Exam[]
+  @@index([heldAt])
+  @@map("exam_committees")
 }
 
 // ---------------------------------------------------------------------------
@@ -983,7 +1058,7 @@ model Message {
 
 model SchoolSettings {
   id           String   @id @default("default")
-  name         String   @default("حلقات تحفيظ القرآن الكريم")
+  name         String   @default("مدرسة عبدالله بن عمر")
   mosqueName   String?
   logoUrl      String?
   phone        String?
@@ -998,6 +1073,18 @@ model SchoolSettings {
   whatsapp     String?
   website      String?
   academicYear String?
+  donationsEnabled Boolean @default(false)
+  donationTitle String?
+  donationDescription String?
+  donationGoalAmount Int?
+  donationRaisedAmount Int?
+  donationCurrency String?
+  donationMethod String?
+  donationLink String?
+    donationBankPalestine String?
+    donationIslamicBank String?
+    donationJawwal String?
+    donationPalPay String?
   updatedAt    DateTime @updatedAt
 
   @@map("school_settings")

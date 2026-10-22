@@ -1,7 +1,7 @@
 import { createAbsenceAlerts } from './absence-alerts';
 import { applyAttendanceEntries } from './attendance-write';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AttendanceStatus, Notification, Prisma } from '@prisma/client';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { AttendanceStatus, Notification, NotificationType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { ActivityService } from '../common/services/activity.service';
@@ -30,6 +30,72 @@ export class AttendanceService {
     private readonly activity: ActivityService,
     private readonly notifications: NotificationsService,
   ) {}
+
+  async absencePermissions(user: AuthUser) {
+    const scope = await this.acl.studentScope(user);
+    return this.prisma.absencePermissionRequest.findMany({
+      where: user.role === 'ADMIN' ? {} : { student: scope },
+      include: { student: { select: { id: true, fullName: true, code: true, circleId: true } }, requester: { select: { id: true, fullName: true, role: true } }, decidedBy: { select: { fullName: true } } },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }], take: 500,
+    });
+  }
+
+  async createAbsencePermission(user: AuthUser, input: { studentId: string; date: string; reason: string }) {
+    if (!input?.studentId || !input.date || !input.reason?.trim()) throw new BadRequestException('الطالب والتاريخ والسبب مطلوبة');
+    const student = await this.acl.assertStudentAccess(user, input.studentId);
+    if (user.role === 'STUDENT') {
+      const own = await this.prisma.student.findFirst({ where: { id: student.id, userId: user.id }, select: { id: true } });
+      if (!own) throw new NotFoundException('لا يوجد ملف طالب مرتبط بهذا الحساب');
+    }
+    if (!student.circleId) throw new BadRequestException('الطالب غير مرتبط بحلقة');
+    const date = toDateOnly(input.date);
+    if (date < toDateOnly(new Date())) throw new BadRequestException('تاريخ الإذن يجب أن يكون اليوم أو في المستقبل');
+    if (await this.prisma.attendance.findUnique({ where: { studentId_date: { studentId: student.id, date } } }))
+      throw new ConflictException('يوجد سجل حضور لهذا الطالب في التاريخ المحدد');
+    const request = await this.prisma.absencePermissionRequest.create({
+      data: { studentId: student.id, requesterId: user.id, date, reason: input.reason.trim().slice(0, 500) },
+      include: { student: { select: { id: true, fullName: true, code: true } }, requester: { select: { fullName: true } } },
+    });
+    await this.notifications.notifyRoles([Role.ADMIN], { type: NotificationType.ATTENDANCE, title: 'طلب إذن غياب جديد', body: `${request.student.fullName} — ${input.date}`, link: '/absence-permissions', data: { absencePermissionId: request.id } });
+    await this.activity.log({ userId: user.id, action: 'ABSENCE_PERMISSION_REQUEST', summary: `طلب إذن غياب للطالب ${request.student.fullName}`, entityType: 'AbsencePermissionRequest', entityId: request.id });
+    return request;
+  }
+
+  async decideAbsencePermission(actor: AuthUser, id: string, approve: boolean, decisionNote?: string) {
+    const request = await this.prisma.absencePermissionRequest.findUnique({ where: { id }, include: { student: { select: { id: true, fullName: true, circleId: true, userId: true, parentProfile: { select: { userId: true } } } } } });
+    if (!request) throw new NotFoundException('طلب الإذن غير موجود');
+    if (request.status !== 'PENDING') throw new ConflictException('تم اتخاذ قرار بهذا الطلب مسبقًا');
+    if (approve && !request.student.circleId) throw new BadRequestException('الطالب لم يعد مرتبطًا بحلقة');
+    const saved = await this.prisma.$transaction(async tx => {
+      if (approve) {
+        const attendance = await tx.attendance.findUnique({ where: { studentId_date: { studentId: request.studentId, date: request.date } } });
+        if (attendance) throw new ConflictException('يوجد سجل حضور لهذا الطالب في التاريخ؛ لم يتم اعتماد الطلب');
+        await tx.attendance.create({ data: { studentId: request.studentId, circleId: request.student.circleId!, date: request.date, status: AttendanceStatus.EXCUSED, note: request.reason, recordedById: actor.id } });
+      }
+      return tx.absencePermissionRequest.update({ where: { id }, data: { status: approve ? 'APPROVED' : 'REJECTED', decidedById: actor.id, decidedAt: new Date(), decisionNote: decisionNote?.trim() || null } });
+    });
+    const resultTitle = approve ? 'تمت الموافقة على إذن الغياب' : 'تم رفض إذن الغياب';
+    const resultBody = decisionNote?.trim() || (approve ? 'سُجّل الغياب بعذر في الحضور.' : 'راجع الإدارة لمعرفة التفاصيل.');
+    await this.notifications.notify({ userId: request.requesterId, type: NotificationType.ATTENDANCE, title: resultTitle, body: resultBody, link: '/absence-permissions', data: { absencePermissionId: id } });
+    await this.notifications.notifyStudent(request.studentId, { type: NotificationType.ATTENDANCE, title: resultTitle, body: resultBody, data: { absencePermissionId: id } });
+    await this.activity.log({ userId: actor.id, action: approve ? 'ABSENCE_PERMISSION_APPROVE' : 'ABSENCE_PERMISSION_REJECT', summary: `${resultTitle}: ${request.student.fullName}`, entityType: 'AbsencePermissionRequest', entityId: id });
+    return saved;
+  }
+
+  async listSummons() {
+    return this.prisma.guardianSummons.findMany({ include: { student: { select: { fullName: true, code: true, guardianName: true, guardianPhone: true } }, issuedBy: { select: { fullName: true } } }, orderBy: { createdAt: 'desc' }, take: 500 });
+  }
+
+  async createSummons(actor: AuthUser, input: { studentId: string; title: string; body: string }) {
+    if (!input?.studentId || !input.title?.trim() || !input.body?.trim()) throw new BadRequestException('الطالب والعنوان ونص الاستدعاء مطلوبة');
+    const student = await this.prisma.student.findUnique({ where: { id: input.studentId }, select: { id: true, fullName: true, parentProfile: { select: { userId: true } } } });
+    if (!student) throw new NotFoundException('الطالب غير موجود');
+    if (!student.parentProfile?.userId) throw new BadRequestException('لا يوجد حساب ولي أمر مرتبط بالطالب لإرسال الإشعار إليه');
+    const row = await this.prisma.guardianSummons.create({ data: { studentId: student.id, issuedById: actor.id, title: input.title.trim(), body: input.body.trim() } });
+    await this.notifications.notify({ userId: student.parentProfile.userId, type: NotificationType.ATTENDANCE, title: row.title, body: row.body, link: `/parent/children/${student.id}`, data: { guardianSummonsId: row.id, warning: true } });
+    await this.activity.log({ userId: actor.id, action: 'GUARDIAN_SUMMON_ISSUED', summary: `إرسال استدعاء لولي أمر ${student.fullName}`, entityType: 'GuardianSummon', entityId: row.id });
+    return row;
+  }
 
   /**
    * A small, permission-scoped bootstrap for offline attendance.
@@ -105,7 +171,9 @@ export class AttendanceService {
     ]);
 
     const byStudent = new Map(existing.map((e) => [e.studentId, e]));
-    const alreadyRecorded = existing.length > 0;
+    // Excused permission approvals may be written before the register is submitted.
+    // Keep the sheet open until every active roster member has an attendance row.
+    const alreadyRecorded = students.length > 0 && students.every(student => byStudent.has(student.id));
     const first = existing[0];
 
     return {

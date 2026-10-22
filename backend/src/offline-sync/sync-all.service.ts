@@ -1,4 +1,9 @@
 import { ProfileReviewsService } from '../profile-reviews/profile-reviews.service';
+import { SchoolOperationsService } from '../school-operations/school-operations.service';
+import { TransfersService } from '../transfers/transfers.service';
+import { SuspensionsService } from '../suspensions/suspensions.service';
+import { CreateStudentTransferDto, ApproveStudentTransferDto, DecideTransferDto, QueryTransfersDto } from '../transfers/dto/transfer.dto';
+import { CreateSuspensionDto, ApproveSuspensionDto, DecideSuspensionDto, ReturnStudentDto, QuerySuspensionsDto } from '../suspensions/dto/suspension.dto';
 import { BroadcastDto } from '../notifications/broadcast.dto';
 import { BadRequestException, ForbiddenException, HttpException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -24,12 +29,24 @@ import { CreateRecitationDto, UpdateRecitationDto, QueryRecitationsDto } from '.
 import { AttendanceService } from '../attendance/attendance.service';
 import { RecordAttendanceDto, UpdateAttendanceEntryDto, QueryAttendanceDto } from '../attendance/dto/attendance.dto';
 import { ExamsService } from '../exams/exams.service';
-import { CreateExamRequestDto, QueryExamRequestsDto, QueryExamsDto, RecordResultDto, UpdateExamDto } from '../exams/dto/exam.dto';
+import { CreateExamRequestDto, QueryExamRequestsDto, QueryExamsDto, RecordResultDto, UpdateExamDto, ScheduleExamDto, ReviewExamRequestDto } from '../exams/dto/exam.dto';
+import { HistoricalExamDto } from '../exams/dto/exam.dto';
 import { CoursesService } from '../courses/courses.service';
-import { QueryCoursesDto, CreateCourseDto, UpdateCourseDto } from '../courses/dto/course.dto';
+import { QueryCoursesDto, CreateCourseDto, UpdateCourseDto, RecordCourseAttendanceDto } from '../courses/dto/course.dto';
 import { SchedulesService } from '../schedules/schedules.service';
 import { UsersService } from '../users/users.service';
 import { CreateUserDto, UpdateUserDto, QueryUsersDto, ResetPasswordDto } from '../users/dto/user.dto';
+import { PreparationsService } from '../preparations/preparations.service';
+import { CreatePreparationDto, UpdatePreparationDto, QueryPreparationsDto } from '../preparations/dto/preparation.dto';
+import { SetEvaluationDto, SurahCompletionDto } from '../students/dto/student.dto';
+import { AnnouncementsService } from '../announcements/announcements.service';
+import { CreateAnnouncementDto, UpdateAnnouncementDto, QueryAnnouncementsDto } from '../announcements/dto/announcement.dto';
+import { MediaActivitiesService } from '../media-activities/media-activities.service';
+import { CertificatesService } from '../certificates/certificates.service';
+import { StaffAttendanceService } from '../staff-attendance/staff-attendance.service';
+import { RecordStaffAttendanceDto } from '../staff-attendance/dto/staff-attendance.dto';
+import { SettingsService } from '../settings/settings.service';
+import { UpdateSettingsDto } from '../settings/dto/settings.dto';
 
 type Operation = { opId: string; accountId?: string; table: string; action: string; entityId: string; data: Record<string, any> };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -46,18 +63,52 @@ export class FullSyncService {
     // Persist notifications inside the transaction. Clients refresh them after commit.
     const notifications = new NotificationsService(prisma, { emitToUser() {} } as unknown as RealtimeGateway);
     const students = new StudentsService(prisma, acl, activity, new UploadsService(this.config));
-    return { prisma, acl, students, users: new UsersService(prisma, this.config, activity, acl, new UploadsService(this.config)), notifications, schedules: new SchedulesService(prisma, notifications), circles: new CirclesService(prisma, acl, activity, notifications),
+    const transfers = new TransfersService(prisma, acl, activity, notifications);
+    const suspensions = new SuspensionsService(prisma, acl, activity, notifications);
+    const operations = new SchoolOperationsService(prisma);
+    const preparations = new PreparationsService(prisma, acl, activity, notifications);
+    const announcements = new AnnouncementsService(prisma, activity);
+    const mediaActivities = new MediaActivitiesService(prisma);
+    const certificates = new CertificatesService(prisma, { emitToUser() {} } as unknown as RealtimeGateway);
+    return { prisma, acl, students, transfers, suspensions, operations, users: new UsersService(prisma, this.config, activity, acl, new UploadsService(this.config)), notifications, schedules: new SchedulesService(prisma, notifications), circles: new CirclesService(prisma, acl, activity, notifications),
       teachers: new TeachersService(prisma, this.config, activity, acl),
       recitations: new RecitationsService(prisma, acl, activity, students),
       attendance: new AttendanceService(prisma, acl, activity, notifications),
       exams: new ExamsService(prisma, acl, activity, notifications),
-      courses: new CoursesService(prisma, activity, notifications) };
+      courses: new CoursesService(prisma, activity, notifications), settings: new SettingsService(prisma, activity, new UploadsService(this.config)), preparations, announcements, mediaActivities, certificates };
   }
   async pull(user: AuthUser, table: string, page: number, changedIds?: Set<string>) {
     const s = this.services(this.prisma); const query = { page, limit: 200 };
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const empty = { data: [], meta: { hasNextPage: false } };
     switch (table) {
+      case 'meetings': return { data: user.role === Role.ADMIN && page === 1 ? await s.operations.meetings(user) : [], meta: { hasNextPage: false } };
+      case 'examCommittees': return { data: (staff || user.role === Role.EXAM_COMMITTEE) && page === 1 ? await s.operations.committees(user) : [], meta: { hasNextPage: false } };
+      case 'absencePermissions': {
+        if (![Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT].includes(user.role as any)) return empty;
+        const scope = await s.acl.studentScope(user);
+        const where = user.role === Role.ADMIN ? {} : { student: scope };
+        const data = await this.prisma.absencePermissionRequest.findMany({ where, include: { student: { select: { id: true, fullName: true, code: true, circleId: true } }, requester: { select: { id: true, fullName: true, role: true } } }, skip: (page - 1) * 200, take: 200, orderBy: { createdAt: 'desc' } });
+        return { data, meta: { hasNextPage: (await this.prisma.absencePermissionRequest.count({ where })) > page * 200 } };
+      }
+      case 'guardianSummons': return { data: user.role === Role.ADMIN && page === 1 ? await s.attendance.listSummons() : [], meta: { hasNextPage: false } };
+      case 'preparations': return s.preparations.findAll(user, plainToInstance(QueryPreparationsDto, query));
+      case 'surahCompletions': {
+        if (!staff) return empty;
+        const where = { student: { ...(await s.acl.studentScope(user)), deletedAt: null } };
+        const data = await this.prisma.surahCompletion.findMany({ where, skip: (page - 1) * 200, take: 200, orderBy: { id: 'desc' } });
+        return { data, meta: { hasNextPage: (await this.prisma.surahCompletion.count({ where })) > page * 200 } };
+      }
+      case 'announcements': return user.role === Role.ADMIN
+        ? s.announcements.findAll(plainToInstance(QueryAnnouncementsDto, { page, limit: 200 }))
+        : { data: await s.announcements.active(user), meta: { hasNextPage: false } };
+      case 'mediaActivities': return { data: [Role.ADMIN, Role.SUPERVISOR].includes(user.role as any) && page === 1 ? await s.mediaActivities.list() : [], meta: { hasNextPage: false } };
+      case 'schoolSettings': return { data: page === 1 ? [{ id: 'default', ...await s.settings.publicInfo(), ...await s.settings.donationInfo() }] : [], meta: { hasNextPage: false } };
+      case 'certificateTemplates': return { data: user.role === Role.ADMIN && page === 1 ? await s.certificates.listTemplates() : [], meta: { hasNextPage: false } };
+      case 'certificateRequests': return { data: page === 1 ? user.role === Role.ADMIN ? await s.certificates.listRequests() : user.role === Role.STUDENT ? await s.certificates.myRequests(user) : [] : [], meta: { hasNextPage: false } };
+      case 'certificates': return { data: page === 1 ? user.role === Role.ADMIN ? await s.certificates.listIssuedRecords() : user.role === Role.STUDENT ? await s.certificates.myCertificates(user) : [] : [], meta: { hasNextPage: false } };
+      case 'transfers': return staff ? s.transfers.findAll(user, plainToInstance(QueryTransfersDto, query)) : empty;
+      case 'suspensions': return staff ? s.suspensions.findAll(user, plainToInstance(QuerySuspensionsDto, query)) : empty;
       case 'profileReviews': {
         if (![Role.ADMIN, Role.STUDENT, Role.TEACHER].includes(user.role as any)) return empty;
         const reviews = new ProfileReviewsService(this.prisma);
@@ -79,10 +130,28 @@ export class FullSyncService {
       case 'circles': return staff ? this.hydratePage(await s.circles.findAll(user, plainToInstance(QueryCirclesDto, query)), (id) => s.circles.findOne(user, id), changedIds) : empty;
       case 'teachers': if (user.role === Role.TEACHER) return { data: page === 1 && user.teacherId ? [await s.teachers.findOne(user, user.teacherId)] : [], meta: { hasNextPage: false } }; return [Role.ADMIN, Role.SUPERVISOR].includes(user.role as any) ? this.hydratePage(await s.teachers.findAll(user, plainToInstance(QueryTeachersDto, query)), (id) => s.teachers.findOne(user, id), changedIds) : empty;
       case 'attendance': return staff ? s.attendance.findAll(user, plainToInstance(QueryAttendanceDto, query)) : empty;
+      case 'staffAttendance': {
+        if (![Role.ADMIN, Role.SUPERVISOR].includes(user.role as any)) return empty;
+        const where = { skip: (page - 1) * 200, take: 200 };
+        const [data, total] = await this.prisma.$transaction([
+          this.prisma.staffAttendance.findMany({ ...where, include: { user: { select: { id: true, fullName: true, role: true, jobTitle: true } }, recordedBy: { select: { id: true, fullName: true } } }, orderBy: [{ date: 'desc' }, { createdAt: 'desc' }] }),
+          this.prisma.staffAttendance.count(),
+        ]);
+        return { data, meta: { hasNextPage: total > page * 200 } };
+      }
       case 'recitations': return staff ? { ...await s.recitations.findAll(user, plainToInstance(QueryRecitationsDto, query)), ...(page === 1 ? { references: { '/recitations/surahs': s.recitations.surahs() } } : {}) } : empty;
       case 'exams': return staff || user.role === Role.EXAM_COMMITTEE ? { ...await s.exams.findExams(user, plainToInstance(QueryExamsDto, query)), ...(page === 1 ? { references: { '/exams/sections': await s.exams.sections() } } : {}) } : empty;
       case 'examRequests': return staff || user.role === Role.EXAM_COMMITTEE ? s.exams.findRequests(user, plainToInstance(QueryExamRequestsDto, query)) : empty;
       case 'courses': return staff ? this.hydratePage(await s.courses.findAll(plainToInstance(QueryCoursesDto, { ...query, ...(user.role === Role.TEACHER ? { instructorId: user.id } : {}) })), async (id) => ({ ...await s.courses.findOne(id, user), _offline: { attendance: await this.prisma.courseAttendance.findMany({ where: { courseId: id }, include: { student: { select: { id: true, fullName: true, code: true } } } }) } }), changedIds) : empty;
+      case 'courseAttendance': {
+        if (!staff) return empty;
+        const where = { course: { ...(user.role === Role.TEACHER ? { instructorId: user.id } : {}), deletedAt: null } };
+        const [data, total] = await this.prisma.$transaction([
+          this.prisma.courseAttendance.findMany({ where, skip: (page - 1) * 200, take: 200, include: { student: { select: { id: true, fullName: true, code: true } }, course: { select: { id: true, name: true } }, recordedBy: { select: { id: true, fullName: true } } }, orderBy: [{ date: 'desc' }, { createdAt: 'desc' }] }),
+          this.prisma.courseAttendance.count({ where }),
+        ]);
+        return { data, meta: { hasNextPage: total > page * 200 } };
+      }
       case 'notifications': return { data: await this.prisma.notification.findMany({ where: { userId: user.id }, skip: (page - 1) * 200, take: 200, orderBy: { id: 'asc' } }), meta: { hasNextPage: (await this.prisma.notification.count({ where: { userId: user.id } })) > page * 200 } };
       case 'behaviors': {
         if (!staff) return empty;
@@ -114,8 +183,12 @@ export class FullSyncService {
       if (!id) { affected.set(table, undefined); return; }
       const ids = affected.get(table) || new Set<string>(); ids.add(id); affected.set(table, ids);
     };
-    const direct: Record<string, string> = { profile_reviews: 'profileReviews', students: 'students', circles: 'circles', teacher_profiles: 'teachers', attendance: 'attendance', recitations: 'recitations', exams: 'exams', exam_requests: 'examRequests', student_notes: 'behaviors', notifications: 'notifications', courses: 'courses', media_plans: 'mediaPlans', teacher_duties: 'teacherDuties' };
+    const direct: Record<string, string> = { profile_reviews: 'profileReviews', absence_permission_requests: 'absencePermissions', guardian_summons: 'guardianSummons', preparation_assignments: 'preparations', surah_completions: 'surahCompletions', announcements: 'announcements', media_activities: 'mediaActivities', school_settings: 'schoolSettings', student_file_requests: 'certificateRequests', certificate_records: 'certificates', certificate_templates: 'certificateTemplates', students: 'students', circles: 'circles', teacher_profiles: 'teachers', attendance: 'attendance', staff_attendance: 'staffAttendance', course_attendance: 'courseAttendance', recitations: 'recitations', exams: 'exams', exam_requests: 'examRequests', student_notes: 'behaviors', notifications: 'notifications', courses: 'courses', media_plans: 'mediaPlans', teacher_duties: 'teacherDuties' };
     for (const change of changes) {
+      if (change.entity === 'meetings') add('meetings');
+      if (change.entity === 'exam_committees') add('examCommittees');
+      if (change.entity === 'transfer_requests') add('transfers');
+      if (change.entity === 'suspension_requests') add('suspensions');
       const row = change.payload as any || {};
       if (direct[change.entity]) add(direct[change.entity], change.entityId);
       if (change.entity === 'students') {
@@ -197,7 +270,7 @@ export class FullSyncService {
           const result = await this.apply(this.services(transactionPrisma), user, { ...op, entityId: resolve(op.entityId), data: resolve(op.data) });
           const outcome = JSON.parse(JSON.stringify({ opId: op.opId, status: 'applied', data: result }, (key, value) =>
             ['password', 'newPassword', 'currentPassword', 'accountPassword', 'temporaryPassword', 'passwordHash'].includes(key) ? undefined : value));
-          await tx.processedOperation.create({ data: { opId: op.opId, accountId: user.id, result: { fingerprint, outcome, ...(op.action === 'create' ? { localId: op.entityId } : {}) } as Prisma.InputJsonValue } });
+          await tx.processedOperation.create({ data: { opId: op.opId, accountId: user.id, result: { fingerprint, outcome, ...(['create','schedule','historical'].includes(op.action) ? { localId: op.entityId } : {}) } as Prisma.InputJsonValue } });
           return outcome;
         }, { timeout: 30000 });
         outcomes.push(outcome);
@@ -219,6 +292,26 @@ export class FullSyncService {
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const admin = user.role === Role.ADMIN;
     const id = op.entityId;
+    if (['meetings', 'examCommittees'].includes(op.table)) {
+      if (op.action === 'delete') return s.operations.remove(user, op.table as any, id);
+      if (['create','update'].includes(op.action)) return s.operations.write(user, op.table as any, op.data, id, op.action === 'create');
+    }
+    if (staff && ['transfers','suspensions'].includes(op.table)) {
+      const pick = (fields: string[]) => Object.fromEntries(fields.filter(field => op.data[field] !== undefined).map(field => [field, op.data[field]]));
+      if (op.action !== 'create' && op.action !== 'cancel' && !admin) throw new ForbiddenException('قرار الطلب للإدارة فقط');
+      if (op.table === 'transfers') {
+        if (op.action === 'create') return s.transfers.requestStudentTransfer(user, await this.dto(CreateStudentTransferDto, pick(['studentId','reason'])));
+        if (op.action === 'approve') return s.transfers.approve(user, id, await this.dto(ApproveStudentTransferDto, pick(['toCircleId','decisionNote'])));
+        if (op.action === 'reject') return s.transfers.reject(user, id, await this.dto(DecideTransferDto, pick(['decisionNote'])));
+        if (op.action === 'cancel') return s.transfers.cancel(user, id);
+      } else {
+        if (op.action === 'create') return s.suspensions.request(user, await this.dto(CreateSuspensionDto, pick(['studentId','reason'])));
+        if (op.action === 'approve') return s.suspensions.approve(user, id, await this.dto(ApproveSuspensionDto, pick(['action','durationDays','startDate','decisionNote'])));
+        if (op.action === 'reject') return s.suspensions.reject(user, id, await this.dto(DecideSuspensionDto, pick(['decisionNote'])));
+        if (op.action === 'return') return s.suspensions.returnStudent(user, id, await this.dto(ReturnStudentDto, pick(['note','circleId'])));
+        if (op.action === 'cancel') return s.suspensions.cancel(user, id);
+      }
+    }
     if (admin && op.table === 'users') {
       if (op.action === 'create') return s.users.create(user, await this.dto(CreateUserDto, op.data));
       if (op.action === 'update') return s.users.update(user, id, await this.dto(UpdateUserDto, op.data));
@@ -251,11 +344,55 @@ export class FullSyncService {
       if (op.action === 'update') return s.courses.update(user, id, await this.dto(UpdateCourseDto, op.data));
       if (op.action === 'delete' && admin) return s.courses.remove(user, id);
     }
+    if (op.table === 'schoolSettings' && user.role === Role.ADMIN && op.action === 'update') {
+      return s.settings.update(user, await this.dto(UpdateSettingsDto, op.data));
+    }
+    if (op.table === 'staffAttendance' && [Role.ADMIN, Role.SUPERVISOR].includes(user.role as any) && op.action === 'create') {
+      const service = new StaffAttendanceService(s.prisma, new ActivityService(s.prisma));
+      return service.record(user, await this.dto(RecordStaffAttendanceDto, op.data));
+    }
+    if (op.table === 'courseAttendance' && [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any) && op.action === 'create') {
+      if (!op.data.courseId) throw new BadRequestException('ط§ط®طھط± ط¯ظˆط±ط© ظ„طھط³ط¬ظٹظ„ ط§ظ„ط­ط¶ظˆط±');
+      return s.courses.recordAttendance(user, op.data.courseId, await this.dto(RecordCourseAttendanceDto, op.data));
+    }
     if (op.table === 'profileReviews') {
       const reviews = new ProfileReviewsService(s.prisma);
       if (op.action === 'create') return reviews.submit(user, op.data.patch, id);
       if (op.action === 'decision') return reviews.decide(user, id, op.data.status, op.data.reason);
       throw new BadRequestException('عملية غير مدعومة');
+    }
+    if (op.table === 'absencePermissions') {
+      if (op.action === 'create') return s.attendance.createAbsencePermission(user, op.data as { studentId: string; date: string; reason: string });
+      if (op.action === 'approve' && admin) return s.attendance.decideAbsencePermission(user, id, true, op.data.decisionNote);
+      if (op.action === 'reject' && admin) return s.attendance.decideAbsencePermission(user, id, false, op.data.decisionNote);
+    }
+    if (op.table === 'guardianSummons' && admin && op.action === 'create') return s.attendance.createSummons(user, op.data as { studentId: string; title: string; body: string });
+    if (op.table === 'preparations') {
+      if (op.action === 'create') return s.preparations.create(user, await this.dto(CreatePreparationDto, op.data));
+      if (op.action === 'update') return s.preparations.update(user, id, await this.dto(UpdatePreparationDto, op.data));
+      if (op.action === 'complete' || op.action === 'reopen') return s.preparations.setCompleted(user, id, op.action === 'complete');
+      if (op.action === 'delete') return s.preparations.remove(user, id);
+    }
+    if (op.table === 'announcements' && admin) {
+      if (op.action === 'create') return s.announcements.create(user, await this.dto(CreateAnnouncementDto, op.data));
+      if (op.action === 'update') return s.announcements.update(user, id, await this.dto(UpdateAnnouncementDto, op.data));
+      if (op.action === 'delete') return s.announcements.remove(user, id);
+    }
+    if (op.table === 'mediaActivities' && [Role.ADMIN, Role.SUPERVISOR].includes(user.role as any)) {
+      if (op.action === 'create') return s.mediaActivities.create(user, op.data);
+      if (op.action === 'delete') return s.mediaActivities.remove(id);
+    }
+    if (op.table === 'certificateRequests') {
+      if (op.action === 'create' && user.role === Role.STUDENT) return s.certificates.createRequest(user, op.data);
+      if (op.action === 'decision' && admin) return s.certificates.decideRequest(user, id, op.data);
+    }
+    if (op.table === 'certificateTemplates' && admin) {
+      if (op.action === 'create') return s.certificates.createTemplate(user, op.data);
+      if (op.action === 'deactivate') return s.certificates.deactivateTemplate(id);
+    }
+    if (op.table === 'surahCompletions') {
+      if (op.action === 'create') return s.students.completeSurah(user, op.data.studentId, await this.dto(SurahCompletionDto, op.data));
+      if (op.action === 'delete') return s.students.removeSurahCompletion(user, op.data.studentId, id);
     }
     if (op.table === 'notifications') {
       if (op.action === 'broadcast') {
@@ -269,6 +406,7 @@ export class FullSyncService {
       return s.students.updateMyQuestionnaire(user, await this.dto(StudentQuestionnaireDto, op.data), id);
     }
     if (op.table === 'students' && staff) {
+      if (op.action === 'evaluation') return s.students.setEvaluation(user, id, await this.dto(SetEvaluationDto, { evaluation: op.data.evaluation, note: op.data.note }));
       if (op.action === 'create') return s.students.create(user, await this.dto(CreateStudentDto, op.data));
       if (op.action === 'update') return s.students.update(user, id, await this.dto(UpdateStudentDto, op.data));
       if (op.action === 'delete' && admin) return s.students.remove(user, id);
@@ -298,7 +436,14 @@ export class FullSyncService {
       if (op.action === 'update') return s.attendance.updateRecord(user, id, await this.dto(UpdateAttendanceEntryDto, op.data));
     }
     if (op.table === 'examRequests' && staff && op.action === 'create') return s.exams.requestExam(user, await this.dto(CreateExamRequestDto, op.data));
+    if (op.table === 'examRequests' && [Role.ADMIN,Role.EXAM_COMMITTEE].includes(user.role as any) && op.action === 'reject') return s.exams.rejectRequest(user,id,await this.dto(ReviewExamRequestDto,Object.fromEntries(Object.entries(op.data).filter(([key])=>key==='reviewNote'))));
+    if (op.table === 'examRequests' && (staff || user.role===Role.EXAM_COMMITTEE) && op.action === 'cancel') return s.exams.cancelRequest(user,id);
     if (op.table === 'exams' && [Role.ADMIN, Role.EXAM_COMMITTEE].includes(user.role as any)) {
+      if(op.action==='historical'&&admin)return s.exams.recordHistorical(user,await this.dto(HistoricalExamDto,Object.fromEntries(['studentId','sectionId','committeeId','combinedStage','score','notes','mistakes','alerts','tajweed','mistakePenalty','alertPenalty'].filter(key=>op.data[key]!==undefined).map(key=>[key,op.data[key]]))));
+      if (op.action === 'schedule') {
+        const payload=Object.fromEntries(['scheduledAt','examinerId','location','notes','committeeId'].filter(key=>op.data[key]!==undefined).map(key=>[key,op.data[key]]));
+        return s.exams.scheduleExam(user,op.data.requestId,await this.dto(ScheduleExamDto,payload));
+      }
       if (op.action === 'update') return s.exams.updateExam(user, id, await this.dto(UpdateExamDto, op.data));
       if (op.action === 'result') return s.exams.recordResult(user, id, await this.dto(RecordResultDto, op.data));
     }

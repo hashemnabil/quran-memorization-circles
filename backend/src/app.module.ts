@@ -34,6 +34,7 @@ import { CertificatesModule } from './certificates/certificates.module';
 import { MediaActivitiesModule } from './media-activities/media-activities.module';
 import { OfflineSyncModule } from './offline-sync/offline-sync.module';
 import { SchedulesModule } from './schedules/schedules.module';
+import { SchoolOperationsModule } from './school-operations/school-operations.module';
 
 @Module({
   controllers: [HealthController],
@@ -73,6 +74,7 @@ import { SchedulesModule } from './schedules/schedules.module';
     MediaActivitiesModule,
     OfflineSyncModule,
     SchedulesModule,
+    SchoolOperationsModule,
     ProfileReviewsModule,
     PushModule,
   ],

@@ -4,7 +4,7 @@ import { beforeEach, after, test } from 'node:test';
 import JSZip from 'jszip';
 import { db } from './db';
 import { configureOffline, mergeRows } from './offline-engine';
-import { localRead, localWrite } from './local-api';
+import { localRead, localWrite, rememberRead } from './local-api';
 import { localReport } from './local-analytics';
 import { exportLocalWorkbook } from './local-xlsx';
 import { clearAccountData } from './account-cleanup';
@@ -63,6 +63,79 @@ test('pending activity and course registrations appear in their own lists before
   assert.equal((await localRead('/students', { track: 'COURSE', courseId: 'another-course' })).meta.total, 0);
   assert.equal((await localRead('/students', { track: 'CIRCLE' })).meta.total, 0);
   assert.equal((await db.queue.toArray())[1].data.courseId, 'course-one');
+});
+test('staff attendance remains editable offline and queued for server sync', async () => {
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ id: 'account', role: 'SUPERVISOR', fullName: 'Supervisor' }) } });
+  const date = '2026-10-22';
+  const sheet = { date, alreadyRecorded: false, canSubmit: true, staff: [{ id: student, fullName: 'Teacher', attendance: null }] };
+  await rememberRead('/staff-attendance/sheet', { date, role: undefined }, sheet);
+  await localWrite('post', '/staff-attendance', { date, entries: [{ userId: student, status: 'PRESENT' }] });
+  const local = await localRead('/staff-attendance/sheet', { date, role: undefined });
+  assert.equal(local.staff[0].attendance.status, 'PRESENT');
+  assert.equal(local.alreadyRecorded, true);
+  const operation = await db.queue.where('accountId').equals('account').first();
+  assert.ok(operation);
+  assert.equal(operation.table, 'staffAttendance');
+  assert.equal(operation.data.entries[0].userId, student);
+});
+test('course attendance can be recorded from its cached roster while offline', async () => {
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ id: 'account', role: 'TEACHER', fullName: 'Teacher' }) } });
+  const courseId = '00000000-0000-4000-8000-000000000002', date = '2026-10-22';
+  const path = `/courses/${courseId}/attendance/sheet`;
+  await rememberRead(path, { date }, { course: { id: courseId, name: 'Course' }, date, students: [{ id: student, fullName: 'Student', attendance: null }] });
+  await localWrite('post', `/courses/${courseId}/attendance`, { date, entries: [{ studentId: student, status: 'EXCUSED', note: 'ill' }] });
+  const local = await localRead(path, { date });
+  assert.equal(local.students[0].attendance.status, 'EXCUSED');
+  const operation = await db.queue.where('accountId').equals('account').first();
+  assert.equal(operation?.table, 'courseAttendance');
+  assert.equal(operation?.data.courseId, courseId);
+});
+test('published donation campaign and payment methods are visible offline and admin settings edit queues locally', async () => {
+  await mergeRows('schoolSettings', [{ id: 'default', donationsEnabled: true, donationTitle: 'Support classes', donationGoalAmount: 1000, donationRaisedAmount: 250, donationMethod: 'Ask the school office', donationBankPalestine: '000-123', donationPalPay: '0590000000' }]);
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ id: 'account', role: 'STUDENT', fullName: 'Student' }) } });
+  const publicSettings = await localRead('/settings/public');
+  assert.equal(publicSettings.donationsEnabled, true);
+  assert.equal(publicSettings.donationRaisedAmount, 250);
+  assert.equal(publicSettings.donationBankPalestine, '000-123');
+  assert.equal(publicSettings.donationPalPay, '0590000000');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ id: 'account', role: 'ADMIN', fullName: 'Admin' }) } });
+  await localWrite('patch', '/settings', { donationRaisedAmount: 300 });
+  assert.equal((await localRead('/settings')).donationRaisedAmount, 300);
+  const operation = await db.queue.where('accountId').equals('account').first();
+  assert.equal(operation?.table, 'schoolSettings');
+  assert.equal(operation?.data.donationRaisedAmount, 300);
+});
+test('preparations, evaluation and completed surahs stay usable and queued offline', async () => {
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ id: 'account', role: 'TEACHER', fullName: 'Teacher' }) } });
+  await mergeRows('students', [{ id: student, fullName: 'Student', circleId: 'circle', circle: { id: 'circle', name: 'Circle' } }]);
+  const preparation = await localWrite('post', '/preparations', { studentId: student, fromSurah: 'البقرة', fromAyah: 1, toSurah: 'البقرة', toAyah: 5 });
+  assert.equal((await localRead('/preparations', { studentId: student })).data[0].id, preparation.id);
+  await localWrite('patch', `/preparations/${preparation.id}/complete`, {});
+  assert.ok((await localRead('/preparations', { studentId: student })).data[0].completedAt);
+  await localWrite('patch', `/students/${student}/evaluation`, { evaluation: 'EXCELLENT', note: 'متقن' });
+  const completion = await localWrite('post', `/students/${student}/surahs`, { surah: 'الفاتحة', points: 3 });
+  assert.equal((await localRead(`/students/${student}/surahs`))[0].id, completion.id);
+  assert.equal((await db.queue.toArray()).length, 4);
+});
+test('admin announcements and media activities are readable and editable offline', async () => {
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ id: 'account', role: 'ADMIN', fullName: 'Admin' }) } });
+  const notice = await localWrite('post', '/announcements', { title: 'تنويه', body: 'نص الإعلان', audience: [] });
+  assert.equal((await localRead('/announcements/active'))[0].id, notice.id);
+  const activity = await localWrite('post', '/media-activities', { type: 'DESIGN', title: 'نشاط', description: 'وصف النشاط', activityDate: '2026-10-22' });
+  assert.equal((await localRead('/media-activities')).at(0).id, activity.id);
+  await localWrite('patch', `/announcements/${notice.id}`, { isActive: false });
+  assert.equal((await localRead('/announcements/active')).length, 0);
+  await localWrite('delete', `/media-activities/${activity.id}`, {});
+  assert.equal((await localRead('/media-activities')).length, 0);
+  assert.deepEqual((await db.queue.toArray()).map(row => row.table), ['announcements', 'mediaActivities', 'announcements', 'mediaActivities']);
+});
+test('a student certificate request is visible offline and queued for server review', async () => {
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ id: 'account', role: 'STUDENT', fullName: 'Student' }) } });
+  await mergeRows('students', [{ id: student, selfAccountId: 'account', fullName: 'Student' }]);
+  const request = await localWrite('post', '/certificates/requests', { kind: 'MONTHLY_REPORT', periodFrom: '2026-10-01', periodTo: '2026-10-22', requestNote: 'نسخة للشهر' });
+  assert.equal((await localRead('/certificates/requests/mine'))[0].id, request.id);
+  assert.equal((await db.queue.toArray())[0].table, 'certificateRequests');
+  assert.equal((await db.queue.toArray())[0].action, 'create');
 });
 test('search, filters and pagination work without a previously cached query variant', async () => {
   await mergeRows('students', Array.from({ length: 45 }, (_, i) => ({ id: `student-${i}`, fullName: `طالب ${i}`, status: i % 2 ? 'ACTIVE' : 'SUSPENDED', circleId: 'circle', createdAt: `${i}` })));

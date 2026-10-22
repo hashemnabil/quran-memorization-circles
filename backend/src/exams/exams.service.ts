@@ -20,6 +20,9 @@ import { ActivityService } from '../common/services/activity.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuthUser } from '../common/decorators';
 import { EVALUATION_LABELS, evaluationFromScore } from '../common/grading';
+import { calculateExamGrade } from './exam-scoring';
+import { combinedPlan } from './combined-plan';
+import { HistoricalExamDto } from './dto/exam.dto';
 import {
   HIZB_PER_JUZ,
   describeSections,
@@ -170,6 +173,7 @@ const REQUEST_INCLUDE = {
 } satisfies Prisma.ExamRequestInclude;
 
 const EXAM_INCLUDE = {
+  committee: true,
   student: {
     select: {
       id: true,
@@ -254,6 +258,27 @@ const EXAM_INCLUDE = {
 
 @Injectable()
 export class ExamsService {
+  async recordHistorical(actor: AuthUser,dto: HistoricalExamDto) {
+    if(actor.role!==Role.ADMIN)throw new ForbiddenException('إدخال النتائج القديمة للإدارة فقط');
+    await this.acl.assertStudentWriteAccess(actor,dto.studentId);
+    const committee=await this.prisma.examCommittee.findUnique({where:{id:dto.committeeId}});
+    const section=await this.prisma.examSection.findUnique({where:{id:dto.sectionId}});
+    if(!committee||!section||committee.heldAt.getTime()>Date.now())throw new BadRequestException('اختر لجنة سابقة ومقررًا صالحًا');
+    if(dto.combinedStage&&!combinedPlan().some(row=>row.code===dto.combinedStage))throw new BadRequestException('مرحلة المجتمعة غير صالحة');
+    const grading=dto.tajweed===undefined?undefined:calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,mistakePenalty:dto.mistakePenalty??1,alertPenalty:dto.alertPenalty??0.5,tajweed:dto.tajweed});
+    const score=grading?.score??dto.score;const passed=score>=80;
+    const exam=await this.prisma.$transaction(async tx=>{
+      const row=await tx.exam.create({data:{studentId:dto.studentId,sectionId:dto.sectionId,committeeId:committee.id,combinedStage:dto.combinedStage,scheduledAt:committee.heldAt,location:committee.location,status:'COMPLETED',score,grading,evaluation:evaluationFromScore(score),result:passed?'PASSED':'FAILED',notes:dto.notes,gradedById:actor.id,gradedAt:new Date(),sections:{create:{sectionId:section.id}}},include:EXAM_INCLUDE});
+      if(!dto.combinedStage) {
+        const previous=await tx.examMilestoneRecord.findUnique({where:{studentId_sectionId:{studentId:dto.studentId,sectionId:section.id}}});
+        // A historical failure must never overwrite a later successful attempt.
+        if(!previous?.examDate||previous.examDate<=committee.heldAt)await tx.examMilestoneRecord.upsert({where:{studentId_sectionId:{studentId:dto.studentId,sectionId:section.id}},create:{studentId:dto.studentId,sectionId:section.id,status:'COMPLETED',score,result:passed?'PASSED':'FAILED',examDate:committee.heldAt,updatedById:actor.id},update:{status:'COMPLETED',score,result:passed?'PASSED':'FAILED',examDate:committee.heldAt,updatedById:actor.id}});
+      }
+      return row;
+    });
+    await this.notifications.notifyStudent(dto.studentId,{type:NotificationType.EXAM_RESULT,title:'تم تسجيل نتيجة اختبار سابق',body:`لجنة ${committee.number}: ${score} / 100`});
+    return exam;
+  }
   private readonly logger = new Logger(ExamsService.name);
   private sectionsCache: any[] | null = null;
   private sectionsCacheTime: number = 0;
@@ -345,7 +370,7 @@ export class ExamsService {
         order: dto.order,
         kind: dto.kind ?? 'HIZB',
         isRequired: dto.isRequired ?? true,
-        minScore: dto.minScore ?? 60,
+        minScore: dto.minScore ?? 80,
         pagesCount: dto.pagesCount,
         description: dto.description,
       },
@@ -399,7 +424,7 @@ export class ExamsService {
     const completedScore = dto.status === 'COMPLETED' ? (dto.score ?? section.minScore) : null;
     const completedResult = completedScore === null
       ? null
-      : completedScore >= section.minScore ? ExamResult.PASSED : ExamResult.FAILED;
+      : completedScore >= 80 ? ExamResult.PASSED : ExamResult.FAILED;
     const examDate = dto.examDate ? this.parseDate(dto.examDate) : new Date();
 
     const saved = await this.prisma.$transaction(async (tx) => {
@@ -690,7 +715,7 @@ export class ExamsService {
         result: ExamResult.PASSED,
         // ✅ تأكد من وجود درجة وأنها أعلى من الحد الأدنى
         score: {
-          gte: section.minScore,
+          gte: 80,
           not: null,
         },
         OR: [
@@ -847,13 +872,14 @@ export class ExamsService {
     const student = await this.acl.assertStudentWriteAccess(actor, dto.studentId);
     this.validateStudentStatus(student);
 
-    const sectionIds = [...new Set(dto.sectionIds ?? [])];
+    let sectionIds = [...new Set(dto.sectionIds ?? [])];
+    if (dto.combinedStage) sectionIds = await this.combinedSections(dto.studentId, dto.combinedStage);
     if (sectionIds.length === 0) {
       throw new BadRequestException('يجب تحديد حزب أو جزء أو مجتمعة واحد على الأقل من القائمة');
     }
 
     const sections = await this.fetchActiveSections(sectionIds);
-    await this.validateAllSectionsEligibility(dto.studentId, sections);
+    if (!dto.combinedStage) await this.validateAllSectionsEligibility(dto.studentId, sections);
     const label = this.sectionsLabel(sections);
 
     const primary = sections[0];
@@ -865,6 +891,7 @@ export class ExamsService {
         sectionId: primary.id,
         teacherId,
         note: dto.note,
+        combinedStage: dto.combinedStage,
         sections: {
           create: sections.map((section) => ({ sectionId: section.id })),
         },
@@ -900,6 +927,22 @@ export class ExamsService {
     return `"${describeSections(sections)}"`;
   }
 
+  private async combinedSections(studentId: string, code: string) {
+    const stage = combinedPlan().find(row => row.code === code);
+    if (!stage) throw new BadRequestException('مرحلة المجتمعة غير صالحة');
+    const completed = await this.prisma.exam.findMany({where:{studentId,status:'COMPLETED',result:'PASSED'},include:{section:true}});
+    const records = await this.prisma.examMilestoneRecord.findMany({where:{studentId,status:'COMPLETED',result:'PASSED'},include:{section:true}});
+    const passed = new Set([...records.map(row=>row.section.code), ...completed.filter(row=>!row.combinedStage).map(row=>row.section.code)]);
+    for (let juz=stage.fromJuz;juz<=stage.toJuz;juz++) if (!passed.has(`JUZ-${String(juz).padStart(2,'0')}`)) throw new BadRequestException('يجب اجتياز اختبارات الأجزاء المطلوبة قبل المجتمعة');
+    if (stage.prerequisite && !completed.some(row=>row.combinedStage===stage.prerequisite)) throw new BadRequestException('يجب اجتياز مرحلة المجتمعة السابقة أولًا');
+    if (await this.prisma.examRequest.count({where:{studentId,combinedStage:code,status:{in:['PENDING','SCHEDULED']}}})) throw new ConflictException('يوجد طلب مفتوح لهذه المجتمعة');
+    if (completed.some(row=>row.combinedStage===code)) throw new ConflictException('اجتاز الطالب هذه المجتمعة بالفعل');
+    const codes = Array.from({length:stage.toJuz-stage.fromJuz+1},(_,index)=>`JUZ-${String(stage.fromJuz+index).padStart(2,'0')}`);
+    const sections = await this.prisma.examSection.findMany({where:{code:{in:codes},isActive:true}});
+    if (sections.length!==codes.length) throw new BadRequestException('مقررات الأجزاء غير مكتملة؛ راجع الإدارة');
+    return sections.map(row=>row.id);
+  }
+
   private examLabel(exam: {
     section: { name: string; order: number };
     sections?: { section: { name: string; order: number } }[];
@@ -911,6 +954,7 @@ export class ExamsService {
   }
 
   private requestLabel(request: any) {
+    if(request.combinedStage)return combinedPlan().find(row=>row.code===request.combinedStage)?.label||'مجتمعة';
     const manual: string[] = [];
     if (request.requestedHizb != null) manual.push(`حزب ${request.requestedHizb}`);
     if (request.requestedJuz != null) manual.push(`جزء ${request.requestedJuz}`);
@@ -1145,7 +1189,9 @@ export class ExamsService {
       throw new BadRequestException('هذا الطلب ليس في قائمة الانتظار');
     }
 
-    const scheduledAt = this.parseDate(dto.scheduledAt);
+    const committee = await this.prisma.examCommittee.findUnique({where:{id:dto.committeeId}});
+    if (!committee) throw new BadRequestException('اختر لجنة اختبار صحيحة');
+    const scheduledAt = this.parseDate(committee.heldAt.toISOString());
 
     if (scheduledAt.getTime() < Date.now() - 60 * 60 * 1000) {
       throw new BadRequestException('لا يمكن جدولة اختبار في الماضي');
@@ -1159,11 +1205,13 @@ export class ExamsService {
       const created = await tx.exam.create({
         data: {
           requestId,
+          committeeId: committee.id,
+          combinedStage: request.combinedStage,
           studentId: request.studentId,
           sectionId: request.sectionId,
           examinerId: dto.examinerId || null,
           scheduledAt,
-          location: dto.location,
+          location: committee.location,
           notes: dto.notes,
           sections: {
             create: (request.sections.length
@@ -1287,6 +1335,7 @@ export class ExamsService {
         score: dto.score,
         evaluation,
         mistakes: dto.mistakes ?? null,
+        grading: dto.tajweed !== undefined ? calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,mistakePenalty:dto.mistakePenalty??1,alertPenalty:dto.alertPenalty??0.5,tajweed:dto.tajweed}) : undefined,
         result: passed ? ExamResult.PASSED : ExamResult.FAILED,
         status: ExamStatus.COMPLETED,
         notes: dto.notes,
@@ -1418,6 +1467,10 @@ export class ExamsService {
   }
 
   async recordResult(actor: AuthUser, id: string, dto: RecordResultDto) {
+    if (dto.tajweed !== undefined) {
+      try { dto.score = calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,mistakePenalty:dto.mistakePenalty??1,alertPenalty:dto.alertPenalty??0.5,tajweed:dto.tajweed}).score; }
+      catch { throw new BadRequestException('قيمة رصد العلامات غير صالحة'); }
+    }
     const exam = await this.prisma.exam.findUnique({
       where: { id },
       include: EXAM_INCLUDE,
@@ -1432,7 +1485,7 @@ export class ExamsService {
     const examSections = exam.sections.length
       ? exam.sections.map((entry) => entry.section)
       : [exam.section];
-    if (examSections.length > 1) {
+    if (examSections.length > 1 && !exam.combinedStage && dto.tajweed === undefined) {
       if (!dto.sectionScores || dto.sectionScores.length !== examSections.length) {
         throw new BadRequestException('يجب إدخال علامة مستقلة لكل حزب وجزء في الاختبار المجمع');
       }
@@ -1447,11 +1500,11 @@ export class ExamsService {
       section,
       score: scoreBySection.get(section.id) ?? dto.score,
     }));
-    const overallScore = sectionScores.length > 1
-      ? Math.round(sectionScores.reduce((sum, entry) => sum + entry.score, 0) / sectionScores.length)
+    const overallScore = sectionScores.length > 1 && dto.tajweed === undefined
+      ? Math.round(sectionScores.reduce((sum, entry) => sum + entry.score, 0) / sectionScores.length * 100) / 100
       : dto.score;
     const resultDto = { ...dto, score: overallScore };
-    const passed = overallScore >= exam.section.minScore;
+    const passed = overallScore >= 80;
     const evaluation = evaluationFromScore(overallScore);
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -1464,8 +1517,8 @@ export class ExamsService {
         actor,
       );
 
-      for (const entry of sectionScores) {
-        const sectionPassed = entry.score >= entry.section.minScore;
+      for (const entry of exam.combinedStage ? [] : sectionScores) {
+        const sectionPassed = entry.score >= 80;
         await tx.examMilestoneRecord.upsert({
           where: { studentId_sectionId: { studentId: exam.studentId, sectionId: entry.section.id } },
           create: {
@@ -1560,6 +1613,7 @@ export class ExamsService {
     const scope = await this.acl.studentScope(user);
 
     const where: Prisma.ExamWhereInput = {
+      ...(query.committeeId ? {committeeId:query.committeeId} : {}),
       student: {
         ...scope,
         deletedAt: null,

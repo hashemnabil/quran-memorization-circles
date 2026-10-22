@@ -166,6 +166,9 @@ export function Input({
   return (
     <Field htmlFor={controlId} label={label} error={error} hint={hint} required={required} className={className}>
       <input {...props} id={controlId} className={cx('input', error && 'border-red-300 focus:border-red-400')} />
+      {props.type === 'password' && props.autoComplete !== 'current-password' && String(props.value ?? '').length > 0 && (
+        <p className="mt-1 text-xs" aria-live="polite">قوة كلمة المرور: {String(props.value).length < 6 ? 'ضعيفة' : String(props.value).length < 10 ? 'متوسطة' : 'قوية'}</p>
+      )}
     </Field>
   );
 }

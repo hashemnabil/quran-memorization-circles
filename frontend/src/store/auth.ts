@@ -87,9 +87,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw error;
     }
     await restoreDataSession(data.user.id).catch(() => undefined);
-    await rememberOfflineLogin(username, password, data.user, data);
-    await protectLocalAccount(data.user.id);
-    await persistDataSession(data.user.id);
+    let localStage = 'حفظ الدخول دون إنترنت';
+    try {
+      await rememberOfflineLogin(username, password, data.user, data);
+      localStage = 'فتح وتشفير بيانات الحساب المحلية';
+      await protectLocalAccount(data.user.id);
+      localStage = 'حفظ جلسة الحساب المحلية';
+      await persistDataSession(data.user.id);
+    } catch (cause) {
+      const name = cause instanceof Error ? cause.name : 'UnknownError';
+      const detail = cause instanceof Error && cause.name === 'Error' ? cause.message : name;
+      throw Object.assign(new Error(`نجح التحقق من الحساب، وتعذر ${localStage}: ${detail}`), { offlineLoginError: true });
+    }
     const user = await adoptSession(data, set);
     reconnectCredentials = undefined;
     clearReconnectCredentials();

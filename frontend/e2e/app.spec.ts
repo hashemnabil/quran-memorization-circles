@@ -40,6 +40,10 @@ for (const [role, paths] of Object.entries(destinations)) {
       await expect(page.locator('main h1').first()).toBeVisible();
       await expect(page.locator('main')).not.toContainText('تعذر تحميل');
     }
+    // Check the account menu on a known authorized screen. Some navigated pages
+    // deliberately use a different shell; don't depend on the last page visited.
+    await page.goto(role === 'STUDENT' ? '/student' : role === 'SUPPORT' ? '/support' : '/profile');
+    await expect(page.getByRole('button', { name: 'قائمة الحساب', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
     await page.locator('header').getByRole('link', { name: 'الإشعارات', exact: true }).click();
     await expect(page).toHaveURL(/\/notifications$/);

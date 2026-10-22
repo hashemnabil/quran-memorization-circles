@@ -256,7 +256,6 @@ export default function AppLayout() {
       </nav>
 
       <div className={cx('border-t border-white/10', rail ? 'p-2' : 'p-3')}>
-        {!rail && <button type="button" className="mb-2 min-h-11 w-full rounded-xl text-sm font-semibold text-primary-100 hover:bg-white/10" onClick={() => { useAuthStore.getState().lock(); navigate('/login', { replace: true }); }}>قفل محلي مع الاحتفاظ بالبيانات</button>}
         <button
           onClick={handleLogout}
           title={rail ? 'تسجيل الخروج' : undefined}

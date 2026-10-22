@@ -25,6 +25,10 @@ export async function lockDataSession(account?: string) {
 }
 export async function protectLocalAccount(account: string) {
   if (!dataKey(account)) throw new Error('مفتاح تشفير الحساب غير متاح');
+  // Dexie disables automatic reopening after a version-change close or a
+  // failed open. Explicit opening preserves the database and exposes the
+  // original opening error instead of a later DatabaseClosedError.
+  if (!db.isOpen()) await db.open();
   if ((await db.meta.get(`${account}:encryptionV1`))?.value) return;
   // Each rewrite is atomic. Interrupted upgrades resume; no clears, version
   // resets or replacement keys, and pending operation IDs are preserved.

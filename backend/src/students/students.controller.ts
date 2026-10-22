@@ -48,7 +48,7 @@ export class StudentsController {
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'تنزيل قالب استيراد الطلاب من Excel' })
   downloadImportTemplate(@Res() response: Response) {
-    const headers = ['اسم الطالب', 'رقم هوية الطالب', 'رقم هوية الأب', 'تاريخ الميلاد', 'جوال الطالب', 'العنوان', 'اسم ولي الأمر', 'جوال ولي الأمر', 'صلة القرابة', 'اسم الشيخ أو الحلقة', 'ملاحظات'];
+    const headers = ['اسم الطالب', 'رقم هوية الطالب', 'رقم هوية الأب', 'تاريخ الميلاد', 'الجنس (MALE/FEMALE)', 'جوال الطالب', 'العنوان', 'اسم ولي الأمر', 'جوال ولي الأمر', 'صلة القرابة', 'رمز الحلقة', 'ملاحظات'];
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.aoa_to_sheet([headers]);
     sheet['!cols'] = headers.map(() => ({ wch: 22 }));
@@ -81,12 +81,12 @@ export class StudentsController {
       nationalId: String(row['رقم هوية الطالب'] ?? '').trim(),
       fatherNationalId: String(row['رقم هوية الأب'] ?? '').trim(),
       birthDate: String(row['تاريخ الميلاد'] ?? '').trim(),
+      gender: String(row['الجنس (MALE/FEMALE)'] ?? '').trim().toUpperCase(),
       phone: String(row['جوال الطالب'] ?? '').trim(),
       address: String(row['العنوان'] ?? '').trim(),
       guardianName: String(row['اسم ولي الأمر'] ?? '').trim(),
       guardianPhone: String(row['جوال ولي الأمر'] ?? '').trim(),
       guardianRelation: String(row['صلة القرابة'] ?? '').trim(),
-      circleName: String(row['اسم الشيخ أو الحلقة'] ?? row['اسم الشيخ'] ?? row['اسم الحلقة'] ?? row['رمز الحلقة'] ?? '').trim(),
       circleCode: String(row['رمز الحلقة'] ?? '').trim(),
       notes: String(row['ملاحظات'] ?? '').trim(),
     })).filter((row) => Object.values(row).some((value) => value !== ''));
@@ -97,17 +97,17 @@ export class StudentsController {
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'تصدير بيانات حسابات الطلاب إلى Excel' })
   async exportStudentAccounts(@Res() response: Response) {
-    return this.sendAccountsWorkbook(response);
+    return this.sendAccountsWorkbook(response, {});
   }
 
   @Post('accounts/export-with-temporary-passwords')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'تصدير الحسابات وكلمات المرور المؤقتة التي لم يغيّرها الطلاب بعد' })
-  async exportStudentAccountsWithTemporaryPasswords(@Res() response: Response) {
-    return this.sendAccountsWorkbook(response);
+  @ApiOperation({ summary: 'تصدير الحسابات مع كلمات المرور المؤقتة المتاحة في جلسة الإدارة الحالية' })
+  async exportStudentAccountsWithTemporaryPasswords(@Body() body: { temporaryPasswords?: Record<string, string> }, @Res() response: Response) {
+    return this.sendAccountsWorkbook(response, body.temporaryPasswords ?? {});
   }
 
-  private async sendAccountsWorkbook(response: Response) {
+  private async sendAccountsWorkbook(response: Response, temporaryPasswords: Record<string, string>) {
     const rows = await this.service.listAccounts();
     const worksheet = XLSX.utils.json_to_sheet(rows.map((r) => ({
       'اسم الطالب': r.fullName,
@@ -118,7 +118,7 @@ export class StudentsController {
       'جوال ولي الأمر': r.guardianPhone ?? '',
       'اسم المستخدم': r.username,
       'حالة الحساب': r.isActive ? 'نشط' : 'موقوف',
-      'كلمة المرور المؤقتة': r.mustChangePassword ? (r.temporaryPassword ?? '') : '',
+      'كلمة المرور المؤقتة': r.mustChangePassword ? (temporaryPasswords[r.id] ?? '') : '',
     })));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'حسابات الطلاب');
@@ -132,13 +132,6 @@ export class StudentsController {
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'حسابات الطلاب المرتبطة بملفاتهم' })
   listAccounts() { return this.service.listAccounts(); }
-
-  @Post('accounts/reset-password-bulk')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'إعادة تعيين كلمات مرور مجموعة من حسابات الطلاب بطلب واحد' })
-  resetAccountsPasswordsBulk(@CurrentUser() user: AuthUser, @Body() dto: BulkStudentIdsDto) {
-    return this.service.resetStudentAccountPasswordsBulk(user, dto.ids);
-  }
 
   @Post(':id/account')
   @Roles(Role.ADMIN)

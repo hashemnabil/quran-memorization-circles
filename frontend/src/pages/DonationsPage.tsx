@@ -4,6 +4,8 @@ import { Card, LoadingState, PageHeader } from '@/components/ui';
 import DonationPanel from '@/components/DonationPanel';
 import { IconHeart } from '@/components/ui/Icons';
 import type { SchoolSettings } from '@/types';
+import { Link } from 'react-router-dom';
+import { useAuthStore } from '@/store/auth';
 
 function amount(value?: number | null, currency?: string | null) {
   if (typeof value !== 'number') return '—';
@@ -12,6 +14,7 @@ function amount(value?: number | null, currency?: string | null) {
 }
 
 export default function DonationsPage() {
+  const admin = useAuthStore(state => state.user?.role === 'ADMIN');
   const { data, isLoading } = useQuery({
     queryKey: ['settings', 'donations'],
     queryFn: async () => (await api.get<SchoolSettings>('/settings/donations')).data,
@@ -19,7 +22,7 @@ export default function DonationsPage() {
   });
 
   if (isLoading && !data) return <LoadingState rows={3} />;
-  const enabled = !!data?.donationsEnabled;
+  const enabled = true;
   const goal = Number(data?.donationGoalAmount || 0);
   const raised = Number(data?.donationRaisedAmount || 0);
   const progress = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
@@ -27,6 +30,7 @@ export default function DonationsPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <PageHeader title="التبرعات" subtitle="طرق المساهمة الرسمية وملاحظات المتبرعين" />
+      {admin && <Link to="/settings" className="inline-flex rounded-xl bg-emerald-800 px-4 py-3 font-bold text-white">تعديل أرقام التحويل من إعدادات المدرسة</Link>}
       <Card className="overflow-hidden">
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-800 p-6 text-white sm:p-9">
           <div className="absolute -left-10 -top-12 h-48 w-48 rounded-full border border-white/10" />

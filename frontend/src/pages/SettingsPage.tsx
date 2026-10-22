@@ -201,7 +201,7 @@ export default function SettingsPage() {
           </div>
           <Input label="بنك فلسطين" value={form.donationBankPalestine ?? ''} onChange={event => set('donationBankPalestine', event.target.value)} dir="auto" placeholder="رقم الحساب أو الآيبان" />
           <Input label="البنك الإسلامي" value={form.donationIslamicBank ?? ''} onChange={event => set('donationIslamicBank', event.target.value)} dir="auto" placeholder="رقم الحساب أو الآيبان" />
-          <Input label="جوال" value={form.donationJawwal ?? ''} onChange={event => set('donationJawwal', event.target.value)} dir="auto" placeholder="رقم المحفظة أو الهاتف" />
+          <Input label="جوال باي" value={form.donationJawwal ?? ''} onChange={event => set('donationJawwal', event.target.value)} dir="auto" placeholder="رقم المحفظة أو الهاتف" />
           <Input label="محفظة PalPay" value={form.donationPalPay ?? ''} onChange={event => set('donationPalPay', event.target.value)} dir="auto" placeholder="رقم المحفظة" />
           <Input label="رابط المساهمة الرسمي (اختياري)" value={form.donationLink ?? ''} onChange={event => set('donationLink', event.target.value)} dir="ltr" className="sm:col-span-2" placeholder="https://..." />
           <p className="text-xs leading-6 text-slate-500 sm:col-span-2">المبلغ المجموع يُحدّث يدويًا من الإدارة. لا يجمع التطبيق بيانات البطاقات أو ينفذ تحويلات مالية.</p>

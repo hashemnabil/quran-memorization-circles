@@ -345,7 +345,11 @@ export class FullSyncService {
       if (op.action === 'delete' && admin) return s.courses.remove(user, id);
     }
     if (op.table === 'schoolSettings' && user.role === Role.ADMIN && op.action === 'update') {
-      return s.settings.update(user, await this.dto(UpdateSettingsDto, op.data));
+      // Settings are queued from a cached singleton row. Storage/server
+      // metadata is not part of the editable DTO (also handles old queues).
+      const { id: _id, accountId: _account, synced: _synced, updatedAt: _updated,
+        createdAt: _created, pendingDelete: _deleted, ...settings } = op.data;
+      return s.settings.update(user, await this.dto(UpdateSettingsDto, settings));
     }
     if (op.table === 'staffAttendance' && [Role.ADMIN, Role.SUPERVISOR].includes(user.role as any) && op.action === 'create') {
       const service = new StaffAttendanceService(s.prisma, new ActivityService(s.prisma));

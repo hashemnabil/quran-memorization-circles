@@ -72,7 +72,8 @@ async function buildPrintableCertificate(studentName: string, title: string, kin
   canvas.height = Math.max(800, Math.round(height * 2));
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('تعذر تجهيز نص الشهادة');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   await drawSchoolPdfHeader(ctx, canvas);
   const certificateStyle = layout?.certificateStyle === 'modern' ? 'modern' : 'classic';
   if (certificateStyle === 'modern') {
@@ -214,6 +215,21 @@ export default function CertificatesAdminPage() {
   const [reportTo,setReportTo]=useState(new Date().toISOString().slice(0,10));
   const [selectedTemplateId,setSelectedTemplateId]=useState('');
   const [certificateStyle,setCertificateStyle]=useState<'classic'|'modern'>('classic');
+  const [previewPending,setPreviewPending]=useState(false);
+  const previewCertificate=async(style:'classic'|'modern')=>{
+    setPreviewPending(true);
+    try {
+      const template=(templates.data??[]).find((t:any)=>t.id===selectedTemplateId);
+      const url=await buildPrintableCertificate('اسم الطالب للتجربة',issueTitle,issueKind,issueDate,template?.fileUrl||undefined,{...(template?.design||{}),certificateStyle:style});
+      const a=document.createElement('a');
+      a.href=url;
+      a.download=style==='classic'?'معاينة-الشهادة-الرسمية.pdf':'معاينة-الشهادة-العصرية.pdf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch(e) {toast.error(e instanceof Error?e.message:'تعذر إنشاء معاينة الشهادة');}
+    finally {setPreviewPending(false);}
+  };
   const reportData=useQuery({queryKey:['certificates','monthly-report-data',reportFrom,reportTo],queryFn:async()=>(await api.get<any[]>('/certificates/monthly-report-data',{params:{from:reportFrom,to:reportTo}})).data,enabled:Boolean(reportFrom&&reportTo&&reportFrom<=reportTo)});
   const issued=useQuery({queryKey:['certificates','issued'],queryFn:async()=>(await api.get<any[]>('/certificates/issued')).data});
   const templates=useQuery({queryKey:['certificates','templates'],queryFn:async()=>(await api.get<any[]>('/certificates/templates')).data});
@@ -252,6 +268,11 @@ export default function CertificatesAdminPage() {
       <form className="grid gap-4 md:grid-cols-2" onSubmit={e=>{e.preventDefault();const printWindow=window.open('about:blank','_blank');if(!printWindow){toast.error('المتصفح منع نافذة الطباعة. اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة.');return;}printWindowRef.current=printWindow;issue.mutate();}}>
         <label className="grid gap-1 text-sm font-medium">قالب محفوظ<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={selectedTemplateId} onChange={e=>{setSelectedTemplateId(e.target.value);const t=templates.data?.find((x:any)=>x.id===e.target.value);if(t)setIssueKind(t.kind);}}><option value="">التصميم الافتراضي</option>{(templates.data??[]).map((t:any)=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
         <label className="grid gap-1 text-sm font-medium">تصميم الشهادة<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={certificateStyle} onChange={e=>setCertificateStyle(e.target.value as 'classic'|'modern')}><option value="classic">التصميم الأول — رسمي بزخارف ذهبية</option><option value="modern">التصميم الثاني — عصري بخطوط خضراء وذهبية</option></select></label>
+        <div className="md:col-span-2 flex flex-wrap gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+          <div className="w-full text-sm font-medium text-emerald-900">عاين التصميم قبل إصدار الشهادات — لا تُحفظ أي شهادة تجريبية على حساب الطالب.</div>
+          <button type="button" disabled={previewPending} onClick={()=>void previewCertificate('classic')} className="rounded-lg border border-emerald-700 bg-white px-4 py-2 text-sm font-semibold text-emerald-900 disabled:opacity-50">تنزيل معاينة التصميم الرسمي PDF</button>
+          <button type="button" disabled={previewPending} onClick={()=>void previewCertificate('modern')} className="rounded-lg border border-emerald-700 bg-white px-4 py-2 text-sm font-semibold text-emerald-900 disabled:opacity-50">تنزيل معاينة التصميم العصري PDF</button>
+        </div>
         <label className="grid gap-1 text-sm font-medium">نوع الشهادة<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={issueKind} onChange={e=>setIssueKind(e.target.value)}>{Object.entries(kinds).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
         <Input label="عنوان الشهادة" value={issueTitle} onChange={e=>setIssueTitle(e.target.value)} required />
         <Input label="التاريخ" type="date" value={issueDate} onChange={e=>setIssueDate(e.target.value)} required />

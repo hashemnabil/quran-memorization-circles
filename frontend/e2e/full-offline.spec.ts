@@ -373,7 +373,7 @@ test('administrator creates a user and student account, resets password offline 
   await page.getByLabel('الاسم الكامل').fill('موظف بدون نت');
   await page.getByLabel('اسم المستخدم').fill('offlinestaff');
   await page.getByLabel('كلمة المرور', { exact: false }).fill('OfflinePassword123');
-  await page.getByLabel('الدور').selectOption('TEACHER');
+  await page.getByRole('combobox', { name: 'الدور *' }).selectOption('TEACHER');
   await page.getByRole('button', { name: 'حفظ', exact: true }).click();
   await expect(page.getByRole('cell', { name: 'موظف بدون نت' })).toBeVisible();
   expect(received).toHaveLength(0);

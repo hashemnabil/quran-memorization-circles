@@ -74,12 +74,38 @@ async function buildPrintableCertificate(studentName: string, title: string, kin
   if (!ctx) throw new Error('تعذر تجهيز نص الشهادة');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   await drawSchoolPdfHeader(ctx, canvas);
+  const certificateStyle = layout?.certificateStyle === 'modern' ? 'modern' : 'classic';
+  if (certificateStyle === 'modern') {
+    ctx.fillStyle = '#14543f';
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(canvas.width * 0.33, 0);
+    ctx.quadraticCurveTo(canvas.width * 0.12, canvas.height * 0.11, 0, canvas.height * 0.28);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(canvas.width, canvas.height);
+    ctx.lineTo(canvas.width * 0.68, canvas.height);
+    ctx.quadraticCurveTo(canvas.width * 0.90, canvas.height * 0.86, canvas.width, canvas.height * 0.72);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#c6a052'; ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.moveTo(0, canvas.height * 0.29);
+    ctx.quadraticCurveTo(canvas.width * 0.12, canvas.height * 0.12, canvas.width * 0.34, 0);
+    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(canvas.width * 0.66, canvas.height);
+    ctx.quadraticCurveTo(canvas.width * 0.89, canvas.height * 0.86, canvas.width, canvas.height * 0.71);
+    ctx.stroke();
+  }
   ctx.strokeStyle = '#d8b86a';
   ctx.lineWidth = 8;
   ctx.strokeRect(28, 28, canvas.width - 56, canvas.height - 56);
   ctx.strokeStyle = 'rgba(20, 84, 63, 0.22)';
   ctx.lineWidth = 2;
   ctx.strokeRect(44, 44, canvas.width - 88, canvas.height - 88);
+  if (certificateStyle === 'classic') {
+    ctx.strokeStyle = '#c6a052'; ctx.lineWidth = 3;
+    for (const [cx, cy, dx, dy] of [[68,68,1,1],[canvas.width-68,68,-1,1],[68,canvas.height-68,1,-1],[canvas.width-68,canvas.height-68,-1,-1]]) {
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath(); ctx.arc(cx + dx * i * 15, cy + dy * i * 15, 15 + i * 5, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+  }
   ctx.direction = 'rtl';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#173d32';
@@ -96,7 +122,7 @@ async function buildPrintableCertificate(studentName: string, title: string, kin
   draw('studentName', studentName, 50, 53, 'bold 38px Tahoma, Arial, sans-serif', canvas.width * 0.78);
   draw('kind', 'وذلك تقديرًا لـ ' + (kindLabels[kind] || kind), 50, 63, '24px Tahoma, Arial, sans-serif');
   draw('title', title, 50, 70, '19px Tahoma, Arial, sans-serif');
-  draw('date', 'تاريخ الإصدار: ' + date, 50, 78, '19px Tahoma, Arial, sans-serif');
+  draw('date', 'التاريخ: ' + date, 50, 78, '19px Tahoma, Arial, sans-serif');
   for (const item of (layout?.customTexts ?? [])) { if (item && typeof item.text === 'string' && item.text.trim()) { ctx.fillStyle = item.color || '#173d32'; ctx.font = (item.bold ? 'bold ' : '') + Math.max(8, Math.min(72, Number(item.fontSize) || 18)) + 'px Tahoma, Arial, sans-serif'; ctx.fillText(item.text, canvas.width * Math.min(95, Math.max(5, Number(item.x) || 50)) / 100, canvas.height * Math.min(95, Math.max(5, Number(item.y) || 50)) / 100, canvas.width * 0.9); } }
   const png = await pdf.embedPng(await new Promise<Uint8Array>((resolve, reject) => canvas.toBlob(async blob => {
     if (!blob) { reject(new Error('تعذر تجهيز صورة النص')); return; }
@@ -187,6 +213,7 @@ export default function CertificatesAdminPage() {
   const [reportFrom,setReportFrom]=useState(new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().slice(0,10));
   const [reportTo,setReportTo]=useState(new Date().toISOString().slice(0,10));
   const [selectedTemplateId,setSelectedTemplateId]=useState('');
+  const [certificateStyle,setCertificateStyle]=useState<'classic'|'modern'>('classic');
   const reportData=useQuery({queryKey:['certificates','monthly-report-data',reportFrom,reportTo],queryFn:async()=>(await api.get<any[]>('/certificates/monthly-report-data',{params:{from:reportFrom,to:reportTo}})).data,enabled:Boolean(reportFrom&&reportTo&&reportFrom<=reportTo)});
   const issued=useQuery({queryKey:['certificates','issued'],queryFn:async()=>(await api.get<any[]>('/certificates/issued')).data});
   const templates=useQuery({queryKey:['certificates','templates'],queryFn:async()=>(await api.get<any[]>('/certificates/templates')).data});
@@ -203,7 +230,7 @@ export default function CertificatesAdminPage() {
     const urls:Array<{url:string;name:string}>=[];
     const template=(templates.data??[]).find((t:any)=>t.id===selectedTemplateId);
     for(const student of chosen){
-      const url=await buildPrintableCertificate(student.fullName,issueTitle,issueKind,issueDate,template?.fileUrl||undefined,template?.design||undefined);
+      const url=await buildPrintableCertificate(student.fullName,issueTitle,issueKind,issueDate,template?.fileUrl||undefined,{...(template?.design||{}),certificateStyle});
       await api.post('/certificates/issue',{studentId:student.id,templateId:selectedTemplateId||undefined,kind:issueKind,title:issueTitle,details:{issueDate,studentName:student.fullName},fileUrl:url});
       urls.push({url,name:student.fullName});
     }
@@ -224,9 +251,10 @@ export default function CertificatesAdminPage() {
       <p className="mb-4 text-sm text-slate-600">اختر نوع الشهادة والطلاب، ثم أصدرها. من نافذة الطباعة اختر «حفظ بتنسيق PDF» أو اطبع مباشرة.</p>
       <form className="grid gap-4 md:grid-cols-2" onSubmit={e=>{e.preventDefault();const printWindow=window.open('about:blank','_blank');if(!printWindow){toast.error('المتصفح منع نافذة الطباعة. اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة.');return;}printWindowRef.current=printWindow;issue.mutate();}}>
         <label className="grid gap-1 text-sm font-medium">قالب محفوظ<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={selectedTemplateId} onChange={e=>{setSelectedTemplateId(e.target.value);const t=templates.data?.find((x:any)=>x.id===e.target.value);if(t)setIssueKind(t.kind);}}><option value="">التصميم الافتراضي</option>{(templates.data??[]).map((t:any)=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
+        <label className="grid gap-1 text-sm font-medium">تصميم الشهادة<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={certificateStyle} onChange={e=>setCertificateStyle(e.target.value as 'classic'|'modern')}><option value="classic">التصميم الأول — رسمي بزخارف ذهبية</option><option value="modern">التصميم الثاني — عصري بخطوط خضراء وذهبية</option></select></label>
         <label className="grid gap-1 text-sm font-medium">نوع الشهادة<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={issueKind} onChange={e=>setIssueKind(e.target.value)}>{Object.entries(kinds).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
         <Input label="عنوان الشهادة" value={issueTitle} onChange={e=>setIssueTitle(e.target.value)} required />
-        <Input label="تاريخ الإصدار" type="date" value={issueDate} onChange={e=>setIssueDate(e.target.value)} required />
+        <Input label="التاريخ" type="date" value={issueDate} onChange={e=>setIssueDate(e.target.value)} required />
         <div className="md:col-span-2 rounded-xl border p-3">
           <div className="mb-3 flex items-center justify-between gap-2"><p className="font-semibold">الطلاب المحددون: {selectedStudentIds.length}</p><button type="button" className="text-sm text-primary-700 underline" onClick={()=>setSelectedStudentIds(selectedStudentIds.length===(students.data??[]).length?[]:(students.data??[]).map((s:any)=>s.id))}>تحديد الكل / إلغاء التحديد</button></div>
           {students.isLoading?<LoadingState/>:students.isError?<p className="text-sm text-red-600">تعذر تحميل الطلاب.</p>:<div className="grid max-h-56 gap-2 overflow-y-auto sm:grid-cols-2">{(students.data??[]).map((s:any)=><label key={s.id} className="flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-sm"><input type="checkbox" checked={selectedStudentIds.includes(s.id)} onChange={e=>setSelectedStudentIds(old=>e.target.checked?[...old,s.id]:old.filter(id=>id!==s.id))}/><span>{s.fullName}{s.code?' ('+s.code+')':''}</span></label>)}</div>}

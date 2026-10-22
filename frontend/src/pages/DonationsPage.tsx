@@ -17,7 +17,7 @@ export default function DonationsPage() {
   const admin = useAuthStore(state => state.user?.role === 'ADMIN');
   const { data, isLoading } = useQuery({
     queryKey: ['settings', 'donations'],
-    queryFn: async () => (await api.get<SchoolSettings>('/settings/donations')).data,
+    queryFn: async () => (await api.get<SchoolSettings>('/settings/public')).data,
     staleTime: 10 * 60 * 1000,
   });
 
@@ -29,6 +29,7 @@ export default function DonationsPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
+      <Link to={admin ? '/' : '/login'} className="inline-flex min-h-11 items-center px-4 text-emerald-800">← رجوع</Link>
       <PageHeader title="التبرعات" subtitle="طرق المساهمة الرسمية وملاحظات المتبرعين" />
       {admin && <Link to="/settings" className="inline-flex rounded-xl bg-emerald-800 px-4 py-3 font-bold text-white">تعديل أرقام التحويل من إعدادات المدرسة</Link>}
       <Card className="overflow-hidden">

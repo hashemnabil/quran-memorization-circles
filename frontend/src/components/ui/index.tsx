@@ -752,6 +752,7 @@ export function PageHeader({
       <div className="min-w-0">
         {breadcrumb && <div className="mb-1 text-xs text-slate-400">{breadcrumb}</div>}
         <h1 className="text-xl font-extrabold text-slate-800 sm:text-2xl">{title}</h1>
+        {subtitle && <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-500">{subtitle}</p>}
       </div>
       {action && <div className="page-heading-actions flex flex-wrap gap-2">{action}</div>}
     </header>

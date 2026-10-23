@@ -75,13 +75,32 @@ export class CommunityController {
     const reply=await this.prisma.communityComment.create({data:{userId:user.id,postId:parent.postId,parentId:id,body:body.trim()}});await this.notifyInteraction(user.id,parent.userId,'رد على تعليقك','/community/posts');return reply;
   }
   @Get('stories')
-  stories(){
+  stories(@CurrentUser() user:AuthUser){
     return this.prisma.communityStory.findMany({where:{expiresAt:{gt:new Date()}},orderBy:{createdAt:'desc'},take:100,include:{author:{select:{id:true,fullName:true,avatarUrl:true}},views:{include:{user:{select:{id:true,fullName:true,avatarUrl:true}}}}}});
   }
   @Post('stories')
-  createStory(@CurrentUser() user:AuthUser,@Body('body') body:string){
+  createStory(@CurrentUser() user:AuthUser,@Body() dto:{body:string;schoolStory?:boolean}){
+    const body=dto?.body;
+    if(dto?.schoolStory&&user.role!==Role.ADMIN)throw new ForbiddenException('قصص المدرسة للإدارة فقط');
     if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('القصة غير صالحة');
-    return this.prisma.communityStory.create({data:{authorId:user.id,body:body.trim(),expiresAt:new Date(Date.now()+86400000)}});
+    return this.prisma.communityStory.create({data:{authorId:user.id,body:body.trim(),schoolStory:!!dto.schoolStory,expiresAt:new Date(Date.now()+86400000)}});
+  }
+  @Post('stories/:id/replies')
+  async replyStory(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
+    const story=await this.prisma.communityStory.findUnique({where:{id}});
+    if(!story||story.expiresAt<=new Date())throw new BadRequestException('القصة انتهت');
+    if(!story.schoolStory)throw new ForbiddenException('الرد متاح على قصص المدرسة فقط');
+    if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('الرد غير صالح');
+    const reply=await this.prisma.communityStoryReply.create({data:{storyId:id,userId:user.id,body:body.trim()}});
+    const admins=await this.prisma.user.findMany({where:{role:Role.ADMIN,isActive:true,deletedAt:null},select:{id:true}});
+    await Promise.all(admins.map(a=>this.notifyInteraction(user.id,a.id,'رد على ستوري المدرسة','/community/school')));
+    return reply;
+  }
+  @Get('stories/:id/replies')
+  async storyReplies(@CurrentUser() user:AuthUser,@Param('id') id:string){
+    const story=await this.prisma.communityStory.findUnique({where:{id}});
+    if(!story||!story.schoolStory)throw new BadRequestException('القصة غير موجودة');
+    return this.prisma.communityStoryReply.findMany({where:{storyId:id,...(user.role===Role.ADMIN?{}:{userId:user.id})},orderBy:{createdAt:'asc'},take:100,include:{user:{select:{id:true,fullName:true,avatarUrl:true}}}});
   }
   @Post('stories/:id/view')
   async viewStory(@CurrentUser() user:AuthUser,@Param('id') id:string){

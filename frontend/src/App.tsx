@@ -301,6 +301,9 @@ export default function App() {
         />
 
         <Route path="community" element={<CommunityPage />} />
+        <Route path="community/posts" element={<CommunityPage />} />
+        <Route path="community/stories" element={<CommunityPage />} />
+        <Route path="community/school" element={<CommunityPage />} />
         <Route path="community/users/:userId" element={<CommunityPage />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="chat/:id" element={<ChatPage />} />

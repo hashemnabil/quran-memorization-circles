@@ -1,0 +1,16 @@
+name: Build Android release 1.1.4
+on:
+  push:
+    branches:
+      - release/build-1.1.4
+    paths:
+      - .github/workflows/build-android-1.1.4.yml
+permissions:
+  contents: read
+jobs:
+  signed-release:
+    uses: ./.github/workflows/android-release.yml
+    with:
+      version_name: '1.1.4'
+      version_code: '7'
+    secrets: inherit

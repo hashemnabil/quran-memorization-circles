@@ -58,9 +58,11 @@ export default function LoginPage() {
         <CredentialsStep onAuthenticated={onAuthenticated} />
         <button type="button" onClick={() => setPasswordRequestOpen(true)} className="mt-3 min-h-11 w-full rounded-xl text-sm font-bold text-primary-700 hover:bg-primary-50">طلب تغيير كلمة المرور</button>
         <button type="button" onClick={() => setSupportOpen(true)} className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-primary-800"><IconLifeBuoy size={18} />الدعم الفني</button>
-        <Link to="/about" className="mt-2 block py-2 text-center text-xs font-semibold text-slate-500 hover:text-primary-800">معلومات عن البرنامج</Link>
+        <div className="mt-2 flex items-center justify-center gap-4">
+          <Link to="/about" className="py-2 text-xs font-semibold text-slate-500 hover:text-primary-800">معلومات عن البرنامج</Link>
+          <Link to="/contribute" aria-label="المساهمة والتبرع" title="المساهمة والتبرع" className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50"><span aria-hidden="true" className="text-xl">♡</span>التبرعات</Link>
+        </div>
       </div>
-      <Link to="/contribute" aria-label="المساهمة والتبرع" className="donation-entry mt-5 inline-flex items-center gap-3 rounded-full border border-emerald-200 bg-white px-6 py-3 font-bold text-emerald-900 shadow-sm"><span aria-hidden="true" className="text-2xl">♡</span>المساهمة والتبرع</Link>
       <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />
       {passwordRequestOpen && <PasswordRequestModal open onClose={() => setPasswordRequestOpen(false)} />}
     </div>

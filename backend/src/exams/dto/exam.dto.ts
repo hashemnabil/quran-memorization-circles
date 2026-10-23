@@ -197,7 +197,16 @@ export class RecordResultDto {
   notes?: string;
 }
 
+export class UpdateExamRequestNoteDto {
+  @IsString() @MaxLength(1000)
+  note: string;
+}
+
 export class UpdateExamDto {
+  @ApiPropertyOptional({ description: 'نقل الاختبار إلى لجنة أخرى' })
+  @IsOptional() @IsUUID('4')
+  committeeId?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsDateString()

@@ -265,7 +265,22 @@ export class ChatService {
     return paginate(data.reverse(), total, query.page, query.limit);
   }
 
+  async assertVoiceUploadAllowed(user:AuthUser,id:string){
+    const membership=await this.assertMember(user,id);
+    const conversation=await this.prisma.conversation.findUnique({where:{id},select:{isClosed:true,adminOnly:true,type:true}});
+    if(conversation?.isClosed||(conversation?.adminOnly&&!membership.isAdmin))throw new ForbiddenException('لا يمكن إرسال رسائل لهذه المجموعة');
+    const recipients=await this.prisma.conversationMember.findMany({where:{conversationId:id,leftAt:null,userId:{not:user.id}},select:{userId:true}});
+    await this.assertAllContactable(user,recipients.map(row=>row.userId));
+  }
+
   async send(user: AuthUser, id: string, dto: SendMessageDto) {
+    if(!dto.body?.trim()&&!dto.attachmentUrl)throw new BadRequestException('الرسالة فارغة');
+    if(dto.attachmentUrl){
+      const cloud=process.env.CLOUDINARY_CLOUD_NAME;
+      let url:URL;
+      try{url=new URL(dto.attachmentUrl);}catch{throw new BadRequestException('رابط التسجيل غير صالح');}
+      if(!cloud||url.hostname!=='res.cloudinary.com'||!url.pathname.startsWith('/'+cloud+'/video/upload/')||!url.pathname.includes('/quran-circles/voice/voice-'+user.id+'-'))throw new BadRequestException('رابط التسجيل غير مسموح');
+    }
     const membership = await this.assertMember(user, id);
     const recipients = await this.prisma.conversationMember.findMany({
       where: { conversationId: id, leftAt: null, userId: { not: user.id } }, select: { userId: true },

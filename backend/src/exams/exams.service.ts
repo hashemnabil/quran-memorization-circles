@@ -1019,6 +1019,14 @@ export class ExamsService {
     return paginate(data, total, query.page, query.limit);
   }
 
+  async updateRequestNote(actor: AuthUser, id: string, dto: {note:string}) {
+    const request = await this.prisma.examRequest.findUnique({where:{id}});
+    if (!request) throw new NotFoundException('طلب الاختبار غير موجود');
+    if (request.status !== ExamRequestStatus.PENDING) throw new BadRequestException('لا يمكن تعديل طلب بعد جدولته');
+    if (actor.role !== Role.ADMIN && actor.teacherId !== request.teacherId) throw new ForbiddenException('لا يمكنك تعديل هذا الطلب');
+    return this.prisma.examRequest.update({where:{id},data:{note:dto.note.trim()||null},include:REQUEST_INCLUDE});
+  }
+
   async findRequest(user: AuthUser, id: string) {
     const request = await this.prisma.examRequest.findUnique({
       where: { id },
@@ -1271,13 +1279,16 @@ export class ExamsService {
     if (dto.examinerId) {
       await this.assertExaminer(dto.examinerId);
     }
+    const destination = dto.committeeId ? await this.prisma.examCommittee.findUnique({where:{id:dto.committeeId}}) : null;
+    if (dto.committeeId && !destination) throw new NotFoundException('اللجنة الجديدة غير موجودة');
 
     const updated = await this.prisma.exam.update({
       where: { id },
       data: {
-        scheduledAt: dto.scheduledAt ? this.parseDate(dto.scheduledAt) : undefined,
+        scheduledAt: dto.scheduledAt ? this.parseDate(dto.scheduledAt) : destination?.heldAt,
+        committeeId: destination?.id,
         examinerId: dto.examinerId,
-        location: dto.location,
+        location: dto.location ?? destination?.location,
         status: dto.status,
         notes: dto.notes,
       },

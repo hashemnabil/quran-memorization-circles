@@ -58,6 +58,17 @@ interface Examiner {
   fullName: string;
 }
 
+function ExamPenaltySettings(){
+ const client=useQueryClient();
+ const [mistake,setMistake]=useState('1');const [alert,setAlert]=useState('0.5');
+ const settings=useQuery({queryKey:['exam-grading-settings'],queryFn:async()=> (await api.get<{mistakePenalty:number;alertPenalty:number}>('/exams/grading-settings')).data});
+ const save=useMutation({mutationFn:async()=>api.patch('/exams/grading-settings',{mistakePenalty:Number(mistake),alertPenalty:Number(alert)}),onSuccess:()=>{toast.success('تم حفظ إعدادات اللجنة');void client.invalidateQueries({queryKey:['exam-grading-settings']});},onError:e=>toast.error(apiError(e))});
+ const [edited,setEdited]=useState(false);
+ const currentMistake=edited?mistake:String(settings.data?.mistakePenalty??1);
+ const currentAlert=edited?alert:String(settings.data?.alertPenalty??0.5);
+ return <Card><h3 className="mb-3 font-bold">إعدادات الأخطاء والتنبيهات</h3><p className="mb-3 text-sm text-slate-600">تُطبّق على النتائج الجديدة فقط. التسميع من 90 والأحكام من 10.</p><div className="grid gap-3 sm:grid-cols-2"><Input label="خصم كل خطأ" type="number" min={0} max={90} step="0.25" value={currentMistake} onChange={e=>{setEdited(true);setMistake(e.target.value);setAlert(currentAlert);}}/><Input label="خصم كل تنبيه" type="number" min={0} max={90} step="0.25" value={currentAlert} onChange={e=>{setEdited(true);setMistake(currentMistake);setAlert(e.target.value);}}/></div><Button disabled={settings.isLoading||save.isPending||!Number.isFinite(Number(currentMistake))||!Number.isFinite(Number(currentAlert))||currentMistake===''||currentAlert===''||Number(currentMistake)<0||Number(currentAlert)<0||Number(currentMistake)>90||Number(currentAlert)>90} onClick={()=>save.mutate()}>حفظ الإعدادات</Button></Card>;
+}
+
 function ExamStudentName({ student }: { student: { id: string; fullName: string } }) {
   const role = useAuthStore(state => state.user?.role);
   const path = `/students/${student.id}`;
@@ -135,6 +146,7 @@ export default function ExamsPage() {
       />
 
       <NotificationRecord />
+      {user.role==='ADMIN'&&<ExamPenaltySettings/>}
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="طلبات بالانتظار" value={stats.data?.pendingRequests ?? 0} icon={<IconClock size={20} />} tone="amber" />
         <StatCard label="اختبارات مجدولة" value={stats.data?.scheduled ?? 0} icon={<IconCalendar size={20} />} tone="sky" />

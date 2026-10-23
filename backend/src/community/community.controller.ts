@@ -8,7 +8,7 @@ export class CommunityController {
   constructor(private readonly prisma:PrismaService){}
   @Get('feed')
   feed(@Query('userId') userId?:string,@Query('school') school?:string){
-    return this.prisma.communityPost.findMany({where:{...(userId?{authorId:userId}:{}),...(school==='true'?{schoolPost:true}:{})},orderBy:{createdAt:'desc'},take:100,include:{author:{select:{id:true,fullName:true,nickname:true,avatarUrl:true,role:true}},_count:{select:{likes:true,comments:true}},comments:{take:20,orderBy:{createdAt:'asc'},include:{user:{select:{id:true,fullName:true}}}}}});
+    return this.prisma.communityPost.findMany({where:{...(userId?{authorId:userId,schoolPost:false}:{}),...(school==='true'?{schoolPost:true}:{})},orderBy:{createdAt:'desc'},take:100,include:{author:{select:{id:true,fullName:true,nickname:true,avatarUrl:true,role:true}},_count:{select:{likes:true,comments:true}},likes:{take:100,include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}}}},comments:{take:100,orderBy:{createdAt:'asc'},include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}}}}}});
   }
   @Get('users/:id')
   async profile(@Param('id') id:string){

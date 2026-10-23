@@ -99,6 +99,27 @@ export class UploadsService {
     return this.uploadLocally(file, folder, ext, ownerId);
   }
 
+  async uploadVoice(file:Express.Multer.File,ownerId:string):Promise<UploadResult>{
+    const formats:Record<string,string[]>={'audio/webm':['.webm'], 'audio/mp4':['.m4a','.mp4'], 'audio/ogg':['.ogg'], 'audio/mpeg':['.mp3']};
+    const ext=extname(file.originalname||'').toLowerCase();
+    if(!formats[file.mimetype]?.includes(ext)||!file.buffer?.length||file.size>5*1024*1024)throw new BadRequestException('تسجيل صوتي غير صالح أو يتجاوز 5 ميجابايت');
+    const b=file.buffer;
+    const valid=ext==='.webm'?b.subarray(0,4).toString('hex')==='1a45dfa3':ext==='.ogg'?b.subarray(0,4).toString()==='OggS':ext==='.mp3'?b.subarray(0,3).toString()==='ID3'||b[0]===255:ext==='.m4a'||ext==='.mp4'?b.subarray(4,8).toString()==='ftyp':false;
+    if(!valid)throw new BadRequestException('محتوى الملف الصوتي غير صالح');
+    if(!this.isCloudinaryConfigured())throw new BadRequestException('تخزين الرسائل الصوتية غير مهيأ');
+    const timestamp=Math.floor(Date.now()/1000);
+    const params={folder:'quran-circles/voice',public_id:'voice-'+ownerId+'-'+randomBytes(16).toString('hex'),timestamp:String(timestamp)};
+    const signature=createHash('sha1').update(Object.keys(params).sort().map(k=>k+'='+params[k as keyof typeof params]).join('&')+this.apiSecret).digest('hex');
+    const form=new FormData();form.append('file','data:'+file.mimetype+';base64,'+b.toString('base64'));form.append('api_key',this.apiKey!);
+    for(const [key,value] of Object.entries(params))form.append(key,value);
+    form.append('signature',signature);
+    const response=await fetch('https://api.cloudinary.com/v1_1/'+this.cloudName+'/video/upload',{method:'POST',body:form});
+    if(!response.ok)throw new BadRequestException('تعذر تخزين التسجيل الصوتي');
+    const result=await response.json() as {secure_url?:string;public_id?:string};
+    if(!result.secure_url)throw new BadRequestException('تعذر حفظ التسجيل');
+    return {url:result.secure_url,provider:'cloudinary',publicId:result.public_id};
+  }
+
   // --- Cloudinary ----------------------------------------------------------
 
   /**

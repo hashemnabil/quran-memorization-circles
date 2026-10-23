@@ -1,4 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { UploadsService } from '../uploads/uploads.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthUser, CurrentUser } from '../common/decorators';
 import { ChatService } from './chat.service';
@@ -17,7 +20,7 @@ import {
 @ApiBearerAuth()
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly service: ChatService) {}
+  constructor(private readonly service: ChatService,private readonly uploads:UploadsService) {}
 
   @Get('conversations')
   @ApiOperation({ summary: 'قائمة المحادثات' })
@@ -53,6 +56,14 @@ export class ChatController {
   @ApiOperation({ summary: 'إنشاء محادثة جماعية' })
   createGroup(@CurrentUser() user: AuthUser, @Body() dto: CreateGroupConversationDto) {
     return this.service.createGroup(user, dto);
+  }
+
+  @Post('conversations/:id/voice')
+  @UseInterceptors(FileInterceptor('file',{storage:memoryStorage(),limits:{fileSize:5*1024*1024}}))
+  async voice(@CurrentUser() user:AuthUser,@Param('id') id:string,@UploadedFile() file:Express.Multer.File){
+    if(!file)throw new BadRequestException('لم يتم اختيار تسجيل');
+    await this.service.assertVoiceUploadAllowed(user,id);
+    return this.uploads.uploadVoice(file,user.id);
   }
 
   @Post('conversations/:id/messages')

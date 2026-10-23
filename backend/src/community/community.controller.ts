@@ -49,12 +49,12 @@ export class CommunityController {
   async like(@CurrentUser() user:AuthUser,@Param('id') id:string){
     const existing=await this.prisma.communityLike.findUnique({where:{userId_postId:{userId:user.id,postId:id}}});
     if(existing){await this.prisma.communityLike.delete({where:{userId_postId:{userId:user.id,postId:id}}});return {liked:false};}
-    await this.prisma.communityLike.create({data:{userId:user.id,postId:id}});const post=await this.prisma.communityPost.findUnique({where:{id},select:{authorId:true}});if(post)await this.notifyInteraction(user.id,post.authorId,'أعجب بمنشورك','/community/posts');return {liked:true};
+    await this.prisma.communityLike.create({data:{userId:user.id,postId:id}});const post=await this.prisma.communityPost.findUnique({where:{id},select:{authorId:true}});if(post)await this.notifyInteraction(user.id,post.authorId,'أعجب بمنشورك','/community/posts?post='+id);return {liked:true};
   }
   @Post('posts/:id/comments')
   async comment(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
     if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('التعليق غير صالح');
-    const result=await this.prisma.communityComment.create({data:{userId:user.id,postId:id,body:body.trim()},include:{post:{select:{authorId:true}}}});await this.notifyInteraction(user.id,result.post.authorId,'علّق على منشورك','/community/posts');return result;
+    const result=await this.prisma.communityComment.create({data:{userId:user.id,postId:id,body:body.trim()},include:{post:{select:{authorId:true}}}});await this.notifyInteraction(user.id,result.post.authorId,'علّق على منشورك','/community/posts?post='+id+'&comment='+result.id);return result;
   }
 
   @Post('comments/:id/like')
@@ -65,14 +65,14 @@ export class CommunityController {
     const existing=await this.prisma.communityCommentLike.findUnique({where});
     if(existing){await this.prisma.communityCommentLike.delete({where});return {liked:false};}
     await this.prisma.communityCommentLike.create({data:{userId:user.id,commentId:id}});
-    await this.notifyInteraction(user.id,found.userId,'أعجب بتعليقك','/community/posts');return {liked:true};
+    await this.notifyInteraction(user.id,found.userId,'أعجب بتعليقك','/community/posts?post='+found.postId+'&comment='+id);return {liked:true};
   }
   @Post('comments/:id/replies')
   async reply(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
     if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('الرد غير صالح');
     const parent=await this.prisma.communityComment.findUnique({where:{id}});
     if(!parent)throw new BadRequestException('التعليق غير موجود');
-    const reply=await this.prisma.communityComment.create({data:{userId:user.id,postId:parent.postId,parentId:id,body:body.trim()}});await this.notifyInteraction(user.id,parent.userId,'رد على تعليقك','/community/posts');return reply;
+    const reply=await this.prisma.communityComment.create({data:{userId:user.id,postId:parent.postId,parentId:id,body:body.trim()}});await this.notifyInteraction(user.id,parent.userId,'رد على تعليقك','/community/posts?post='+parent.postId+'&comment='+reply.id);return reply;
   }
   @Get('stories')
   async stories(@CurrentUser() user:AuthUser){

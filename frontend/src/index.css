@@ -412,3 +412,17 @@
 .donation-copy-button:hover { background: var(--method-tint); border-color: var(--method-color); }
 .donation-copy-done { background: #edf6f0; border-color: #b0d5bf; color: #195d47; }
 @media (max-width: 639px) { .donation-payment { padding: 18px; } .donation-number { font-size: 21px; } }
+
+/* Compact login panel: keep the donation shortcut inside the card on small screens. */
+.login-screen { padding: max(12px, env(safe-area-inset-top, 0px)) 12px max(12px, env(safe-area-inset-bottom, 0px)); }
+.login-panel { max-width: 400px; padding: 26px; }
+.login-brand { margin: -26px -26px 20px; padding: 20px 20px 18px; }
+.login-brand-mark { width: 72px; height: 72px; }
+@media (max-width: 479px) {
+  .login-panel { padding: 20px; border-radius: 20px; }
+  .login-brand { margin: -20px -20px 18px; padding: 16px 18px; border-radius: 19px 19px 0 0; }
+  .login-brand-mark { width: 64px; height: 64px; }
+  .login-brand h1 { margin-top: 10px; font-size: 1rem; line-height: 1.5rem; }
+  .login-panel form { margin-top: 16px; }
+  .login-panel .input, .login-panel .btn-primary { min-height: 44px; }
+}

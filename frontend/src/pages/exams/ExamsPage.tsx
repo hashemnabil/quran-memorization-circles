@@ -144,10 +144,11 @@ export default function ExamsPage() {
 
       <Tabs
         tabs={[
-          { key: 'requests', label: 'طلبات الاختبار', badge: stats.data?.pendingRequests },
+
           { key: 'scheduled', label: 'الاختبارات المجدولة', badge: stats.data?.scheduled },
           { key: 'history', label: 'سجل الاختبارات' },
           { key: 'combined', label: 'مجتمعة' },
+          { key: 'requests', label: 'طلب اختبار أو تعديل', badge: stats.data?.pendingRequests },
           { key: 'committees', label: 'اللجان' },
           { key: 'progression', label: 'تسلسل الأحزاب والأجزاء' },
         ]}

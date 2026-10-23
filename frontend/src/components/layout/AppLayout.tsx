@@ -338,7 +338,7 @@ export default function AppLayout() {
 
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-slate-700">{activeItem?.label ?? 'الرئيسية'}</p>
-              <p className="truncate text-[11px] text-slate-500">{activeGroup?.title} ? {ROLE_LABELS[user.role]}</p>
+              <p className="truncate text-[11px] text-slate-500">{activeGroup?.title} · {ROLE_LABELS[user.role]}</p>
             </div>
 
 

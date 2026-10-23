@@ -58,13 +58,20 @@ export default function ChatPage() {
     try{
       const ctx=soundContext.current??new AudioContext();soundContext.current=ctx;
       if(ctx.state==='suspended')void ctx.resume();
-      const oscillator=ctx.createOscillator(),gain=ctx.createGain();
-      oscillator.type='sine';oscillator.frequency.value=kind==='sent'?750:540;
-      gain.gain.setValueAtTime(0.0001,ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.055,ctx.currentTime+0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.13);
-      oscillator.connect(gain);gain.connect(ctx.destination);
-      oscillator.start();oscillator.stop(ctx.currentTime+0.14);
+      // Two short, clear chimes. A stronger fundamental and a soft overtone
+      // are more audible on phone speakers than the previous quiet sine beep.
+      const notes=kind==='sent'?[{hz:880,at:0},{hz:1175,at:0.085}]:[{hz:660,at:0},{hz:880,at:0.095}];
+      for(const {hz,at} of notes){
+        const start=ctx.currentTime+at;
+        const oscillator=ctx.createOscillator(),gain=ctx.createGain();
+        oscillator.type='triangle';
+        oscillator.frequency.setValueAtTime(hz,start);
+        gain.gain.setValueAtTime(0.0001,start);
+        gain.gain.exponentialRampToValueAtTime(0.24,start+0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001,start+0.15);
+        oscillator.connect(gain);gain.connect(ctx.destination);
+        oscillator.start(start);oscillator.stop(start+0.16);
+      }
     }catch{/* Browsers may block audio until user interaction. */}
   };
   const [editing, setEditing] = useState<ChatMessage | null>(null);

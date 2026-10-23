@@ -1,3 +1,4 @@
+import ThemeSelect from '@/components/ThemeSelect';
 import { NativePushConnection } from '@/components/NativePush';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -367,6 +368,7 @@ export default function AppLayout() {
               )}
             </NavLink>
 
+            <ThemeSelect />
             <div ref={accountMenu} className="relative">
               <button
                 onClick={() => setMenuOpen((v) => !v)}

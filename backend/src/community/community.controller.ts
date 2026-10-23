@@ -75,8 +75,9 @@ export class CommunityController {
     const reply=await this.prisma.communityComment.create({data:{userId:user.id,postId:parent.postId,parentId:id,body:body.trim()}});await this.notifyInteraction(user.id,parent.userId,'رد على تعليقك','/community/posts');return reply;
   }
   @Get('stories')
-  stories(@CurrentUser() user:AuthUser){
-    return this.prisma.communityStory.findMany({where:{expiresAt:{gt:new Date()}},orderBy:{createdAt:'desc'},take:100,include:{author:{select:{id:true,fullName:true,avatarUrl:true}},views:{include:{user:{select:{id:true,fullName:true,avatarUrl:true}}}}}});
+  async stories(@CurrentUser() user:AuthUser){
+    const stories=await this.prisma.communityStory.findMany({where:{expiresAt:{gt:new Date()}},orderBy:{createdAt:'desc'},take:100,include:{author:{select:{id:true,fullName:true,avatarUrl:true}},views:{include:{user:{select:{id:true,fullName:true,avatarUrl:true}}}}}});
+    return stories.map(story=>({...story,views:story.authorId===user.id||user.role===Role.ADMIN?story.views:story.views.filter(view=>view.userId===user.id)}));
   }
   @Post('stories')
   createStory(@CurrentUser() user:AuthUser,@Body() dto:{body:string;schoolStory?:boolean}){

@@ -228,6 +228,7 @@ model User {
   communityLikes CommunityLike[]
   communityComments CommunityComment[]
   schoolFollow SchoolFollow?
+  communityStoryReplies CommunityStoryReply[]
   communityStories CommunityStory[]
   communityStoryViews CommunityStoryView[]
   communityCommentLikes CommunityCommentLike[]
@@ -1570,6 +1571,8 @@ model CommunityStory {
   body String @db.VarChar(500)
   createdAt DateTime @default(now())
   expiresAt DateTime
+  schoolStory Boolean @default(false)
+  replies CommunityStoryReply[]
   author User @relation(fields:[authorId],references:[id],onDelete:Cascade)
   views CommunityStoryView[]
   @@index([expiresAt])
@@ -1582,4 +1585,15 @@ model CommunityStoryView {
   story CommunityStory @relation(fields:[storyId],references:[id],onDelete:Cascade)
   user User @relation(fields:[userId],references:[id],onDelete:Cascade)
   @@id([storyId,userId])
+}
+
+model CommunityStoryReply {
+  id String @id @default(uuid())
+  storyId String
+  userId String
+  body String @db.VarChar(500)
+  createdAt DateTime @default(now())
+  story CommunityStory @relation(fields:[storyId],references:[id],onDelete:Cascade)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([storyId,createdAt])
 }

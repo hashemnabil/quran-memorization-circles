@@ -14,6 +14,7 @@ import {
   Badge,
   Button,
   Card,
+  cx,
   EmptyState,
   ErrorState,
   Input,
@@ -383,7 +384,21 @@ export default function StudentsPage() {
           />
         ) : (
           <>
-            <div className="table-wrap border-0 shadow-none">
+            {!bulk.active && <div className="grid gap-3 p-3 sm:hidden" aria-label="بطاقات الطلاب">
+              {data.data.map(student => <Link key={student.id} to={`/students/${student.id}`} className="student-summary-card">
+                <div className="flex items-center gap-3">
+                  <Avatar name={student.fullName} src={student.photoUrl} size={42} />
+                  <div className="min-w-0 flex-1"><h3 className="font-bold text-slate-800">{student.fullName}</h3><p className="numeric mt-1 text-xs text-slate-500">{student.code}</p></div>
+                  <Badge className={STUDENT_STATUS_COLORS[student.status]}>{STUDENT_STATUS_LABELS[student.status]}</Badge>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-xs">
+                  <div><p className="text-slate-500">الحلقة</p><p className="mt-1 font-semibold text-slate-700">{student.circle?.name || 'غير مسجل في حلقة'}</p></div>
+                  <div><p className="text-slate-500">المعلّم</p><p className="mt-1 font-semibold text-slate-700">{student.teacherName || '—'}</p></div>
+                </div>
+                <p className="mt-4 text-xs font-bold text-primary-700">عرض ملف الطالب ←</p>
+              </Link>)}
+            </div>}
+            <div className={cx('table-wrap border-0 shadow-none', !bulk.active && 'hidden sm:block')}>
               <table className="table">
                 <thead>
                   <tr>

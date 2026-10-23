@@ -13,6 +13,7 @@ import { phoneError, PHONE_HINT, USERNAME_HINT } from '@/lib/validation';
 import type { AuthUser, SchoolSettings } from '@/types';
 import { savePendingSupport } from '@/lib/offline/pendingSupport';
 import { BRANDING_CACHE_KEY, DEFAULT_SCHOOL_NAME, DEFAULT_SCHOOL_LOGO, cachedSchoolBranding } from '@/config/branding';
+import ThemeSelect from '@/components/ThemeSelect';
 
 const DONATION_CACHE_KEY = 'qc.publicDonationInfo';
 function readCachedDonationInfo(): Partial<SchoolSettings> | null {
@@ -51,6 +52,7 @@ export default function LoginPage() {
   return (
     <div className="login-screen" dir="rtl">
       <div className="login-panel">
+        <div className="login-theme"><ThemeSelect /></div>
         <header className="login-brand flex flex-col items-center text-center">
           <span className="login-brand-mark"><img src={settings?.logoUrl || cachedBranding.logoUrl || DEFAULT_SCHOOL_LOGO} alt="" onError={event => { if (!event.currentTarget.src.endsWith(DEFAULT_SCHOOL_LOGO)) event.currentTarget.src = DEFAULT_SCHOOL_LOGO; }} className="h-full w-full object-contain" /></span>
           <h1 className="mt-5 text-lg font-extrabold leading-8 text-white sm:text-xl">{settings?.name?.trim() || cachedBranding.name || DEFAULT_SCHOOL_NAME}</h1>
@@ -58,11 +60,9 @@ export default function LoginPage() {
         <CredentialsStep onAuthenticated={onAuthenticated} />
         <button type="button" onClick={() => setPasswordRequestOpen(true)} className="mt-3 min-h-11 w-full rounded-xl text-sm font-bold text-primary-700 hover:bg-primary-50">طلب تغيير كلمة المرور</button>
         <button type="button" onClick={() => setSupportOpen(true)} className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-primary-800"><IconLifeBuoy size={18} />الدعم الفني</button>
-        <div className="mt-2 flex items-center justify-center gap-4">
-          <Link to="/about" className="py-2 text-xs font-semibold text-slate-500 hover:text-primary-800">معلومات عن البرنامج</Link>
-          <Link to="/contribute" aria-label="المساهمة والتبرع" title="المساهمة والتبرع" className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50"><span aria-hidden="true" className="text-xl">♡</span>التبرعات</Link>
-        </div>
+        <Link to="/about" className="mt-2 block py-2 text-center text-xs font-semibold text-slate-500 hover:text-primary-800">معلومات عن البرنامج</Link>
       </div>
+      <Link to="/contribute" aria-label="المساهمة والتبرع" className="donation-entry mt-5 inline-flex items-center gap-3 rounded-full border border-emerald-200 bg-white px-6 py-3 font-bold text-emerald-900 shadow-sm"><span aria-hidden="true" className="text-2xl">♡</span>المساهمة والتبرع</Link>
       <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />
       {passwordRequestOpen && <PasswordRequestModal open onClose={() => setPasswordRequestOpen(false)} />}
     </div>

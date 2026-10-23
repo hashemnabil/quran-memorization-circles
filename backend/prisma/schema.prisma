@@ -198,6 +198,7 @@ model User {
   fullName     String
   role         Role
   phone        String?
+  nickname     String?   @db.VarChar(60)
   avatarUrl    String?
   /// Unified staff directory fields — filled for teachers, supervisors,
   /// administrators and exam-committee members alike.
@@ -223,6 +224,10 @@ model User {
   conversationsCreated Conversation[]        @relation("ConversationCreator")
   conversationMembers  ConversationMember[]
   messages             Message[]
+  communityPosts CommunityPost[]
+  communityLikes CommunityLike[]
+  communityComments CommunityComment[]
+  schoolFollow SchoolFollow?
   ticketsCreated       SupportTicket[]       @relation("TicketCreator")
   ticketsAssigned      SupportTicket[]       @relation("TicketAssignee")
   ticketMessages       TicketMessage[]
@@ -1509,4 +1514,38 @@ model TeacherDutyAssignment {
   @@unique([dutyId, teacherUserId])
   @@index([teacherUserId])
   @@map("teacher_duty_assignments")
+}
+
+model CommunityPost {
+  id String @id @default(uuid())
+  authorId String
+  body String @db.VarChar(2000)
+  schoolPost Boolean @default(false)
+  createdAt DateTime @default(now())
+  author User @relation(fields:[authorId],references:[id],onDelete:Cascade)
+  likes CommunityLike[]
+  comments CommunityComment[]
+  @@index([createdAt])
+}
+model CommunityLike {
+  userId String
+  postId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  post CommunityPost @relation(fields:[postId],references:[id],onDelete:Cascade)
+  @@id([userId,postId])
+}
+model CommunityComment {
+  id String @id @default(uuid())
+  userId String
+  postId String
+  body String @db.VarChar(500)
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  post CommunityPost @relation(fields:[postId],references:[id],onDelete:Cascade)
+  @@index([postId,createdAt])
+}
+model SchoolFollow {
+  userId String @id
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
 }

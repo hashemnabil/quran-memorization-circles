@@ -22,6 +22,22 @@ import { ExamsService } from './exams.service';
 export class ExamsController {
   constructor(private readonly service: ExamsService) {}
 
+  @Get('committees/:id/grading-settings')
+  @Roles(Role.ADMIN,Role.EXAM_COMMITTEE)
+  committeeGradingSettings(@Param('id') id:string){return this.service.committeeGradingSettings(id);}
+
+  @Patch('committees/:id/grading-settings')
+  @Roles(Role.ADMIN,Role.EXAM_COMMITTEE)
+  updateCommitteeGradingSettings(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body() dto:{mistakePenalty:number;alertPenalty:number}){return this.service.updateCommitteeGradingSettings(user,id,dto);}
+
+  @Get('grading-settings')
+  @Roles(Role.ADMIN,Role.EXAM_COMMITTEE)
+  gradingSettings(){return this.service.gradingSettings();}
+
+  @Patch('grading-settings')
+  @Roles(Role.ADMIN)
+  updateGradingSettings(@CurrentUser() user:AuthUser,@Body() dto:{mistakePenalty:number;alertPenalty:number}){return this.service.updateGradingSettings(user,dto);}
+
   // --- reference ----------------------------------------------------------
 
   @Get('sections')

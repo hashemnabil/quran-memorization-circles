@@ -135,6 +135,7 @@ export default function ExamsPage() {
       />
 
       <NotificationRecord />
+
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="طلبات بالانتظار" value={stats.data?.pendingRequests ?? 0} icon={<IconClock size={20} />} tone="amber" />
         <StatCard label="اختبارات مجدولة" value={stats.data?.scheduled ?? 0} icon={<IconCalendar size={20} />} tone="sky" />

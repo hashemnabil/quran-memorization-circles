@@ -860,6 +860,8 @@ model Meeting {
 }
 
 model ExamCommittee {
+  mistakePenalty Float @default(1)
+  alertPenalty Float @default(0.5)
   id          String @id @default(uuid())
   number      String @unique
   heldAt      DateTime
@@ -1066,6 +1068,8 @@ model Message {
 // ---------------------------------------------------------------------------
 
 model SchoolSettings {
+  examMistakePenalty Float @default(1)
+  examAlertPenalty Float @default(0.5)
   id           String   @id @default("default")
   name         String   @default("مدرسة عبدالله بن عمر")
   mosqueName   String?

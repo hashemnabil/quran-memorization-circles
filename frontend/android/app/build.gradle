@@ -5,8 +5,8 @@ def releaseAlias = System.getenv('ANDROID_KEY_ALIAS')
 def releaseStorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
 def releaseKeyPassword = System.getenv('ANDROID_KEY_PASSWORD')
 def releaseSigningReady = [releaseStore, releaseAlias, releaseStorePassword, releaseKeyPassword].every { it }
-def releaseVersionCode = System.getenv('ANDROID_VERSION_CODE') ?: '3'
-def releaseVersionName = System.getenv('ANDROID_VERSION_NAME') ?: '1.1.0'
+def releaseVersionCode = System.getenv('ANDROID_VERSION_CODE') ?: '7'
+def releaseVersionName = System.getenv('ANDROID_VERSION_NAME') ?: '1.1.4'
 if (!(releaseVersionCode ==~ /[1-9][0-9]{0,9}/) || releaseVersionCode.toLong() > 2100000000L) {
     throw new GradleException('ANDROID_VERSION_CODE must be a positive Android version code')
 }

@@ -413,16 +413,47 @@
 .donation-copy-done { background: #edf6f0; border-color: #b0d5bf; color: #195d47; }
 @media (max-width: 639px) { .donation-payment { padding: 18px; } .donation-number { font-size: 21px; } }
 
-/* Compact login panel: keep the donation shortcut inside the card on small screens. */
-.login-screen { padding: max(12px, env(safe-area-inset-top, 0px)) 12px max(12px, env(safe-area-inset-bottom, 0px)); }
-.login-panel { max-width: 400px; padding: 26px; }
-.login-brand { margin: -26px -26px 20px; padding: 20px 20px 18px; }
-.login-brand-mark { width: 72px; height: 72px; }
-@media (max-width: 479px) {
-  .login-panel { padding: 20px; border-radius: 20px; }
-  .login-brand { margin: -20px -20px 18px; padding: 16px 18px; border-radius: 19px 19px 0 0; }
-  .login-brand-mark { width: 64px; height: 64px; }
-  .login-brand h1 { margin-top: 10px; font-size: 1rem; line-height: 1.5rem; }
-  .login-panel form { margin-top: 16px; }
-  .login-panel .input, .login-panel .btn-primary { min-height: 44px; }
-}
+:root { --surface: #fff; --ink: #1e293b; --canvas: #f4f6f8; --line: #e2e8ed; }
+.theme-control { display: inline-flex; flex-shrink: 0; }
+.theme-control select { min-height: 40px; max-width: 112px; border: 1px solid var(--line); border-radius: 12px; padding: 6px 9px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.login-panel { position: relative; }
+.login-theme { position: absolute; top: -52px; inset-inline-end: 0; }
+.login-screen { padding-top: max(80px, env(safe-area-inset-top, 0px)); }
+.page-heading { align-items: center; padding-block: 4px 22px; }
+.card { overflow-wrap: anywhere; }
+.table thead th { font-size: 12px; }
+.table tbody td { padding-block: 15px; }
+[data-theme='dark'] { color-scheme: dark; --surface: #172720; --ink: #e4eee8; --canvas: #0d1813; --line: #30443a; }
+[data-theme='dark'] body, [data-theme='dark'] .app-shell { background: var(--canvas); color: var(--ink); }
+[data-theme='dark'] .card, [data-theme='dark'] .table-wrap, [data-theme='dark'] .app-dialog, [data-theme='dark'] .login-panel { background: var(--surface); border-color: var(--line); box-shadow: 0 4px 20px #0002; }
+[data-theme='dark'] [class~='bg-white'], [data-theme='dark'] [class~='bg-white/90'], [data-theme='dark'] [class~='bg-white/95'] { background-color: var(--surface); }
+[data-theme='dark'] [class~='bg-slate-50'], [data-theme='dark'] [class~='bg-slate-50/70'], [data-theme='dark'] [class~='bg-slate-100'], [data-theme='dark'] [class~='bg-slate-200'] { background-color: #21372b; }
+[data-theme='dark'] [class~='text-slate-900'], [data-theme='dark'] [class~='text-slate-800'], [data-theme='dark'] [class~='text-slate-700'] { color: #e4eee8; }
+[data-theme='dark'] [class~='text-slate-600'], [data-theme='dark'] [class~='text-slate-500'], [data-theme='dark'] [class~='text-slate-400'] { color: #adbbb3; }
+[data-theme='dark'] [class~='border-slate-100'], [data-theme='dark'] [class~='border-slate-200'], [data-theme='dark'] [class~='border-slate-200/80'], [data-theme='dark'] [class~='border-slate-300'] { border-color: var(--line); }
+[data-theme='dark'] .input, [data-theme='dark'] .field { background: #102018; border-color: #3a5144; color: var(--ink); }
+[data-theme='dark'] .input::placeholder, [data-theme='dark'] .field::placeholder { color: #92a398; }
+[data-theme='dark'] .input:disabled, [data-theme='dark'] .field:disabled { background: #24382c; color: #9eafa4; }
+[data-theme='dark'] .btn-secondary, [data-theme='dark'] .btn-ghost, [data-theme='dark'] .app-icon-button { background: var(--surface); color: var(--ink); border-color: var(--line); }
+[data-theme='dark'] .app-topbar { background: #14231deb; border-color: var(--line); }
+[data-theme='dark'] .app-workspace .card > header, [data-theme='dark'] .table thead th { background: #20382b; color: #c1dfcc; border-color: var(--line); }
+[data-theme='dark'] .table tbody td { color: var(--ink); border-color: var(--line); }
+[data-theme='dark'] .app-workspace .table tbody tr:nth-child(even) { background: #1b2e23; }
+[data-theme='dark'] .app-workspace .table tbody tr:hover, [data-theme='dark'] [class~='hover:bg-slate-50']:hover, [data-theme='dark'] [class~='hover:bg-slate-100']:hover { background: #2b4434; }
+[data-theme='dark'] .mobile-navigation { background: #14231df5; border-color: var(--line); }
+[data-theme='dark'] .mobile-navigation-item { color: #a5b9ad; }
+[data-theme='dark'] .mobile-navigation-active { color: #b5edca; background: #234833; }
+[data-theme='dark'] .login-screen { background: radial-gradient(ellipse at 0 0, #20432e, transparent 60%), var(--canvas); }
+[data-theme='dark'] .login-panel .input { background: #102018; }
+[data-theme='dark'] .donation-payment, [data-theme='dark'] .donation-copy-button { background: var(--surface); border-color: var(--line); }
+[data-theme='dark'] .donation-account-number { background: #102018; border-color: var(--line); }
+[data-theme='dark'] .donation-number { color: #d9eee1; }
+[data-theme='dark'] .donation-copy-button { color: #b5ddc5; }
+[data-theme='dark'] [class~='bg-primary-50'], [data-theme='dark'] [class~='bg-primary-100'], [data-theme='dark'] [class~='bg-emerald-50'], [data-theme='dark'] [class~='bg-emerald-50/70'], [data-theme='dark'] [class~='bg-emerald-100'] { background-color: #254533; }
+[data-theme='dark'] [class~='text-primary-700'], [data-theme='dark'] [class~='text-primary-800'], [data-theme='dark'] [class~='text-emerald-700'], [data-theme='dark'] [class~='text-emerald-800'], [data-theme='dark'] [class~='text-emerald-900'], [data-theme='dark'] [class~='text-emerald-950'] { color: #ace5c2; }
+@media (max-width: 639px) { .app-topbar > div { gap: 4px; padding-inline: 8px; } .theme-control select { max-width: 86px; font-size: 11px; padding-inline: 4px; } }
+@media print { [data-theme='dark'] { --surface: #fff; --ink: #000; --canvas: #fff; } .theme-control { display: none; } }
+
+.student-summary-card { display: block; padding: 16px; border: 1px solid #e2e8ed; border-radius: 18px; background: #fff; box-shadow: 0 2px 10px rgba(18,55,45,.04); transition: transform .18s, border-color .18s, box-shadow .18s; }
+.student-summary-card:hover { transform: translateY(-1px); border-color: #b7d7c4; box-shadow: 0 8px 20px rgba(18,55,45,.08); }
+[data-theme='dark'] .student-summary-card { background: var(--surface); border-color: var(--line); }

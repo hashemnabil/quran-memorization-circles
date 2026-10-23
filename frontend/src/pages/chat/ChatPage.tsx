@@ -48,6 +48,39 @@ export default function ChatPage() {
   const [showNew, setShowNew] = useState<'direct' | 'group' | null>(null);
   const [panel, setPanel] = useState<'members' | 'settings' | null>(null);
   const [search, setSearch] = useState('');
+  const [recording,setRecording]=useState(false);
+  const [voiceBlob,setVoiceBlob]=useState<Blob|null>(null);
+  const [voiceUrl,setVoiceUrl]=useState<string|null>(null);
+  const [sendingVoice,setSendingVoice]=useState(false);
+  const recorder=useRef<MediaRecorder|null>(null);
+  const stream=useRef<MediaStream|null>(null);
+  const startVoice=async()=>{
+    try{
+      if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined')throw new Error('المتصفح لا يدعم التسجيل');
+      const media=await navigator.mediaDevices.getUserMedia({audio:true});
+      stream.current=media;
+      const mime=['audio/webm','audio/mp4'].find(type=>MediaRecorder.isTypeSupported(type));
+      if(!mime)throw new Error('صيغة التسجيل غير مدعومة');
+      const rec=new MediaRecorder(media,{mimeType:mime});recorder.current=rec;
+      const chunks:Blob[]=[];
+      rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
+      rec.onstop=()=>{media.getTracks().forEach(t=>t.stop());stream.current=null;const blob=new Blob(chunks,{type:mime});if(blob.size>5*1024*1024){toast.error('التسجيل يتجاوز 5 ميجابايت');return;}setVoiceBlob(blob);setVoiceUrl(URL.createObjectURL(blob));setRecording(false);};
+      rec.start();setRecording(true);
+    }catch(error){toast.error(error instanceof Error?error.message:'تعذر تشغيل الميكروفون');}
+  };
+  const stopVoice=()=>{if(recorder.current?.state==='recording')recorder.current.stop();};
+  const clearVoice=()=>{if(voiceUrl)URL.revokeObjectURL(voiceUrl);setVoiceBlob(null);setVoiceUrl(null);};
+  const sendVoice=async()=>{
+    if(!voiceBlob||!id)return;
+    setSendingVoice(true);
+    try{
+      const ext=voiceBlob.type==='audio/mp4'?'m4a':'webm';
+      const form=new FormData();form.append('file',new File([voiceBlob],'voice.'+ext,{type:voiceBlob.type}));
+      const uploaded=await api.post<{url:string}>('/chat/conversations/'+id+'/voice',form,{headers:{'Content-Type':'multipart/form-data'}});
+      await api.post('/chat/conversations/'+id+'/messages',{body:'رسالة صوتية',attachmentUrl:uploaded.data.url});
+      clearVoice();playSound('sent');void queryClient.invalidateQueries({queryKey:['chat']});
+    }catch(error){toast.error(apiError(error,'تعذر إرسال التسجيل'));}finally{setSendingVoice(false);}
+  };
   const [body, setBody] = useState('');
   const [soundsEnabled,setSoundsEnabled]=useState(()=>localStorage.getItem('chat-sounds-enabled')!=='false');
   const soundContext=useRef<AudioContext|null>(null);
@@ -442,7 +475,7 @@ export default function ChatPage() {
                                 : 'rounded-tr-md border border-slate-100 bg-white text-slate-700',
                             )}
                           >
-                            <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                            {message.attachmentUrl&&<audio controls preload="none" src={message.attachmentUrl} className="max-w-full" aria-label="رسالة صوتية"/>}<p className="whitespace-pre-wrap break-words">{message.body}</p>
                           </div>
                           <p className={cx('mt-1 text-[10px] text-slate-400', mine && 'text-left')}>
                             {timeAgo(message.createdAt)}
@@ -509,7 +542,9 @@ export default function ChatPage() {
                       </button>
                     </div>
                   )}
+                  {voiceUrl&&<div className="mb-2 flex flex-wrap items-center gap-2"><audio controls src={voiceUrl} aria-label="استمع للتسجيل قبل الإرسال"/><Button type="button" loading={sendingVoice} onClick={()=>void sendVoice()}>إرسال التسجيل</Button><Button type="button" variant="secondary" onClick={clearVoice}>حذف التسجيل</Button></div>}
                   <div className="flex items-end gap-2">
+                    {!editing&&<Button type="button" variant="secondary" onClick={()=>recording?stopVoice():void startVoice()}>{recording?'إيقاف التسجيل':'🎙️ تسجيل صوتي'}</Button>}
                     <textarea
                       ref={composerRef}
                       value={body}

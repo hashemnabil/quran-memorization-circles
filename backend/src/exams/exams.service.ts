@@ -258,6 +258,18 @@ const EXAM_INCLUDE = {
 
 @Injectable()
 export class ExamsService {
+  async committeeGradingSettings(id:string){
+    const committee=await this.prisma.examCommittee.findUnique({where:{id},select:{mistakePenalty:true,alertPenalty:true}});
+    if(!committee)throw new NotFoundException('اللجنة غير موجودة');
+    return committee;
+  }
+  async updateCommitteeGradingSettings(actor:AuthUser,id:string,dto:{mistakePenalty:number;alertPenalty:number}){
+    if(actor.role!==Role.ADMIN&&actor.role!==Role.EXAM_COMMITTEE)throw new ForbiddenException('إعدادات اللجنة للمخولين فقط');
+    for(const value of [dto.mistakePenalty,dto.alertPenalty])if(typeof value!=='number'||!Number.isFinite(value)||value<0||value>90)throw new BadRequestException('قيمة الخصم غير صالحة');
+    const committee=await this.prisma.examCommittee.update({where:{id},data:{mistakePenalty:dto.mistakePenalty,alertPenalty:dto.alertPenalty},select:{mistakePenalty:true,alertPenalty:true}});
+    await this.activity.log({userId:actor.id,action:'COMMITTEE_GRADING_SETTINGS',entityType:'ExamCommittee',entityId:id,summary:'تعديل خصم الأخطاء والتنبيهات للجنة'});
+    return committee;
+  }
   async gradingSettings() {
     const settings=await this.prisma.schoolSettings.findUnique({where:{id:'default'}});
     return {mistakePenalty:settings?.examMistakePenalty??1,alertPenalty:settings?.examAlertPenalty??0.5};
@@ -278,7 +290,7 @@ export class ExamsService {
     const section=await this.prisma.examSection.findUnique({where:{id:dto.sectionId}});
     if(!committee||!section||committee.heldAt.getTime()>Date.now())throw new BadRequestException('اختر لجنة سابقة ومقررًا صالحًا');
     if(dto.combinedStage&&!combinedPlan().some(row=>row.code===dto.combinedStage))throw new BadRequestException('مرحلة المجتمعة غير صالحة');
-    const penalties=await this.gradingSettings();
+    const penalties=await this.committeeGradingSettings(dto.committeeId);
     const grading=dto.tajweed===undefined?undefined:calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,...penalties,tajweed:dto.tajweed});
     const score=grading?.score??dto.score;const passed=score>=80;
     const exam=await this.prisma.$transaction(async tx=>{
@@ -1493,7 +1505,9 @@ export class ExamsService {
 
   async recordResult(actor: AuthUser, id: string, dto: RecordResultDto) {
     if (dto.tajweed !== undefined) {
-      const penalties=await this.gradingSettings();
+      const target=await this.prisma.exam.findUnique({where:{id},select:{committeeId:true}});
+      if(!target)throw new NotFoundException('الاختبار غير موجود');
+      const penalties=target.committeeId?await this.committeeGradingSettings(target.committeeId):await this.gradingSettings();
       dto.mistakePenalty=penalties.mistakePenalty;
       dto.alertPenalty=penalties.alertPenalty;
       try { dto.score = calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,...penalties,tajweed:dto.tajweed}).score; }

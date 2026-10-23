@@ -86,6 +86,14 @@ export class CommunityController {
     if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('القصة غير صالحة');
     return this.prisma.communityStory.create({data:{authorId:user.id,body:body.trim(),schoolStory:!!dto.schoolStory,expiresAt:new Date(Date.now()+86400000)}});
   }
+  @Delete('stories/:id')
+  async deleteStory(@CurrentUser() user:AuthUser,@Param('id') id:string){
+    const story=await this.prisma.communityStory.findUnique({where:{id}});
+    if(!story)throw new BadRequestException('القصة غير موجودة');
+    if(story.authorId!==user.id&&user.role!==Role.ADMIN)throw new ForbiddenException('ليس لديك صلاحية حذف القصة');
+    await this.prisma.communityStory.delete({where:{id}});
+    return {deleted:true};
+  }
   @Post('stories/:id/replies')
   async replyStory(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
     const story=await this.prisma.communityStory.findUnique({where:{id}});

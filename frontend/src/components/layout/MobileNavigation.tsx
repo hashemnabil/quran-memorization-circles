@@ -6,6 +6,7 @@ export default function MobileNavigation({ role, onMenu }: { role: Role; onMenu:
   const items = [
     { to: '/', label: role === 'STUDENT' ? 'الرئيسية' : 'الرئيسية', icon: <IconDashboard /> },
     { to: '/community', label: 'المنشورات', icon: <span aria-hidden="true" className="text-xl leading-none">▤</span> },
+    { to: '/community/school', label: 'صفحة المدرسة', icon: <span aria-hidden="true" className="text-xl leading-none">🏫</span> },
     { to: '/community/users/me', label: 'ملفي الشخصي', icon: <IconUser /> },
   ];
   return <nav aria-label="التنقل الرئيسي للجوال" className="mobile-navigation lg:hidden" dir="rtl">

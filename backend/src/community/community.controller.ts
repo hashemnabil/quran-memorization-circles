@@ -8,7 +8,7 @@ export class CommunityController {
   constructor(private readonly prisma:PrismaService){}
   @Get('feed')
   feed(@Query('userId') userId?:string,@Query('school') school?:string){
-    return this.prisma.communityPost.findMany({where:{...(userId?{authorId:userId,schoolPost:false}:{}),...(school==='true'?{schoolPost:true}:{})},orderBy:{createdAt:'desc'},take:100,include:{author:{select:{id:true,fullName:true,nickname:true,avatarUrl:true,role:true}},_count:{select:{likes:true,comments:true}},likes:{take:100,include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}}}},comments:{take:100,orderBy:{createdAt:'asc'},include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}}}}}});
+    return this.prisma.communityPost.findMany({where:{...(userId?{authorId:userId,schoolPost:false}:{}),...(school==='true'?{schoolPost:true}:{})},orderBy:{createdAt:'desc'},take:100,include:{author:{select:{id:true,fullName:true,nickname:true,avatarUrl:true,role:true}},_count:{select:{likes:true,comments:true}},likes:{take:100,include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}}}},comments:{take:100,orderBy:{createdAt:'asc'},include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}},_count:{select:{likes:true}}}}}});
   }
   @Get('users/:id')
   async profile(@Param('id') id:string){
@@ -45,6 +45,47 @@ export class CommunityController {
   comment(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
     if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('التعليق غير صالح');
     return this.prisma.communityComment.create({data:{userId:user.id,postId:id,body:body.trim()}});
+  }
+
+  @Post('comments/:id/like')
+  async likeComment(@CurrentUser() user:AuthUser,@Param('id') id:string){
+    const found=await this.prisma.communityComment.findUnique({where:{id}});
+    if(!found)throw new BadRequestException('التعليق غير موجود');
+    const where={userId_commentId:{userId:user.id,commentId:id}};
+    const existing=await this.prisma.communityCommentLike.findUnique({where});
+    if(existing){await this.prisma.communityCommentLike.delete({where});return {liked:false};}
+    await this.prisma.communityCommentLike.create({data:{userId:user.id,commentId:id}});
+    return {liked:true};
+  }
+  @Post('comments/:id/replies')
+  async reply(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
+    if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('الرد غير صالح');
+    const parent=await this.prisma.communityComment.findUnique({where:{id}});
+    if(!parent)throw new BadRequestException('التعليق غير موجود');
+    return this.prisma.communityComment.create({data:{userId:user.id,postId:parent.postId,parentId:id,body:body.trim()}});
+  }
+  @Get('stories')
+  stories(){
+    return this.prisma.communityStory.findMany({where:{expiresAt:{gt:new Date()}},orderBy:{createdAt:'desc'},take:100,include:{author:{select:{id:true,fullName:true,avatarUrl:true}},views:{include:{user:{select:{id:true,fullName:true,avatarUrl:true}}}}}});
+  }
+  @Post('stories')
+  createStory(@CurrentUser() user:AuthUser,@Body('body') body:string){
+    if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('القصة غير صالحة');
+    return this.prisma.communityStory.create({data:{authorId:user.id,body:body.trim(),expiresAt:new Date(Date.now()+86400000)}});
+  }
+  @Post('stories/:id/view')
+  async viewStory(@CurrentUser() user:AuthUser,@Param('id') id:string){
+    const story=await this.prisma.communityStory.findUnique({where:{id}});
+    if(!story||story.expiresAt<=new Date())throw new BadRequestException('القصة انتهت');
+    return this.prisma.communityStoryView.upsert({where:{storyId_userId:{storyId:id,userId:user.id}},create:{storyId:id,userId:user.id},update:{}});
+  }
+  @Post('stories/:id/like')
+  async likeStory(@CurrentUser() user:AuthUser,@Param('id') id:string){
+    const story=await this.prisma.communityStory.findUnique({where:{id}});
+    if(!story||story.expiresAt<=new Date())throw new BadRequestException('القصة انتهت');
+    const where={storyId_userId:{storyId:id,userId:user.id}};
+    const existing=await this.prisma.communityStoryView.findUnique({where});
+    return this.prisma.communityStoryView.upsert({where,create:{storyId:id,userId:user.id,liked:true},update:{liked:!existing?.liked}});
   }
   @Post('school/follow')
   async follow(@CurrentUser() user:AuthUser){

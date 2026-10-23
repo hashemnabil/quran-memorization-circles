@@ -8,12 +8,12 @@ export async function exportLocalPdf(title: string, rows: Record<string, unknown
   const columns = [...new Set(rows.flatMap(Object.keys))];
   const pdf = await PDFDocument.create();
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1754, columns.length * 150 + 120);
+  canvas.width = Math.max(2400, columns.length * 240 + 120);
   canvas.height = 1240;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('تعذر إنشاء مستند PDF على هذا الجهاز');
-  const margin = 60, bottom = 1150, lineHeight = 28;
-  const weights = columns.map(column => /الطالب|المعلم|الحلقة|ولي الأمر|الأم|الاسم/.test(column) ? 1.8 : /تاريخ الميلاد|الهوية|رقم الطالب/.test(column) ? 1.25 : 1);
+  const margin = 60, bottom = 1150, lineHeight = 34;
+  const weights = columns.map(column => /الطالب|المعلم|الحلقة|ولي الأمر|الأم|الاسم/.test(column) ? 2.3 : /تاريخ الميلاد/.test(column) ? 1.35 : /الهوية|رقم الطالب/.test(column) ? 1.45 : /النقاط|الأجزاء|جزء|نقطة/.test(column) ? 0.65 : 1);
   const unit = (canvas.width - margin * 2) / Math.max(1, weights.reduce((a, b) => a + b, 0));
   const widths = weights.map(weight => weight * unit);
   const positions = widths.map((_, i) => canvas.width - margin - widths.slice(0, i + 1).reduce((a, b) => a + b, 0));
@@ -73,11 +73,11 @@ export async function exportLocalPdf(title: string, rows: Record<string, unknown
     ctx.fillText(title, canvas.width - margin, 158, canvas.width - margin * 2);
     y = 195; page++;
     if (columns.length) {
-      ctx.font = 'bold 20px Tajawal';
+      ctx.font = 'bold 23px Tajawal';
       const headers = columns.map((column, index) => wrap(column, widths[index] - 24));
       drawRow(headers, 0, Math.max(...headers.map(lines => lines.length)), true);
     }
-    ctx.font = '20px Tajawal';
+    ctx.font = '24px Tajawal';
   };
   const flush = async () => {
     ctx.font = '18px Tajawal'; ctx.fillStyle = '#64748b'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
@@ -88,6 +88,7 @@ export async function exportLocalPdf(title: string, rows: Record<string, unknown
   };
   await begin();
   for (const [index, row] of rows.entries()) {
+    ctx.font = '24px Tajawal';
     const cells = columns.map((column, index) => wrap(text(row[column]), widths[index] - 24));
     const total = Math.max(1, ...cells.map(lines => lines.length));
     if (y + total * lineHeight + 22 > bottom && total * lineHeight + 22 < bottom - 300) { await flush(); await begin(); }

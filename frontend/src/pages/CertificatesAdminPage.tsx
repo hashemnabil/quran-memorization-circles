@@ -217,17 +217,23 @@ export default function CertificatesAdminPage() {
   const [certificateStyle,setCertificateStyle]=useState<'classic'|'modern'>('classic');
   const [previewPending,setPreviewPending]=useState(false);
   const previewCertificate=async(style:'classic'|'modern')=>{
+    // Open synchronously from the tap so Safari on iPhone does not block the PDF.
+    const previewWindow=window.open('about:blank','_blank');
+    if (!previewWindow) {toast.error('اسمح بالنوافذ المنبثقة لمعاينة الشهادة على جهازك.');return;}
+    previewWindow.document.title='معاينة الشهادة';
+    previewWindow.document.body.textContent='جاري تجهيز معاينة الشهادة…';
     setPreviewPending(true);
     try {
       const template=(templates.data??[]).find((t:any)=>t.id===selectedTemplateId);
       const url=await buildPrintableCertificate('اسم الطالب للتجربة',issueTitle,issueKind,issueDate,template?.fileUrl||undefined,{...(template?.design||{}),certificateStyle:style});
-      const a=document.createElement('a');
-      a.href=url;
-      a.download=style==='classic'?'معاينة-الشهادة-الرسمية.pdf':'معاينة-الشهادة-العصرية.pdf';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch(e) {toast.error(e instanceof Error?e.message:'تعذر إنشاء معاينة الشهادة');}
+      const base64=url.split(',')[1];
+      const binary=atob(base64);
+      const bytes=Uint8Array.from(binary,char=>char.charCodeAt(0));
+      const blobUrl=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+      if (previewWindow.closed) {URL.revokeObjectURL(blobUrl);return;}
+      previewWindow.location.replace(blobUrl);
+      window.setTimeout(()=>URL.revokeObjectURL(blobUrl),120000);
+    } catch(e) {previewWindow.close();toast.error(e instanceof Error?e.message:'تعذر إنشاء معاينة الشهادة');}
     finally {setPreviewPending(false);}
   };
   const reportData=useQuery({queryKey:['certificates','monthly-report-data',reportFrom,reportTo],queryFn:async()=>(await api.get<any[]>('/certificates/monthly-report-data',{params:{from:reportFrom,to:reportTo}})).data,enabled:Boolean(reportFrom&&reportTo&&reportFrom<=reportTo)});
@@ -270,8 +276,8 @@ export default function CertificatesAdminPage() {
         <label className="grid gap-1 text-sm font-medium">تصميم الشهادة<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={certificateStyle} onChange={e=>setCertificateStyle(e.target.value as 'classic'|'modern')}><option value="classic">التصميم الأول — رسمي بزخارف ذهبية</option><option value="modern">التصميم الثاني — عصري بخطوط خضراء وذهبية</option></select></label>
         <div className="md:col-span-2 flex flex-wrap gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
           <div className="w-full text-sm font-medium text-emerald-900">عاين التصميم قبل إصدار الشهادات — لا تُحفظ أي شهادة تجريبية على حساب الطالب.</div>
-          <button type="button" disabled={previewPending} onClick={()=>void previewCertificate('classic')} className="rounded-lg border border-emerald-700 bg-white px-4 py-2 text-sm font-semibold text-emerald-900 disabled:opacity-50">تنزيل معاينة التصميم الرسمي PDF</button>
-          <button type="button" disabled={previewPending} onClick={()=>void previewCertificate('modern')} className="rounded-lg border border-emerald-700 bg-white px-4 py-2 text-sm font-semibold text-emerald-900 disabled:opacity-50">تنزيل معاينة التصميم العصري PDF</button>
+          <button type="button" disabled={previewPending} onClick={()=>void previewCertificate('classic')} className="rounded-lg border border-emerald-700 bg-white px-4 py-2 text-sm font-semibold text-emerald-900 disabled:opacity-50">عرض معاينة التصميم الرسمي PDF</button>
+          <button type="button" disabled={previewPending} onClick={()=>void previewCertificate('modern')} className="rounded-lg border border-emerald-700 bg-white px-4 py-2 text-sm font-semibold text-emerald-900 disabled:opacity-50">عرض معاينة التصميم العصري PDF</button>
         </div>
         <label className="grid gap-1 text-sm font-medium">نوع الشهادة<select className="rounded-lg border border-slate-300 bg-white p-2.5" value={issueKind} onChange={e=>setIssueKind(e.target.value)}>{Object.entries(kinds).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
         <Input label="عنوان الشهادة" value={issueTitle} onChange={e=>setIssueTitle(e.target.value)} required />

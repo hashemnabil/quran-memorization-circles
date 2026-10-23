@@ -109,9 +109,13 @@ for (const rejected of [false, true]) {
       } else {
         await expect.poll(async () => (await queue(page)).length, { timeout: 20000 }).toBe(0);
         expect(logins).toBe(2); expect(posts).toBe(1); expect(serverRows[0].status).toBe('ABSENT');
-        offlineMode = true; await context!.setOffline(true);
+        // Let the online attendance screen hydrate from the refreshed local cache
+        // before testing a second offline navigation after synchronization.
         await page.goto(`${origin}/attendance?circleId=${circleId}`);
-        await expect(page.getByText(fixtures.students[0].fullName, { exact: true })).toBeVisible();
+        await expect(page.getByText(fixtures.students[0].fullName, { exact: true })).toBeVisible({ timeout: 15000 });
+        offlineMode = true; await context!.setOffline(true);
+        await page.reload();
+        await expect(page.getByText(fixtures.students[0].fullName, { exact: true })).toBeVisible({ timeout: 15000 });
       }
     } finally { await context?.close(); await rm(profile, { recursive: true, force: true }); }
   });

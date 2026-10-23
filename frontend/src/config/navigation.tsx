@@ -8,6 +8,9 @@ import {
   IconBook,
   IconCalendar,
   IconChat,
+  IconPost,
+  IconStory,
+  IconSchool,
   IconCircleGroup,
   IconClipboard,
   IconDashboard,
@@ -46,7 +49,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'الرئيسية',
     items: [
       { to: '/', label: 'الرئيسية', icon: <IconDashboard size={19} />, roles: ALL },
-      { to: '/community', label: 'مجتمع المدرسة', icon: <IconChat size={19} />, roles: ALL },
+      
     ],
   },
   {
@@ -111,6 +114,11 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'التواصل',
     items: [
+      { to: '/community', label: 'مجتمع المدرسة', icon: <IconUsers size={19} />, roles: ALL },
+      { to: '/community/posts', label: 'المنشورات', icon: <IconPost size={19} />, roles: ALL },
+      { to: '/community/stories', label: 'القصص', icon: <IconStory size={19} />, roles: ALL },
+      { to: '/community/school', label: 'صفحة المدرسة', icon: <IconSchool size={19} />, roles: ALL },
+      { to: '/community/users/me', label: 'ملفي في المجتمع', icon: <IconUser size={19} />, roles: ALL },
       { to: '/chat', label: 'المحادثات', icon: <IconChat size={19} />, roles: ALL, badge: 'chat' },
       { to: '/notifications', label: 'الإشعارات', icon: <IconBell size={19} />, roles: ALL, badge: 'notifications' },
       { to: '/support', label: 'الدعم الفني', icon: <IconLifeBuoy size={19} />, roles: ALL, badge: 'support' },
@@ -139,7 +147,7 @@ const SECTION_PATHS = [
   ['الطلاب والحلقات', ['/students','/circles','/courses','/student-accounts','/transfers','/suspensions']],
   ['ملفي الدراسي', ['/student','/my-files']],
   ['التقارير والشهادات', ['/documents/attendance','/documents/recitations','/documents/exams','/documents/student','/documents/circles','/certificates-admin','/documents/students','/documents/memorization-students','/documents/activity-students','/documents/suspended-students','/documents/course-students','/documents/courses','/documents/course-attendance']],
-  ['التواصل', ['/notifications','/chat','/support']],
+  ['التواصل', ['/community','/community/posts','/community/stories','/community/school','/community/users/me','/notifications','/chat','/support']],
   ['الكادر والإدارة', ['/teachers','/supervisors','/staff','/meetings','/profile-reviews/students','/profile-reviews/teachers','/admin/password-requests','/admin/notifications','/admin/activity']],
   ['الإعلام والمشاركة', ['/announcements','/media-schedule','/media-activities','/donations']],
   ['الإعدادات والحساب', ['/users','/settings','/profile','/verify-profile','/about']],

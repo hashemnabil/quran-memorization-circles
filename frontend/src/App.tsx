@@ -39,6 +39,7 @@ import RecitationsPage from '@/pages/recitations/RecitationsPage';
 const ExamsPage = lazy(() => import('@/pages/exams/ExamsPage'));
 import TransfersPage from '@/pages/transfers/TransfersPage';
 import SuspensionsPage from '@/pages/suspensions/SuspensionsPage';
+const CommunityPage = lazy(() => import('@/pages/community/CommunityPage'));
 const ChatPage = lazy(() => import('@/pages/chat/ChatPage'));
 import NotificationsPage from '@/pages/NotificationsPage';
 import SupportPage from '@/pages/support/SupportPage';
@@ -299,6 +300,8 @@ export default function App() {
           }
         />
 
+        <Route path="community" element={<CommunityPage />} />
+        <Route path="community/users/:userId" element={<CommunityPage />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="chat/:id" element={<ChatPage />} />
         <Route path="notifications" element={<NotificationsPage />} />

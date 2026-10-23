@@ -1,3 +1,4 @@
+import { CommunityModule } from './community/community.module';
 import { PushModule } from './push/push.module';
 import { ProfileReviewsModule } from './profile-reviews/profile-reviews.module';
 import { HealthController } from './health.controller';
@@ -62,6 +63,7 @@ import { SchoolOperationsModule } from './school-operations/school-operations.mo
     ExamsModule,
     SupportModule,
     ChatModule,
+    CommunityModule,
     SettingsModule,
     DashboardModule,
     CoursesModule,

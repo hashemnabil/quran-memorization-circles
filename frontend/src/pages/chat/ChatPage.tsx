@@ -352,7 +352,7 @@ export default function ChatPage() {
                   online={active?.type === 'DIRECT' ? active?.isOnline : undefined}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-bold text-slate-800">{active?.title ?? 'محادثة'}</p>
+                  <button type="button" className="truncate font-bold text-slate-800 hover:underline" onClick={()=>isGroup?setPanel('members'):otherMember&&navigate('/community/users/'+otherMember.user.id)}>{active?.title ?? 'محادثة'}</button>
                   <p className="truncate text-[11px] text-slate-400">
                     {typingUsers.length
                       ? `${typingUsers.join('، ')} يكتب الآن...`
@@ -431,7 +431,7 @@ export default function ChatPage() {
 
                         <div className={cx('max-w-[75%] min-w-0', mine && 'items-end')}>
                           {showAuthor && (
-                            <p className="mb-1 text-[11px] font-bold text-slate-500">{message.sender.fullName}</p>
+                            <button type="button" onClick={()=>navigate('/community/users/'+message.sender.id)} className="mb-1 text-[11px] font-bold text-slate-500 hover:underline">{message.sender.fullName}</button>
                           )}
                           <div
                             className={cx(
@@ -566,6 +566,7 @@ function MembersModal({
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
 
   const refresh = () => {
@@ -619,10 +620,10 @@ function MembersModal({
               <li key={member.id} className="flex items-center gap-3 py-2.5">
                 <Avatar name={member.user.fullName} src={member.user.avatarUrl} size={38} preview />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-800">
+                  <button type="button" onClick={()=>{onClose();navigate('/community/users/'+member.user.id);}} className="truncate text-sm font-semibold text-slate-800 hover:underline">
                     {member.user.fullName}
                     {isSelf && <span className="mr-1 text-[11px] font-normal text-slate-400">(أنت)</span>}
-                  </p>
+                  </button>
                   <p className="text-[11px] text-slate-400">{ROLE_LABELS[member.user.role]}</p>
                 </div>
 

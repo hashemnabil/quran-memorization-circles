@@ -1,0 +1,28 @@
+import { useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { api, apiError } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
+import { Avatar, Button, Card, LoadingState, PageHeader } from '@/components/ui';
+
+type Person={id:string;fullName:string;nickname?:string|null;avatarUrl?:string|null;role:string};
+type Comment={id:string;body:string;user:Person};
+type Post={id:string;body:string;schoolPost:boolean;createdAt:string;author:Person;_count:{likes:number;comments:number};comments:Comment[]};
+export default function CommunityPage(){
+ const {userId}=useParams();const user=useAuthStore(s=>s.user)!;const qc=useQueryClient();
+ const [body,setBody]=useState('');const [comment,setComment]=useState<Record<string,string>>({});const [nickname,setNickname]=useState('');const [schoolPost,setSchoolPost]=useState(false);const [schoolOnly,setSchoolOnly]=useState(false);
+ const profile=useQuery({queryKey:['community','profile',userId],queryFn:async()=>(await api.get<Person>('/community/users/'+userId)).data,enabled:!!userId});
+ const feed=useQuery({queryKey:['community','feed',userId,schoolOnly],queryFn:async()=>(await api.get<Post[]>('/community/feed',{params:{...(userId?{userId}:{}),...(!userId&&schoolOnly?{school:'true'}:{})}})).data});
+ const follow=useQuery({queryKey:['community','follow'],queryFn:async()=>(await api.get<{following:boolean;count:number}>('/community/school/follow')).data});
+ const action=useMutation({mutationFn:async({path,data,method='post'}:{path:string;data?:unknown;method?:'post'|'patch'|'delete'})=>method==='delete'?api.delete(path):method==='patch'?api.patch(path,data):api.post(path,data),onSuccess:()=>{void qc.invalidateQueries({queryKey:['community']});},onError:e=>toast.error(apiError(e))});
+ if(userId&&profile.isLoading)return <LoadingState/>;
+ return <div className="space-y-5">
+  <PageHeader title={userId?(profile.data?.fullName??'الملف الشخصي'):'مجتمع المدرسة'} subtitle="منشورات نصية لأعضاء المدرسة"/>
+  <div className="flex flex-wrap gap-2"><Link to="/community" className="rounded-lg border px-3 py-2 text-sm">كل المنشورات</Link><Link to={'/community/users/'+user.id} className="rounded-lg border px-3 py-2 text-sm">ملفي العام</Link>{!userId&&<Button variant="secondary" onClick={()=>setSchoolOnly(!schoolOnly)}>{schoolOnly?'كل المنشورات':'صفحة المدرسة'}</Button>}</div>
+  {userId&&profile.data&&<Card><div className="flex items-center gap-3"><Avatar name={profile.data.fullName} src={profile.data.avatarUrl} size={56}/><div><h2 className="font-bold">{profile.data.fullName}</h2><p className="text-sm text-slate-500">{profile.data.nickname||'بدون كنية'} · {profile.data.role}</p></div></div>{userId===user.id&&<div className="mt-3 flex gap-2"><input className="input" maxLength={60} value={nickname} onChange={e=>setNickname(e.target.value)} placeholder="أضف كنيتك"/><Button onClick={()=>action.mutate({path:'/community/nickname',data:{nickname},method:'patch'})}>حفظ الكنية</Button></div>}</Card>}
+  {!userId&&<Card><h2 className="mb-2 font-bold">اكتب منشوراً</h2><textarea className="input w-full" rows={3} maxLength={2000} value={body} onChange={e=>setBody(e.target.value)} placeholder="بماذا تفكر؟ (نص فقط)"/>{user.role==='ADMIN'&&<label className="my-2 flex gap-2 text-sm"><input type="checkbox" checked={schoolPost} onChange={e=>setSchoolPost(e.target.checked)}/>نشر باسم المدرسة</label>}<Button disabled={!body.trim()||action.isPending} onClick={()=>{action.mutate({path:'/community/posts',data:{body,schoolPost}});setBody('');}}>نشر</Button></Card>}
+  {!userId&&schoolOnly&&<Card><div className="flex items-center justify-between"><strong>صفحة المدرسة الرسمية</strong><Button onClick={()=>action.mutate({path:'/community/school/follow'})}>{follow.data?.following?'إلغاء المتابعة':'متابعة'}</Button></div><p className="text-sm text-slate-500">{follow.data?.count??0} متابع</p></Card>}
+  {feed.isLoading?<LoadingState/>:feed.data?.map(post=><Card key={post.id}><div className="flex items-center gap-2"><Avatar name={post.author.fullName} src={post.author.avatarUrl} size={36}/><div><Link className="font-bold hover:underline" to={'/community/users/'+post.author.id}>{post.schoolPost?'المدرسة الرسمية':post.author.fullName}</Link><p className="text-xs text-slate-400">{new Date(post.createdAt).toLocaleString('ar')}</p></div></div><p className="my-3 whitespace-pre-wrap break-words">{post.body}</p><div className="flex gap-3 text-sm"><button onClick={()=>action.mutate({path:'/community/posts/'+post.id+'/like'})}>♡ إعجاب {post._count.likes}</button><span>تعليقات {post._count.comments}</span>{(post.author.id===user.id||user.role==='ADMIN')&&<button className="text-red-600" onClick={()=>{if(window.confirm('حذف المنشور؟'))action.mutate({path:'/community/posts/'+post.id,method:'delete'});}}>حذف</button>}</div>{post.comments.map(c=><div key={c.id} className="mt-2 rounded-lg bg-slate-50 p-2 text-sm"><Link className="font-bold" to={'/community/users/'+c.user.id}>{c.user.fullName}</Link> {c.body}</div>)}<div className="mt-3 flex gap-2"><input className="input flex-1" maxLength={500} value={comment[post.id]||''} onChange={e=>setComment({...comment,[post.id]:e.target.value})} placeholder="اكتب تعليقاً"/><Button disabled={!comment[post.id]?.trim()} onClick={()=>{action.mutate({path:'/community/posts/'+post.id+'/comments',data:{body:comment[post.id]}});setComment({...comment,[post.id]:''});}}>تعليق</Button></div></Card>)}
+ </div>;
+}

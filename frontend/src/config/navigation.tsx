@@ -46,6 +46,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'الرئيسية',
     items: [
       { to: '/', label: 'الرئيسية', icon: <IconDashboard size={19} />, roles: ALL },
+      { to: '/community', label: 'مجتمع المدرسة', icon: <IconChat size={19} />, roles: ALL },
     ],
   },
   {

@@ -11,6 +11,11 @@ export class CommunityController {
     const actor=await this.prisma.user.findUnique({where:{id:actorId},select:{fullName:true}});
     await this.prisma.notification.create({data:{userId:recipientId,type:NotificationType.SYSTEM,title:(actor?.fullName??'أحد الأعضاء')+' '+title,link}});
   }
+  @Get('school')
+  async school(){
+    const settings=await this.prisma.schoolSettings.findUnique({where:{id:'default'},select:{name:true,logoUrl:true,about:true,address:true,phone:true}});
+    return settings??{name:'صفحة المدرسة',logoUrl:null,about:null,address:null,phone:null};
+  }
   @Get('feed')
   feed(@Query('userId') userId?:string,@Query('school') school?:string){
     return this.prisma.communityPost.findMany({where:{...(userId?{authorId:userId,schoolPost:false}:{}),...(school==='true'?{schoolPost:true}:{})},orderBy:{createdAt:'desc'},take:100,include:{author:{select:{id:true,fullName:true,nickname:true,avatarUrl:true,role:true}},_count:{select:{likes:true,comments:true}},likes:{take:100,include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}}}},comments:{take:100,orderBy:{createdAt:'asc'},include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}},_count:{select:{likes:true}}}}}});

@@ -74,57 +74,76 @@ async function buildPrintableCertificate(studentName: string, title: string, kin
   if (!ctx) throw new Error('تعذر تجهيز نص الشهادة');
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  await drawSchoolPdfHeader(ctx, canvas);
+  // Reference certificate layout: fixed RTL text bands, shared by both styles.
+  // Draw all content on one canvas so the preview and issued PDF are identical.
+  const W = canvas.width, H = canvas.height;
+  const green = '#064b38', gold = '#bd9136';
   const certificateStyle = layout?.certificateStyle === 'modern' ? 'modern' : 'classic';
-  if (certificateStyle === 'modern') {
-    ctx.fillStyle = '#14543f';
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(canvas.width * 0.33, 0);
-    ctx.quadraticCurveTo(canvas.width * 0.12, canvas.height * 0.11, 0, canvas.height * 0.28);
-    ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(canvas.width, canvas.height);
-    ctx.lineTo(canvas.width * 0.68, canvas.height);
-    ctx.quadraticCurveTo(canvas.width * 0.90, canvas.height * 0.86, canvas.width, canvas.height * 0.72);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#c6a052'; ctx.lineWidth = 10;
-    ctx.beginPath(); ctx.moveTo(0, canvas.height * 0.29);
-    ctx.quadraticCurveTo(canvas.width * 0.12, canvas.height * 0.12, canvas.width * 0.34, 0);
-    ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(canvas.width * 0.66, canvas.height);
-    ctx.quadraticCurveTo(canvas.width * 0.89, canvas.height * 0.86, canvas.width, canvas.height * 0.71);
-    ctx.stroke();
-  }
-  ctx.strokeStyle = '#d8b86a';
-  ctx.lineWidth = 8;
-  ctx.strokeRect(28, 28, canvas.width - 56, canvas.height - 56);
-  ctx.strokeStyle = 'rgba(20, 84, 63, 0.22)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(44, 44, canvas.width - 88, canvas.height - 88);
+  const line = (x1: number, y1: number, x2: number, y2: number, color = gold, width = 2) => {
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = width;
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  };
+  const ribbon = (x: number, y: number, w: number, h: number) => {
+    ctx.fillStyle = '#faf7ed'; ctx.strokeStyle = gold; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x + 20, y); ctx.lineTo(x + w - 20, y);
+    ctx.lineTo(x + w, y + h / 2); ctx.lineTo(x + w - 20, y + h);
+    ctx.lineTo(x + 20, y + h); ctx.lineTo(x, y + h / 2); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  };
   if (certificateStyle === 'classic') {
-    ctx.strokeStyle = '#c6a052'; ctx.lineWidth = 3;
-    for (const [cx, cy, dx, dy] of [[68,68,1,1],[canvas.width-68,68,-1,1],[68,canvas.height-68,1,-1],[canvas.width-68,canvas.height-68,-1,-1]]) {
-      for (let i = 0; i < 3; i++) {
-        ctx.beginPath(); ctx.arc(cx + dx * i * 15, cy + dy * i * 15, 15 + i * 5, 0, Math.PI * 2); ctx.stroke();
-      }
+    ctx.strokeStyle = gold; ctx.lineWidth = 9; ctx.strokeRect(13, 13, W - 26, H - 26);
+    ctx.strokeStyle = green; ctx.lineWidth = 4; ctx.strokeRect(25, 25, W - 50, H - 50);
+    ctx.strokeStyle = gold; ctx.lineWidth = 2; ctx.strokeRect(35, 35, W - 70, H - 70);
+    for (const [x, y, sx, sy] of [[45,45,1,1],[W-45,45,-1,1],[45,H-45,1,-1],[W-45,H-45,-1,-1]]) {
+      ctx.save(); ctx.translate(x,y); ctx.scale(sx,sy);
+      for(let j=0;j<5;j++){ctx.strokeStyle=j%2?green:gold;ctx.lineWidth=3;
+        ctx.beginPath();ctx.ellipse(13+j*15,12+j*12,10,22,Math.PI/4,0,Math.PI*2);ctx.stroke();}
+      ctx.restore();
+    }
+  } else {
+    ctx.fillStyle = green;
+    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(W*.34,0);ctx.bezierCurveTo(W*.15,H*.05,W*.06,H*.21,0,H*.36);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(W,H);ctx.lineTo(W*.65,H);ctx.bezierCurveTo(W*.86,H*.92,W*.96,H*.75,W,H*.62);ctx.closePath();ctx.fill();
+    ctx.strokeStyle=gold;ctx.lineWidth=14;
+    ctx.beginPath();ctx.moveTo(0,H*.38);ctx.bezierCurveTo(W*.07,H*.18,W*.18,H*.08,W*.38,0);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(W*.62,H);ctx.bezierCurveTo(W*.84,H*.9,W*.95,H*.73,W,H*.58);ctx.stroke();
+  }
+  ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const fit = (text: string, x: number, y: number, maxWidth: number, size: number, minSize: number, weight = 'bold', color = green) => {
+    ctx.fillStyle = color;
+    let actual = size;
+    do { ctx.font = weight + ' ' + actual + 'px Tahoma, Arial, sans-serif'; if(ctx.measureText(text).width <= maxWidth || actual <= minSize) break; actual -= 2; } while(actual > minSize);
+    ctx.fillText(text, x, y, maxWidth);
+  };
+  // The school identity is positioned above the heading, never over it.
+  fit('مدرسة عبدالله بن عمر لتعليم القرآن الكريم والسنة النبوية', W*.5,H*.075,W*.61,29,18);
+  line(W*.40,H*.115,W*.60,H*.115);
+  fit('شهادة تقدير وإنجاز',W*.5,H*.205,W*.70,76,48);
+  fit('تمنح هذه الشهادة إلى',W*.5,H*.305,W*.60,29,20,'normal','#222222');
+  ribbon(W*.235,H*.35,W*.53,H*.105);
+  fit(studentName,W*.5,H*.402,W*.48,49,24);
+  fit('تقديرًا لجهوده المتميزة وإنجازه في',W*.5,H*.505,W*.70,27,18,'normal','#222222');
+  ribbon(W*.30,H*.55,W*.40,H*.09);
+  fit(kindLabels[kind] || kind,W*.5,H*.595,W*.35,35,20);
+  fit('وذلك تشجيعًا له لمواصلة الجد والاجتهاد، سائلين الله أن ينفعه بالعلم والعمل',W*.5,H*.69,W*.79,25,17,'normal','#222222');
+  // The title is user-supplied; show it as a secondary detail without displacing the reference text.
+  if (title && title !== 'شهادة إنجاز') fit(title,W*.5,H*.75,W*.66,22,16,'normal',green);
+  ctx.fillStyle = gold; ctx.beginPath();ctx.arc(W*.5,H*.865,H*.069,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#f5e6b5';ctx.lineWidth=4;ctx.beginPath();ctx.arc(W*.5,H*.865,H*.056,0,Math.PI*2);ctx.stroke();
+  fit('القرآن الكريم',W*.5,H*.865,W*.115,19,12,'bold','#fff9e8');
+  line(W*.15,H*.85,W*.35,H*.85);
+  fit('إدارة المدرسة',W*.25,H*.90,W*.20,24,16,'normal','#222222');
+  line(W*.67,H*.85,W*.85,H*.85);
+  fit('التاريخ',W*.76,H*.81,W*.15,22,16,'normal','#222222');
+  fit(date,W*.76,H*.90,W*.19,23,16,'bold','#222222');
+  // Custom texts remain supported but cannot move the fixed certificate labels.
+  for (const item of (layout?.customTexts ?? [])) {
+    if (item && typeof item.text === 'string' && item.text.trim()) {
+      const x = W * Math.min(95, Math.max(5, Number(item.x) || 50)) / 100;
+      const y = H * Math.min(95, Math.max(5, Number(item.y) || 50)) / 100;
+      fit(item.text, x, y, W*.8, Math.max(10, Math.min(56, Number(item.fontSize) || 18)), 10, item.bold ? 'bold' : 'normal', item.color || green);
     }
   }
-  ctx.direction = 'rtl';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#173d32';
-  const positions = layout?.positions ?? {};
-  const draw = (key: string, text: string, fallbackX: number, fallbackY: number, font: string, maxWidth = canvas.width * 0.86) => {
-    const pos = positions[key] ?? {};
-    const px = Number.isFinite(Number(pos.x)) ? Math.min(95, Math.max(5, Number(pos.x))) : fallbackX;
-    const py = Number.isFinite(Number(pos.y)) ? Math.min(95, Math.max(5, Number(pos.y))) : fallbackY;
-    ctx.font = font;
-    ctx.fillText(text, canvas.width * px / 100, canvas.height * py / 100, maxWidth);
-  };
-  draw('heading', 'شهادة تقدير وإنجاز', 50, 35, 'bold 34px Tahoma, Arial, sans-serif');
-  draw('intro', 'تُمنح هذه الشهادة إلى', 50, 44, '24px Tahoma, Arial, sans-serif');
-  draw('studentName', studentName, 50, 53, 'bold 38px Tahoma, Arial, sans-serif', canvas.width * 0.78);
-  draw('kind', 'وذلك تقديرًا لـ ' + (kindLabels[kind] || kind), 50, 63, '24px Tahoma, Arial, sans-serif');
-  draw('title', title, 50, 70, '19px Tahoma, Arial, sans-serif');
-  draw('date', 'التاريخ: ' + date, 50, 78, '19px Tahoma, Arial, sans-serif');
-  for (const item of (layout?.customTexts ?? [])) { if (item && typeof item.text === 'string' && item.text.trim()) { ctx.fillStyle = item.color || '#173d32'; ctx.font = (item.bold ? 'bold ' : '') + Math.max(8, Math.min(72, Number(item.fontSize) || 18)) + 'px Tahoma, Arial, sans-serif'; ctx.fillText(item.text, canvas.width * Math.min(95, Math.max(5, Number(item.x) || 50)) / 100, canvas.height * Math.min(95, Math.max(5, Number(item.y) || 50)) / 100, canvas.width * 0.9); } }
   const png = await pdf.embedPng(await new Promise<Uint8Array>((resolve, reject) => canvas.toBlob(async blob => {
     if (!blob) { reject(new Error('تعذر تجهيز صورة النص')); return; }
     resolve(new Uint8Array(await blob.arrayBuffer()));

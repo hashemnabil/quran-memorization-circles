@@ -49,6 +49,24 @@ export default function ChatPage() {
   const [panel, setPanel] = useState<'members' | 'settings' | null>(null);
   const [search, setSearch] = useState('');
   const [body, setBody] = useState('');
+  const [soundsEnabled,setSoundsEnabled]=useState(()=>localStorage.getItem('chat-sounds-enabled')!=='false');
+  const soundContext=useRef<AudioContext|null>(null);
+  const lastSound=useRef(0);
+  const playSound=(kind:'sent'|'received')=>{
+    if(!soundsEnabled||document.visibilityState!=='visible'||Date.now()-lastSound.current<180)return;
+    lastSound.current=Date.now();
+    try{
+      const ctx=soundContext.current??new AudioContext();soundContext.current=ctx;
+      if(ctx.state==='suspended')void ctx.resume();
+      const oscillator=ctx.createOscillator(),gain=ctx.createGain();
+      oscillator.type='sine';oscillator.frequency.value=kind==='sent'?750:540;
+      gain.gain.setValueAtTime(0.0001,ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.055,ctx.currentTime+0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.13);
+      oscillator.connect(gain);gain.connect(ctx.destination);
+      oscillator.start();oscillator.stop(ctx.currentTime+0.14);
+    }catch{/* Browsers may block audio until user interaction. */}
+  };
   const [editing, setEditing] = useState<ChatMessage | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
 
@@ -87,6 +105,7 @@ export default function ChatPage() {
   const send = useMutation({
     mutationFn: (text: string) => api.post(`/chat/conversations/${id}/messages`, { body: text }),
     onSuccess: () => {
+      playSound('sent');
       setBody('');
       queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
@@ -143,6 +162,10 @@ export default function ChatPage() {
           : prev.filter((n) => n !== p.fullName),
       );
     };
+    const onMessage=(message:ChatMessage)=>{
+      if(message.sender.id!==user.id&&message.conversationId===id)playSound('received');
+      queryClient.invalidateQueries({queryKey:['chat','messages',id]});
+    };
     const onEdited = () => queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
     const onRead = () => {
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', id] });
@@ -157,19 +180,21 @@ export default function ChatPage() {
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
     };
 
+    socket.on('chat:message',onMessage);
     socket.on('typing', onTyping);
     socket.on('chat:message-edited', onEdited);
     socket.on('chat:read', onRead);
     socket.on('chat:inbox', onInbox);
     socket.on('chat:conversation-updated', onConversationUpdated);
     return () => {
+      socket.off('chat:message',onMessage);
       socket.off('typing', onTyping);
       socket.off('chat:message-edited', onEdited);
       socket.off('chat:read', onRead);
       socket.off('chat:inbox', onInbox);
       socket.off('chat:conversation-updated', onConversationUpdated);
     };
-  }, [id, user.id, queryClient]);
+  }, [id, user.id, queryClient, soundsEnabled]);
 
   useEffect(() => {
     if (!editing) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -471,6 +496,10 @@ export default function ChatPage() {
                 </p>
               ) : (
                 <form onSubmit={submit} className="border-t border-slate-100 px-4 py-3">
+                  <label className="mb-2 flex items-center gap-2 text-xs text-slate-600">
+                    <input type="checkbox" checked={soundsEnabled} onChange={e=>{setSoundsEnabled(e.target.checked);localStorage.setItem('chat-sounds-enabled',String(e.target.checked));}}/>
+                    أصوات إرسال واستقبال الرسائل
+                  </label>
                   {editing && (
                     <div className="mb-2 flex items-center gap-2 rounded-lg bg-gold-50 px-3 py-2 text-xs text-gold-800">
                       <IconEdit size={14} />

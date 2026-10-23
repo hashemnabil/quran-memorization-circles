@@ -72,6 +72,7 @@ export default function ProfilePage() {
   return (
     <>
       <PageHeader title="الملف الشخصي" subtitle="بياناتك في النظام وإعدادات الحساب" />
+      <Link to="/community/users/me" className="inline-flex rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white">👤 افتح ملفي الشخصي العام ومنشوراتي</Link>
 
 
       <div className="grid gap-5 lg:grid-cols-3">

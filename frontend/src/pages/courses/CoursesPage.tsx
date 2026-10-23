@@ -181,7 +181,7 @@ export default function CoursesPage() {
 
       {isLoading ? (
         <LoadingState />
-      ) : error ? (
+      ) : error && !data ? (
         <ErrorState message={apiError(error, 'تعذر تحميل الدورات')} onRetry={refetch} />
       ) : courses.length === 0 ? (
         <EmptyState

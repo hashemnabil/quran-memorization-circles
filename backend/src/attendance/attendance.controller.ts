@@ -13,8 +13,20 @@ import {
 @ApiTags('الحضور والغياب')
 @ApiBearerAuth()
 @Controller('attendance')
+@Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT, Role.PARENT)
 export class AttendanceController {
   constructor(private readonly service: AttendanceService) {}
+
+  @Get('offline-bundle')
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
+  @ApiOperation({ summary: 'حزمة أولية محدودة الصلاحيات للاستخدام دون إنترنت في الحضور' })
+  offlineBundle(
+    @CurrentUser() user: AuthUser,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.offlineBundle(user, cursor, limit === undefined ? 500 : Number(limit));
+  }
 
   @Get('sheet')
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
@@ -70,6 +82,38 @@ export class AttendanceController {
   @ApiOperation({ summary: 'تسجيل حضور حلقة (إنشاء أو تحديث)' })
   record(@CurrentUser() user: AuthUser, @Body() dto: RecordAttendanceDto) {
     return this.service.record(user, dto);
+  }
+
+  @Get('absence-permissions')
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT)
+  absencePermissions(@CurrentUser() user: AuthUser) { return this.service.absencePermissions(user); }
+
+  @Post('absence-permissions')
+  @Roles(Role.SUPERVISOR, Role.TEACHER, Role.STUDENT)
+  createAbsencePermission(@CurrentUser() user: AuthUser, @Body() body: { studentId: string; date: string; reason: string }) {
+    return this.service.createAbsencePermission(user, body);
+  }
+
+  @Patch('absence-permissions/:id/approve')
+  @Roles(Role.ADMIN)
+  approveAbsencePermission(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { decisionNote?: string }) {
+    return this.service.decideAbsencePermission(user, id, true, body?.decisionNote);
+  }
+
+  @Patch('absence-permissions/:id/reject')
+  @Roles(Role.ADMIN)
+  rejectAbsencePermission(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { decisionNote?: string }) {
+    return this.service.decideAbsencePermission(user, id, false, body?.decisionNote);
+  }
+
+  @Get('summons')
+  @Roles(Role.ADMIN)
+  summons() { return this.service.listSummons(); }
+
+  @Post('summons')
+  @Roles(Role.ADMIN)
+  createSummons(@CurrentUser() user: AuthUser, @Body() body: { studentId: string; title: string; body: string }) {
+    return this.service.createSummons(user, body);
   }
 
   @Patch(':id')

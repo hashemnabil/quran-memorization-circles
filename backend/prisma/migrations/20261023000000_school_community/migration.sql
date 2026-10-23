@@ -1,0 +1,13 @@
+ALTER TABLE "users" ADD COLUMN "nickname" VARCHAR(60);
+CREATE TABLE "CommunityPost" ("id" TEXT NOT NULL,"authorId" TEXT NOT NULL,"body" VARCHAR(2000) NOT NULL,"schoolPost" BOOLEAN NOT NULL DEFAULT false,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "CommunityPost_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "CommunityLike" ("userId" TEXT NOT NULL,"postId" TEXT NOT NULL,CONSTRAINT "CommunityLike_pkey" PRIMARY KEY ("userId","postId"));
+CREATE TABLE "CommunityComment" ("id" TEXT NOT NULL,"userId" TEXT NOT NULL,"postId" TEXT NOT NULL,"body" VARCHAR(500) NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "CommunityComment_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "SchoolFollow" ("userId" TEXT NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "SchoolFollow_pkey" PRIMARY KEY ("userId"));
+CREATE INDEX "CommunityPost_createdAt_idx" ON "CommunityPost"("createdAt");
+CREATE INDEX "CommunityComment_postId_createdAt_idx" ON "CommunityComment"("postId","createdAt");
+ALTER TABLE "CommunityPost" ADD CONSTRAINT "CommunityPost_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CommunityLike" ADD CONSTRAINT "CommunityLike_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CommunityLike" ADD CONSTRAINT "CommunityLike_postId_fkey" FOREIGN KEY ("postId") REFERENCES "CommunityPost"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CommunityComment" ADD CONSTRAINT "CommunityComment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CommunityComment" ADD CONSTRAINT "CommunityComment_postId_fkey" FOREIGN KEY ("postId") REFERENCES "CommunityPost"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "SchoolFollow" ADD CONSTRAINT "SchoolFollow_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -3,7 +3,6 @@ import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
-import { PHONE_HINT, phoneError } from '@/lib/validation';
 import { useAuthStore } from '@/store/auth';
 import { StudentPhoto } from '@/components/StudentPhoto';
 import { ExamProgressionTable } from '@/pages/exams/ExamProgressionTable';
@@ -1256,7 +1255,6 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
     nationalId: student.nationalId ?? '',
     fatherNationalId: student.fatherNationalId ?? '',
     address: student.address ?? '',
-    phone: student.phone ?? '',
     guardianName: student.guardianName ?? student.parentName ?? student.parentProfile?.user.fullName ?? '',
     guardianPhone: student.guardianPhone ?? student.parentPhone ?? student.parentProfile?.phone ?? '',
     guardianRelation: student.guardianRelation ?? '',
@@ -1277,7 +1275,6 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
       const payload: Record<string, unknown> = isAdmin
         ? { ...form, circleId: form.circleId || null }
         : {
-            phone: form.phone,
             address: form.address,
             notes: form.notes,
             currentSurah: form.currentSurah,
@@ -1285,8 +1282,8 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
           };
       return api.patch(`/students/${student.id}`, payload);
     },
-    onSuccess: () => {
-      toast.success('تم تحديث بيانات الطالب');
+    onSuccess: (response) => {
+      toast.success(response.data?.synced === 0 ? 'تم حفظ التعديل على الجهاز؛ بانتظار إرساله للخادم' : 'تم تحديث بيانات الطالب');
       queryClient.invalidateQueries({ queryKey: ['students'] });
       onClose();
     },
@@ -1303,8 +1300,6 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
   const submit = () => {
     const next: Record<string, string> = {};
     if (!/^\d{1,9}$/.test(form.code)) next.code = 'رقم الطالب أرقام فقط وبحد أقصى 9 أرقام';
-    const phoneErr = phoneError(form.phone);
-    if (phoneErr) next.phone = phoneErr;
     setErrors(next);
     if (Object.values(next).some(Boolean)) return;
     mutation.mutate();
@@ -1362,10 +1357,9 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
             ))}
           </Select>
         )}
-        <Input label="جوال الطالب" value={form.phone} onChange={(e) => set('phone', e.target.value)} error={errors.phone} hint={PHONE_HINT} dir="ltr" />
         {isAdmin && (
           <>
-            <Input label="رقم هوية الأب" value={form.fatherNationalId} onChange={(e) => set('fatherNationalId', e.target.value)} dir="ltr" />
+            <Input label="رقم هوية ولي الأمر" value={form.fatherNationalId} onChange={(e) => set('fatherNationalId', e.target.value)} dir="ltr" />
             <Input label="اسم ولي الأمر" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />
             <Input label="جوال ولي الأمر" value={form.guardianPhone} onChange={(e) => set('guardianPhone', e.target.value)} dir="ltr" />
             <Input label="صلة القرابة" value={form.guardianRelation} onChange={(e) => set('guardianRelation', e.target.value)} />

@@ -49,6 +49,31 @@ export default function ChatPage() {
   const [panel, setPanel] = useState<'members' | 'settings' | null>(null);
   const [search, setSearch] = useState('');
   const [body, setBody] = useState('');
+  const [soundsEnabled,setSoundsEnabled]=useState(()=>localStorage.getItem('chat-sounds-enabled')!=='false');
+  const soundContext=useRef<AudioContext|null>(null);
+  const lastSound=useRef(0);
+  const playSound=(kind:'sent'|'received')=>{
+    if(!soundsEnabled||document.visibilityState!=='visible'||Date.now()-lastSound.current<180)return;
+    lastSound.current=Date.now();
+    try{
+      const ctx=soundContext.current??new AudioContext();soundContext.current=ctx;
+      if(ctx.state==='suspended')void ctx.resume();
+      // Two short, clear chimes. A stronger fundamental and a soft overtone
+      // are more audible on phone speakers than the previous quiet sine beep.
+      const notes=kind==='sent'?[{hz:880,at:0},{hz:1175,at:0.085}]:[{hz:660,at:0},{hz:880,at:0.095}];
+      for(const {hz,at} of notes){
+        const start=ctx.currentTime+at;
+        const oscillator=ctx.createOscillator(),gain=ctx.createGain();
+        oscillator.type='triangle';
+        oscillator.frequency.setValueAtTime(hz,start);
+        gain.gain.setValueAtTime(0.0001,start);
+        gain.gain.exponentialRampToValueAtTime(0.24,start+0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001,start+0.15);
+        oscillator.connect(gain);gain.connect(ctx.destination);
+        oscillator.start(start);oscillator.stop(start+0.16);
+      }
+    }catch{/* Browsers may block audio until user interaction. */}
+  };
   const [editing, setEditing] = useState<ChatMessage | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
 
@@ -59,7 +84,6 @@ export default function ChatPage() {
   const { data: conversations, isLoading: loadingList } = useQuery({
     queryKey: ['chat', 'conversations'],
     queryFn: async () => (await api.get<Conversation[]>('/chat/conversations')).data,
-    refetchInterval: 45000,
   });
 
   // The detail endpoint carries the member list and the moderation flags.
@@ -88,6 +112,7 @@ export default function ChatPage() {
   const send = useMutation({
     mutationFn: (text: string) => api.post(`/chat/conversations/${id}/messages`, { body: text }),
     onSuccess: () => {
+      playSound('sent');
       setBody('');
       queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
@@ -144,27 +169,39 @@ export default function ChatPage() {
           : prev.filter((n) => n !== p.fullName),
       );
     };
+    const onMessage=(message:ChatMessage)=>{
+      if(message.sender.id!==user.id&&message.conversationId===id)playSound('received');
+      queryClient.invalidateQueries({queryKey:['chat','messages',id]});
+    };
     const onEdited = () => queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
     const onRead = () => {
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['chat', 'unread'] });
+    };
+    const onInbox = (event: { conversationId: string }) => {
+      if (event.conversationId === id && document.visibilityState === 'visible') markRead.mutate(id!);
     };
     const onConversationUpdated = () => {
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
     };
 
+    socket.on('chat:message',onMessage);
     socket.on('typing', onTyping);
     socket.on('chat:message-edited', onEdited);
     socket.on('chat:read', onRead);
+    socket.on('chat:inbox', onInbox);
     socket.on('chat:conversation-updated', onConversationUpdated);
     return () => {
+      socket.off('chat:message',onMessage);
       socket.off('typing', onTyping);
       socket.off('chat:message-edited', onEdited);
       socket.off('chat:read', onRead);
+      socket.off('chat:inbox', onInbox);
       socket.off('chat:conversation-updated', onConversationUpdated);
     };
-  }, [id, user.id, queryClient]);
+  }, [id, user.id, queryClient, soundsEnabled]);
 
   useEffect(() => {
     if (!editing) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -322,7 +359,7 @@ export default function ChatPage() {
                   online={active?.type === 'DIRECT' ? active?.isOnline : undefined}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-bold text-slate-800">{active?.title ?? 'محادثة'}</p>
+                  <button type="button" className="truncate font-bold text-slate-800 hover:underline" onClick={()=>isGroup?setPanel('members'):otherMember&&navigate('/community/users/'+otherMember.user.id)}>{active?.title ?? 'محادثة'}</button>
                   <p className="truncate text-[11px] text-slate-400">
                     {typingUsers.length
                       ? `${typingUsers.join('، ')} يكتب الآن...`
@@ -401,7 +438,7 @@ export default function ChatPage() {
 
                         <div className={cx('max-w-[75%] min-w-0', mine && 'items-end')}>
                           {showAuthor && (
-                            <p className="mb-1 text-[11px] font-bold text-slate-500">{message.sender.fullName}</p>
+                            <button type="button" onClick={()=>navigate('/community/users/'+message.sender.id)} className="mb-1 text-[11px] font-bold text-slate-500 hover:underline">{message.sender.fullName}</button>
                           )}
                           <div
                             className={cx(
@@ -460,12 +497,16 @@ export default function ChatPage() {
               {active && !active.canPost ? (
                 <p className="flex items-center justify-center gap-2 border-t border-slate-100 px-4 py-4 text-center text-xs text-slate-500">
                   <IconLock size={14} />
-                  {active.isClosed
+                  {active.contactRestricted ? 'التواصل مع أعضاء هذه المحادثة غير متاح حسب صلاحياتك الحالية.' : active.isClosed
                     ? 'هذه المجموعة مغلقة، لا يمكن إرسال رسائل جديدة.'
                     : 'الإرسال في هذه المجموعة متاح لمشرفيها فقط.'}
                 </p>
               ) : (
                 <form onSubmit={submit} className="border-t border-slate-100 px-4 py-3">
+                  <label className="mb-2 flex items-center gap-2 text-xs text-slate-600">
+                    <input type="checkbox" checked={soundsEnabled} onChange={e=>{setSoundsEnabled(e.target.checked);localStorage.setItem('chat-sounds-enabled',String(e.target.checked));}}/>
+                    أصوات إرسال واستقبال الرسائل
+                  </label>
                   {editing && (
                     <div className="mb-2 flex items-center gap-2 rounded-lg bg-gold-50 px-3 py-2 text-xs text-gold-800">
                       <IconEdit size={14} />
@@ -532,6 +573,7 @@ function MembersModal({
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
 
   const refresh = () => {
@@ -585,10 +627,10 @@ function MembersModal({
               <li key={member.id} className="flex items-center gap-3 py-2.5">
                 <Avatar name={member.user.fullName} src={member.user.avatarUrl} size={38} preview />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-800">
+                  <button type="button" onClick={()=>{onClose();navigate('/community/users/'+member.user.id);}} className="truncate text-sm font-semibold text-slate-800 hover:underline">
                     {member.user.fullName}
                     {isSelf && <span className="mr-1 text-[11px] font-normal text-slate-400">(أنت)</span>}
-                  </p>
+                  </button>
                   <p className="text-[11px] text-slate-400">{ROLE_LABELS[member.user.role]}</p>
                 </div>
 

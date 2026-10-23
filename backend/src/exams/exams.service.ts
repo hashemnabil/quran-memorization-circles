@@ -20,6 +20,9 @@ import { ActivityService } from '../common/services/activity.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuthUser } from '../common/decorators';
 import { EVALUATION_LABELS, evaluationFromScore } from '../common/grading';
+import { calculateExamGrade } from './exam-scoring';
+import { combinedPlan } from './combined-plan';
+import { HistoricalExamDto } from './dto/exam.dto';
 import {
   HIZB_PER_JUZ,
   describeSections,
@@ -95,6 +98,7 @@ const REQUEST_INCLUDE = {
       id: true,
       code: true,
       fullName: true,
+      userId: true,
       memorizedParts: true,
       circle: {
         select: {
@@ -169,6 +173,7 @@ const REQUEST_INCLUDE = {
 } satisfies Prisma.ExamRequestInclude;
 
 const EXAM_INCLUDE = {
+  committee: true,
   student: {
     select: {
       id: true,
@@ -253,6 +258,53 @@ const EXAM_INCLUDE = {
 
 @Injectable()
 export class ExamsService {
+  async committeeGradingSettings(id:string){
+    const committee=await this.prisma.examCommittee.findUnique({where:{id},select:{mistakePenalty:true,alertPenalty:true}});
+    if(!committee)throw new NotFoundException('اللجنة غير موجودة');
+    return committee;
+  }
+  async updateCommitteeGradingSettings(actor:AuthUser,id:string,dto:{mistakePenalty:number;alertPenalty:number}){
+    if(actor.role!==Role.ADMIN&&actor.role!==Role.EXAM_COMMITTEE)throw new ForbiddenException('إعدادات اللجنة للمخولين فقط');
+    for(const value of [dto.mistakePenalty,dto.alertPenalty])if(typeof value!=='number'||!Number.isFinite(value)||value<0||value>90)throw new BadRequestException('قيمة الخصم غير صالحة');
+    const committee=await this.prisma.examCommittee.update({where:{id},data:{mistakePenalty:dto.mistakePenalty,alertPenalty:dto.alertPenalty},select:{mistakePenalty:true,alertPenalty:true}});
+    await this.activity.log({userId:actor.id,action:'COMMITTEE_GRADING_SETTINGS',entityType:'ExamCommittee',entityId:id,summary:'تعديل خصم الأخطاء والتنبيهات للجنة'});
+    return committee;
+  }
+  async gradingSettings() {
+    const settings=await this.prisma.schoolSettings.findUnique({where:{id:'default'}});
+    return {mistakePenalty:settings?.examMistakePenalty??1,alertPenalty:settings?.examAlertPenalty??0.5};
+  }
+  async updateGradingSettings(actor:AuthUser,dto:{mistakePenalty:number;alertPenalty:number}) {
+    if(actor.role!==Role.ADMIN)throw new ForbiddenException('الإعدادات للإدارة فقط');
+    for(const value of [dto.mistakePenalty,dto.alertPenalty]){
+      if(typeof value!=='number'||!Number.isFinite(value)||value<0||value>90)throw new BadRequestException('الخصم يجب أن يكون بين 0 و90');
+    }
+    const settings=await this.prisma.schoolSettings.upsert({where:{id:'default'},create:{id:'default',examMistakePenalty:dto.mistakePenalty,examAlertPenalty:dto.alertPenalty},update:{examMistakePenalty:dto.mistakePenalty,examAlertPenalty:dto.alertPenalty}});
+    await this.activity.log({userId:actor.id,action:'EXAM_GRADING_SETTINGS',summary:'تعديل خصم الأخطاء والتنبيهات'});
+    return {mistakePenalty:settings.examMistakePenalty,alertPenalty:settings.examAlertPenalty};
+  }
+  async recordHistorical(actor: AuthUser,dto: HistoricalExamDto) {
+    if(actor.role!==Role.ADMIN)throw new ForbiddenException('إدخال النتائج القديمة للإدارة فقط');
+    await this.acl.assertStudentWriteAccess(actor,dto.studentId);
+    const committee=await this.prisma.examCommittee.findUnique({where:{id:dto.committeeId}});
+    const section=await this.prisma.examSection.findUnique({where:{id:dto.sectionId}});
+    if(!committee||!section||committee.heldAt.getTime()>Date.now())throw new BadRequestException('اختر لجنة سابقة ومقررًا صالحًا');
+    if(dto.combinedStage&&!combinedPlan().some(row=>row.code===dto.combinedStage))throw new BadRequestException('مرحلة المجتمعة غير صالحة');
+    const penalties=await this.committeeGradingSettings(dto.committeeId);
+    const grading=dto.tajweed===undefined?undefined:calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,...penalties,tajweed:dto.tajweed});
+    const score=grading?.score??dto.score;const passed=score>=80;
+    const exam=await this.prisma.$transaction(async tx=>{
+      const row=await tx.exam.create({data:{studentId:dto.studentId,sectionId:dto.sectionId,committeeId:committee.id,combinedStage:dto.combinedStage,scheduledAt:committee.heldAt,location:committee.location,status:'COMPLETED',score,grading,evaluation:evaluationFromScore(score),result:passed?'PASSED':'FAILED',notes:dto.notes,gradedById:actor.id,gradedAt:new Date(),sections:{create:{sectionId:section.id}}},include:EXAM_INCLUDE});
+      if(!dto.combinedStage) {
+        const previous=await tx.examMilestoneRecord.findUnique({where:{studentId_sectionId:{studentId:dto.studentId,sectionId:section.id}}});
+        // A historical failure must never overwrite a later successful attempt.
+        if(!previous?.examDate||previous.examDate<=committee.heldAt)await tx.examMilestoneRecord.upsert({where:{studentId_sectionId:{studentId:dto.studentId,sectionId:section.id}},create:{studentId:dto.studentId,sectionId:section.id,status:'COMPLETED',score,result:passed?'PASSED':'FAILED',examDate:committee.heldAt,updatedById:actor.id},update:{status:'COMPLETED',score,result:passed?'PASSED':'FAILED',examDate:committee.heldAt,updatedById:actor.id}});
+      }
+      return row;
+    });
+    await this.notifications.notifyStudent(dto.studentId,{type:NotificationType.EXAM_RESULT,title:'تم تسجيل نتيجة اختبار سابق',body:`لجنة ${committee.number}: ${score} / 100`});
+    return exam;
+  }
   private readonly logger = new Logger(ExamsService.name);
   private sectionsCache: any[] | null = null;
   private sectionsCacheTime: number = 0;
@@ -279,6 +331,7 @@ export class ExamsService {
 
   private formatDateArabic(date: Date): string {
     return date.toLocaleString('ar-EG', {
+      timeZone: 'Asia/Riyadh',
       dateStyle: 'full',
       timeStyle: 'short',
     });
@@ -343,7 +396,7 @@ export class ExamsService {
         order: dto.order,
         kind: dto.kind ?? 'HIZB',
         isRequired: dto.isRequired ?? true,
-        minScore: dto.minScore ?? 60,
+        minScore: dto.minScore ?? 80,
         pagesCount: dto.pagesCount,
         description: dto.description,
       },
@@ -397,7 +450,7 @@ export class ExamsService {
     const completedScore = dto.status === 'COMPLETED' ? (dto.score ?? section.minScore) : null;
     const completedResult = completedScore === null
       ? null
-      : completedScore >= section.minScore ? ExamResult.PASSED : ExamResult.FAILED;
+      : completedScore >= 80 ? ExamResult.PASSED : ExamResult.FAILED;
     const examDate = dto.examDate ? this.parseDate(dto.examDate) : new Date();
 
     const saved = await this.prisma.$transaction(async (tx) => {
@@ -459,7 +512,6 @@ export class ExamsService {
     await this.acl.assertStudentAccess(user, studentId);
 
     // ✅ تشخيص المشكلة - سجل البيانات
-    this.logger.log(`🔍 جاري التحقق من أهلية الطالب: ${studentId}`);
 
     const [sections, passed, openWork] = await Promise.all([
       this.prisma.examSection.findMany({
@@ -523,9 +575,6 @@ export class ExamsService {
     ]);
 
     // ✅ تشخيص المشكلة - سجل النتائج
-    this.logger.log(`📊 عدد المقررات الكلي: ${sections.length}`);
-    this.logger.log(`📊 عدد الاختبارات المجتازة: ${passed.length}`);
-    this.logger.log(`📊 عدد الطلبات المفتوحة: ${openWork.length}`);
 
     // ✅ تأكد من أن passedIds تحتوي على المعرفات الصحيحة فقط
     const manualRecords = await this.prisma.examMilestoneRecord.findMany({
@@ -569,12 +618,10 @@ export class ExamsService {
     manualOpenIds.forEach((id) => openIds.add(id));
 
     // ✅ تشخيص المشكلة - سجل المعرفات
-    this.logger.log(`🧪 المعرفات المجتازة: ${Array.from(passedIds).join(', ') || 'لا يوجد'}`);
-    this.logger.log(`🧪 المعرفات المفتوحة: ${Array.from(openIds).join(', ') || 'لا يوجد'}`);
 
     // ✅ إذا كان هناك مقررات مجتازة ولكن الطالب لم يقدم أي اختبار، هذا يعني وجود خطأ
     if (passedIds.size > 0 && passed.length === 0) {
-      this.logger.warn(`⚠️ تحذير: يوجد ${passedIds.size} مقرر مجتاز ولكن لا يوجد اختبارات للطالب ${studentId}`);
+      this.logger.warn('Exam progression data needs administrative review');
     }
 
     const progression = sections.map((section) => {
@@ -630,7 +677,6 @@ export class ExamsService {
       }));
 
     // ✅ تشخيص المشكلة - سجل المقررات القابلة للاختيار
-    this.logger.log(`✅ المقررات المتاحة للاختيار: ${selectableSections.length}`);
 
     return {
       passedCount: passedIds.size,
@@ -695,7 +741,7 @@ export class ExamsService {
         result: ExamResult.PASSED,
         // ✅ تأكد من وجود درجة وأنها أعلى من الحد الأدنى
         score: {
-          gte: section.minScore,
+          gte: 80,
           not: null,
         },
         OR: [
@@ -827,10 +873,7 @@ export class ExamsService {
         this.assertEligible(studentId, section.id, index === 0),
       ));
     } catch (error) {
-      this.logger.error(
-        `خطأ في التحقق من أهلية الطالب ${studentId}: ${error.message}`,
-        error.stack,
-      );
+      this.logger.error('Exam eligibility validation failed');
       throw error;
     }
   }
@@ -855,13 +898,14 @@ export class ExamsService {
     const student = await this.acl.assertStudentWriteAccess(actor, dto.studentId);
     this.validateStudentStatus(student);
 
-    const sectionIds = [...new Set(dto.sectionIds ?? [])];
+    let sectionIds = [...new Set(dto.sectionIds ?? [])];
+    if (dto.combinedStage) sectionIds = await this.combinedSections(dto.studentId, dto.combinedStage);
     if (sectionIds.length === 0) {
       throw new BadRequestException('يجب تحديد حزب أو جزء أو مجتمعة واحد على الأقل من القائمة');
     }
 
     const sections = await this.fetchActiveSections(sectionIds);
-    await this.validateAllSectionsEligibility(dto.studentId, sections);
+    if (!dto.combinedStage) await this.validateAllSectionsEligibility(dto.studentId, sections);
     const label = this.sectionsLabel(sections);
 
     const primary = sections[0];
@@ -873,6 +917,7 @@ export class ExamsService {
         sectionId: primary.id,
         teacherId,
         note: dto.note,
+        combinedStage: dto.combinedStage,
         sections: {
           create: sections.map((section) => ({ sectionId: section.id })),
         },
@@ -895,6 +940,8 @@ export class ExamsService {
       entityId: request.id,
     });
 
+    await this.notifications.notify({ userId: actor.id, type: NotificationType.EXAM_REQUEST, title: 'تم تقديم الطلب', body: 'الطلب بانتظار المراجعة', link: `/exams/requests/${request.id}` });
+    if (request.studentId) await this.notifications.notifyStudent(request.studentId, { type: NotificationType.EXAM_REQUEST, title: 'تم تقديم طلب بخصوصك', body: 'الطلب بانتظار المراجعة', data: { requestId: request.id } });
     return request;
   }
 
@@ -904,6 +951,22 @@ export class ExamsService {
 
   private sectionsLabel(sections: { name: string; order: number }[]) {
     return `"${describeSections(sections)}"`;
+  }
+
+  private async combinedSections(studentId: string, code: string) {
+    const stage = combinedPlan().find(row => row.code === code);
+    if (!stage) throw new BadRequestException('مرحلة المجتمعة غير صالحة');
+    const completed = await this.prisma.exam.findMany({where:{studentId,status:'COMPLETED',result:'PASSED'},include:{section:true}});
+    const records = await this.prisma.examMilestoneRecord.findMany({where:{studentId,status:'COMPLETED',result:'PASSED'},include:{section:true}});
+    const passed = new Set([...records.map(row=>row.section.code), ...completed.filter(row=>!row.combinedStage).map(row=>row.section.code)]);
+    for (let juz=stage.fromJuz;juz<=stage.toJuz;juz++) if (!passed.has(`JUZ-${String(juz).padStart(2,'0')}`)) throw new BadRequestException('يجب اجتياز اختبارات الأجزاء المطلوبة قبل المجتمعة');
+    if (stage.prerequisite && !completed.some(row=>row.combinedStage===stage.prerequisite)) throw new BadRequestException('يجب اجتياز مرحلة المجتمعة السابقة أولًا');
+    if (await this.prisma.examRequest.count({where:{studentId,combinedStage:code,status:{in:['PENDING','SCHEDULED']}}})) throw new ConflictException('يوجد طلب مفتوح لهذه المجتمعة');
+    if (completed.some(row=>row.combinedStage===code)) throw new ConflictException('اجتاز الطالب هذه المجتمعة بالفعل');
+    const codes = Array.from({length:stage.toJuz-stage.fromJuz+1},(_,index)=>`JUZ-${String(stage.fromJuz+index).padStart(2,'0')}`);
+    const sections = await this.prisma.examSection.findMany({where:{code:{in:codes},isActive:true}});
+    if (sections.length!==codes.length) throw new BadRequestException('مقررات الأجزاء غير مكتملة؛ راجع الإدارة');
+    return sections.map(row=>row.id);
   }
 
   private examLabel(exam: {
@@ -917,6 +980,7 @@ export class ExamsService {
   }
 
   private requestLabel(request: any) {
+    if(request.combinedStage)return combinedPlan().find(row=>row.code===request.combinedStage)?.label||'مجتمعة';
     const manual: string[] = [];
     if (request.requestedHizb != null) manual.push(`حزب ${request.requestedHizb}`);
     if (request.requestedJuz != null) manual.push(`جزء ${request.requestedJuz}`);
@@ -981,6 +1045,14 @@ export class ExamsService {
     return paginate(data, total, query.page, query.limit);
   }
 
+  async updateRequestNote(actor: AuthUser, id: string, dto: {note:string}) {
+    const request = await this.prisma.examRequest.findUnique({where:{id}});
+    if (!request) throw new NotFoundException('طلب الاختبار غير موجود');
+    if (request.status !== ExamRequestStatus.PENDING) throw new BadRequestException('لا يمكن تعديل طلب بعد جدولته');
+    if (actor.role !== Role.ADMIN && actor.teacherId !== request.teacherId) throw new ForbiddenException('لا يمكنك تعديل هذا الطلب');
+    return this.prisma.examRequest.update({where:{id},data:{note:dto.note.trim()||null},include:REQUEST_INCLUDE});
+  }
+
   async findRequest(user: AuthUser, id: string) {
     const request = await this.prisma.examRequest.findUnique({
       where: { id },
@@ -1035,6 +1107,7 @@ export class ExamsService {
       link: `/exams/requests/${id}`,
     });
 
+    await this.notifications.notifyStudent(request.studentId, { type: NotificationType.EXAM_REQUEST, title: 'تم رفض طلب الاختبار', body: dto.reviewNote, data: { requestId: id } });
     return updated;
   }
 
@@ -1063,7 +1136,7 @@ export class ExamsService {
       throw new ForbiddenException('يمكن إلغاء الطلب من قبل المعلم صاحب الطلب أو اللجنة');
     }
 
-    return this.prisma.examRequest.update({
+    const updated = await this.prisma.examRequest.update({
       where: { id },
       data: {
         status: ExamRequestStatus.CANCELLED,
@@ -1072,6 +1145,10 @@ export class ExamsService {
       },
       include: REQUEST_INCLUDE,
     });
+    await this.notifications.notifyMany([updated.teacher.user.id], { type: NotificationType.EXAM_REQUEST, title: 'تم إلغاء طلب الاختبار', link: `/exams/requests/${id}` });
+    await this.notifications.notifyRoles([Role.ADMIN, Role.EXAM_COMMITTEE], { type: NotificationType.EXAM_REQUEST, title: 'إلغاء طلب اختبار', link: `/exams/requests/${id}` });
+    await this.notifications.notifyStudent(updated.studentId, { type: NotificationType.EXAM_REQUEST, title: 'تم إلغاء طلب الاختبار' });
+    return updated;
   }
 
   // ==========================================================================
@@ -1086,6 +1163,12 @@ export class ExamsService {
   ) {
     const when = this.formatDateArabic(scheduledAt);
     const notificationPromises: Promise<any>[] = [];
+
+    if (request.student.userId) notificationPromises.push(this.notifications.notify({
+      userId: request.student.userId, type: NotificationType.EXAM_SCHEDULED,
+      title: 'تم تحديد موعد اختبارك', body: `اختبارك في "${this.requestLabel(request)}" بتاريخ ${when}`,
+      link: '/student', data: { examId: exam.id, scheduledAt: scheduledAt.toISOString() },
+    }));
 
     if (request.teacher?.user?.id) {
       notificationPromises.push(
@@ -1140,7 +1223,9 @@ export class ExamsService {
       throw new BadRequestException('هذا الطلب ليس في قائمة الانتظار');
     }
 
-    const scheduledAt = this.parseDate(dto.scheduledAt);
+    const committee = await this.prisma.examCommittee.findUnique({where:{id:dto.committeeId}});
+    if (!committee) throw new BadRequestException('اختر لجنة اختبار صحيحة');
+    const scheduledAt = this.parseDate(committee.heldAt.toISOString());
 
     if (scheduledAt.getTime() < Date.now() - 60 * 60 * 1000) {
       throw new BadRequestException('لا يمكن جدولة اختبار في الماضي');
@@ -1154,11 +1239,13 @@ export class ExamsService {
       const created = await tx.exam.create({
         data: {
           requestId,
+          committeeId: committee.id,
+          combinedStage: request.combinedStage,
           studentId: request.studentId,
           sectionId: request.sectionId,
           examinerId: dto.examinerId || null,
           scheduledAt,
-          location: dto.location,
+          location: committee.location,
           notes: dto.notes,
           sections: {
             create: (request.sections.length
@@ -1218,13 +1305,16 @@ export class ExamsService {
     if (dto.examinerId) {
       await this.assertExaminer(dto.examinerId);
     }
+    const destination = dto.committeeId ? await this.prisma.examCommittee.findUnique({where:{id:dto.committeeId}}) : null;
+    if (dto.committeeId && !destination) throw new NotFoundException('اللجنة الجديدة غير موجودة');
 
     const updated = await this.prisma.exam.update({
       where: { id },
       data: {
-        scheduledAt: dto.scheduledAt ? this.parseDate(dto.scheduledAt) : undefined,
+        scheduledAt: dto.scheduledAt ? this.parseDate(dto.scheduledAt) : destination?.heldAt,
+        committeeId: destination?.id,
         examinerId: dto.examinerId,
-        location: dto.location,
+        location: dto.location ?? destination?.location,
         status: dto.status,
         notes: dto.notes,
       },
@@ -1240,6 +1330,18 @@ export class ExamsService {
       });
     }
 
+    if (dto.status === ExamStatus.CANCELLED && exam.status !== ExamStatus.CANCELLED) {
+      await this.notifications.notifyStudent(updated.studentId, { type: NotificationType.EXAM_REQUEST,
+        title: 'تم إلغاء اختبارك', body: dto.notes, data: { examId: updated.id } });
+      if (updated.request?.teacher?.user?.id) await this.notifications.notify({ userId: updated.request.teacher.user.id,
+        type: NotificationType.EXAM_REQUEST, title: 'تم إلغاء الاختبار', link: `/exams/${id}` });
+    }
+
+    if ((dto.scheduledAt || dto.location !== undefined) && updated.status === ExamStatus.SCHEDULED) {
+      await this.notifications.notifyStudent(updated.studentId, { type: NotificationType.EXAM_SCHEDULED,
+        title: 'تم تعديل موعد اختبارك', body: `موعد اختبارك الجديد: ${this.formatDateArabic(updated.scheduledAt)}${updated.location ? ` — ${updated.location}` : ''}`,
+        data: { examId: updated.id, scheduledAt: updated.scheduledAt.toISOString() } });
+    }
     return updated;
   }
 
@@ -1270,6 +1372,7 @@ export class ExamsService {
         score: dto.score,
         evaluation,
         mistakes: dto.mistakes ?? null,
+        grading: dto.tajweed !== undefined ? calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,mistakePenalty:dto.mistakePenalty??1,alertPenalty:dto.alertPenalty??0.5,tajweed:dto.tajweed}) : undefined,
         result: passed ? ExamResult.PASSED : ExamResult.FAILED,
         status: ExamStatus.COMPLETED,
         notes: dto.notes,
@@ -1372,6 +1475,8 @@ export class ExamsService {
       });
     }
 
+    const studentAccount = await this.prisma.student.findUnique({ where: { id: exam.studentId }, select: { userId: true } });
+    if (studentAccount?.userId) recipients.push({ userId: studentAccount.userId, link: '/student' });
     const seen = new Set<string>();
     const notificationPromises: Promise<any>[] = [];
 
@@ -1399,6 +1504,15 @@ export class ExamsService {
   }
 
   async recordResult(actor: AuthUser, id: string, dto: RecordResultDto) {
+    if (dto.tajweed !== undefined) {
+      const target=await this.prisma.exam.findUnique({where:{id},select:{committeeId:true}});
+      if(!target)throw new NotFoundException('الاختبار غير موجود');
+      const penalties=target.committeeId?await this.committeeGradingSettings(target.committeeId):await this.gradingSettings();
+      dto.mistakePenalty=penalties.mistakePenalty;
+      dto.alertPenalty=penalties.alertPenalty;
+      try { dto.score = calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,...penalties,tajweed:dto.tajweed}).score; }
+      catch { throw new BadRequestException('قيمة رصد العلامات غير صالحة'); }
+    }
     const exam = await this.prisma.exam.findUnique({
       where: { id },
       include: EXAM_INCLUDE,
@@ -1413,7 +1527,7 @@ export class ExamsService {
     const examSections = exam.sections.length
       ? exam.sections.map((entry) => entry.section)
       : [exam.section];
-    if (examSections.length > 1) {
+    if (examSections.length > 1 && !exam.combinedStage && dto.tajweed === undefined) {
       if (!dto.sectionScores || dto.sectionScores.length !== examSections.length) {
         throw new BadRequestException('يجب إدخال علامة مستقلة لكل حزب وجزء في الاختبار المجمع');
       }
@@ -1428,11 +1542,11 @@ export class ExamsService {
       section,
       score: scoreBySection.get(section.id) ?? dto.score,
     }));
-    const overallScore = sectionScores.length > 1
-      ? Math.round(sectionScores.reduce((sum, entry) => sum + entry.score, 0) / sectionScores.length)
+    const overallScore = sectionScores.length > 1 && dto.tajweed === undefined
+      ? Math.round(sectionScores.reduce((sum, entry) => sum + entry.score, 0) / sectionScores.length * 100) / 100
       : dto.score;
     const resultDto = { ...dto, score: overallScore };
-    const passed = overallScore >= exam.section.minScore;
+    const passed = overallScore >= 80;
     const evaluation = evaluationFromScore(overallScore);
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -1445,8 +1559,8 @@ export class ExamsService {
         actor,
       );
 
-      for (const entry of sectionScores) {
-        const sectionPassed = entry.score >= entry.section.minScore;
+      for (const entry of exam.combinedStage ? [] : sectionScores) {
+        const sectionPassed = entry.score >= 80;
         await tx.examMilestoneRecord.upsert({
           where: { studentId_sectionId: { studentId: exam.studentId, sectionId: entry.section.id } },
           create: {
@@ -1528,6 +1642,8 @@ export class ExamsService {
       });
     }
 
+    await this.notifications.notifyStudent(exam.studentId, { type: NotificationType.EXAM_RESULT,
+      title: 'تم تسجيل غيابك عن الاختبار', data: { examId: id } });
     return updated;
   }
 
@@ -1539,6 +1655,7 @@ export class ExamsService {
     const scope = await this.acl.studentScope(user);
 
     const where: Prisma.ExamWhereInput = {
+      ...(query.committeeId ? {committeeId:query.committeeId} : {}),
       student: {
         ...scope,
         deletedAt: null,

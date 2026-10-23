@@ -3,9 +3,26 @@ dist
 build
 .env
 .env.local
-uploads
+/uploads/
+/backend/uploads/
 *.log
 .DS_Store
 Thumbs.db
 .idea
 .vscode
+
+# Environment files and local secrets
+.env*
+!.env.example
+.evn
+**/google-services.json
+# Firebase Android client config contains non-secret project identifiers.
+!/frontend/android/app/google-services.json
+**/GoogleService-Info.plist
+*service-account*.json
+*.p8
+*.jks
+*.keystore
+*.p12
+keystore.properties
+.release-signing/

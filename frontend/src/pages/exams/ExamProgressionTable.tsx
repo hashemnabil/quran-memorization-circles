@@ -5,13 +5,14 @@ import { api, apiError } from '@/lib/api';
 import { Badge, Card, EmptyState, LoadingState } from '@/components/ui';
 import { formatDateShort } from '@/lib/format';
 import type { Exam, ExamEligibility } from '@/types';
+import { combinedPlan, type CombinedStage } from '@/lib/combined-plan';
 
 type ExamRow = Exam & { scheduledAt: string; examiner?: { fullName: string } | null; gradedBy?: { fullName: string } | null };
 type MilestoneRecord = { id: string; sectionId: string; status: 'NOT_REQUESTED' | 'REQUESTED' | 'SCHEDULED' | 'COMPLETED'; score: number | null; requestedAt: string | null; examDate: string | null; examinerName: string | null; section: { id: string; code: string; name: string; order: number } };
-type ExamRequestRow = { id: string; createdAt: string; status: 'PENDING' | 'SCHEDULED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED'; sectionId: string; section: { id: string; code: string }; sections?: { section: { id: string; code: string } }[] };
+type ExamRequestRow = { id: string; combinedStage?: string | null; createdAt: string; status: 'PENDING' | 'SCHEDULED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED'; sectionId: string; section: { id: string; code: string }; sections?: { section: { id: string; code: string } }[] };
 
 function sequence() {
-  const rows: { key: string; label: string; kind: 'HIZB' | 'JUZ'; number: number }[] = [];
+  const rows: { key: string; label: string; kind: 'HIZB' | 'JUZ' | 'COMBINED'; number: number; stage?: CombinedStage }[] = [];
   for (let hizb = 60, juz = 30; hizb >= 1; ) {
     rows.push({ key: `HIZB-${String(hizb).padStart(2, '0')}`, label: `حزب ${hizb}`, kind: 'HIZB', number: hizb });
     hizb--;
@@ -20,6 +21,7 @@ function sequence() {
       hizb--;
     }
     rows.push({ key: `JUZ-${String(juz).padStart(2, '0')}`, label: `جزء ${juz}`, kind: 'JUZ', number: juz });
+    for (const stage of combinedPlan().filter(stage => stage.at === 31 - juz)) rows.push({ key: stage.code, label: stage.label, kind: 'COMBINED', number: juz, stage });
     juz--;
   }
   return rows;
@@ -49,7 +51,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
   });
   const requests = requestsQuery.data?.data ?? [];
   const submitSectionRequest = useMutation({
-    mutationFn: (sectionId: string) => api.post('/exams/requests', { studentId, sectionIds: [sectionId] }),
+    mutationFn: (codeOrSection: string) => api.post('/exams/requests', combinedPlan().some(stage => stage.code === codeOrSection) ? { studentId, combinedStage: codeOrSection } : { studentId, sectionIds: [codeOrSection] }),
     onSuccess: async () => {
       toast.success('تم تقديم طلب الاختبار وتحديث حالة المقرر');
       await Promise.all([
@@ -90,7 +92,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
     return all.map((item) => {
       const section = progression.find((s) => s.code === item.key);
       const related = exams.filter((exam) =>
-        exam.section?.code === item.key || exam.sections?.some((entry) => entry.section.code === item.key),
+        item.stage ? exam.combinedStage === item.key : !exam.combinedStage && (exam.section?.code === item.key || exam.sections?.some((entry) => entry.section.code === item.key)),
       ).sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())[0];
       const record = records.find((entry) => entry.section.code === item.key);
       // Use the newest request for this section. Old rejected/cancelled requests
@@ -98,7 +100,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
       const request = [...requests]
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .find((entry) =>
-          entry.section?.code === item.key || entry.sections?.some((part) => part.section.code === item.key),
+          item.stage ? entry.combinedStage === item.key : !entry.combinedStage && (entry.section?.code === item.key || entry.sections?.some((part) => part.section.code === item.key)),
         );
       // The live request/exam is authoritative. Manual milestone rows can be stale
       // (e.g. NOT_REQUESTED after a request, or REQUESTED after scheduling).
@@ -106,12 +108,19 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
       const liveActive = related?.status === 'SCHEDULED' || request?.status === 'PENDING' || request?.status === 'SCHEDULED';
       const passed = liveCompleted
         ? related?.result === 'PASSED'
-        : liveActive ? false : record ? record.status === 'COMPLETED' : Boolean(section?.isPassed);
+        : liveActive ? false : record ? record.status === 'COMPLETED' && record.score != null && record.score >= 80 : Boolean(section?.isPassed);
       const pending = related?.status === 'SCHEDULED' || request?.status === 'SCHEDULED' ||
         (!related && request?.status !== 'PENDING' && record?.status === 'SCHEDULED');
       const requested = !pending && !liveCompleted &&
         (request?.status === 'PENDING' || (!request && record?.status === 'REQUESTED'));
-      const currentUnlocked = previousRequiredPassed;
+      const currentUnlocked = item.stage
+        ? Array.from({ length: item.stage.toJuz - item.stage.fromJuz + 1 }, (_, index) =>
+          `JUZ-${String(item.stage!.fromJuz + index).padStart(2, '0')}`).every(code =>
+            progression.some(section => section.code === code && section.isPassed) ||
+            records.some(record => record.section.code === code && record.status === 'COMPLETED' && record.score != null && record.score >= 80) ||
+            exams.some(exam => !exam.combinedStage && exam.status === 'COMPLETED' && exam.result === 'PASSED' && exam.section?.code === code)) &&
+          (!item.stage.prerequisite || exams.some(exam => exam.combinedStage === item.stage!.prerequisite && exam.status === 'COMPLETED' && exam.result === 'PASSED'))
+        : previousRequiredPassed;
       // The next row is available only when this row has actually been passed.
       previousRequiredPassed = passed;
       return { ...item, section, related, record, request, passed, pending, requested, unlocked: currentUnlocked };
@@ -120,9 +129,9 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
 
   if (loading) return <LoadingState rows={5} />;
   return (
-    <Card title="تسلسل اختبارات الأحزاب والأجزاء" padded={false}>
+    <Card title="تسلسل اختبارات الأحزاب والأجزاء والمجمّعة" padded={false}>
       <div className="border-b border-slate-100 px-5 py-3 text-xs leading-6 text-slate-500">
-        التسلسل: حزبين ثم جزء، بدءًا من الحزب ٦٠ والجزء ٣٠ نزولًا. العلامة محفوظة لكل عنصر حتى عند طلب التسميع مجتمعة.
+        التسلسل: حزبين ثم جزء، بدءًا من الحزب ٦٠ والجزء ٣٠ نزولًا. يمكنك طلب اختبار المجمّعة بعد اجتياز الأجزاء المطلوبة والمجمّعة السابقة، من زر طلب اختبار في نفس الجدول.
       </div>
       <div className="table-wrap border-0 shadow-none">
         <table className="table">
@@ -131,20 +140,20 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
             {rows.map((row) => {
               const record = row.record;
               const groupedExam = (row.related?.sections?.length ?? 0) > 1;
-              const score = record ? record.score : row.section?.score ?? (groupedExam ? null : row.related?.score);
+              const score = record ? record.score : row.section?.score ?? (groupedExam && !row.stage ? null : row.related?.score);
               const completed = row.related?.status === 'COMPLETED' || row.related?.status === 'ABSENT' || (!row.related && record?.status === 'COMPLETED');
               const status = completed || row.passed ? 'تم الاختبار' : row.pending ? 'محدد / قيد الاختبار' : row.requested ? 'طُلب اختبار' : row.unlocked ? 'لم يُطلب اختبار' : 'مقفل بالتسلسل';
               return <tr key={row.key}>
-                <td className="font-medium">{row.label}</td>
+                <td className={`font-medium ${row.stage ? 'bg-emerald-50 text-emerald-900' : ''}`}>{row.label}</td>
                 <td><Badge className={row.passed ? 'bg-emerald-100 text-emerald-800' : row.pending ? 'bg-blue-100 text-blue-800' : row.unlocked ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'}>{status}</Badge></td>
                 <td className="numeric">{score == null ? '—' : score}</td>
                 <td className="numeric">{row.related?.scheduledAt ? formatDateShort(row.related.scheduledAt) : record?.examDate ? formatDateShort(record.examDate) : record?.requestedAt ? formatDateShort(record.requestedAt) : '—'}</td>
                 <td>{row.related?.examiner?.fullName || row.related?.gradedBy?.fullName || record?.examinerName || '—'}</td>
-                {canRequest && !canEditMilestones && <td>{row.section && row.unlocked && !row.passed && !row.pending && !row.requested ? <button className="btn btn-primary btn-sm" disabled={submitSectionRequest.isPending} onClick={() => submitSectionRequest.mutate(row.section!.id)}>طلب اختبار</button> : <span className="text-xs text-slate-400">{row.passed ? 'مجتاز' : row.pending || row.requested ? 'طلب قائم' : 'حسب التسلسل'}</span>}</td>}
+                {canRequest && !canEditMilestones && <td>{(row.section || row.stage) && row.unlocked && !row.passed && !row.pending && !row.requested ? <button className="btn btn-primary btn-sm" disabled={submitSectionRequest.isPending} onClick={() => submitSectionRequest.mutate(row.stage?.code || row.section!.id)}>طلب اختبار</button> : <span className="text-xs text-slate-400">{row.passed ? 'مجتاز' : row.pending || row.requested ? 'طلب قائم' : 'حسب التسلسل'}</span>}</td>}
                 {canEditMilestones && <td>
                   <div className="flex flex-wrap items-start gap-1">
-                  {canRequest && row.section && row.unlocked && !row.passed && !row.pending && !row.requested && <button className="btn btn-primary btn-sm" disabled={submitSectionRequest.isPending} onClick={() => submitSectionRequest.mutate(row.section!.id)}>طلب</button>}
-                  {editing === row.key ? (
+                  {canRequest && (row.section || row.stage) && row.unlocked && !row.passed && !row.pending && !row.requested && <button className="btn btn-primary btn-sm" disabled={submitSectionRequest.isPending} onClick={() => submitSectionRequest.mutate(row.stage?.code || row.section!.id)}>طلب</button>}
+                  {row.stage ? <span className="text-xs text-slate-500">تُرصد النتيجة من ملف اللجنة</span> : editing === row.key ? (
                     <div className="min-w-56 space-y-1">
                       <select className="form-input w-full" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}>
                         <option value="NOT_REQUESTED">لم يُطلب اختبار</option><option value="REQUESTED">طُلب اختبار</option><option value="SCHEDULED">محدد / قيد الاختبار</option><option value="COMPLETED">تم الاختبار</option>

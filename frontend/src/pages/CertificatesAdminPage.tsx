@@ -4,6 +4,7 @@ import JSZip from 'jszip';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
+import { drawSchoolPdfHeader } from '@/lib/pdf-branding';
 import { Button, Card, Input, LoadingState, PageHeader } from '@/components/ui';
 
 const kinds: Record<string,string> = { JUZ_COMPLETION:'إنجاز جزء', QURAN_COMPLETION:'ختم المصحف', TAJWEED_COURSE:'نجاح في دورة أحكام', SHARIA_COURSE:'نجاح في دورة شريعة', COURSE_COMPLETION:'نجاح في دورة مخصصة', HONOR:'تكريم' };
@@ -72,6 +73,13 @@ async function buildPrintableCertificate(studentName: string, title: string, kin
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('تعذر تجهيز نص الشهادة');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  await drawSchoolPdfHeader(ctx, canvas);
+  ctx.strokeStyle = '#d8b86a';
+  ctx.lineWidth = 8;
+  ctx.strokeRect(28, 28, canvas.width - 56, canvas.height - 56);
+  ctx.strokeStyle = 'rgba(20, 84, 63, 0.22)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(44, 44, canvas.width - 88, canvas.height - 88);
   ctx.direction = 'rtl';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#173d32';
@@ -119,6 +127,7 @@ async function buildMonthlyReportPdf(student: any, from: string, to: string, tem
   canvas.height = Math.max(950, Math.round(height * 2));
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('تعذر تجهيز التقرير');
+  await drawSchoolPdfHeader(ctx, canvas, { compact: true });
   ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.fillStyle = '#173d32';
   const x = canvas.width / 2;
   const lines: Array<[string, number, string]> = [

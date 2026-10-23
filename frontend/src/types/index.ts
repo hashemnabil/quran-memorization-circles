@@ -438,6 +438,7 @@ export interface ExamEligibility {
 }
 
 export interface ExamRequest {
+  combinedStage?: string | null;
   id: string;
   status: ExamRequestStatus;
   requestedHizb?: number | null;
@@ -463,6 +464,10 @@ export interface ExamRequest {
 }
 
 export interface Exam {
+  combinedStage?: string | null;
+  committeeId?: string | null;
+  committee?: {id:string;number:string;heldAt:string;location:string;members:{name:string;userId?:string|null}[]} | null;
+  grading?: {mistakes:number;alerts:number;mistakePenalty:number;alertPenalty:number;tajweed:number;recitation:number;score:number} | null;
   id: string;
   scheduledAt: string;
   location?: string | null;
@@ -537,6 +542,7 @@ export interface ChatMember {
 }
 
 export interface Conversation {
+  contactRestricted?: boolean;
   id: string;
   type: 'DIRECT' | 'GROUP';
   title: string;
@@ -586,6 +592,18 @@ export interface SchoolSettings {
   whatsapp?: string | null;
   website?: string | null;
   academicYear?: string | null;
+  donationsEnabled?: boolean;
+  donationTitle?: string | null;
+  donationDescription?: string | null;
+  donationGoalAmount?: number | null;
+  donationRaisedAmount?: number | null;
+  donationCurrency?: string | null;
+  donationMethod?: string | null;
+  donationLink?: string | null;
+    donationBankPalestine?: string | null;
+    donationIslamicBank?: string | null;
+    donationJawwal?: string | null;
+    donationPalPay?: string | null;
 }
 
 export interface ActivityEntry {

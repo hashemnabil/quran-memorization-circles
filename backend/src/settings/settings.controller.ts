@@ -33,6 +33,13 @@ export class SettingsController {
     return this.service.publicInfo();
   }
 
+  @Get('donations')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'معلومات حملة التبرعات للمستخدمين المسجلين' })
+  donations() {
+    return this.service.donationInfo();
+  }
+
   @Get()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'إعدادات المدرسة' })
@@ -66,10 +73,10 @@ export class SettingsController {
   async uploadLogo(@CurrentUser() user: AuthUser, @UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('لم يتم اختيار ملف');
     const previous = (await this.service.get()).logoUrl;
-    const { url, provider } = await this.uploads.upload(file, 'logos');
+    const { url, provider } = await this.uploads.upload(file, 'logos', user.id);
     await this.service.update(user, { logoUrl: url });
     // The replaced logo is nothing's business any more; drop the file too.
-    await this.uploads.removeIfReplaced(previous, url);
+    await this.uploads.removeIfReplaced(previous, url, '*');
     return { logoUrl: url, provider };
   }
 
@@ -80,7 +87,7 @@ export class SettingsController {
   async removeLogo(@CurrentUser() user: AuthUser) {
     const previous = (await this.service.get()).logoUrl;
     await this.service.update(user, { logoUrl: null });
-    await this.uploads.remove(previous);
+    await this.uploads.remove(previous, '*');
     return { logoUrl: null };
   }
 }

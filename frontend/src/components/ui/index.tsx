@@ -3,6 +3,8 @@ import {
   useContext,
   useEffect,
   useState,
+  useRef,
+  useId,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -12,6 +14,7 @@ import {
 import { createPortal } from 'react-dom';
 import { IconAlert, IconChevronLeft, IconChevronRight, IconSearch, IconX } from './Icons';
 import { initials } from '@/lib/format';
+import { useCachedImage } from '@/hooks/useCachedImage';
 
 export function cx(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(' ');
@@ -55,11 +58,11 @@ export function Card({
 }) {
   return (
     <section className={cx('card', className)}>
-      {(title || action) && (
+      {(title || subtitle || action) && (
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div className="min-w-0">
             {title && <h2 className="text-base font-bold text-slate-800">{title}</h2>}
-            {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
+            {subtitle && <p className="mt-1 text-xs leading-6 text-slate-500">{subtitle}</p>}
           </div>
           {action}
         </header>
@@ -101,8 +104,8 @@ export function StatCard({
     <Wrapper
       onClick={onClick}
       className={cx(
-        'card card-hover flex items-center gap-4 p-4 text-right w-full',
-        onClick && 'cursor-pointer',
+        'card flex items-center gap-4 p-4 text-right w-full',
+        onClick && 'card-hover cursor-pointer',
       )}
     >
       {icon && (
@@ -113,7 +116,7 @@ export function StatCard({
       <span className="min-w-0 flex-1">
         <span className="block text-xs font-semibold text-slate-500">{label}</span>
         <span className="mt-0.5 block text-2xl font-extrabold text-slate-800 numeric">{value}</span>
-        {hint && <span className="mt-0.5 block text-[11px] text-slate-400">{hint}</span>}
+        {hint && <span className="mt-1 block text-xs leading-5 text-slate-500">{hint}</span>}
       </span>
     </Wrapper>
   );
@@ -122,6 +125,7 @@ export function StatCard({
 // --- Form controls ----------------------------------------------------------
 
 interface FieldProps {
+  htmlFor?: string;
   label?: string;
   error?: string;
   hint?: string;
@@ -130,6 +134,7 @@ interface FieldProps {
 }
 
 export function Field({
+  htmlFor,
   label,
   error,
   hint,
@@ -140,12 +145,11 @@ export function Field({
   return (
     <div className={className}>
       {label && (
-        <label className="label">
+        <label htmlFor={htmlFor} className="label">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
       {children}
-      {hint && !error && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
       {error && <p className="form-error">{error}</p>}
     </div>
   );
@@ -159,9 +163,14 @@ export function Input({
   className,
   ...props
 }: FieldProps & InputHTMLAttributes<HTMLInputElement>) {
+  const generatedId = useId();
+  const controlId = props.id || generatedId;
   return (
-    <Field label={label} error={error} hint={hint} required={required} className={className}>
-      <input {...props} className={cx('input', error && 'border-red-300 focus:border-red-400')} />
+    <Field htmlFor={controlId} label={label} error={error} hint={hint} required={required} className={className}>
+      <input {...props} id={controlId} className={cx('input', error && 'border-red-300 focus:border-red-400')} />
+      {props.type === 'password' && props.autoComplete !== 'current-password' && String(props.value ?? '').length > 0 && (
+        <p className="mt-1 text-xs" aria-live="polite">قوة كلمة المرور: {String(props.value).length < 6 ? 'ضعيفة' : String(props.value).length < 10 ? 'متوسطة' : 'قوية'}</p>
+      )}
     </Field>
   );
 }
@@ -174,11 +183,14 @@ export function Textarea({
   className,
   ...props
 }: FieldProps & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const generatedId = useId();
+  const controlId = props.id || generatedId;
   return (
-    <Field label={label} error={error} hint={hint} required={required} className={className}>
+    <Field htmlFor={controlId} label={label} error={error} hint={hint} required={required} className={className}>
       <textarea
         rows={3}
         {...props}
+        id={controlId}
         className={cx('input resize-y', error && 'border-red-300 focus:border-red-400')}
       />
     </Field>
@@ -194,9 +206,11 @@ export function Select({
   children,
   ...props
 }: FieldProps & SelectHTMLAttributes<HTMLSelectElement>) {
+  const generatedId = useId();
+  const controlId = props.id || generatedId;
   return (
-    <Field label={label} error={error} hint={hint} required={required} className={className}>
-      <select {...props} className={cx('input appearance-none pl-9 bg-left bg-no-repeat', error && 'border-red-300')}
+    <Field htmlFor={controlId} label={label} error={error} hint={hint} required={required} className={className}>
+      <select {...props} id={controlId} className={cx('input appearance-none pl-9 bg-left bg-no-repeat', error && 'border-red-300')}
         style={{
           backgroundImage:
             "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
@@ -264,6 +278,7 @@ export function Button({
     <button
       {...props}
       disabled={props.disabled || loading}
+      aria-busy={loading || undefined}
       className={cx(variants[variant], size === 'sm' && 'btn-sm', className)}
     >
       {loading ? <Spinner size={16} /> : icon}
@@ -305,16 +320,35 @@ export function Modal({
   footer?: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  const titleId = useId();
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') || []).filter(element => element.getClientRects().length > 0);
+    const frame = requestAnimationFrame(() => (focusable()[0] || dialogRef.current)?.focus());
+    const onKey = (e: KeyboardEvent) => {
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      if (dialogs[dialogs.length - 1] !== dialogRef.current) return;
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeRef.current(); }
+      if (e.key !== 'Tab') return;
+      const elements = focusable(); const first = elements[0]; const last = elements[elements.length - 1];
+      if (!first) { e.preventDefault(); dialogRef.current?.focus(); }
+      else if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     return () => {
+      cancelAnimationFrame(frame);
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -326,13 +360,16 @@ export function Modal({
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
+        ref={dialogRef}
+        tabIndex={-1}
         className={cx(
-          'relative z-10 w-full rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl animate-slide-up',
+          'app-dialog relative z-10 w-full rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl animate-slide-up',
           sizes[size],
         )}
       >
         <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h3 className="text-base font-bold text-slate-800">{title}</h3>
+          <h3 id={titleId} className="text-base font-bold text-slate-800">{title}</h3>
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
@@ -341,7 +378,7 @@ export function Modal({
             <IconX size={18} />
           </button>
         </header>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="app-dialog-body max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
         {footer && (
           <footer className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
             {footer}
@@ -489,16 +526,17 @@ export function Avatar({
   // A broken or removed file falls back to the initials rather than leaving the
   // browser's torn-image placeholder in a circle.
   const [failed, setFailed] = useState(false);
+  const cachedSrc = useCachedImage(src);
   const [open, setOpen] = useState(false);
-  useEffect(() => setFailed(false), [src]);
+  useEffect(() => setFailed(false), [src, cachedSrc]);
 
-  const showImage = !!src && !failed;
+  const showImage = !!cachedSrc && !failed;
 
   return (
     <span className={cx('relative inline-block shrink-0', className)} style={{ width: size, height: size }}>
       {showImage ? (
         <img
-          src={src!}
+          src={cachedSrc!}
           alt={name ?? ''}
           loading="lazy"
           onError={() => setFailed(true)}
@@ -527,7 +565,7 @@ export function Avatar({
           style={{ width: size * 0.28, height: size * 0.28 }}
         />
       )}
-      {open && <Lightbox src={src!} alt={name ?? ''} onClose={() => setOpen(false)} />}
+      {open && <Lightbox src={cachedSrc!} alt={name ?? ''} onClose={() => setOpen(false)} />}
     </span>
   );
 }
@@ -710,13 +748,13 @@ export function PageHeader({
   breadcrumb?: ReactNode;
 }) {
   return (
-    <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+    <header className="page-heading mb-5 flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
         {breadcrumb && <div className="mb-1 text-xs text-slate-400">{breadcrumb}</div>}
         <h1 className="text-xl font-extrabold text-slate-800 sm:text-2xl">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+        {subtitle && <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-500">{subtitle}</p>}
       </div>
-      {action && <div className="flex flex-wrap gap-2">{action}</div>}
+      {action && <div className="page-heading-actions flex flex-wrap gap-2">{action}</div>}
     </header>
   );
 }

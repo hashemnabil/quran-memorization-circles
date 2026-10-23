@@ -198,6 +198,7 @@ model User {
   fullName     String
   role         Role
   phone        String?
+  nickname     String?   @db.VarChar(60)
   avatarUrl    String?
   /// Unified staff directory fields — filled for teachers, supervisors,
   /// administrators and exam-committee members alike.
@@ -223,6 +224,14 @@ model User {
   conversationsCreated Conversation[]        @relation("ConversationCreator")
   conversationMembers  ConversationMember[]
   messages             Message[]
+  communityPosts CommunityPost[]
+  communityLikes CommunityLike[]
+  communityComments CommunityComment[]
+  schoolFollow SchoolFollow?
+  communityStoryReplies CommunityStoryReply[]
+  communityStories CommunityStory[]
+  communityStoryViews CommunityStoryView[]
+  communityCommentLikes CommunityCommentLike[]
   ticketsCreated       SupportTicket[]       @relation("TicketCreator")
   ticketsAssigned      SupportTicket[]       @relation("TicketAssignee")
   ticketMessages       TicketMessage[]
@@ -236,6 +245,9 @@ model User {
   examsExamined        Exam[]                @relation("ExamExaminer")
   evaluationsSet       StudentEvaluation[]   @relation("EvaluationAuthor")
   studentNotes         StudentNote[]
+  absencePermissionsRequested AbsencePermissionRequest[] @relation("AbsencePermissionRequester")
+  absencePermissionsDecided AbsencePermissionRequest[] @relation("AbsencePermissionDecider")
+  guardianSummonsIssued GuardianSummons[] @relation("GuardianSummonIssuer")
 
   staffAttendance         StaffAttendance[]      @relation("StaffAttendanceSubject")
   staffAttendanceRecorded StaffAttendance[]      @relation("StaffAttendanceRecorder")
@@ -440,6 +452,8 @@ model Student {
   surahCompletions  SurahCompletion[]
   certificates CertificateRecord[]
   fileRequests StudentFileRequest[]
+  absencePermissions AbsencePermissionRequest[]
+  guardianSummons GuardianSummons[]
 
   @@index([circleId])
   @@index([parentId])
@@ -522,6 +536,42 @@ model Attendance {
   @@index([date])
   @@index([status])
   @@map("attendance")
+}
+
+model AbsencePermissionRequest {
+  id           String        @id @default(uuid())
+  studentId    String
+  requesterId  String
+  date         DateTime      @db.Date
+  reason       String
+  status       RequestStatus @default(PENDING)
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  requester    User          @relation("AbsencePermissionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  decidedBy    User?         @relation("AbsencePermissionDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, date])
+  @@index([status, date])
+  @@index([requesterId, createdAt])
+  @@map("absence_permission_requests")
+}
+
+model GuardianSummons {
+  id         String   @id @default(uuid())
+  studentId  String
+  issuedById String
+  title      String
+  body       String
+  createdAt  DateTime @default(now())
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  issuedBy   User     @relation("GuardianSummonIssuer", fields: [issuedById], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+  @@map("guardian_summons")
 }
 
 model Recitation {
@@ -654,7 +704,7 @@ model ExamSection {
   kind        ExamSectionKind @default(JUZ)
   isRequired  Boolean  @default(true)
   pagesCount  Int?
-  minScore    Int      @default(60)
+  minScore    Int      @default(80)
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -678,7 +728,7 @@ model ExamMilestoneRecord {
   sectionId   String
   status      ExamMilestoneStatus @default(NOT_REQUESTED)
   result      ExamResult?
-  score       Int?
+  score       Float?
   requestedAt DateTime?
   examDate    DateTime?
   examinerName String?
@@ -734,6 +784,7 @@ model ExamRequest {
   requestedHizb     Int?
   requestedJuz      Int?
   requestedCombined Int?
+  combinedStage String?
   reviewedById String?
   reviewedAt DateTime?
   reviewNote String?
@@ -760,9 +811,12 @@ model Exam {
   examinerId  String?
   scheduledAt DateTime
   location    String?
+  committeeId String?
+  grading     Json?
+  combinedStage String?
   status      ExamStatus  @default(SCHEDULED)
   /// Grade out of 100; compared against the section's `minScore` to decide the result.
-  score       Int?
+  score       Float?
   /// Derived from `score` by the school's grading scale — never chosen by hand.
   /// Stored rather than computed on read so an official result cannot change
   /// retroactively if the scale is ever adjusted.
@@ -782,11 +836,44 @@ model Exam {
   examiner User?        @relation("ExamExaminer", fields: [examinerId], references: [id], onDelete: SetNull)
   gradedBy User?        @relation("ExamGrader", fields: [gradedById], references: [id], onDelete: SetNull)
   sections ExamSectionOnExam[]
+  committee ExamCommittee? @relation(fields: [committeeId], references: [id], onDelete: SetNull)
 
   @@index([studentId, status])
   @@index([scheduledAt])
   @@index([status])
+  @@index([committeeId])
   @@map("exams")
+}
+
+model Meeting {
+  id          String @id @default(uuid())
+  title       String
+  heldAt      DateTime
+  attendees   Json
+  sections    Json
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([heldAt])
+  @@map("meetings")
+}
+
+model ExamCommittee {
+  mistakePenalty Float @default(1)
+  alertPenalty Float @default(0.5)
+  id          String @id @default(uuid())
+  number      String @unique
+  heldAt      DateTime
+  location    String
+  members     Json
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  exams       Exam[]
+  @@index([heldAt])
+  @@map("exam_committees")
 }
 
 // ---------------------------------------------------------------------------
@@ -848,6 +935,8 @@ model Notification {
   id        String           @id @default(uuid())
   userId    String
   type      NotificationType
+  pushQueuedAt DateTime?
+  pushDeliveries PushDelivery[]
   title     String
   body      String?
   link      String?
@@ -860,7 +949,56 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
+  @@index([pushQueuedAt, createdAt])
   @@map("notifications")
+}
+
+model ProfileReview {
+  id String @id @default(uuid())
+  kind String
+  subjectId String
+  requesterId String
+  patch Json
+  base Json
+  status String @default("PENDING")
+  reason String?
+  reviewedById String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([requesterId, createdAt])
+  @@index([kind, status, createdAt])
+  @@map("profile_reviews")
+}
+
+model PushDevice {
+  id String @id @default(uuid())
+  installationId String @unique
+  userId String
+  platform String
+  token String @unique
+  enabled Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deliveries PushDelivery[]
+  @@index([userId, enabled])
+  @@map("push_devices")
+}
+
+model PushDelivery {
+  id String @id @default(uuid())
+  notificationId String
+  deviceId String
+  status String @default("PENDING")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  lastError String?
+  createdAt DateTime @default(now())
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  device PushDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  @@unique([notificationId, deviceId])
+  @@index([status, nextAttemptAt])
+  @@map("push_deliveries")
 }
 
 // ---------------------------------------------------------------------------
@@ -930,8 +1068,10 @@ model Message {
 // ---------------------------------------------------------------------------
 
 model SchoolSettings {
+  examMistakePenalty Float @default(1)
+  examAlertPenalty Float @default(0.5)
   id           String   @id @default("default")
-  name         String   @default("حلقات تحفيظ القرآن الكريم")
+  name         String   @default("مدرسة عبدالله بن عمر")
   mosqueName   String?
   logoUrl      String?
   phone        String?
@@ -946,6 +1086,18 @@ model SchoolSettings {
   whatsapp     String?
   website      String?
   academicYear String?
+  donationsEnabled Boolean @default(false)
+  donationTitle String?
+  donationDescription String?
+  donationGoalAmount Int?
+  donationRaisedAmount Int?
+  donationCurrency String?
+  donationMethod String?
+  donationLink String?
+    donationBankPalestine String?
+    donationIslamicBank String?
+    donationJawwal String?
+    donationPalPay String?
   updatedAt    DateTime @updatedAt
 
   @@map("school_settings")
@@ -1292,4 +1444,160 @@ model MediaActivity {
   @@index([activityDate])
   @@index([type, activityDate])
   @@map("media_activities")
+}
+
+
+// ---------------------------------------------------------------------------
+// Durable change log for cross-device synchronization. Never store credentials
+// or token material in this log; the database trigger uses a denylist as defense
+// in depth and sync APIs must still project entity-specific allowlists.
+// ---------------------------------------------------------------------------
+model SyncChange {
+  seq        BigInt   @id @default(autoincrement())
+  entity     String
+  entityId   String
+  operation  String
+  payload    Json?
+  changedAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([entity, entityId, seq])
+  @@index([seq])
+  @@map("sync_changes")
+}
+
+/// Server-side idempotency ledger. The composite key is scoped to the account.
+model ProcessedOperation {
+  opId       String   @db.VarChar(128)
+  accountId  String
+  result     Json?
+  processedAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([opId, accountId])
+  @@index([accountId, processedAt])
+  @@map("processed_operations")
+}
+
+
+// Administration-owned editorial calendar. Not exposed to media-team roles.
+model MediaPlan {
+  id        String   @id @default(uuid())
+  date      DateTime @db.Date
+  day       String
+  activity  String
+  idea      String
+  content   String
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@map("media_plans")
+}
+
+// Multiple teachers can be assigned to one duty date.
+model TeacherDuty {
+  id        String   @id @default(uuid())
+  date      DateTime @db.Date
+  day       String
+  note      String?
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  assignments TeacherDutyAssignment[]
+
+  @@index([date])
+  @@map("teacher_duties")
+}
+
+// Reminder flags are persisted to avoid duplicate notifications on restarts.
+model TeacherDutyAssignment {
+  id         String @id @default(uuid())
+  dutyId     String
+  teacherUserId String
+  assignedNotifiedAt DateTime?
+  dayBeforeNotifiedAt DateTime?
+  morningNotifiedAt DateTime?
+  duty TeacherDuty @relation(fields: [dutyId], references: [id], onDelete: Cascade)
+
+  @@unique([dutyId, teacherUserId])
+  @@index([teacherUserId])
+  @@map("teacher_duty_assignments")
+}
+
+model CommunityPost {
+  id String @id @default(uuid())
+  authorId String
+  body String @db.VarChar(2000)
+  schoolPost Boolean @default(false)
+  createdAt DateTime @default(now())
+  author User @relation(fields:[authorId],references:[id],onDelete:Cascade)
+  likes CommunityLike[]
+  comments CommunityComment[]
+  @@index([createdAt])
+}
+model CommunityLike {
+  userId String
+  postId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  post CommunityPost @relation(fields:[postId],references:[id],onDelete:Cascade)
+  @@id([userId,postId])
+}
+model CommunityComment {
+  id String @id @default(uuid())
+  userId String
+  postId String
+  body String @db.VarChar(500)
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  post CommunityPost @relation(fields:[postId],references:[id],onDelete:Cascade)
+  likes CommunityCommentLike[]
+  parentId String?
+  parent CommunityComment? @relation("CommentReplies",fields:[parentId],references:[id],onDelete:Cascade)
+  replies CommunityComment[] @relation("CommentReplies")
+  @@index([postId,createdAt])
+}
+model SchoolFollow {
+  userId String @id
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+}
+
+model CommunityCommentLike {
+  userId String
+  commentId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  comment CommunityComment @relation(fields:[commentId],references:[id],onDelete:Cascade)
+  @@id([userId,commentId])
+}
+model CommunityStory {
+  id String @id @default(uuid())
+  authorId String
+  body String @db.VarChar(500)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  schoolStory Boolean @default(false)
+  replies CommunityStoryReply[]
+  author User @relation(fields:[authorId],references:[id],onDelete:Cascade)
+  views CommunityStoryView[]
+  @@index([expiresAt])
+}
+model CommunityStoryView {
+  storyId String
+  userId String
+  liked Boolean @default(false)
+  viewedAt DateTime @default(now())
+  story CommunityStory @relation(fields:[storyId],references:[id],onDelete:Cascade)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@id([storyId,userId])
+}
+
+model CommunityStoryReply {
+  id String @id @default(uuid())
+  storyId String
+  userId String
+  body String @db.VarChar(500)
+  createdAt DateTime @default(now())
+  story CommunityStory @relation(fields:[storyId],references:[id],onDelete:Cascade)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([storyId,createdAt])
 }

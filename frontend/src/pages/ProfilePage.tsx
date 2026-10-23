@@ -1,10 +1,13 @@
-import { ChangeEvent, FormEvent, useRef, useState } from 'react';
+import { passwordError } from '@/lib/validation';
+import { NativePushSettings } from '@/components/NativePush';
+import { Link } from 'react-router-dom';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
-import { Avatar, Badge, Button, Card, Input, PageHeader, Spinner, StatCard, Textarea } from '@/components/ui';
+import { Avatar, Badge, Button, Card, Input, Modal, PageHeader, Spinner, StatCard, Textarea } from '@/components/ui';
 import { PHONE_HINT, emailError, phoneError } from '@/lib/validation';
 import {
   IconCamera,
@@ -16,9 +19,10 @@ import {
 } from '@/components/ui/Icons';
 import { EMPLOYMENT_LABELS, ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateTime, formatParts } from '@/lib/format';
+import { rememberOfflineLogin } from '@/lib/offline-login';
 
 export default function ProfilePage() {
-  const { user, logout, setUser } = useAuthStore();
+  const { user, logout, forgetDevice, setUser } = useAuthStore();
   const navigate = useNavigate();
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -36,7 +40,11 @@ export default function ProfilePage() {
   });
 
   const changePassword = useMutation({
-    mutationFn: () => api.patch('/auth/change-password', { currentPassword, newPassword }),
+    mutationFn: async () => {
+      const result = await api.patch('/auth/change-password', { currentPassword, newPassword });
+      if (user) await rememberOfflineLogin(user.username, newPassword, { ...user, mustChangePassword: false });
+      return result;
+    },
     onSuccess: async () => {
       toast.success('تم تغيير كلمة المرور، يرجى تسجيل الدخول مجدداً');
       await logout();
@@ -51,7 +59,7 @@ export default function ProfilePage() {
     e.preventDefault();
     const next: Record<string, string> = {};
     if (!currentPassword) next.currentPassword = 'كلمة المرور الحالية مطلوبة';
-    if (newPassword.length < 6) next.newPassword = 'كلمة المرور الجديدة 6 أحرف على الأقل';
+    if (passwordError(newPassword)) next.newPassword = passwordError(newPassword);
     if (newPassword !== confirmPassword) next.confirmPassword = 'كلمتا المرور غير متطابقتين';
     if (newPassword && newPassword === currentPassword) next.newPassword = 'يجب أن تختلف عن الحالية';
     setErrors(next);
@@ -64,6 +72,7 @@ export default function ProfilePage() {
   return (
     <>
       <PageHeader title="الملف الشخصي" subtitle="بياناتك في النظام وإعدادات الحساب" />
+      <Link to="/community/users/me" className="inline-flex rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white">👤 افتح ملفي الشخصي العام ومنشوراتي</Link>
 
 
       <div className="grid gap-5 lg:grid-cols-3">
@@ -102,12 +111,18 @@ export default function ProfilePage() {
             className="mt-5 w-full"
             icon={<IconLogout size={16} />}
             onClick={async () => {
-              await logout();
-              navigate('/login', { replace: true });
+              try { await logout(); navigate('/login', { replace: true }); }
+              catch (error) { toast.error(apiError(error)); }
             }}
           >
             تسجيل الخروج
           </Button>
+            <p className="mt-2 text-xs leading-6 text-slate-500">تبقى بياناتك مشفرة على الجهاز، ويمكنك الدخول بكلمة مرورك دون نت. التعديلات المعلقة تبقى محفوظة.</p>
+            <Button variant="secondary" className="mt-3 w-full" onClick={async () => {
+              if (!window.confirm('حذف بيانات هذا الحساب من هذا الجهاز وإلغاء الدخول دون نت؟ لا يمكن الحذف بوجود تعديلات غير مزامنة.')) return;
+              try { await forgetDevice(); navigate('/login', { replace: true }); } catch (error) { toast.error(apiError(error)); }
+            }}>حذف بيانات الحساب من هذا الجهاز</Button>
+          <Link to="/account-deletion" className="mt-3 block py-3 text-center text-sm font-bold text-red-700">طلب حذف الحساب والبيانات</Link>
         </Card>
 
         <div className="space-y-5 lg:col-span-2">
@@ -162,8 +177,9 @@ export default function ProfilePage() {
             </Card>
           )}
 
-          <ProfileDetailsCard profile={profile} onUpdated={setUser} />
+          {['STUDENT', 'TEACHER'].includes(user.role) ? <Card title="بياناتي الشخصية"><Button onClick={() => navigate('/verify-profile')}>تحقق من بياناتي</Button></Card> : <ProfileDetailsCard profile={profile} onUpdated={setUser} />}
 
+          <NativePushSettings />
           <Card title="تغيير كلمة المرور" subtitle="سيتم إنهاء جميع جلساتك بعد التغيير">
             <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
               <Input
@@ -183,7 +199,7 @@ export default function ProfilePage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 error={errors.newPassword}
-                hint="6 أحرف على الأقل"
+                hint="أي طول تختاره"
                 dir="ltr"
               />
               <Input
@@ -230,31 +246,35 @@ function AvatarUploader({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-
-  const pick = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    // Reset immediately so choosing the same file twice still fires a change.
-    e.target.value = '';
-    if (!file) return;
-
+  const [cropUrl,setCropUrl]=useState<string|null>(null);
+  const [zoom,setZoom]=useState(1);
+  const [position,setPosition]=useState({x:0,y:0});
+  const [dimensions,setDimensions]=useState({w:1,h:1});
+  const drag=useRef<{x:number;y:number;px:number;py:number}|null>(null);
+  useEffect(()=>()=>{if(cropUrl)URL.revokeObjectURL(cropUrl);},[cropUrl]);
+  const size=280, base=Math.max(size/dimensions.w,size/dimensions.h);
+  const w=dimensions.w*base*zoom,h=dimensions.h*base*zoom;
+  const clamp=(x:number,y:number,z=zoom)=>({x:Math.max(-(dimensions.w*base*z-size)/2,Math.min((dimensions.w*base*z-size)/2,x)),y:Math.max(-(dimensions.h*base*z-size)/2,Math.min((dimensions.h*base*z-size)/2,y))});
+  const saveCrop=async()=>{
+    if(!cropUrl)return;
     setUploading(true);
-    try {
-      const body = new FormData();
-      body.append('file', file);
-      const { data } = await api.post('/uploads/avatar', body, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      const me = await api.patch('/auth/profile', { avatarUrl: data.url });
-      onUpdated({ ...me.data, avatarUrl: data.url });
-      toast.success('تم تحديث الصورة الشخصية');
-      // Re-read so every consumer of /auth/me sees the new picture.
-      const fresh = await api.get('/auth/me');
-      onUpdated(fresh.data);
-    } catch (error) {
-      toast.error(apiError(error, 'تعذر رفع الصورة'));
-    } finally {
-      setUploading(false);
-    }
+    try{
+      const image=new Image();image.src=cropUrl;await image.decode();
+      const canvas=document.createElement('canvas');canvas.width=512;canvas.height=512;
+      const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Canvas unavailable');
+      ctx.drawImage(image,(size/2-w/2+position.x)*512/size,(size/2-h/2+position.y)*512/size,w*512/size,h*512/size);
+      const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Crop failed')),'image/jpeg',0.9));
+      const body=new FormData();body.append('file',new File([blob],'avatar.jpg',{type:'image/jpeg'}));
+      const {data}=await api.post('/uploads/avatar',body,{headers:{'Content-Type':'multipart/form-data'}});
+      const me=await api.patch('/auth/profile',{avatarUrl:data.url});onUpdated({...me.data,avatarUrl:data.url});
+      const fresh=await api.get('/auth/me');onUpdated(fresh.data);toast.success('تم تحديث الصورة الشخصية');setCropUrl(null);
+    }catch(error){toast.error(apiError(error,'تعذر رفع الصورة'));}finally{setUploading(false);}
+  };
+
+  const pick=(e:ChangeEvent<HTMLInputElement>)=>{
+    const file=e.target.files?.[0];e.target.value='';if(!file)return;
+    if(!file.type.startsWith('image/')){toast.error('اختر صورة صالحة');return;}
+    setZoom(1);setPosition({x:0,y:0});setDimensions({w:1,h:1});setCropUrl(URL.createObjectURL(file));
   };
 
   const remove = async () => {
@@ -293,7 +313,7 @@ function AvatarUploader({
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif"
+        accept="image/png,image/jpeg,image/webp"
         onChange={pick}
         className="hidden"
       />
@@ -308,6 +328,20 @@ function AvatarUploader({
           إزالة الصورة
         </button>
       )}
+      {cropUrl&&<Modal open onClose={()=>setCropUrl(null)} title="تحديد الصورة الشخصية">
+        <div className="space-y-4">
+          <p className="text-sm">حرّك الصورة بإصبعك أو الماوس لتحديد الجزء الظاهر داخل الدائرة.</p>
+          <div className="relative mx-auto overflow-hidden rounded-full border-4 border-primary-500 bg-slate-100 touch-none" style={{width:size,height:size}}
+            onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);drag.current={x:e.clientX,y:e.clientY,px:position.x,py:position.y};}}
+            onPointerMove={e=>{if(drag.current)setPosition(clamp(drag.current.px+e.clientX-drag.current.x,drag.current.py+e.clientY-drag.current.y));}}
+            onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}}>
+            <img src={cropUrl} alt="معاينة قص الصورة" draggable={false} onLoad={e=>{setDimensions({w:e.currentTarget.naturalWidth,h:e.currentTarget.naturalHeight});setPosition({x:0,y:0});}}
+              className="absolute max-w-none select-none pointer-events-none" style={{width:w,height:h,left:size/2-w/2+position.x,top:size/2-h/2+position.y}}/>
+          </div>
+          <label className="block text-sm">تكبير الصورة: {zoom.toFixed(1)}×<input className="w-full" type="range" min="1" max="3" step="0.05" value={zoom} onChange={e=>{const z=Number(e.target.value);setPosition(clamp(position.x,position.y,z));setZoom(z);}}/></label>
+          <div className="flex gap-2"><Button loading={uploading} onClick={()=>void saveCrop()}>حفظ الصورة</Button><Button variant="secondary" disabled={uploading} onClick={()=>setCropUrl(null)}>إلغاء</Button></div>
+        </div>
+      </Modal>}
     </div>
   );
 }

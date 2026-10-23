@@ -52,8 +52,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
           status = HttpStatus.BAD_REQUEST;
           message = 'لا يمكن تنفيذ العملية لوجود سجلات مرتبطة';
           break;
+        case 'P2034':
+        case 'P2024':
+        case 'P1001':
+        case 'P1002':
+          status = HttpStatus.SERVICE_UNAVAILABLE;
+          message = 'الخادم مشغول مؤقتاً؛ أعد المحاولة';
+          break;
         default:
-          status = HttpStatus.BAD_REQUEST;
+          status = HttpStatus.INTERNAL_SERVER_ERROR;
           message = 'خطأ في قاعدة البيانات';
       }
     } else if (exception instanceof Prisma.PrismaClientValidationError) {
@@ -62,10 +69,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (status >= 500) {
-      this.logger.error(
-        `${request.method} ${request.url} -> ${status}`,
-        exception instanceof Error ? exception.stack : String(exception),
-      );
+      // Prisma stack/messages may include SQL parameters, hashes and personal data.
+      this.logger.error(`${request.method} -> ${status} (${exception instanceof Prisma.PrismaClientKnownRequestError ? exception.code : 'SERVER_ERROR'})`);
     }
 
     response.status(status).json({

@@ -97,6 +97,8 @@ export class SuspensionsService {
       entityId: request.id,
     });
 
+    await this.notifications.notify({ userId: actor.id, type: NotificationType.SUSPENSION_REQUEST, title: 'تم تقديم الطلب', link: `/suspensions/${request.id}` });
+    await this.notifications.notifyStudent(request.studentId, { type: NotificationType.SUSPENSION_REQUEST, title: 'طلب إيقاف قيد المراجعة', data: { requestId: request.id } });
     return this.decorate(request);
   }
 
@@ -380,15 +382,7 @@ export class SuspensionsService {
       link: `/students/${request.studentId}`,
     });
 
-    if (request.student.parentProfile?.userId) {
-      await this.notifications.notify({
-        userId: request.student.parentProfile.userId,
-        type: NotificationType.SUSPENSION_DECISION,
-        title: 'انتهاء فترة الإيقاف',
-        body: `تم إرجاع الطالب ${request.student.fullName} إلى الحلقة`,
-        link: `/parent/children/${request.studentId}`,
-      });
-    }
+    await this.notifications.notifyStudent(request.studentId, { type: NotificationType.SUSPENSION_DECISION, title: 'انتهاء فترة الإيقاف', body: 'تم إرجاع الطالب إلى الحلقة' });
 
     await this.activity.log({
       userId: actor.id,
@@ -416,6 +410,9 @@ export class SuspensionsService {
       data: { status: RequestStatus.CANCELLED, decidedAt: new Date() },
       include: SUSPENSION_INCLUDE,
     });
+    await this.notifications.notifyMany([request.requestedById], { type: NotificationType.SUSPENSION_DECISION, title: 'تم إلغاء الطلب', link: `/suspensions/${id}` });
+    await this.notifications.notifyRoles([Role.ADMIN], { type: NotificationType.SUSPENSION_DECISION, title: 'إلغاء طلب إيقاف', link: `/suspensions/${id}` });
+    await this.notifications.notifyStudent(request.studentId, { type: NotificationType.SUSPENSION_DECISION, title: 'تم إلغاء الطلب' });
     return this.decorate(updated);
   }
 
@@ -536,25 +533,12 @@ export class SuspensionsService {
       link: `/suspensions/${request.id}`,
     });
 
-    if (approved && request.student.parentProfile?.userId) {
-      const toActivity = request.action === SuspensionAction.ACTIVITY_PROGRAM;
-      const permanent = request.action === SuspensionAction.PERMANENT;
-      await this.notifications.notify({
-        userId: request.student.parentProfile.userId,
-        type: NotificationType.SUSPENSION_DECISION,
-        title: permanent
-          ? 'إيقاف نهائي'
-          : toActivity
-            ? 'التحويل إلى برنامج النشاط'
-            : 'إشعار إيقاف',
-        body: permanent
-          ? `تم إيقاف الطالب ${request.student.fullName} نهائياً. السبب: ${request.reason}`
-          : toActivity
-            ? `تم تحويل الطالب ${request.student.fullName} إلى برنامج النشاط. السبب: ${request.reason}`
-            : `تم إيقاف الطالب ${request.student.fullName} لمدة ${request.durationDays} يوماً. السبب: ${request.reason}`,
-        link: `/parent/children/${request.studentId}`,
-      });
-    }
+    const outcome = request.action === SuspensionAction.PERMANENT ? 'إيقاف نهائي'
+      : request.action === SuspensionAction.ACTIVITY_PROGRAM ? 'التحويل إلى برنامج النشاط'
+      : `إيقاف لمدة ${request.durationDays} يومًا`;
+    await this.notifications.notifyStudent(request.studentId, { type: NotificationType.SUSPENSION_DECISION,
+      title: approved ? outcome : 'تم رفض طلب الإيقاف',
+      body: `الطالب ${request.student.fullName} — ${note || request.reason}`, data: { requestId: request.id, approved, action: request.action } });
   }
 
   private today() {

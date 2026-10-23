@@ -180,25 +180,17 @@ export class PreparationsService {
     studentName: string,
     dto: CreatePreparationDto,
   ) {
-    const student = await this.prisma.student.findUnique({
-      where: { id: studentId },
-      select: { parentProfile: { select: { userId: true } } },
-    });
-    if (!student?.parentProfile?.userId) return;
-
     const range =
       dto.fromSurah === dto.toSurah
         ? `${dto.fromSurah} من الآية ${dto.fromAyah} إلى ${dto.toAyah}`
         : `من ${dto.fromSurah} (${dto.fromAyah}) إلى ${dto.toSurah} (${dto.toAyah})`;
 
-    await this.notifications.notify({
-      userId: student.parentProfile.userId,
+    await this.notifications.notifyStudent(studentId, {
       type: NotificationType.PREPARATION,
       title: 'تحضير مطلوب',
-      body: `ابنكم ${studentName} لديه تحضير ${range}، يُرجى تحضيره للتسميع القادم${
+      body: `الطالب ${studentName} لديه تحضير ${range}، يُرجى تحضيره للتسميع القادم${
         dto.dueDate ? ` بتاريخ ${dto.dueDate}` : ''
       }`,
-      link: `/parent/children/${studentId}`,
     });
   }
 

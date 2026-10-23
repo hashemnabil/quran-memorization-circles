@@ -1,8 +1,10 @@
+import { Role } from '@prisma/client';
 import {
   BadRequestException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -15,6 +17,7 @@ import { ChangePasswordDto, LoginDto, UpdateProfileDto } from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly dummyHash = bcrypt.hashSync(randomBytes(32).toString('hex'), 10);
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -27,20 +30,13 @@ export class AuthService {
     return createHash('sha256').update(token).digest('hex');
   }
 
-  private async issueTokens(user: { id: string; username: string; role: string }, userAgent?: string) {
-    const payload = { sub: user.id, username: user.username, role: user.role };
-
-    const accessToken = await this.jwt.signAsync(payload, {
-      secret: this.config.get('JWT_ACCESS_SECRET'),
-      expiresIn: this.config.get('JWT_ACCESS_EXPIRES_IN') || '30m',
-    });
-
+  private async issueTokens(user: { id: string; username: string; role: string }, userAgent?: string, client: Prisma.TransactionClient | PrismaService = this.prisma) {
     // Opaque refresh token: only its hash is stored, so a DB leak cannot mint sessions.
     const refreshToken = randomBytes(48).toString('hex');
     const days = parseInt(String(this.config.get('JWT_REFRESH_EXPIRES_IN') || '7d'), 10) || 7;
     const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-    await this.prisma.refreshToken.create({
+    const session = await client.refreshToken.create({
       data: {
         userId: user.id,
         tokenHash: this.hashToken(refreshToken),
@@ -49,6 +45,9 @@ export class AuthService {
       },
     });
 
+    const accessToken = await this.jwt.signAsync({ sub: user.id, username: user.username, role: user.role, sid: session.id }, {
+      secret: this.config.get('JWT_ACCESS_SECRET'), expiresIn: this.config.get('JWT_ACCESS_EXPIRES_IN') || '30m',
+    });
     return { accessToken, refreshToken, expiresAt };
   }
 
@@ -57,18 +56,20 @@ export class AuthService {
     const user = await this.prisma.user.findFirst({
       where: { username: dto.username.toLowerCase().trim(), deletedAt: null },
       include: {
-        teacher: { select: { id: true } },
+        teacher: { select: { id: true, isActive: true, deletedAt: true } },
         parent: { select: { id: true } },
       },
     });
 
     // Same message for unknown name and wrong password to avoid enumeration.
-    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+    const matches = await bcrypt.compare(dto.password, user?.passwordHash || this.dummyHash);
+    if (!user || !matches) {
       throw new UnauthorizedException('اسم المستخدم أو كلمة المرور غير صحيحة');
     }
     if (!user.isActive) {
       throw new UnauthorizedException('تم إيقاف هذا الحساب، يرجى مراجعة الإدارة');
     }
+    if (user.role === Role.TEACHER && (!user.teacher?.isActive || user.teacher.deletedAt)) throw new UnauthorizedException('الحساب غير متاح؛ راجع الإدارة');
     if (user.role === 'PARENT') {
       throw new UnauthorizedException('تم إيقاف بوابة ولي الأمر؛ يرجى استخدام حساب الطالب');
     }
@@ -92,43 +93,30 @@ export class AuthService {
   }
 
   async refresh(refreshToken: string, userAgent?: string) {
-    const stored = await this.prisma.refreshToken.findFirst({
-      where: { tokenHash: this.hashToken(refreshToken), revokedAt: null },
-      include: {
-        user: {
-          include: { teacher: { select: { id: true } }, parent: { select: { id: true } } },
-        },
-      },
-    });
-
-    if (!stored || stored.expiresAt < new Date()) {
-      throw new UnauthorizedException('الجلسة منتهية، يرجى تسجيل الدخول مجدداً');
-    }
-    if (!stored.user || stored.user.deletedAt || !stored.user.isActive) {
-      throw new UnauthorizedException('الحساب غير متاح');
-    }
-    if (stored.user.role === 'PARENT') {
-      await this.prisma.refreshToken.updateMany({
-        where: { userId: stored.user.id, revokedAt: null },
+    return this.prisma.$transaction(async (tx) => {
+      const stored = await tx.refreshToken.findFirst({
+        where: { tokenHash: this.hashToken(refreshToken), revokedAt: null, expiresAt: { gt: new Date() } },
+        include: { user: { include: { teacher: { select: { id: true, isActive: true, deletedAt: true } }, parent: { select: { id: true } } } } },
+      });
+      if (!stored || !stored.user || stored.user.deletedAt || !stored.user.isActive || stored.user.role === 'PARENT' || stored.user.role === Role.TEACHER && (!stored.user.teacher?.isActive || stored.user.teacher.deletedAt)) {
+        throw new UnauthorizedException('الجلسة منتهية أو الحساب غير متاح؛ يرجى تسجيل الدخول مجدداً');
+      }
+      // Conditional claim prevents concurrent requests minting two sessions from one token.
+      // New token creation shares this transaction, so failure leaves the old token usable.
+      const claimed = await tx.refreshToken.updateMany({
+        where: { id: stored.id, revokedAt: null, expiresAt: { gt: new Date() } },
         data: { revokedAt: new Date() },
       });
-      throw new UnauthorizedException('تم إيقاف بوابة ولي الأمر؛ يرجى استخدام حساب الطالب');
-    }
-
-    // Rotate: the presented token is burned and a fresh pair is issued.
-    await this.prisma.refreshToken.update({
-      where: { id: stored.id },
-      data: { revokedAt: new Date() },
+      if (claimed.count !== 1) throw new UnauthorizedException('رمز التجديد مستخدم مسبقاً');
+      const tokens = await this.issueTokens(stored.user, userAgent, tx);
+      return { ...tokens, user: this.publicUser(stored.user) };
     });
-
-    const tokens = await this.issueTokens(stored.user, userAgent);
-    return { ...tokens, user: this.publicUser(stored.user) };
   }
 
   async logout(refreshToken?: string, userId?: string) {
     if (refreshToken) {
       await this.prisma.refreshToken.updateMany({
-        where: { tokenHash: this.hashToken(refreshToken), revokedAt: null },
+        where: { tokenHash: this.hashToken(refreshToken), ...(userId ? { userId } : {}), revokedAt: null },
         data: { revokedAt: new Date() },
       });
     } else if (userId) {
@@ -173,6 +161,9 @@ export class AuthService {
    * it is the login identity and only the administration may reassign it.
    */
   async updateProfile(user: AuthUser, dto: UpdateProfileDto) {
+    if ([Role.STUDENT, Role.TEACHER].includes(user.role as any) && ['fullName', 'phone', 'email'].some(key => dto[key] !== undefined)) {
+      throw new BadRequestException('يرجى إرسال تعديل البيانات من صفحة التحقق لمراجعة الإدارة');
+    }
     const current = await this.prisma.user.findUnique({
       where: { id: user.id },
       select: { avatarUrl: true },
@@ -200,7 +191,7 @@ export class AuthService {
     // The old picture is now unreferenced — replaced or cleared — so it is
     // removed from storage rather than left behind as an orphan.
     if (dto.avatarUrl !== undefined) {
-      await this.uploads.removeIfReplaced(current?.avatarUrl, updated.avatarUrl);
+      await this.uploads.removeIfReplaced(current?.avatarUrl, updated.avatarUrl, user.id);
     }
 
     await this.activity.log({
@@ -226,15 +217,11 @@ export class AuthService {
     }
 
     const rounds = parseInt(this.config.get('BCRYPT_ROUNDS') || '10', 10);
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash: await bcrypt.hash(dto.newPassword, rounds), mustChangePassword: false },
-    });
-
-    // Force every other session to re-authenticate with the new password.
-    await this.prisma.refreshToken.updateMany({
-      where: { userId: user.id, revokedAt: null },
-      data: { revokedAt: new Date() },
+    const passwordHash = await bcrypt.hash(dto.newPassword, rounds);
+    await this.prisma.$transaction(async (tx) => {
+      const changed = await tx.user.updateMany({ where: { id: user.id, passwordHash: found.passwordHash }, data: { passwordHash, mustChangePassword: false } });
+      if (changed.count !== 1) throw new BadRequestException('تغيّرت بيانات الحساب؛ سجّل الدخول مجددًا');
+      await tx.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
     });
 
     await this.activity.log({

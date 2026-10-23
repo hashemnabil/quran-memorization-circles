@@ -1,9 +1,10 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'org.qurancircles.app',
+  appId: 'com.abdullahschool.myapp',
   appName: 'حلقات تحفيظ السوسي',
   webDir: 'dist',
+  plugins: { PushNotifications: { presentationOptions: ['badge', 'sound', 'alert'] } },
   server: { androidScheme: 'https' },
   android: { allowMixedContent: false },
 };

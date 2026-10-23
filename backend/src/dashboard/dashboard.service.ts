@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { SuspensionsService } from '../suspensions/suspensions.service';
 import { AuthUser } from '../common/decorators';
+import { PaginationDto, paginate } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class DashboardService {
@@ -491,12 +492,18 @@ export class DashboardService {
   }
 
   /** Recent system activity, restricted to administration. */
-  async activity(limit = 30) {
-    return this.prisma.activityLog.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: Math.min(limit, 100),
+  async activity(query: PaginationDto) {
+    const where: Prisma.ActivityLogWhereInput = query.search ? { OR: [
+      { summary: { contains: query.search, mode: 'insensitive' } },
+      { action: { contains: query.search, mode: 'insensitive' } },
+      { user: { fullName: { contains: query.search, mode: 'insensitive' } } },
+    ] } : {};
+    const [rows, total] = await this.prisma.$transaction([this.prisma.activityLog.findMany({
+      where, orderBy: [{ createdAt: query.sortOrder || 'desc' }, { id: query.sortOrder || 'desc' }],
+      skip: query.skip, take: query.take,
       include: { user: { select: { id: true, fullName: true, role: true } } },
-    });
+    }), this.prisma.activityLog.count({ where })]);
+    return paginate(rows, total, query.page, query.limit);
   }
 
   private today() {

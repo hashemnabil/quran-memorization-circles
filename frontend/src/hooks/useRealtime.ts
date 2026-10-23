@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { getSocket, disconnectSocket } from '@/lib/socket';
 import { useAuthStore } from '@/store/auth';
 import type { AppNotification, ChatMessage } from '@/types';
+import { mergeRows, noteRemoteRevision } from '@/lib/offline-engine';
 
 /**
  * Subscribes the whole app to the realtime channel once, translating socket
@@ -21,8 +22,12 @@ export function useRealtime() {
 
     const socket = getSocket();
     if (!socket) return;
+    const onDataChanged = (payload: { revision?: unknown }) => {
+      if (typeof payload?.revision === 'string') void noteRemoteRevision(payload.revision).catch(() => undefined);
+    };
 
-    const onNotification = (payload: { notification: AppNotification }) => {
+    const onNotification = async (payload: { notification: AppNotification }) => {
+      if (payload.notification.id) await mergeRows('notifications', [payload.notification], user.id).catch(() => undefined);
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['notifications', 'unread'] });
       // Business events also change list data (requests, exams, tickets).
@@ -51,16 +56,16 @@ export function useRealtime() {
     const onInbox = ({ message }: { conversationId: string; message: ChatMessage }) => {
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'unread'] });
-      if (message.sender.id !== user.id) {
-        toast(`${message.sender.fullName}: ${message.body.slice(0, 60)}`, {
-          icon: '✉️',
-          style: { direction: 'rtl' },
-        });
-      }
+      // The persisted CHAT_MESSAGE notification supplies one toast, including
+      // for accounts connected on another page. Avoid a second inbox toast.
     };
 
     const onSupportMessage = () => {
       queryClient.invalidateQueries({ queryKey: ['support'] });
+    };
+    const onRead = () => {
+      queryClient.invalidateQueries({ queryKey: ['chat'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
     };
 
     const onDeleted = ({ conversationId }: { conversationId: string }) => {
@@ -68,15 +73,19 @@ export function useRealtime() {
     };
 
     socket.on('notification:new', onNotification);
+    socket.on('data:changed', onDataChanged);
     socket.on('chat:message', onChatMessage);
     socket.on('chat:inbox', onInbox);
+    socket.on('chat:read', onRead);
     socket.on('chat:message-deleted', onDeleted);
     socket.on('support:message', onSupportMessage);
 
     return () => {
       socket.off('notification:new', onNotification);
+      socket.off('data:changed', onDataChanged);
       socket.off('chat:message', onChatMessage);
       socket.off('chat:inbox', onInbox);
+      socket.off('chat:read', onRead);
       socket.off('chat:message-deleted', onDeleted);
       socket.off('support:message', onSupportMessage);
     };

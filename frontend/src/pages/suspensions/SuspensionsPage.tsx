@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import NotificationRecord from '@/components/NotificationRecord';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -59,6 +60,7 @@ export default function SuspensionsPage() {
         }
       />
 
+      <NotificationRecord />
       <div className="mb-5 grid gap-4 sm:grid-cols-3">
         <StatCard
           label="موقوفون حالياً"

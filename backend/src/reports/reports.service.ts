@@ -53,7 +53,7 @@ export class ReportsService {
     if (type === 'students') {
       const rows = await this.prisma.student.findMany({
         where: {
-          ...studentScope,
+          AND: [studentScope],
           deletedAt: null,
           ...(from || to ? { enrollmentDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
           ...(q.status ? { status: q.status as any } : {}),

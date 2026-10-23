@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -61,7 +62,8 @@ export class CoursesService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  async findAll(query: QueryCoursesDto) {
+  async findAll(query: QueryCoursesDto, actor?: AuthUser) {
+    if (actor?.role === Role.TEACHER) query.instructorId = actor.id;
     const where: Prisma.CourseWhereInput = {
       deletedAt: null,
       ...(query.type ? { type: query.type } : {}),
@@ -105,7 +107,8 @@ export class CoursesService {
     );
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, actor?: AuthUser) {
+    if (actor) await this.assertCourseAccess(actor, id);
     const course = await this.prisma.course.findFirst({
       where: { id, deletedAt: null },
       select: {
@@ -401,7 +404,8 @@ export class CoursesService {
 
   // --- attendance ----------------------------------------------------------
 
-  async attendanceSheet(courseId: string, query: CourseAttendanceQueryDto) {
+  async attendanceSheet(courseId: string, query: CourseAttendanceQueryDto, actor?: AuthUser) {
+    if (actor) await this.assertCourseAccess(actor, courseId);
     const course = await this.prisma.course.findFirst({
       where: { id: courseId, deletedAt: null },
       select: { id: true, name: true, code: true, type: true, scheduleDays: true, startTime: true },
@@ -448,6 +452,7 @@ export class CoursesService {
   }
 
   async recordAttendance(actor: AuthUser, courseId: string, dto: RecordCourseAttendanceDto) {
+    await this.assertCourseAccess(actor, courseId);
     const course = await this.prisma.course.findFirst({
       where: { id: courseId, deletedAt: null },
       select: { id: true, name: true },
@@ -517,7 +522,8 @@ export class CoursesService {
   }
 
   /** Course attendance history, grouped by day like the circles register. */
-  async attendanceHistory(courseId: string) {
+  async attendanceHistory(courseId: string, actor?: AuthUser) {
+    if (actor) await this.assertCourseAccess(actor, courseId);
     const grouped = await this.prisma.courseAttendance.groupBy({
       by: ['date', 'status'],
       where: { courseId },
@@ -547,7 +553,8 @@ export class CoursesService {
     });
   }
 
-  async attendanceDetail(courseId: string, date: string) {
+  async attendanceDetail(courseId: string, date: string, actor?: AuthUser) {
+    if (actor) await this.assertCourseAccess(actor, courseId);
     const records = await this.prisma.courseAttendance.findMany({
       where: { courseId, date: toDateOnly(date) },
       include: {
@@ -591,6 +598,12 @@ export class CoursesService {
     if (start && end && toDateOnly(start).getTime() > toDateOnly(end).getTime()) {
       throw new BadRequestException('تاريخ بداية الدورة يجب أن يسبق تاريخ نهايتها');
     }
+  }
+
+  async assertCourseAccess(actor: AuthUser, id: string) {
+    if ([Role.ADMIN, Role.SUPERVISOR].includes(actor.role as any)) return;
+    const course = await this.prisma.course.findFirst({ where: { id, deletedAt: null }, select: { instructorId: true } });
+    if (actor.role !== Role.TEACHER || course?.instructorId !== actor.id) throw new ForbiddenException('Course access denied');
   }
 
   private async assertInstructor(instructorId?: string) {

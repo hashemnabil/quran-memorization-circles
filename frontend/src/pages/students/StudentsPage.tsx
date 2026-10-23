@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
+import { listOfflineSnapshot } from '@/lib/offline/changeFeed';
 
 import { useAuthStore } from '@/store/auth';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -13,6 +14,7 @@ import {
   Badge,
   Button,
   Card,
+  cx,
   EmptyState,
   ErrorState,
   Input,
@@ -65,24 +67,76 @@ export default function StudentsPage() {
 
   const { data: circles } = useQuery({
     queryKey: ['circles', 'options'],
-    queryFn: async () => (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data,
+    queryFn: async () => {
+      try {
+        return (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data;
+      } catch (error) {
+        if ((error as { response?: unknown } | null)?.response) throw error;
+        const snapshot = queryClient.getQueryData<{
+          accountId: string; complete: boolean;
+          circles: Array<Pick<Circle, 'id' | 'name' | 'code'>>;
+        }>(['offline', 'bootstrap', user.id]);
+        if (snapshot?.complete && snapshot.accountId === user.id) {
+          return snapshot.circles.map(({ id, name, code }) => ({ id, name, code }));
+        }
+        // Use the account-scoped IndexedDB replica if the app was reloaded offline
+        // and the in-memory bootstrap query has not been restored.
+        const local = await listOfflineSnapshot(user.id, 'circle');
+        if (local.length) return local
+          .filter((circle) => circle.deletedAt == null)
+          .map((circle) => ({ id: circle.id, name: String(circle.name ?? ''), code: String(circle.code ?? '') }));
+        throw error;
+      }
+    },
   });
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['students', { page, debouncedSearch, status, evaluation, circleId, track }],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<Student>>('/students', {
-        params: {
-          page,
-          limit: 20,
-          search: debouncedSearch || undefined,
-          status: status || undefined,
-          evaluation: evaluation || undefined,
-          circleId: circleId || undefined,
-          track: track || undefined,
-        },
-      });
-      return data;
+      try {
+        const { data } = await api.get<PaginatedResponse<Student>>('/students', {
+          params: {
+            page,
+            limit: 20,
+            search: debouncedSearch || undefined,
+            status: status || undefined,
+            evaluation: evaluation || undefined,
+            circleId: circleId || undefined,
+            track: track || undefined,
+          },
+        });
+        return data;
+      } catch (error) {
+        const hasFilters = Boolean(debouncedSearch || status || evaluation || circleId || track);
+        if ((error as { response?: unknown } | null)?.response || page !== 1 || hasFilters) throw error;
+        const snapshot = queryClient.getQueryData<{
+          accountId: string; complete: boolean;
+          students: Array<{
+            id: string; code: string; fullName: string; status: StudentStatus;
+            evaluation?: Evaluation | null; memorizedParts: number;
+            currentSurah?: string | null; currentPage?: number | null; circleId?: string | null;
+            updatedAt?: string;
+          }>;
+        }>(['offline', 'bootstrap', user.id]);
+        let cachedStudents = snapshot?.accountId === user.id ? snapshot.students : [];
+        if (!cachedStudents.length) {
+          // IndexedDB survives a reload; query cache does not. Never mix replicas
+          // between accounts, and only use this path for the unfiltered first page.
+          cachedStudents = await listOfflineSnapshot(user.id, 'student') as unknown as typeof cachedStudents;
+        }
+        if (!cachedStudents.length) throw error;
+        const students = cachedStudents
+          .filter((student) => (student as { deletedAt?: string | null }).deletedAt == null)
+          .map((student) => ({
+            ...student, gender: 'MALE' as const, totalPoints: 0,
+            enrollmentDate: student.updatedAt ?? '', createdAt: student.updatedAt ?? '',
+          })) as Student[];
+        return { offlineSnapshot: true, data: students.slice(0, 20), meta: {
+          total: students.length, page: 1, limit: 20,
+          totalPages: Math.max(1, Math.ceil(students.length / 20)),
+          hasNextPage: students.length > 20, hasPreviousPage: false,
+        }};
+      }
     },
   });
 
@@ -105,6 +159,7 @@ export default function StudentsPage() {
     onError: (error) => toast.error(apiError(error)),
   });
 
+  const isOfflineSnapshot = Boolean((data as (PaginatedResponse<Student> & { offlineSnapshot?: boolean }) | undefined)?.offlineSnapshot);
   const rows = data?.data ?? [];
   // Off by default: the checkbox column appears only once "حذف جماعي" is pressed.
   const bulk = useBulkSelect(rows);
@@ -212,6 +267,12 @@ export default function StudentsPage() {
         }
       />
 
+      {(isOfflineSnapshot || (isError && Boolean(data))) && (
+        <Card className="mb-5 border-amber-300 bg-amber-50">
+          <p className="text-sm font-semibold text-amber-900">{isOfflineSnapshot ? 'أنت تعرض نسخة محفوظة دون اتصال. قد تكون بعض التفاصيل غير متاحة أو غير محدّثة؛ تحقّق من اتصال الإنترنت قبل اتخاذ قرارات أو إجراء تعديلات.' : 'تعذّر تحديث الطلاب؛ تعرض البيانات المحفوظة وقد تكون غير محدّثة.'}</p>
+        </Card>
+      )}
+
       <Card className="mb-5">
         {/* The track chips are the unified record's main lens: one record set,
             filtered by which part of the school the student belongs to. They go
@@ -313,7 +374,7 @@ export default function StudentsPage() {
       <Card padded={false}>
         {isLoading ? (
           <LoadingState />
-        ) : isError ? (
+        ) : isError && !data ? (
           <ErrorState message="تعذر تحميل قائمة الطلاب" onRetry={() => refetch()} />
         ) : !data?.data.length ? (
           <EmptyState
@@ -323,7 +384,21 @@ export default function StudentsPage() {
           />
         ) : (
           <>
-            <div className="table-wrap border-0 shadow-none">
+            {!bulk.active && <div className="grid gap-3 p-3 sm:hidden" aria-label="بطاقات الطلاب">
+              {data.data.map(student => <Link key={student.id} to={`/students/${student.id}`} className="student-summary-card">
+                <div className="flex items-center gap-3">
+                  <Avatar name={student.fullName} src={student.photoUrl} size={42} />
+                  <div className="min-w-0 flex-1"><h3 className="font-bold text-slate-800">{student.fullName}</h3><p className="numeric mt-1 text-xs text-slate-500">{student.code}</p></div>
+                  <Badge className={STUDENT_STATUS_COLORS[student.status]}>{STUDENT_STATUS_LABELS[student.status]}</Badge>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-xs">
+                  <div><p className="text-slate-500">الحلقة</p><p className="mt-1 font-semibold text-slate-700">{student.circle?.name || 'غير مسجل في حلقة'}</p></div>
+                  <div><p className="text-slate-500">المعلّم</p><p className="mt-1 font-semibold text-slate-700">{student.teacherName || '—'}</p></div>
+                </div>
+                <p className="mt-4 text-xs font-bold text-primary-700">عرض ملف الطالب ←</p>
+              </Link>)}
+            </div>}
+            <div className={cx('table-wrap border-0 shadow-none', !bulk.active && 'hidden sm:block')}>
               <table className="table">
                 <thead>
                   <tr>
@@ -521,16 +596,20 @@ function StudentFormModal({
       const student = response.data;
       const credentials = student?.accountCredentials;
       if (credentials?.username && credentials?.temporaryPassword) {
-        toast.success(`تم تسجيل الطالب. اسم المستخدم: ${credentials.username} — كلمة المرور المؤقتة: ${credentials.temporaryPassword}`, { duration: 20000 });
+        toast.success(`${student?.synced === 0 ? 'حُفظ الطالب وطلب الحساب؛ التفعيل ينتظر المزامنة.' : 'تم تسجيل الطالب.'} اسم المستخدم: ${credentials.username} — كلمة المرور المؤقتة: ${credentials.temporaryPassword}`, { duration: 20000 });
       } else {
-        toast.success('تم تسجيل الطالب بنجاح');
+        toast.success(student?.synced === 0 ? 'تم حفظ الطالب على الجهاز؛ بانتظار إرساله للخادم' : 'تم تسجيل الطالب بنجاح');
       }
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['student-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       onClose();
     },
-    onError: (error) => toast.error(apiError(error)),
+    onError: (error) => {
+      const message = apiError(error);
+      setErrors({ submit: message });
+      toast.error(message);
+    },
   });
 
   const submit = () => {
@@ -563,6 +642,11 @@ function StudentFormModal({
       size="lg"
       footer={
         <>
+          {Object.values(errors).some(Boolean) && (
+            <p role="alert" className="w-full rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+              {Object.values(errors).filter(Boolean).join(' — ')}
+            </p>
+          )}
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
@@ -595,7 +679,7 @@ function StudentFormModal({
         <Input label="تاريخ الميلاد" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
         <Input label="رقم الهوية (اختياري، لا يُستخدم لتسجيل الدخول)" value={form.nationalId} onChange={(e) => set('nationalId', e.target.value)} error={errors.nationalId} dir="ltr" />
         <Input label="اسم ولي الأمر" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />
-        <Input label="رقم هوية الأب" value={form.fatherNationalId} onChange={(e) => set('fatherNationalId', e.target.value)} dir="ltr" />
+        <Input label="رقم هوية ولي الأمر" value={form.fatherNationalId} onChange={(e) => set('fatherNationalId', e.target.value)} dir="ltr" />
         <Input label="رقم جوال ولي الأمر" value={form.guardianPhone} onChange={(e) => set('guardianPhone', e.target.value)} dir="ltr" />
         <Input label="صلة القرابة" value={form.guardianRelation} onChange={(e) => set('guardianRelation', e.target.value)} />
         <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -604,15 +688,15 @@ function StudentFormModal({
         </label>
         <Input label="العنوان" value={form.address} onChange={(e) => set('address', e.target.value)} />
 
-        {registrationTrack === 'CIRCLE' && <Select label="حلقة التحفيظ" value={form.circleId} onChange={(e) => set('circleId', e.target.value)}>
-          <option value="">بدون حلقة</option>
+        {registrationTrack === 'CIRCLE' && <Select label="حلقة التحفيظ" required error={errors.circleId} value={form.circleId} onChange={(e) => set('circleId', e.target.value)}>
+          <option value="">اختر حلقة التحفيظ</option>
           {circles.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name} ({c.code})
             </option>
           ))}
         </Select>}
-        {registrationTrack === 'COURSE' && <Select label="الدورة" value={courseId} onChange={(e) => setCourseId(e.target.value)}><option value="">اختر الدورة</option>{(courses ?? []).filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}</Select>}
+        {registrationTrack === 'COURSE' && <Select label="الدورة" required error={errors.courseId} value={courseId} onChange={(e) => { setCourseId(e.target.value); setErrors((previous) => ({ ...previous, courseId: '' })); }}><option value="">اختر الدورة</option>{(courses ?? []).filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}</Select>}
         {registrationTrack === 'CIRCLE' && <>
         <Input
           label="الأجزاء المحفوظة"

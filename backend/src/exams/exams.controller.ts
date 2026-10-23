@@ -11,6 +11,7 @@ import {
   ReviewExamRequestDto,
   ScheduleExamDto,
   UpdateExamDto,
+  UpdateExamRequestNoteDto,
   UpdateExamMilestoneDto,
 } from './dto/exam.dto';
 import { ExamsService } from './exams.service';
@@ -98,6 +99,12 @@ export class ExamsController {
   @ApiOperation({ summary: 'تقديم طلب اختبار لطالب' })
   requestExam(@CurrentUser() user: AuthUser, @Body() dto: CreateExamRequestDto) {
     return this.service.requestExam(user, dto);
+  }
+
+  @Patch('requests/:id')
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
+  updateRequestNote(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateExamRequestNoteDto) {
+    return this.service.updateRequestNote(user, id, dto);
   }
 
   @Patch('requests/:id/reject')

@@ -40,7 +40,6 @@ export class CreateGroupConversationDto {
 export class SendMessageDto {
   @ApiProperty()
   @IsString()
-  @IsNotEmpty({ message: 'نص الرسالة مطلوب' })
   @MaxLength(4000)
   body: string;
 

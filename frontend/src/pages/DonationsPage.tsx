@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+﻿import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { ErrorState, LoadingState } from '@/components/ui';
@@ -25,6 +25,9 @@ export default function DonationsPage() {
   const goal = Math.max(0, Number(data?.donationGoalAmount) || 0);
   const raised = Math.max(0, Number(data?.donationRaisedAmount) || 0);
   const progress = goal > 0 ? Math.min(100, Math.round(raised / goal * 100)) : 0;
+  const campaignTitle = data?.donationTitle?.trim() === 'دعم مدرسة التحفيظ'
+    ? 'دعم أهل القرآن'
+    : data?.donationTitle || 'بعطائك، يستمر أثر القرآن';
 
   return (
     <div className="donations-page mx-auto max-w-6xl space-y-6" dir="rtl">
@@ -37,7 +40,7 @@ export default function DonationsPage() {
         <div className="relative grid items-center gap-8 lg:grid-cols-[1.4fr_1fr]">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-emerald-100"><IconHeart size={15} />معًا لخدمة كتاب الله</span>
-            <h1 className="mt-5 max-w-xl text-3xl font-extrabold leading-relaxed sm:text-4xl">{data?.donationTitle || 'بعطائك، يستمر أثر القرآن'}</h1>
+            <h1 className="mt-5 max-w-xl text-3xl font-extrabold leading-relaxed sm:text-4xl">{campaignTitle}</h1>
             <p className="mt-4 max-w-xl whitespace-pre-line text-sm leading-8 text-emerald-50/90">{data?.donationDescription || 'ساهم في دعم طلاب القرآن الكريم وأنشطة الحلقات، وكن شريكًا في رحلة الحفظ والتعلّم.'}</p>
             <a href="#donation-methods" className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-gold-200 px-6 py-3 text-sm font-extrabold text-emerald-950 transition hover:bg-gold-100"><IconHeart size={18} />ساهم الآن</a>
             <p className="mt-4 text-xs text-emerald-100">{data?.name || 'حلقات تحفيظ القرآن الكريم'}</p>

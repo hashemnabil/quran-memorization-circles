@@ -43,6 +43,7 @@ configureOffline(async (method, path, data) => {
 });
 api.defaults.adapter = async (config) => {
   const path = config.url || ''; const method = (config.method || 'get').toLowerCase();
+  if (path === '/settings/public' && method === 'get') return networkAdapter(config);
   if (path === '/auth/change-password') await assertNoPendingWrites(accountId());
   // Authentication and sync are network boundaries, never optimistic local successes.
   if (method === 'get' && path === '/auth/me' && (!navigator.onLine || tokenStore.isLocal())) {
@@ -121,6 +122,13 @@ api.defaults.adapter = async (config) => {
 };
 
 api.interceptors.request.use(async (config) => {
+  // Public school settings (including donations) must load without a login,
+  // local account initialization, or an expired authorization token.
+  if (config.url === '/settings/public' && (config.method || 'get').toLowerCase() === 'get') {
+    config.timeout = 90000; // Render free instances may take >50s to wake.
+    if (config.headers) delete config.headers.Authorization;
+    return config;
+  }
   await tokenStore.ready();
   if (tokenStore.isClosing() && !['get', 'head'].includes(config.method || 'get') && config.url !== '/auth/logout' && !config.url?.startsWith('/push/devices')) {
     throw Object.assign(new Error('تسجيل الخروج قيد التنفيذ؛ انتظر قبل إجراء تعديل جديد'), { localWriteRejected: true });

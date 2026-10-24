@@ -1,5 +1,6 @@
 import { passwordError } from '@/lib/validation';
 import { NativePushSettings } from '@/components/NativePush';
+import ThemeSelect from '@/components/ThemeSelect';
 import { Link } from 'react-router-dom';
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +15,7 @@ import {
   IconCircleGroup,
   IconGraduation,
   IconLock,
+  IconSettings,
   IconLogout,
   IconUser,
 } from '@/components/ui/Icons';
@@ -25,6 +27,7 @@ export default function ProfilePage() {
   const { user, logout, forgetDevice, setUser } = useAuthStore();
   const navigate = useNavigate();
 
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -71,7 +74,18 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader title="الملف الشخصي" subtitle="بياناتك في النظام وإعدادات الحساب" />
+      <div className="mb-5 overflow-hidden rounded-2xl bg-emerald-900 p-5 text-white shadow-sm">
+        <div className="flex min-h-28 items-start justify-between gap-4">
+          <div><p className="text-xs text-emerald-100">الملف الشخصي</p><h1 className="mt-3 text-xl font-extrabold">مدرسة عبدالله بن عمر</h1></div>
+          <button type="button" onClick={() => setPreferencesOpen(value => !value)} aria-label="إعدادات الحساب" aria-expanded={preferencesOpen} className="grid h-11 w-11 place-items-center rounded-full bg-white/15"><IconSettings size={22} /></button>
+        </div>
+      </div>
+      {preferencesOpen && <section aria-label="تفضيلات التطبيق" className="mb-5 space-y-4 rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+        <h2 className="font-extrabold text-emerald-900">إعدادات الحساب</h2>
+        <div className="flex items-center justify-between gap-3"><span className="text-sm font-bold text-slate-700">المظهر ☀️ 🌙</span><ThemeSelect /></div>
+        <NativePushSettings />
+        <p className="text-xs text-slate-500">تغيير الصورة وكلمة المرور متاح من أقسام الملف الشخصي.</p>
+      </section>}
       <Link to="/community/users/me" className="inline-flex rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white">👤 افتح ملفي الشخصي العام ومنشوراتي</Link>
 
 

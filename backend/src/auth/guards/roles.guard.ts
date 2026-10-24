@@ -20,12 +20,12 @@ export class RolesGuard implements CanActivate {
     ]);
     if (!required || required.length === 0) return true;
 
-    const { user } = context.switchToHttp().getRequest();
+    const user = context.getType() === 'ws'
+      ? context.switchToWs().getClient()?.data?.user
+      : context.switchToHttp().getRequest()?.user;
     if (!user) throw new ForbiddenException('غير مصرح');
 
-    // The admin is allowed everywhere without having to be listed on each route.
     if (user.role === Role.ADMIN) return true;
-
     if (!required.includes(user.role)) {
       throw new ForbiddenException('لا تملك الصلاحية للقيام بهذا الإجراء');
     }

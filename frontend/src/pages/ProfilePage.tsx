@@ -193,7 +193,7 @@ export default function ProfilePage() {
 
           {['STUDENT', 'TEACHER'].includes(user.role) ? <Card title="بياناتي الشخصية"><Button onClick={() => navigate('/verify-profile')}>تحقق من بياناتي</Button></Card> : <ProfileDetailsCard profile={profile} onUpdated={setUser} />}
 
-          <NativePushSettings />
+          
           <Card title="تغيير كلمة المرور" subtitle="سيتم إنهاء جميع جلساتك بعد التغيير">
             <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
               <Input

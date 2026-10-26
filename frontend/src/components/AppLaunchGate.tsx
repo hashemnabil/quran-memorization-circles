@@ -20,7 +20,9 @@ export default function AppLaunchGate({ children }: { children: ReactNode }) {
 
 function NativeLaunchGate({ children }: { children: ReactNode }) {
   const [onboardingDone, setOnboardingDone] = useState(() => {
-    try { return !Capacitor.isNativePlatform() || localStorage.getItem('qc.onboarding.completed') === '1'; } catch { return !Capacitor.isNativePlatform(); }
+    // Legal/public documents remain accessible without an introduction gate.
+    if (['/privacy', '/about', '/account-deletion', '/contribute'].includes(window.location.pathname)) return true;
+    try { return localStorage.getItem('qc.onboarding.completed') === '1'; } catch { return false; }
   });
   const [showSplash, setShowSplash] = useState(true);
   const [branding, setBranding] = useState<Branding>(readCachedBranding);

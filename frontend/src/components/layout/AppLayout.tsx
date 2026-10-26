@@ -1,4 +1,3 @@
-import ThemeSelect from '@/components/ThemeSelect';
 import { NativePushConnection } from '@/components/NativePush';
 import PrayerReminderConnection from '@/components/PrayerReminderConnection';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -370,8 +369,7 @@ export default function AppLayout() {
               )}
             </NavLink>
 
-            <ThemeSelect />
-            <div ref={accountMenu} className="relative">
+            <div ref={accountMenu} className="relative" data-back-dismiss={menuOpen ? '' : undefined}>
               <button
                 onClick={() => setMenuOpen((v) => !v)}
                 className="relative z-20 flex items-center gap-2 rounded-xl p-1 transition hover:bg-slate-100"

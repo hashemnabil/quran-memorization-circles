@@ -23,6 +23,7 @@ const allowedRoles: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE'
 // it is never included in tokens, IndexedDB, localStorage, exports or logs.
 let reconnectCredentials: ReconnectCredentials | undefined;
 let onlineVerification: Promise<void> | undefined;
+let sessionLoading: Promise<void> | undefined;
 
 function cacheOfflineUser(user: AuthUser) {
   // Store only the minimum identity needed to render the signed-in shell offline.
@@ -174,7 +175,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } finally { tokenStore.setClosing(false); }
   },
 
-  async loadSession() {
+  loadSession() {
+    if (sessionLoading) return sessionLoading;
+    const load = async () => {
     try { await tokenStore.ready(); } catch { set({ status: 'unauthenticated', user: null }); return; }
     const owner = tokenStore.owner();
     if (owner) {
@@ -211,12 +214,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    set({ status: 'loading' });
+    // This is the same previously signed-in identity, not a new offline login.
+    // Render its permitted local working set immediately while the existing
+    // server session is checked. Server authorization still guards every replay.
+    const cachedUser = readOfflineUser();
+    set(cachedUser ? { user: cachedUser, status: 'authenticated' } : { status: 'loading' });
+    const stillCurrent = () => !tokenStore.isClosing() && !!tokenStore.access() &&
+      (cachedUser ? readActiveIdentity()?.id === cachedUser.id : !get().user);
     try {
       const { data } = await api.get('/auth/me');
+      if (!stillCurrent()) return;
+      if (cachedUser && data.id !== cachedUser.id) {
+        await tokenStore.clear(); window.dispatchEvent(new Event('qc:session-rejected')); return;
+      }
       cacheOfflineUser(data as AuthUser);
       set({ user: data, status: 'authenticated' });
     } catch (error) {
+      if (!stillCurrent()) return;
       const isAxios = axios.isAxiosError(error);
       const status = isAxios ? error.response?.status : undefined;
       const isTemporaryFailure = !isAxios || !error.response || status === 408 || status === 429 || (status !== undefined && status >= 500);
@@ -233,6 +247,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       set({ user: null, status: 'unauthenticated' });
     }
+    };
+    sessionLoading = load().finally(() => { sessionLoading = undefined; });
+    return sessionLoading;
   },
 
   lock() {

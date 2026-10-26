@@ -16,6 +16,7 @@ import {
   IconLock,
   IconLogout,
   IconUser,
+  IconSettings,
 } from '@/components/ui/Icons';
 import { EMPLOYMENT_LABELS, ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateTime, formatParts } from '@/lib/format';
@@ -71,7 +72,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader title="الملف الشخصي" subtitle="بياناتك في النظام وإعدادات الحساب" />
+      <PageHeader title="الملف الشخصي" subtitle="بياناتك في النظام وإعدادات الحساب" action={<Link to="/profile/settings" aria-label="إعدادات الحساب" className="btn-secondary inline-flex items-center gap-2"><IconSettings size={18} />الإعدادات</Link>} />
       <Link to="/community/users/me" className="inline-flex rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white">👤 افتح ملفي الشخصي العام ومنشوراتي</Link>
 
 

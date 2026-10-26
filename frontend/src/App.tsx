@@ -1,5 +1,7 @@
 import ProfileVerificationPage, { ProfileReviewsPage } from '@/pages/ProfileVerificationPage';
 import NativeBackNavigation from '@/components/NativeBackNavigation';
+import { useThemeAppearance } from '@/components/ThemeSelect';
+import PersonalSettingsPage, { IntroductionPage } from '@/pages/PersonalSettingsPage';
 import MeetingsPage from '@/pages/MeetingsPage';
 import { lazy, Suspense, useEffect } from 'react';
 import { LoadingState } from '@/components/ui';
@@ -64,6 +66,7 @@ import RegistryAdminPage from '@/pages/RegistryAdminPage';
 import DonationsPage from '@/pages/DonationsPage';
 
 export default function App() {
+  useThemeAppearance();
   const loadSession = useAuthStore((s) => s.loadSession);
   const currentUser = useAuthStore((s) => s.user);
 
@@ -139,6 +142,8 @@ export default function App() {
         <Route path="profile-reviews/students" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="STUDENT" /></RequireRole>} />
         <Route path="profile-reviews/teachers" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="TEACHER" /></RequireRole>} />
         <Route path="settings/offline" element={<OfflineSettingsPage />} />
+        <Route path="profile/settings" element={<PersonalSettingsPage />} />
+        <Route path="profile/settings/introduction" element={<IntroductionPage />} />
         <Route path="prayer-times" element={<PrayerTimesPage />} />
         <Route path="prayer-times/reminders" element={<PrayerReminderSettingsPage key={currentUser?.id} />} />
         <Route path="profile/settings/notifications/sound" element={<NotificationSoundSettingsPage key={currentUser?.id} />} />

@@ -452,6 +452,68 @@ test('malformed acknowledgement never clears pending work', async () => {
   online = true; await assert.rejects(syncAll(), /لم يؤكد/);
   assert.equal(await db.queue.count(), 1);
 });
+
+test('switching accounts during replay retains old writes and starts the new account drain', async () => {
+  await save('students', { id: 'a-draft', fullName: 'Account A' });
+  account = 'account-b';
+  await save('students', { id: 'b-draft', fullName: 'Account B' });
+  account = 'account-a';
+  let started!: () => void, release!: () => void;
+  const began = new Promise<void>(resolve => { started = resolve; });
+  const paused = new Promise<void>(resolve => { release = resolve; });
+  const sent: string[] = [];
+  configureOffline(async (_method, _path, body) => {
+    const owner = body.operations[0].accountId;
+    sent.push(owner);
+    if (owner === 'account-a') { started(); await paused; }
+    return { outcomes: body.operations.map((op: any) => ({ opId: op.opId, status: 'applied', data: { id: op.entityId } })) };
+  }, () => account);
+  online = true;
+  const first = syncAll(); await began;
+  account = 'account-b';
+  const second = syncAll();
+  assert.notEqual(first, second);
+  release(); await Promise.all([first, second]);
+  assert.deepEqual(sent, ['account-a', 'account-b']);
+  assert.equal(await db.queue.where('accountId').equals('account-b').count(), 0);
+  assert.equal(await db.queue.where('accountId').equals('account-a').count(), 1);
+  assert.equal(await db.meta.get('account-a:lastSync'), undefined);
+});
+
+test('incomplete snapshot metadata cannot delete an existing downloaded record', async () => {
+  await mergeRows('students', [{ id: 'existing', fullName: 'Keep me' }]);
+  configureOffline(async (_method, path) => path === '/sync-all/watermark' ? { cursor: '10' }
+    : path.includes('table=students') ? { data: [] } : { data: [], meta: { hasNextPage: false } }, () => account);
+  online = true;
+  await assert.rejects(pullAll(true), /تنزيل غير مكتمل/);
+  assert.equal((await get('students'))[0].fullName, 'Keep me');
+  assert.equal(await db.meta.get(`${account}:downloadedAt`), undefined);
+});
+
+test('repeated snapshot pages stop safely without deleting old rows or advancing the cursor', async () => {
+  await mergeRows('students', [{ id: 'existing' }]);
+  let pages = 0;
+  configureOffline(async (_method, path) => {
+    if (path === '/sync-all/watermark') return { cursor: '10' };
+    if (path.includes('table=students')) { pages++; return { data: [{ id: 'repeat' }], meta: { hasNextPage: true } }; }
+    return { data: [], meta: { hasNextPage: false } };
+  }, () => account);
+  online = true;
+  await assert.rejects(pullAll(true), /تنزيل غير مكتمل/);
+  assert.equal(pages, 2);
+  assert.ok((await get('students')).find(row => row.id === 'existing'));
+  assert.equal(await db.meta.get(`${account}:deltaCursor`), undefined);
+});
+
+test('invalid delta visibility IDs cannot erase the local copy or advance its cursor', async () => {
+  await mergeRows('students', [{ id: 'existing' }]);
+  await db.meta.put({ key: `${account}:deltaCursor`, value: '10' });
+  configureOffline(async () => ({ cursor: '11', hasMore: false, tables: { students: { data: [], visibleIds: [null] } } }), () => account);
+  online = true;
+  await assert.rejects(pullAll(), /تحديث غير مكتمل/);
+  assert.equal((await get('students'))[0].id, 'existing');
+  assert.equal((await db.meta.get(`${account}:deltaCursor`))?.value, '10');
+});
 test('JSON backup restores cached photo blobs and reference metadata', async () => {
   await db.responses.put({ key: 'account-a:image:/photo.png', accountId: account, data: new Blob(['image-data'], { type: 'image/png' }) });
   await db.meta.put({ key: 'account-a:reference:/exams/sections', value: [{ id: 'section1' }] });

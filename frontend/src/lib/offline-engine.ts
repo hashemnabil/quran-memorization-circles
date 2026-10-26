@@ -6,7 +6,7 @@ import { calculateExamGrade } from './exam-scoring';
 type Transport = (method: string, path: string, data?: any) => Promise<any>;
 let transport: Transport;
 let currentAccount: () => string = () => '';
-let running: Promise<void> | undefined;
+let running: { account: string; promise: Promise<void> } | undefined;
 let pulling: { account: string; promise: Promise<void> } | undefined;
 let refreshing: { account: string; promise: Promise<void> } | undefined;
 let networkReconciliation: { account: string; dirty: boolean; promise: Promise<void> } | undefined;
@@ -185,6 +185,14 @@ async function downloadAll() {
     for (;;) {
       const result = await transport('get', `/sync-all?table=${table}&page=${page}`);
       if (currentAccount() !== account) return;
+      // A truncated/malformed response must never be interpreted as a complete
+      // snapshot: doing so would erase previously downloaded server records.
+      if (!Array.isArray(result?.data) || typeof result.meta?.hasNextPage !== 'boolean' ||
+          result.data.some((row: any) => !row || typeof row.id !== 'string' || !row.id || received.has(row.id)) ||
+          new Set(result.data.map((row: any) => row.id)).size !== result.data.length ||
+          result.meta.hasNextPage && (!result.data.length || page >= 10000)) {
+        throw new Error('تنزيل غير مكتمل؛ احتُفظ بالبيانات المحلية لإعادة المحاولة');
+      }
       await mergeRows(table, result.data, account);
       for (const [path, data] of Object.entries(result.references || {})) await db.meta.put({ key: `${account}:reference:${path}`, value: data });
       for (const row of result.data) received.add(row.id);
@@ -226,7 +234,10 @@ async function downloadDelta(account: string, initialCursor: string) {
     for (const [name, value] of Object.entries(result.tables)) {
       if (!entityTables.includes(name as EntityTable)) throw new Error('جدول تحديث غير صالح');
       const table = name as EntityTable, snapshot = value as any;
-      if (!Array.isArray(snapshot.data) || !Array.isArray(snapshot.visibleIds)) throw new Error('تحديث غير مكتمل');
+      if (!Array.isArray(snapshot?.data) || !Array.isArray(snapshot.visibleIds) ||
+          snapshot.visibleIds.some((id: any) => typeof id !== 'string' || !id) ||
+          new Set(snapshot.visibleIds).size !== snapshot.visibleIds.length ||
+          snapshot.data.some((row: any) => !row || typeof row.id !== 'string' || !snapshot.visibleIds.includes(row.id))) throw new Error('تحديث غير مكتمل');
       await mergeRows(table, snapshot.data, account);
       const visible = new Set(snapshot.visibleIds);
       await db.table(table).where('accountId').equals(account).filter((row: LocalRow) => row.synced === 1 && !visible.has(row.id)).delete();
@@ -252,9 +263,20 @@ async function downloadDelta(account: string, initialCursor: string) {
   if (entities.size) window.dispatchEvent(new Event('halaqat:changed'));
 }
 export function syncAll(): Promise<void> {
-  if (running) return running;
-  running = synchronize().finally(() => { running = undefined; window.dispatchEvent(new Event('halaqat:changed')); });
-  return running;
+  const account = currentAccount();
+  if (!navigator.onLine || !account || !transport) return Promise.resolve();
+  if (running?.account === account) return running.promise;
+  // Do not attach a new account to the old account's in-flight response.
+  const previous = running?.promise;
+  const promise = (async () => {
+    await previous?.catch(() => undefined);
+    if (currentAccount() === account) await synchronize();
+  })().finally(() => {
+    if (running?.promise === promise) running = undefined;
+    window.dispatchEvent(new Event('halaqat:changed'));
+  });
+  running = { account, promise };
+  return promise;
 }
 async function synchronize() {
   if (!navigator.onLine || !currentAccount() || !transport) return;
@@ -268,10 +290,14 @@ async function synchronize() {
     : value && typeof value === 'object' ? Object.values(value).some(referencesBlocked) : false;
   let failure: string | undefined;
   while (remaining.length) {
+    if (currentAccount() !== account || !navigator.onLine) return;
     for (const op of remaining) if (op.action === 'create' && referencesBlocked(op.data)) blocked.add(op.entityId);
     const batch = remaining.filter(op => !blocked.has(op.entityId) && !referencesBlocked(op.data)).slice(0, 50);
     if (!batch.length) break;
     const operations = await Promise.all(batch.map(async op => ({ ...op, data: await openCredentials(op) })));
+    // Opening encrypted credentials can yield; never send the old account's
+    // payload using a session selected in the meantime.
+    if (currentAccount() !== account || !navigator.onLine) return;
     const result = await transport('post', '/sync-all', { operations });
     if (currentAccount() !== account) return;
     if (!Array.isArray(result?.outcomes) || result.outcomes.some((row: any, index: number) => row.opId !== batch[index]?.opId || !['applied', 'rejected'].includes(row.status))) throw new Error('استجابة مزامنة غير صالحة؛ بقيت العمليات محفوظة');
@@ -293,7 +319,7 @@ async function synchronize() {
     remaining = remaining.filter(op => !processed.has(op.opId));
   }
   if (failure) throw new Error(failure);
-  await db.meta.put({ key: `${account}:lastSync`, value: new Date().toISOString() });
+  if (currentAccount() === account) await db.meta.put({ key: `${account}:lastSync`, value: new Date().toISOString() });
 }
 async function acknowledge(operation: QueuedWrite, server: any) {
   const table = db.table(operation.table);

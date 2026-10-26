@@ -13,7 +13,6 @@ import { phoneError, PHONE_HINT, USERNAME_HINT } from '@/lib/validation';
 import type { AuthUser, SchoolSettings } from '@/types';
 import { savePendingSupport } from '@/lib/offline/pendingSupport';
 import { BRANDING_CACHE_KEY, DEFAULT_SCHOOL_NAME, DEFAULT_SCHOOL_LOGO, cachedSchoolBranding } from '@/config/branding';
-import ThemeSelect from '@/components/ThemeSelect';
 
 const DONATION_CACHE_KEY = 'qc.publicDonationInfo';
 function readCachedDonationInfo(): Partial<SchoolSettings> | null {
@@ -52,7 +51,6 @@ export default function LoginPage() {
   return (
     <div className="login-screen" dir="rtl">
       <div className="login-panel">
-        <div className="login-theme"><ThemeSelect /></div>
         <header className="login-brand flex flex-col items-center text-center">
           <span className="login-brand-mark"><img src={settings?.logoUrl || cachedBranding.logoUrl || DEFAULT_SCHOOL_LOGO} alt="" onError={event => { if (!event.currentTarget.src.endsWith(DEFAULT_SCHOOL_LOGO)) event.currentTarget.src = DEFAULT_SCHOOL_LOGO; }} className="h-full w-full object-contain" /></span>
           <h1 className="mt-5 text-lg font-extrabold leading-8 text-white sm:text-xl">{settings?.name?.trim() || cachedBranding.name || DEFAULT_SCHOOL_NAME}</h1>

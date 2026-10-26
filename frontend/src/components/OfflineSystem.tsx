@@ -15,12 +15,20 @@ export default function OfflineSystem() {
   const [progress, setProgress] = useState(getSyncProgress);
   const refresh = async () => {
     if (!account) return;
-    setPending(await db.queue.where('accountId').equals(account).count());
-    setLast((await db.meta.get(`${account}:lastSync`))?.value || '');
+    const [count, synced, downloaded] = await Promise.all([
+      db.queue.where('accountId').equals(account).count(),
+      db.meta.get(`${account}:lastSync`),
+      db.meta.get(`${account}:downloadedAt`),
+    ]);
+    if (useAuthStore.getState().user?.id !== account) return;
+    setPending(count);
+    // An empty upload queue is not evidence that fresh server data was pulled.
+    setLast(downloaded?.value || synced?.value || '');
   };
 
   useEffect(() => {
     if (!account) return;
+    setPending(0); setLast(''); setError('');
     let active = true;
     let running = false;
     let changedDuringSync = false;
@@ -28,7 +36,11 @@ export default function OfflineSystem() {
     let refreshAfterSync = false;
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     let remoteTimer: ReturnType<typeof setTimeout> | undefined;
-    const update = () => { if (active) void refresh(); };
+    const update = () => {
+      if (active) void refresh().catch(() => {
+        if (active) setError('تعذرت قراءة التخزين المحلي؛ لم تُحذف بياناتك. تحقق من مساحة الجهاز وأعد المحاولة.');
+      });
+    };
     const synchronize = async (initial = false, refreshReads = false) => {
       if (!active || !navigator.onLine) return;
       if (running) { refreshAfterSync ||= refreshReads; return; }
@@ -115,5 +127,8 @@ export default function OfflineSystem() {
       {syncing ? `جارٍ المزامنة ${progress.percent}٪` : waiting ? 'بانتظار المزامنة' : 'تمت المزامنة'}
       {syncing && <span role="progressbar" aria-label="تقدم مراحل المزامنة" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent} className="h-1.5 w-14 overflow-hidden rounded-full bg-blue-100"><span className="block h-full rounded-full bg-blue-500 transition-[width] motion-reduce:transition-none" style={{ width: `${progress.percent}%` }} /></span>}
     </span>
+    {pending > 0 && <span>{pending} عملية بانتظار تأكيد الخادم</span>}
+    {last && Number.isFinite(Date.parse(last)) && <time dateTime={last} className="text-slate-500">آخر مزامنة: {new Date(last).toLocaleString('ar', { dateStyle: 'short', timeStyle: 'short' })}</time>}
+    {error && <span className="w-full rounded-lg bg-amber-50 px-3 py-2 text-amber-900">{error} — بقيت العمليات المحلية محفوظة لإعادة المحاولة.</span>}
   </div>;
 }

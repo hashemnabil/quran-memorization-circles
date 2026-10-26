@@ -20,8 +20,25 @@ self.addEventListener('install', (event) => {
       // A shell without its JS/CSS cannot start offline. Fail the installation
       // rather than activating a partial cache and deleting the previous version.
       const assetResponses = await Promise.all(assets.map(async (asset) => {
-        const assetResponse = await fetch(asset, { cache: 'reload' });
+        const isSound = new URL(asset).pathname.startsWith('/sounds/');
+        let assetResponse = await fetch(asset, { cache: 'reload', ...(isSound ? { headers: { Range: 'bytes=0-' } } : {}) });
         if (!assetResponse.ok) throw new Error(`Unable to cache app asset: ${asset}`);
+        if (isSound) {
+          // Fetch the complete media range. Some download managers intercept plain
+          // audio fetches with an empty 204; never activate a shell with empty tones.
+          const data = await assetResponse.arrayBuffer();
+          const bytes = new Uint8Array(data);
+          const signature = String.fromCharCode(...bytes.slice(0, 4));
+          const format = String.fromCharCode(...bytes.slice(8, 12));
+          if (bytes.length <= 44 || signature !== 'RIFF' || format !== 'WAVE') throw new Error(`Invalid audio asset: ${asset}`);
+          if (assetResponse.status === 206) {
+            const range = /^bytes 0-(\d+)\/(\d+)$/.exec(assetResponse.headers.get('Content-Range') || '');
+            if (!range || Number(range[1]) + 1 !== bytes.length || Number(range[2]) !== bytes.length) throw new Error(`Incomplete audio asset: ${asset}`);
+          }
+          // CacheStorage cannot store a 206 response. Normalize only a verified
+          // complete file, so future range or ordinary requests can read it offline.
+          assetResponse = new Response(data, { status: 200, headers: { 'Content-Type': 'audio/wav', 'Content-Length': String(bytes.length) } });
+        }
         return [asset, assetResponse];
       }));
 
@@ -97,7 +114,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (url.pathname.startsWith('/assets/') || url.pathname === '/manifest.webmanifest' || url.pathname === '/favicon.ico' || url.pathname.startsWith('/icons/')) {
+  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/sounds/') || url.pathname === '/manifest.webmanifest' || url.pathname === '/favicon.ico' || url.pathname.startsWith('/icons/')) {
     event.respondWith((async () => {
       // Vite can add Vary: Origin. Module-script requests carry Origin while
       // worker precache requests do not; immutable public assets are identical.

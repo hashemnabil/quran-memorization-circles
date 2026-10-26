@@ -20,6 +20,22 @@ test('provider credentials remain server-side, and missing setup never attempts 
   for (const link of ['https://example.com', '//example.com', 'javascript:alert(1)', '/\\example.com']) assert.equal(safePushLink(link), '/notifications');
   assert.equal(safePushLink('/student'), '/student');
 });
+test('Android delivery uses a validated selected channel, with legacy fallback and silence', async () => {
+  const originalFetch = global.fetch;
+  const requests: any[] = [];
+  const provider = new PushProvider({ FCM_PROJECT_ID: 'test-project', FCM_CLIENT_EMAIL: 'test', FCM_PRIVATE_KEY: 'test' });
+  (provider as any).googleAccess = { token: 'test-only-token', expires: Date.now() + 60000 };
+  global.fetch = (async (_url: any, options: any) => { requests.push(JSON.parse(options.body)); return { ok: true }; }) as any;
+  try {
+    const notice = { id: 'notice', title: 'test', body: null, link: '/notifications' };
+    for (const channel of ['school-general-calm-v1', 'school-general-silent-v1', undefined, 'untrusted-channel']) await provider.send('android', 'test-device', notice, channel);
+    assert.equal(requests[0].message.android.notification.channel_id, 'school-general-calm-v1');
+    assert.equal(requests[1].message.android.notification.channel_id, 'school-general-silent-v1');
+    assert.equal(requests[1].message.android.notification.sound, undefined);
+    assert.equal(requests[2].message.android.notification.channel_id, 'halaqat-updates');
+    assert.equal(requests[3].message.android.notification.channel_id, 'halaqat-updates');
+  } finally { global.fetch = originalFetch; }
+});
 test('Google RS256 and Apple ES256 provider tokens have valid signatures', () => {
   for (const apple of [false, true]) {
     const pair = apple ? generateKeyPairSync('ec', { namedCurve: 'P-256' }) : generateKeyPairSync('rsa', { modulusLength: 2048 });

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import PrayerCard from '@/components/PrayerCard';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api, apiError } from '@/lib/api';
@@ -71,12 +72,13 @@ export default function StudentPortalPage() {
     );
   }
 
-  if (isLoading) return <LoadingState rows={5} />;
-  if (isError || !data) return <ErrorState message="تعذر تحميل ملفك الدراسي" onRetry={() => refetch()} />;
+  if (isLoading) return <><PrayerCard /><LoadingState rows={5} /></>;
+  if (isError || !data) return <><PrayerCard /><ErrorState message="تعذر تحميل ملفك الدراسي" onRetry={() => refetch()} /></>;
 
   return (
     <>
       <PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
+      <PrayerCard />
       <StudentQuestionnaire key={data.id} profile={data} />
       <Card title="مواعيد اختباراتي" className="mb-5">
         {history.isLoading ? <LoadingState rows={2} /> : history.isError ? <ErrorState message="تعذر تحميل مواعيد الاختبارات" onRetry={() => history.refetch()} /> :

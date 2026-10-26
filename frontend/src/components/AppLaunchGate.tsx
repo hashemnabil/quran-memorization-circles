@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { useCachedImage } from '@/hooks/useCachedImage';
 import { api } from '@/lib/api';
 import type { SchoolSettings } from '@/types';
+import { DEFAULT_SCHOOL_LOGO } from '@/config/branding';
 
 const BRAND_CACHE_KEY = 'qc.schoolBranding';
 
@@ -14,12 +15,12 @@ function readCachedBranding(): Branding {
 }
 
 export default function AppLaunchGate({ children }: { children: ReactNode }) {
-  return Capacitor.isNativePlatform() ? <NativeLaunchGate>{children}</NativeLaunchGate> : <>{children}</>;
+  return <NativeLaunchGate>{children}</NativeLaunchGate>;
 }
 
 function NativeLaunchGate({ children }: { children: ReactNode }) {
   const [onboardingDone, setOnboardingDone] = useState(() => {
-    try { return localStorage.getItem('qc.onboarding.completed') === '1'; } catch { return false; }
+    try { return !Capacitor.isNativePlatform() || localStorage.getItem('qc.onboarding.completed') === '1'; } catch { return !Capacitor.isNativePlatform(); }
   });
   const [showSplash, setShowSplash] = useState(true);
   const [branding, setBranding] = useState<Branding>(readCachedBranding);
@@ -38,7 +39,8 @@ function NativeLaunchGate({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setShowSplash(false), 1700);
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const timer = window.setTimeout(() => setShowSplash(false), reduced ? 0 : Capacitor.isNativePlatform() ? 850 : 450);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -50,10 +52,11 @@ function NativeLaunchGate({ children }: { children: ReactNode }) {
     <>
       {onboardingDone && children}
       {showSplash && (
-        <div dir="rtl" role="status" aria-label="بدء التطبيق" className="fixed inset-0 z-[190] flex items-center justify-center overflow-hidden bg-[#f7faf8] px-6 text-center text-primary-800">
+        <div dir="rtl" role="status" aria-label="بدء التطبيق" className="fixed inset-0 z-[190] flex flex-col items-center justify-center gap-6 overflow-hidden bg-[#103c30] px-6 text-center text-[#e7ce95]">
           <div className="launch-logo" aria-hidden="true">
-            {logo && !logoFailed ? <img src={logo} alt="" onError={() => setLogoFailed(true)} className="h-36 w-36 object-contain" /> : <img src="/brand-logo.png" alt="" className="h-36 w-36 object-contain" />}
+            {logo && !logoFailed ? <img src={logo} alt="" onError={() => setLogoFailed(true)} className="h-36 w-36 object-contain" /> : <img src={DEFAULT_SCHOOL_LOGO} alt="" className="h-36 w-36 object-contain" />}
           </div>
+          <p className="launch-logo max-w-sm text-lg font-bold leading-8">مدرسة عبدالله بن عمر لتحفيظ القرآن الكريم</p>
         </div>
       )}
     </>

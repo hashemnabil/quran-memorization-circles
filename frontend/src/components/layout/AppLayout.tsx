@@ -1,5 +1,6 @@
 import ThemeSelect from '@/components/ThemeSelect';
 import { NativePushConnection } from '@/components/NativePush';
+import PrayerReminderConnection from '@/components/PrayerReminderConnection';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -280,6 +281,7 @@ export default function AppLayout() {
   return (
     <div className="app-shell flex min-h-screen bg-slate-50">
       <NativePushConnection />
+      <PrayerReminderConnection />
       {/* Desktop sidebar — width animates between the full panel and the icon rail. */}
       <aside
         className={cx(

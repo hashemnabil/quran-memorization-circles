@@ -20,18 +20,21 @@ export class PushProvider {
     return platform === 'android' ? !!(this.env.FCM_PROJECT_ID && this.env.FCM_CLIENT_EMAIL && this.env.FCM_PRIVATE_KEY)
       : platform === 'ios' && !!(this.env.APNS_KEY_ID && this.env.APNS_TEAM_ID && this.env.APNS_PRIVATE_KEY && this.env.APNS_BUNDLE_ID);
   }
-  async send(platform: string, token: string, notice: { id: string; userId?: string; title: string; body: string | null; link: string | null }) {
+  async send(platform: string, token: string, notice: { id: string; userId?: string; title: string; body: string | null; link: string | null }, notificationChannelId?: string) {
     if (!this.ready(platform)) throw new PushSendError('PROVIDER_NOT_CONFIGURED');
     const content = this.env.PUSH_INCLUDE_CONTENT === 'true';
     const title = content ? notice.title.slice(0, 150) : 'حلقات القرآن';
     const body = content ? (notice.body || 'لديك إشعار جديد').slice(0, 400) : 'لديك إشعار جديد، افتح التطبيق للاطلاع عليه';
     const data = { notificationId: notice.id, accountId: notice.userId || '', link: safePushLink(notice.link) };
     if (platform === 'android') {
+      const selectedChannel = notificationChannelId && /^school-general-(default|silent|calm|electronic|clear|custom)-v1$/.test(notificationChannelId) ? notificationChannelId : 'halaqat-updates';
+      const mode = selectedChannel.split('-')[2];
+      const sound = mode === 'silent' ? undefined : ['calm', 'electronic', 'clear'].includes(mode) ? `school_${mode}` : 'default';
       const access = await this.googleToken();
       const response = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(this.env.FCM_PROJECT_ID!)}/messages:send`, {
         method: 'POST', headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(10000),
         body: JSON.stringify({ message: { token, notification: { title, body }, data,
-          android: { priority: 'HIGH', ttl: '86400s', notification: { channel_id: 'halaqat-updates', tag: notice.id, sound: 'default', icon: 'ic_stat_halaqat' } } } }),
+          android: { priority: 'HIGH', ttl: '86400s', notification: { channel_id: selectedChannel, tag: notice.id, sound, icon: 'ic_stat_halaqat' } } } }),
       });
       if (!response.ok) {
         const result: any = await response.json().catch(() => ({}));

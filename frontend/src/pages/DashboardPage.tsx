@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import PrayerCard from '@/components/PrayerCard';
 import { useQuery } from '@tanstack/react-query';
 import {
   Area,
@@ -83,6 +84,7 @@ export default function DashboardPage() {
     return (
       <>
         <PageHeader title="الرئيسية" subtitle="جارٍ تجهيز ملخص اليوم..." />
+        <PrayerCard />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="card h-24 animate-pulse" />
@@ -93,7 +95,7 @@ export default function DashboardPage() {
   }
 
   if (!data) {
-    return <ErrorState message="تعذر تحميل لوحة المعلومات" onRetry={() => refetch()} />;
+    return <><PrayerCard /><ErrorState message="تعذر تحميل لوحة المعلومات" onRetry={() => refetch()} /></>;
   }
 
   const greeting = `${ROLE_LABELS[user.role]} — ${user.fullName}`;
@@ -110,21 +112,7 @@ export default function DashboardPage() {
         }
       />
 
-      <section className="relative mb-6 overflow-hidden rounded-[1.5rem] border border-primary-900 bg-primary-900 px-5 py-7 text-white shadow-card sm:px-8 sm:py-8">
-        <div className="pointer-events-none absolute -left-8 -top-10 h-40 w-40 rounded-full border-[24px] border-white/5" aria-hidden />
-        <div className="pointer-events-none absolute -bottom-16 right-[42%] h-40 w-40 rounded-full border border-gold-300/15" aria-hidden />
-        <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-          <div className="max-w-2xl">
-            <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-gold-200/25 bg-gold-200/10 px-3 py-1.5 text-xs font-bold tracking-wide text-gold-100"><span className="h-1.5 w-1.5 rounded-full bg-gold-300" /> نظام إدارة حلقات تحفيظ القرآن الكريم</p>
-            <h2 className="text-2xl font-extrabold leading-relaxed sm:text-3xl">أهلاً وسهلاً، {user.fullName}</h2>
-            <p className="mt-2 max-w-xl text-sm leading-7 text-primary-100/90">كل ما تحتاجه لمتابعة حلقات التحفيظ والمهام اليومية، مرتب أمامك في مكان واحد.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link to="/support" className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-bold transition hover:bg-white/20"><IconLifeBuoy size={17} /> الدعم الفني</Link>
-            <Link to="/notifications" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-bold text-primary-900 transition hover:bg-primary-50"><IconBell size={17} /> الإشعارات</Link>
-          </div>
-        </div>
-      </section>
+      <PrayerCard />
 
       <section className="mb-6">
         <div className="mb-3 flex items-end justify-between gap-3">

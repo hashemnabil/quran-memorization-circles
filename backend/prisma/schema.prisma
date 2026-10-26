@@ -978,6 +978,7 @@ model PushDevice {
   platform String
   token String @unique
   enabled Boolean @default(true)
+  notificationChannelId String? @db.VarChar(80)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deliveries PushDelivery[]

@@ -180,6 +180,7 @@ export default function ProfilePage() {
           {['STUDENT', 'TEACHER'].includes(user.role) ? <Card title="بياناتي الشخصية"><Button onClick={() => navigate('/verify-profile')}>تحقق من بياناتي</Button></Card> : <ProfileDetailsCard profile={profile} onUpdated={setUser} />}
 
           <NativePushSettings />
+          <Card title="الإعدادات — الإشعارات"><Link className="btn-secondary inline-flex" to="/profile/settings/notifications/sound">صوت الإشعارات</Link><Link className="mt-3 block text-sm underline" to="/prayer-times/reminders">إعدادات تذكيرات الصلاة</Link></Card>
           <Card title="تغيير كلمة المرور" subtitle="سيتم إنهاء جميع جلساتك بعد التغيير">
             <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
               <Input

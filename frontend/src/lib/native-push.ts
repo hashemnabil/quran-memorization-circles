@@ -4,6 +4,7 @@ import { Preferences } from '@capacitor/preferences';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { api } from './api';
+import { androidNotifications, configureSound, readGeneralSound, SchoolNotifications } from './notification-sounds';
 
 export const nativePushAvailable = () => Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('PushNotifications');
 export const nativePushClientConfigured = () => Capacitor.getPlatform() !== 'android' || import.meta.env.VITE_ANDROID_FCM_CONFIGURED === 'true';
@@ -43,7 +44,10 @@ export async function connectNativePush(account: string, navigate: (path: string
   const owned = () => active && currentAccount() === account;
   handles.push(await PushNotifications.addListener('registration', token => {
     if (!owned()) return;
-    void installationId().then(async id => { if (owned()) { await api.post('/push/devices', { installationId: id, platform: Capacitor.getPlatform(), token: token.value }); window.dispatchEvent(new CustomEvent('halaqat:push-status', { detail: 'تم تفعيل إشعارات الجوال' })); } }).catch(() => {
+    void installationId().then(async id => {
+      const channel = androidNotifications() ? await configureSound(account, 'general', readGeneralSound(account)) : undefined;
+      if (owned()) { await api.post('/push/devices', { installationId: id, platform: Capacitor.getPlatform(), token: token.value, notificationChannelId: channel?.channelId }); window.dispatchEvent(new CustomEvent('halaqat:push-status', { detail: 'تم تفعيل إشعارات الجوال' })); }
+    }).catch(() => {
       window.dispatchEvent(new CustomEvent('halaqat:push-status', { detail: 'تعذر تسجيل الجهاز؛ أعد تفعيل الإشعارات عند الاتصال' }));
     });
   }));
@@ -52,7 +56,15 @@ export async function connectNativePush(account: string, navigate: (path: string
   handles.push(await PushNotifications.addListener('pushNotificationReceived', notification => {
     if (!owned() || notification.data?.accountId && notification.data.accountId !== account || Capacitor.getPlatform() !== 'android') return;
     // Android displays background FCM notifications itself. This callback covers foreground delivery.
-    void LocalNotifications.schedule({ notifications: [{ id: hashNotification(notification.data?.notificationId || notification.id), title: notification.title || 'حلقات القرآن', body: notification.body || 'لديك إشعار جديد', channelId: 'halaqat-updates', smallIcon: 'ic_stat_halaqat', extra: { ...notification.data, accountId: account } }] }).catch(() => undefined);
+    void (async () => {
+      const channel = androidNotifications() ? await configureSound(account, 'general', readGeneralSound(account)) : { channelId: 'halaqat-updates' };
+      if (!owned()) return;
+      if (androidNotifications()) {
+        await SchoolNotifications.showGeneral({ accountId: account, id: hashNotification(notification.data?.notificationId || notification.id), title: notification.title || 'حلقات القرآن', body: notification.body || 'لديك إشعار جديد', link: notificationLink(notification.data) });
+        return;
+      }
+      await LocalNotifications.schedule({ notifications: [{ id: hashNotification(notification.data?.notificationId || notification.id), title: notification.title || 'حلقات القرآن', body: notification.body || 'لديك إشعار جديد', channelId: channel.channelId, smallIcon: 'ic_stat_halaqat', extra: { ...notification.data, accountId: account } }] });
+    })().catch(() => undefined);
   }));
   handles.push(await LocalNotifications.addListener('localNotificationActionPerformed', action => {
     if (owned() && action.notification.extra?.accountId === account) navigate(notificationLink(action.notification.extra));
@@ -62,10 +74,12 @@ export async function connectNativePush(account: string, navigate: (path: string
     try { if ((await PushNotifications.checkPermissions()).receive === 'granted' && await configured()) await PushNotifications.register(); } catch { /* Unconfigured apps remain usable. */ }
   };
   window.addEventListener('online', resume); void resume();
-  return () => { active = false; window.removeEventListener('online', resume); for (const handle of handles) void handle.remove(); };
+  window.addEventListener('qc:notification-sound', resume);
+  return () => { active = false; window.removeEventListener('online', resume); window.removeEventListener('qc:notification-sound', resume); for (const handle of handles) void handle.remove(); };
 }
 function hashNotification(id: string) { let hash = 0; for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) | 0; return (hash & 0x7fffffff) || 1; }
 export async function disableNativePush() {
+  if (androidNotifications()) await SchoolNotifications.clearPrayers().catch(() => undefined);
   if (!nativePushAvailable() || !nativePushClientConfigured()) return;
   const id = await installationId();
   // Remove OS-delivered previews when changing accounts, including offline logout.

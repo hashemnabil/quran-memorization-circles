@@ -11,6 +11,7 @@ import androidx.core.view.WindowInsetsCompat;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(SchoolNotificationsPlugin.class);
         super.onCreate(savedInstanceState);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         View content = findViewById(android.R.id.content);

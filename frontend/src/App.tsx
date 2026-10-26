@@ -4,6 +4,9 @@ import MeetingsPage from '@/pages/MeetingsPage';
 import { lazy, Suspense, useEffect } from 'react';
 import { LoadingState } from '@/components/ui';
 import AppLaunchGate from '@/components/AppLaunchGate';
+import PrayerTimesPage from '@/pages/PrayerTimesPage';
+import PrayerReminderSettingsPage from '@/pages/PrayerReminderSettingsPage';
+import NotificationSoundSettingsPage from '@/pages/NotificationSoundSettingsPage';
 import { Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth';
 import { startHeartbeat } from '@/lib/session';
@@ -136,6 +139,9 @@ export default function App() {
         <Route path="profile-reviews/students" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="STUDENT" /></RequireRole>} />
         <Route path="profile-reviews/teachers" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="TEACHER" /></RequireRole>} />
         <Route path="settings/offline" element={<OfflineSettingsPage />} />
+        <Route path="prayer-times" element={<PrayerTimesPage />} />
+        <Route path="prayer-times/reminders" element={<PrayerReminderSettingsPage key={currentUser?.id} />} />
+        <Route path="profile/settings/notifications/sound" element={<NotificationSoundSettingsPage key={currentUser?.id} />} />
         <Route path="donations" element={<DonationsPage />} />
         <Route path="admin/notifications" element={<RequireRole roles={['ADMIN']}><BroadcastPage /></RequireRole>} />
         <Route path="meetings" element={<RequireRole roles={['ADMIN']}><MeetingsPage /></RequireRole>} />

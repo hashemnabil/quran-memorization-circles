@@ -16,16 +16,17 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     this.timer = setInterval(run, 15000); this.timer.unref?.(); run();
   }
   onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
-  async register(user: AuthUser, data: { installationId: string; platform: string; token: string }) {
+  async register(user: AuthUser, data: { installationId: string; platform: string; token: string; notificationChannelId?: string }) {
     if (!data || !/^[\da-f-]{36}$/i.test(data.installationId) || !['android', 'ios'].includes(data.platform) || typeof data.token !== 'string' || data.token.length < 20 || data.token.length > 4096 || data.platform === 'ios' && !/^[a-f\d]+$/i.test(data.token)) throw new BadRequestException('بيانات تسجيل الإشعارات غير صالحة');
     if (!this.provider.ready(data.platform)) throw new BadRequestException('خدمة إشعارات الجوال غير مهيأة بعد');
+    if (data.notificationChannelId !== undefined && (typeof data.notificationChannelId !== 'string' || !/^school-general-(default|silent|calm|electronic|clear|custom)-v1$/.test(data.notificationChannelId))) throw new BadRequestException('قناة الإشعارات غير صالحة');
     await this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext('push-device'), 0)) AS locked`;
       // Token rotation and account switches invalidate old pending deliveries.
       await tx.pushDevice.deleteMany({ where: { token: data.token, installationId: { not: data.installationId } } });
       const existing = await tx.pushDevice.findUnique({ where: { installationId: data.installationId } });
       if (existing && (existing.userId !== user.id || existing.token !== data.token)) await tx.pushDelivery.deleteMany({ where: { deviceId: existing.id } });
-      await tx.pushDevice.upsert({ where: { installationId: data.installationId }, create: { ...data, userId: user.id }, update: { userId: user.id, platform: data.platform, token: data.token, enabled: true } });
+      await tx.pushDevice.upsert({ where: { installationId: data.installationId }, create: { ...data, userId: user.id }, update: { userId: user.id, platform: data.platform, token: data.token, enabled: true, notificationChannelId: data.notificationChannelId ?? null } });
     });
     return { registered: true };
   }
@@ -56,7 +57,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         const claimed = await this.prisma.pushDelivery.updateMany({ where: { id: job.id, status: job.status, nextAttemptAt: job.nextAttemptAt }, data: { status: 'SENDING', attempts: { increment: 1 }, nextAttemptAt: new Date(Date.now() + 60000) } });
         if (!claimed.count) return;
         try {
-          await this.provider.send(device!.platform, device!.token, job.notification);
+          await this.provider.send(device!.platform, device!.token, job.notification, device!.notificationChannelId ?? undefined);
           await this.prisma.pushDelivery.update({ where: { id: job.id }, data: { status: 'SENT', lastError: null } });
         } catch (error) {
           const invalid = error instanceof PushSendError && error.invalidToken;

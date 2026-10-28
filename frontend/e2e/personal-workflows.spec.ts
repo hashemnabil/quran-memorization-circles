@@ -117,4 +117,18 @@ test('the prayer card displays the mosque and keeps its asset available offline'
   await page.screenshot({ path: info.outputPath('prayer-mosque.png'), fullPage: true });
   await context.setOffline(true);
   expect(await page.evaluate(async () => (await fetch('/prayer-mosque.jpg')).ok)).toBe(true);
+  expect(await page.evaluate(async () => {
+    const response = await fetch('/sounds/adhan.ogg');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return response.ok && String.fromCharCode(...bytes.slice(0, 4)) === 'OggS' && bytes.length > 1000000;
+  })).toBe(true);
+});
+test('bundled adhan preview plays and stops from the prayer settings', async ({ page }) => {
+  await setup(page);
+  await gotoWithLocalUnlock(page, '/prayer-times/reminders');
+  await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
+  await page.getByRole('button', { name: 'معاينة الأذان المضمّن', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'إيقاف المعاينة', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'إيقاف المعاينة', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'معاينة الأذان المضمّن', exact: true })).toBeVisible();
 });

@@ -38,10 +38,12 @@ for (const role of ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'SUPPORT
     await card.getByRole('link', { name: 'إعدادات التذكير' }).click();
     await expect(page.getByRole('heading', { name: 'إعدادات تذكيرات الصلاة', exact: true })).toBeVisible();
     await page.getByLabel('تفعيل تذكيرات الصلاة', { exact: true }).check();
+    await page.getByLabel('تشغيل الأذان عند دخول وقت الصلاة', { exact: true }).check();
     await page.getByLabel('موعد تذكير الفجر').selectOption('10');
     await page.getByRole('button', { name: 'حفظ الإعدادات' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'حُفظت' })).toBeVisible();
     expect(await page.evaluate(id => JSON.parse(localStorage.getItem(`qc.prayers.v1:${id}`)!).prayers.fajr.before, user.id)).toBe(10);
+    expect(await page.evaluate(id => JSON.parse(localStorage.getItem(`qc.prayers.v1:${id}`)!).adhanEnabled, user.id)).toBe(true);
     await gotoWithLocalUnlock(page,'/profile/settings/notifications/sound');
     await expect(page.getByRole('heading', { name: 'صوت الإشعارات', exact: true })).toBeVisible();
     await page.getByRole('radio', { name: 'إشراقة' }).check();

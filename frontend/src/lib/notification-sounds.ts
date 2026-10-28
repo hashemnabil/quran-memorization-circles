@@ -23,7 +23,7 @@ export interface SchoolNotificationsPlugin {
   openSettings(options: { channelId?: string }): Promise<void>;
   previewDefault(): Promise<void>;
   stopPreview(): Promise<void>;
-  schedulePrayers(options: { accountId: string; channelId: string; reminders: { at: number; title: string; body: string; adhan?: boolean }[] }): Promise<{ exact: boolean }>;
+  schedulePrayers(options: { accountId: string; channelId: string; reminders: { at: number; title: string; body: string; adhan?: boolean; adhanSource?: string }[] }): Promise<{ exact: boolean }>;
   clearPrayers(): Promise<void>;
   requestExactAlarm(): Promise<void>;
   consumePrayerOpen(): Promise<{ opened: boolean; link?: string }>;

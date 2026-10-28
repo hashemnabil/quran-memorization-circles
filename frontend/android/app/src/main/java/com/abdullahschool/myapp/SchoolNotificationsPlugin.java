@@ -207,7 +207,7 @@ public class SchoolNotificationsPlugin extends Plugin {
         try {
             String account = call.getString("accountId");
             String channel = call.getString("channelId", "");
-            if (account == null || !channel.matches("school-prayer-(default|silent|calm|clear|electronic|custom)-v[12](-[a-f0-9]{12})?") || call.getArray("reminders") == null || call.getArray("reminders").length() > 1900) { call.reject("Invalid prayer schedule"); return; }
+            if (account == null || !channel.matches("school-prayer-(default|silent|calm|clear|electronic|custom)-v[12](-[a-f0-9]{12})?") || call.getArray("reminders") == null || call.getArray("reminders").length() > 3800) { call.reject("Invalid prayer schedule"); return; }
             SharedPreferences prefs = PrayerAlarmReceiver.preferences(getContext());
             prefs.edit().putString("account", account).putString("channel", channel).putString("schedule", call.getArray("reminders").toString()).commit();
             PrayerAlarmReceiver.scheduleNext(getContext());

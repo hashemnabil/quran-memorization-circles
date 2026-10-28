@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateGazaTimes, countdown, defaultPrayerPreferences, gazaDateKey, nextPrayer, prayerReminders, prayerTimeLabel, readPrayerPreferences, shiftDate } from './prayer-times';
+import { calculateGazaTimes, countdown, defaultPrayerPreferences, gazaDateKey, nextPrayer, prayerReminders, prayerAlarmEvents, prayerTimeLabel, readPrayerPreferences, shiftDate } from './prayer-times';
 
 test('Gaza calendar date is independent of the device timezone', () => {
   assert.equal(gazaDateKey(new Date('2026-07-01T22:30:00Z')), '2026-07-02');
@@ -47,6 +47,19 @@ test('reminders are opt-in, exclude sunrise and support lead times', () => {
   assert.equal(reminders[0].at.getTime() - reminders[0].remindAt.getTime(), 900000);
   assert.ok(prayerReminders(prefs, new Date('2026-10-25T23:00:00Z'), 1).every(p => p.remindAt.getTime() > new Date('2026-10-25T23:00:00Z').getTime()));
 });
+test('adhan happens at prayer time independently from an early reminder without duplicate on-time events', () => {
+  const prefs = defaultPrayerPreferences(); prefs.enabled = true; prefs.adhanEnabled = true; prefs.prayers.fajr.before = 10;
+  const events = prayerAlarmEvents(prefs, new Date('2026-10-25T00:00:00Z'), 1);
+  assert.equal(events.length, 6); assert.equal(events.filter(event => event.adhan).length, 5);
+  assert.ok(events.filter(event => event.adhan).every(event => event.at.getTime() === event.remindAt.getTime()));
+  assert.equal(events.filter(event => event.id === 'fajr' && !event.adhan).length, 1);
+  const afterEarlyReminder = new Date(calculateGazaTimes('2026-10-25')[0].at.getTime() - 5 * 60000);
+  assert.equal(prayerAlarmEvents(prefs, afterEarlyReminder, 1).filter(event => event.id === 'fajr' && event.adhan).length, 1);
+  prefs.prayers.fajr.enabled = false;
+  assert.ok(prayerAlarmEvents(prefs, afterEarlyReminder, 1).every(event => event.id !== 'fajr'));
+  prefs.adhanEnabled = false;
+  assert.ok(prayerAlarmEvents(prefs, afterEarlyReminder, 1).every(event => !event.adhan));
+});
 test('account preferences stay separate and invalid values fall back safely', () => {
   const original = globalThis.localStorage; const store = new Map<string, string>();
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: (key: string) => store.get(key) ?? null } });
@@ -54,5 +67,9 @@ test('account preferences stay separate and invalid values fall back safely', ()
     store.set('qc.prayers.v1:alice', JSON.stringify({ enabled: true, hijriOffset: 99, prayers: { fajr: { before: -1 } } }));
     assert.equal(readPrayerPreferences('alice').enabled, true); assert.equal(readPrayerPreferences('bob').enabled, false);
     assert.equal(readPrayerPreferences('alice').hijriOffset, 0); assert.equal(readPrayerPreferences('alice').prayers.fajr.before, 0);
+    store.set('qc.prayers.v1:alice', JSON.stringify({ enabled: true, sound: 'custom' }));
+    assert.equal(readPrayerPreferences('alice').adhanEnabled, true); assert.equal(readPrayerPreferences('alice').adhanSource, 'custom');
+    store.set('qc.prayers.v1:alice', JSON.stringify({ enabled: true, sound: 'custom', adhanEnabled: false }));
+    assert.equal(readPrayerPreferences('alice').adhanEnabled, false);
   } finally { Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: original }); }
 });

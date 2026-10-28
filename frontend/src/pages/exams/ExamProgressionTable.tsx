@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
+import { examMilestonePath } from '@/lib/exam-milestone-path';
 import { Badge, Card, EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { formatDateShort } from '@/lib/format';
 import type { Exam, ExamEligibility } from '@/types';
@@ -65,7 +66,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
     onError: (error) => toast.error(apiError(error)),
   });
   const saveRecord = useMutation({
-    mutationFn: async (sectionId: string) => (await api.patch(combinedPlan().some(stage=>stage.code===sectionId)?`/exams/combined-milestones/${studentId}/${sectionId}`:`/exams/milestones/${studentId}/${sectionId}`, {
+    mutationFn: async (sectionId: string) => (await api.patch(examMilestonePath(studentId, sectionId), {
       status: draft.status,
       score: draft.score === '' ? null : Number(draft.score),
       requestedAt: draft.requestedAt || null,
@@ -165,7 +166,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
                       <input className="form-input w-full" type="date" aria-label="تاريخ الطلب" title="تاريخ الطلب" value={draft.requestedAt} onChange={(e) => setDraft({ ...draft, requestedAt: e.target.value })} />
                       <input className="form-input w-full" type="date" aria-label="تاريخ الاختبار" title="تاريخ الاختبار" value={draft.examDate} onChange={(e) => setDraft({ ...draft, examDate: e.target.value })} />
                       <input className="form-input w-full" placeholder="اسم الممتحن" value={draft.examinerName} onChange={(e) => setDraft({ ...draft, examinerName: e.target.value })} />
-                      <div className="flex gap-1"><button className="btn btn-primary btn-sm" disabled={saveRecord.isPending} onClick={() => saveRecord.mutate(row.stage?.code || row.section?.id || record?.sectionId || '')}>حفظ</button><button className="btn btn-secondary btn-sm" onClick={() => setEditing(null)}>إلغاء</button></div>
+                      <div className="flex gap-1"><button className="btn btn-primary btn-sm" disabled={saveRecord.isPending} onClick={() => saveRecord.mutate(row.stage?.code || row.section?.id || record?.sectionId || row.key)}>حفظ</button><button className="btn btn-secondary btn-sm" onClick={() => setEditing(null)}>إلغاء</button></div>
                     </div>
                   ) : <button className="btn btn-secondary btn-sm" onClick={() => { setEditing(row.key); setDraft({ status: record?.status ?? (row.pending ? 'SCHEDULED' : completed ? 'COMPLETED' : row.requested ? 'REQUESTED' : 'NOT_REQUESTED'), score: score == null ? '' : String(score), requestedAt: (record?.requestedAt ?? '').slice(0, 10), examDate: (record?.examDate ?? row.related?.scheduledAt ?? '').slice(0, 10), examinerName: record?.examinerName ?? row.related?.examiner?.fullName ?? '' }); }}>تعديل</button>}
                   </div>

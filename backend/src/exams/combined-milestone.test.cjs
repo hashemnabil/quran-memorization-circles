@@ -90,4 +90,19 @@ test('a manually scheduled combined exam prevents a duplicate request',async()=>
   const f=fixture();f.prisma.exam.findMany=async()=>[{id:'scheduled',combinedStage:stage,status:'SCHEDULED'}];
   await assert.rejects(f.service.combinedSections('student',stage),/مجدول/);
 });
+test('locked section codes resolve to a real section ID before saving',async()=>{
+  const f=fixture();let lookup;let saved;
+  f.prisma.student={findFirst:async()=>({id:'student'})};
+  f.prisma.examSection.findFirst=async args=>{lookup=args;return {id:'real-juz-28',name:'Juz 28',minScore:80};};
+  f.prisma.$transaction=async work=>work({examMilestoneRecord:{upsert:async args=>{saved=args;return {id:'record',section:{name:'Juz 28'}};}}});
+  f.service.updateStudentMemorization=async()=>{};
+  await f.service.updateMilestoneRecord(actor,'student','JUZ-28',{status:'NOT_REQUESTED'});
+  assert.equal(lookup.where.OR[1].code,'JUZ-28');assert.equal(saved.create.sectionId,'real-juz-28');assert.equal(saved.where.studentId_sectionId.sectionId,'real-juz-28');
+});
+test('milestone save URLs include a section code even without an eligibility row',async()=>{
+  const {examMilestonePath}=load(path.resolve(__dirname,'../../../frontend/src/lib/exam-milestone-path.ts'));
+  assert.equal(examMilestonePath('student','JUZ-28'),'/exams/milestones/student/JUZ-28');
+  assert.equal(examMilestonePath('student',stage),'/exams/combined-milestones/student/'+stage);
+  assert.throws(()=>examMilestonePath('student',''));assert.throws(()=>examMilestonePath(undefined,'JUZ-28'));
+});
 (async()=>{for(const {name,run} of tests){await run();console.log('PASS '+name);}console.log(tests.length+' checks passed');})().catch(error=>{console.error(error);process.exitCode=1;});

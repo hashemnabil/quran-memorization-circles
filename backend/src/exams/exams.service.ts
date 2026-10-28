@@ -503,8 +503,10 @@ export class ExamsService {
     }
     const student = await this.prisma.student.findFirst({ where: { id: studentId, deletedAt: null }, select: { id: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
-    const section = await this.prisma.examSection.findFirst({ where: { id: sectionId, isActive: true } });
+    const section = await this.prisma.examSection.findFirst({ where: { OR: [{ id: sectionId }, { code: sectionId }], isActive: true } });
     if (!section) throw new NotFoundException('مقرر الاختبار غير موجود');
+    // Progression may omit locked sections; accept the stable row code and persist its real ID.
+    sectionId = section.id;
 
     // A manual "completed" milestone must be reflected in the official exam
     // history as well as the progression/profile aggregates.

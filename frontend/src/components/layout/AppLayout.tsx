@@ -15,6 +15,7 @@ import OfflineSystem from '@/components/OfflineSystem';
 import DutyReminder from '@/components/DutyReminder';
 import MobileNavigation from './MobileNavigation';
 import { usePageScroll } from '@/hooks/usePageScroll';
+import { schoolName } from '@/config/branding';
 import {
   IconBell,
   IconChat,
@@ -162,7 +163,7 @@ export default function AppLayout() {
           <>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold leading-tight">
-                {settings?.name ?? 'حلقات التحفيظ'}
+                {schoolName(settings?.name)}
               </p>
               {settings?.mosqueName && (
                 <p className="truncate text-[11px] text-primary-200">{settings.mosqueName}</p>
@@ -428,7 +429,7 @@ export default function AppLayout() {
         </main>
 
         <footer className="border-t border-slate-200 px-6 py-4 text-center text-[11px] text-slate-400">
-          {settings?.name ?? 'نظام إدارة حلقات التحفيظ'}
+          {schoolName(settings?.name)}
           {settings?.academicYear ? ` — العام الدراسي ${settings.academicYear}` : ''}
           <Link to="/about" className="ms-3 inline-block py-2 hover:text-primary-700">معلومات عن البرنامج</Link>
         </footer>

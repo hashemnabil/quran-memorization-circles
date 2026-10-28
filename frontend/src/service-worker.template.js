@@ -80,7 +80,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method === 'GET' && request.destination === 'image') {
     // Private account images belong in encrypted IndexedDB, never a shared
     // plaintext CacheStorage bucket. Bundled public branding stays available.
-    const publicAsset = url.origin === self.location.origin && (url.pathname === '/brand-logo.png' || url.pathname === '/favicon.svg' || url.pathname.startsWith('/onboarding/') || url.pathname.startsWith('/assets/'));
+    const publicAsset = url.origin === self.location.origin && (url.pathname === '/prayer-mosque.jpg' || url.pathname === '/brand-logo.png' || url.pathname === '/favicon.svg' || url.pathname.startsWith('/onboarding/') || url.pathname.startsWith('/assets/'));
     if (!publicAsset) { event.respondWith(fetch(request, { cache: 'no-store' })); return; }
     event.respondWith((async () => {
       const cache = await caches.open('quran-circles-images');
@@ -114,7 +114,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/sounds/') || url.pathname === '/manifest.webmanifest' || url.pathname === '/favicon.ico' || url.pathname.startsWith('/icons/')) {
+  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/sounds/') || url.pathname === '/prayer-mosque.jpg' || url.pathname === '/manifest.webmanifest' || url.pathname === '/favicon.ico' || url.pathname.startsWith('/icons/')) {
     event.respondWith((async () => {
       // Vite can add Vary: Origin. Module-script requests carry Origin while
       // worker precache requests do not; immutable public assets are identical.

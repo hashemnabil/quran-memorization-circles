@@ -40,6 +40,7 @@ import TeachersPage from '@/pages/teachers/TeachersPage';
 import TeacherDetailsPage from '@/pages/teachers/TeacherDetailsPage';
 import AttendancePage from '@/pages/attendance/AttendancePage';
 import AbsencePermissionsPage from '@/pages/attendance/AbsencePermissionsPage';
+import GuardianSummonsPage from '@/pages/attendance/GuardianSummonsPage';
 import RecitationsPage from '@/pages/recitations/RecitationsPage';
 const ExamsPage = lazy(() => import('@/pages/exams/ExamsPage'));
 import TransfersPage from '@/pages/transfers/TransfersPage';
@@ -273,7 +274,8 @@ export default function App() {
             </RequireRole>
           }
         />
-        <Route path="absence-permissions" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER', 'STUDENT']}><AbsencePermissionsPage /></RequireRole>} />
+        <Route path="absence-permissions" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER', 'STUDENT', 'SUPPORT', 'EXAM_COMMITTEE']}><AbsencePermissionsPage /></RequireRole>} />
+        <Route path="guardian-summons" element={<RequireRole roles={['ADMIN']}><GuardianSummonsPage /></RequireRole>} />
         <Route
           path="recitations"
           element={

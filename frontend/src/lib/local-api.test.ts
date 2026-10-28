@@ -161,6 +161,24 @@ test('student questionnaire queues a review without changing the approved studen
   assert.equal((await db.table('profileReviews').get(['account', saved.id]))?.status, 'PENDING');
   assert.equal(queue[0].data.totalPoints, undefined);
 });
+
+test('absence requests belong to the current user, resolve the student record and persist inclusive dates', async () => {
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ id: 'account', role: 'STUDENT' }) } });
+  await mergeRows('students', [{ id: student, selfAccountId: 'account', fullName: 'Student' }]);
+  const saved = await localWrite('post', '/attendance/absence-permissions', { date: '2030-01-03', endDate: '2030-01-05', reason: 'Medical appointment' });
+  assert.equal(saved.studentId, student); assert.equal(saved.requesterId, 'account'); assert.equal(saved.durationMinutes, 3);
+  assert.equal((await localRead('/attendance/absence-permissions'))[0].endDate, '2030-01-05');
+  assert.equal((await db.queue.toArray())[0].data.studentId, student);
+  await assert.rejects(localWrite('post', '/attendance/absence-permissions', { date: '2030-02-03', reason: 'Medical', studentId: 'other-student' }));
+});
+test('teachers queue their own absence without selecting a student, and cannot request for students', async () => {
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ id: 'account', role: 'TEACHER' }) } });
+  const saved = await localWrite('post', '/attendance/absence-permissions', { date: '2030-01-03', endDate: '2030-01-04', reason: 'Personal', note: 'Optional' });
+  assert.equal(saved.studentId, null); assert.equal(saved.note, 'Optional'); assert.equal(saved.durationMinutes, 2);
+  await assert.rejects(localWrite('post', '/attendance/absence-permissions', { date: '2030-02-03', endDate: '2030-02-04', reason: 'Personal', studentId: student }));
+  await assert.rejects(localWrite('post', '/attendance/absence-permissions', { date: '2030-02-03', endDate: '2030-01-03', reason: 'Personal' }));
+  await assert.rejects(localWrite('post', '/attendance/absence-permissions', { date: '2030-01-04', endDate: '2030-01-05', reason: 'Overlap' }));
+});
 test('attendance sheet and grouped history reflect a newly queued local sheet', async () => {
   await mergeRows('circles', [{ id: 'circle', name: 'الحلقة' }]);
   await mergeRows('students', [{ id: student, fullName: 'طالب', circleId: 'circle' }]);

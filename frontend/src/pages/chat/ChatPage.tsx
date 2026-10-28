@@ -8,6 +8,7 @@ import { cancelRejectedMessageChange } from '@/lib/local-api';
 import { getSocket } from '@/lib/socket';
 import { useAuthStore } from '@/store/auth';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useChatViewport } from '@/hooks/useChatViewport';
 import {
   Avatar,
   Badge,
@@ -80,7 +81,14 @@ export default function ChatPage() {
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const chatViewportRef = useRef<HTMLDivElement>(null);
+  useChatViewport(chatViewportRef, id);
+  useEffect(() => {
+    const field = composerRef.current;
+    if (field) { field.style.height = 'auto'; field.style.height = Math.min(128, Math.max(44, field.scrollHeight)) + 'px'; }
+  }, [body, id]);
   const typingTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const { data: conversations, isLoading: loadingList } = useQuery({
@@ -212,7 +220,7 @@ export default function ChatPage() {
   }, [id, user.id, queryClient, soundsEnabled]);
 
   useEffect(() => {
-    if (!editing) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!editing && messagesRef.current) messagesRef.current.scrollTo({ top: messagesRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages?.data.length, id, editing]);
 
   const handleTyping = (value: string) => {
@@ -280,7 +288,7 @@ export default function ChatPage() {
         }
       />
 
-      <div className="chat-layout grid gap-5 lg:grid-cols-[20rem_1fr]">
+      <div ref={chatViewportRef} data-conversation={id || undefined} className="chat-layout grid gap-5 lg:grid-cols-[20rem_1fr]">
         {/* Conversation list */}
         <Card className={cx('overflow-hidden', id && 'hidden lg:block')} padded={false}>
           <div className="border-b border-slate-100 p-3">
@@ -418,7 +426,8 @@ export default function ChatPage() {
               </header>
 
               <div
-                className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-4 py-4 sm:px-5"
+                ref={messagesRef}
+                className="chat-messages flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5"
                 style={{ minHeight: 0 }}
               >
                 {loadingMessages ? (
@@ -516,8 +525,8 @@ export default function ChatPage() {
                     : 'الإرسال في هذه المجموعة متاح لمشرفيها فقط.'}
                 </p>
               ) : (
-                <form onSubmit={submit} className="border-t border-slate-100 px-4 py-3">
-                  <label className="mb-2 flex items-center gap-2 text-xs text-slate-600">
+                <form onSubmit={submit} className="chat-composer border-t border-slate-100 px-4 py-3">
+                  <label className="mb-2 flex items-center gap-2 text-xs text-slate-600 chat-sound-setting">
                     <input type="checkbox" checked={soundsEnabled} onChange={e=>{setSoundsEnabled(e.target.checked);localStorage.setItem('chat-sounds-enabled',String(e.target.checked));}}/>
                     أصوات إرسال واستقبال الرسائل
                   </label>

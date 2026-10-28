@@ -3,14 +3,14 @@ import { Capacitor } from '@capacitor/core';
 import { useCachedImage } from '@/hooks/useCachedImage';
 import { api } from '@/lib/api';
 import type { SchoolSettings } from '@/types';
-import { DEFAULT_SCHOOL_LOGO, DEFAULT_SCHOOL_NAME } from '@/config/branding';
+import { DEFAULT_SCHOOL_LOGO, DEFAULT_SCHOOL_NAME, schoolName } from '@/config/branding';
 
 const BRAND_CACHE_KEY = 'qc.schoolBranding';
 
 type Branding = { name?: string; logoUrl?: string | null; mosqueName?: string | null };
 
 function readCachedBranding(): Branding {
-  try { return JSON.parse(localStorage.getItem(BRAND_CACHE_KEY) || '{}') as Branding; }
+  try { const cached = JSON.parse(localStorage.getItem(BRAND_CACHE_KEY) || '{}') as Branding; return { ...cached, name: schoolName(cached.name) }; }
   catch { return {}; }
 }
 

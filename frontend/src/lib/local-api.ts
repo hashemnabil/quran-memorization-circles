@@ -1,4 +1,5 @@
 import { readActiveIdentity } from './active-identity';
+import { absencePeriod } from './absence-period';
 import { db, entityTables, type EntityTable } from './db';
 import { accountId, get, mergeRows, remove, save, update } from './offline-engine';
 import { readLocalSupport, writeLocalSupport } from './local-support';
@@ -120,7 +121,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
     return { data: rows.slice((page-1)*limit,page*limit), meta: { page, limit, total: rows.length, totalPages: Math.max(1,Math.ceil(rows.length/limit)), hasNextPage: page*limit < rows.length, hasPreviousPage: page > 1 } };
   }
   if (segments[0] === 'students' && segments[2] === 'surahs') return (await get('surahCompletions')).filter(row => row.studentId === segments[1]);
-  if (url.pathname === '/attendance/absence-permissions') return (await get('absencePermissions')).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  if (url.pathname === '/attendance/absence-permissions') return (await get('absencePermissions')).filter(row => readActiveIdentity()?.role === 'ADMIN' || row.requesterId === accountId()).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   if (url.pathname === '/attendance/summons') return (await get('guardianSummons')).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   if (url.pathname === '/suspensions/active') return (await get('suspensions')).filter(row => row.status === 'APPROVED' && !row.returnedAt);
   if (['/meetings','/examCommittees'].includes(url.pathname)) return (await get(segments[0] as EntityTable)).sort((a,b) => String(b.heldAt).localeCompare(String(a.heldAt)));
@@ -186,7 +187,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
     if (!circle) return undefined;
     const students = (await get('students')).filter((row) => (row.circleId || row.circle?.id) === circle.id);
     const attendance = (await get('attendance')).filter((row) => row.circleId === circle.id && String(row.date).slice(0, 10) === params.date);
-    for (const permission of await get('absencePermissions')) if (permission.status === 'APPROVED' && String(permission.date).slice(0, 10) === params.date && students.some(student => student.id === permission.studentId) && !attendance.some(row => row.studentId === permission.studentId)) attendance.push({ id: `permission:${permission.id}`, studentId: permission.studentId, circleId: circle.id, date: permission.date, status: 'EXCUSED', note: permission.reason, createdAt: permission.decidedAt || permission.updatedAt } as any);
+    for (const permission of await get('absencePermissions')) if (permission.status === 'APPROVED' && permission.synced === 1 && String(permission.date).slice(0, 10) <= params.date && String(permission.endDate || permission.date).slice(0, 10) >= params.date && students.some(student => student.id === permission.studentId) && !attendance.some(row => row.studentId === permission.studentId)) attendance.push({ id: `permission:${permission.id}:${params.date}`, studentId: permission.studentId, circleId: circle.id, date: params.date, status: 'EXCUSED', note: permission.reason, createdAt: permission.decidedAt || permission.updatedAt } as any);
     const complete = students.length > 0 && students.every(student => attendance.some(entry => entry.studentId === student.id));
     return { circle, date: params.date, alreadyRecorded: complete, canSubmit: !complete, submittedAt: null, submittedBy: null,
       students: students.map((row) => ({ ...row, attendance: attendance.find((entry) => entry.studentId === row.id) || null })) };
@@ -451,10 +452,17 @@ export async function localWrite(method: string, path: string, data: any): Promi
   if (route[0] === 'attendance' && route[1] === 'absence-permissions') {
     const actor = readActiveIdentity();
     if (method === 'post' && route.length === 2) {
-      if (!actor || actor.role !== 'STUDENT' || !data?.studentId || data.studentId !== actor.id || !data?.date || !String(data.reason || '').trim() || !Number.isInteger(data.durationMinutes) || data.durationMinutes < 1 || data.durationMinutes > 7) throw Object.assign(new Error('يقدم الطالب طلب الإذن لنفسه مع مدة من 1 إلى 7 أيام'), { localWriteRejected: true });
-      const student = (await get('students')).find(row => row.id === data.studentId);
-      if (!student) throw Object.assign(new Error('حمّل بيانات الطالب قبل تقديم طلب دون اتصال'), { localWriteRejected: true });
-      return save('absencePermissions', { ...data, studentId: student.id, student, requesterId: actor.id, requester: { id: actor.id, fullName: actor.fullName, role: actor.role }, status: 'PENDING', createdAt: new Date().toISOString() }, 'create');
+      if (!actor || actor.role === 'PARENT' || data.requesterId && data.requesterId !== actor.id || typeof data.reason !== 'string' || !data.reason.trim() || data.reason.length > 500 || data.note != null && (typeof data.note !== 'string' || data.note.length > 1000)) throw Object.assign(new Error('يمكنك تقديم طلب إذن لنفسك فقط؛ السبب مطلوب والملاحظة اختيارية'), { localWriteRejected: true });
+      const student = actor.role === 'STUDENT' ? (await get('students')).find(row => row.selfAccountId === actor.id || row.userId === actor.id) : undefined;
+      if (actor.role === 'STUDENT' && !student) throw Object.assign(new Error('حمّل ملفك قبل تقديم طلب دون اتصال'), { localWriteRejected: true });
+      if (data.studentId && data.studentId !== student?.id) throw Object.assign(new Error('لا يمكنك طلب إذن لطالب آخر'), { localWriteRejected: true });
+      let endDate = data.endDate;
+      if (!endDate && Number.isInteger(data.durationMinutes) && data.durationMinutes >= 1 && data.durationMinutes <= 366 && /^\d{4}-\d{2}-\d{2}$/.test(data.date || '')) endDate = new Date(Date.parse(data.date + 'T00:00:00Z') + (data.durationMinutes - 1) * 86400000).toISOString().slice(0, 10);
+      let days: number;
+      endDate ||= data.date;
+      try { days = absencePeriod(data.date || '', endDate || data.date || ''); } catch (error) { throw Object.assign(error as Error, { localWriteRejected: true }); }
+      if ((await get('absencePermissions')).some(row => row.requesterId === actor.id && ['PENDING','APPROVED'].includes(row.status) && String(row.date).slice(0,10) <= endDate && String(row.endDate || row.date).slice(0,10) >= data.date)) throw Object.assign(new Error('لديك طلب يتداخل مع هذه الفترة'), { localWriteRejected: true });
+      return save('absencePermissions', { date: data.date, endDate: endDate || data.date, durationMinutes: days, reason: data.reason.trim(), note: data.note?.trim() || null, studentId: student?.id || null, student, requesterId: actor.id, requester: { id: actor.id, fullName: actor.fullName, role: actor.role }, status: 'PENDING', createdAt: new Date().toISOString() }, 'create');
     }
     if (method === 'patch' && route.length === 4 && ['approve','reject'].includes(route[3])) {
       if (actor?.role !== 'ADMIN') throw Object.assign(new Error('قرار طلب الإذن متاح للإدارة فقط'), { localWriteRejected: true });

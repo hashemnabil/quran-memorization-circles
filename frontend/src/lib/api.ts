@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
+import { schoolName } from '../config/branding';
 import { Capacitor } from '@capacitor/core';
 import { shouldRetryReadRequest, readRetryDelayMs } from './offline/retry-policy.js';
 import { configureOffline, accountId, settleLocalWrite, reconcileAfterNetworkWrite } from './offline-engine';
@@ -85,6 +86,8 @@ api.defaults.adapter = async (config) => {
       let data = result.data;
       if (typeof data === 'string') { try { data = JSON.parse(data); } catch { return result; } }
       if (data && typeof data === 'object' && !Array.isArray(data)) {
+        data.name = schoolName(data.name);
+        result.data = data;
         await db.meta.put({ key, value: data }).catch(() => undefined);
         if (cached && JSON.stringify(data) !== JSON.stringify(cached.value)) window.dispatchEvent(new Event('halaqat:changed'));
       }
@@ -92,7 +95,7 @@ api.defaults.adapter = async (config) => {
     };
     if (cached) {
       if (navigator.onLine) refreshRead(key, async () => { await fetchPublic(); });
-      return { data: cached.value, status: 200, statusText: 'Local', headers: {}, config };
+      return { data: { ...cached.value, name: schoolName(cached.value?.name) }, status: 200, statusText: 'Local', headers: {}, config };
     }
     if (!navigator.onLine) throw new Error('لا توجد بيانات مدرسة محفوظة بعد؛ يلزم الاتصال لتنزيلها أول مرة');
     return fetchPublic();
@@ -138,7 +141,7 @@ api.defaults.adapter = async (config) => {
       && conversationCacheAllowed && !(await db.queue.where('accountId').equals(account).count())) {
       const key = responseKey(account, path, config.params);
       const cached = await db.responses.get(key);
-      const cachedData = path === '/profile-reviews/me' || path.startsWith('/support') || /^\/chat\/conversations(?:\/[^/]+)?$/.test(path) ? await localRead(path, { ...config.params }) : cached?.data;
+      const cachedData = ['/profile-reviews/me', '/attendance/absence-permissions'].includes(path) || path.startsWith('/support') || /^\/chat\/conversations(?:\/[^/]+)?$/.test(path) ? await localRead(path, { ...config.params }) : cached?.data;
       stillCurrent();
       if (cached && cachedData !== undefined && !(cached as any).__lockedLocal) {
         refreshRead(key, async () => {
@@ -201,7 +204,7 @@ api.defaults.adapter = async (config) => {
     // A read started before submission can finish after the outbox commits.
     // Reconcile requests from the durable replica so that stale responses cannot
     // hide a queued or acknowledged request while its profile awaits approval.
-    if (path === '/profile-reviews/me') data = await localRead(path, { ...config.params }) ?? data;
+    if (['/profile-reviews/me', '/attendance/absence-permissions'].includes(path)) data = await localRead(path, { ...config.params }) ?? data;
     if (path.split('?')[0] === '/media-activities' && Array.isArray(data)) {
       const dirty = await db.table('mediaActivities').where('accountId').equals(account).filter(row => row.synced === 0).toArray();
       if (dirty.length) {

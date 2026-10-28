@@ -109,9 +109,8 @@ export class FullSyncService {
       case 'meetings': return { data: user.role === Role.ADMIN && page === 1 ? await s.operations.meetings(user) : [], meta: { hasNextPage: false } };
       case 'examCommittees': return { data: (staff || user.role === Role.EXAM_COMMITTEE) && page === 1 ? await s.operations.committees(user) : [], meta: { hasNextPage: false } };
       case 'absencePermissions': {
-        if (![Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT].includes(user.role as any)) return empty;
-        const scope = await s.acl.studentScope(user);
-        const where = user.role === Role.ADMIN ? {} : { student: scope };
+        if (user.role === Role.PARENT) return empty;
+        const where = user.role === Role.ADMIN ? {} : { requesterId: user.id };
         const data = await this.prisma.absencePermissionRequest.findMany({ where, include: { student: { select: { id: true, fullName: true, code: true, circleId: true } }, requester: { select: { id: true, fullName: true, role: true } } }, skip: (page - 1) * 200, take: 200, orderBy: { createdAt: 'desc' } });
         return { data, meta: { hasNextPage: (await this.prisma.absencePermissionRequest.count({ where })) > page * 200 } };
       }
@@ -462,7 +461,7 @@ export class FullSyncService {
       throw new BadRequestException('عملية غير مدعومة');
     }
     if (op.table === 'absencePermissions') {
-      if (op.action === 'create') return s.attendance.createAbsencePermission(user, op.data as { studentId: string; date: string; reason: string; durationMinutes: number });
+      if (op.action === 'create') return s.attendance.createAbsencePermission(user, op.data as any);
       if (op.action === 'approve' && admin) return s.attendance.decideAbsencePermission(user, id, true, op.data.decisionNote);
       if (op.action === 'reject' && admin) return s.attendance.decideAbsencePermission(user, id, false, op.data.decisionNote);
     }

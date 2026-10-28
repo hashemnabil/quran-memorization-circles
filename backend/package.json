@@ -23,7 +23,7 @@
     "db:setup": "node scripts/db-setup.mjs",
     "test:offline-sync": "node --test -r ts-node/register src/offline-sync/offline-sync.service.test.ts",
     "test:sync-protocol": "node --test -r ts-node/register src/offline-sync/sync.service.test.ts src/offline-sync/sync.controller.test.ts",
-    "test:attendance-replay": "node --test -r ts-node/register src/attendance/attendance.service.test.ts",
+    "test:attendance-replay": "node --test -r ts-node/register src/attendance/attendance.service.test.ts src/attendance/absence-permission.test.ts",
     "test:attendance-lock-integration": "node --test -r ts-node/register src/attendance/attendance-lock.integration.test.ts",
     "test:journal-order-integration": "node --test -r ts-node/register src/offline-sync/journal-order.integration.test.ts",
     "test:sync-push-integration": "node --test -r ts-node/register src/offline-sync/sync-push.integration.test.ts",

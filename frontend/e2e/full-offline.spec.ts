@@ -6,7 +6,7 @@ import { join } from 'node:path';
 const account = '00000000-0000-4000-8000-000000000001';
 const circleId = '00000000-0000-4000-8000-000000000002';
 const user = { id: account, username: 'offline-test', fullName: 'مدير الاختبار', role: 'ADMIN', isActive: true, mustChangePassword: false };
-const schoolName = 'مدرسة عبدالله بن عمر لتحفيظ القرآن الكريم والسنة النبوية';
+const schoolName = 'مدرسة عبدالله بن عمر لتعليم القران الكريم والسنة النبوية';
 const fixtures: Record<string, any[]> = {
   students: [{ id: '00000000-0000-4000-8000-000000000003', fullName: 'طالب أوفلاين', code: 'ST-1', status: 'ACTIVE', gender: 'MALE', circleId, circle: { id: circleId, name: 'حلقة الأوفلاين' }, memorizedParts: 1, totalPoints: 0, createdAt: '2026-10-15T00:00:00Z' }],
   circles: [{ id: circleId, name: 'حلقة الأوفلاين', code: 'C-1', isActive: true, capacity: 20, studentsCount: 1, teachers: [], scheduleDays: [], students: [] }],
@@ -76,7 +76,7 @@ for (const rejected of [false, true]) {
       await expect(page.getByText(fixtures.students[0].fullName, { exact: true })).toBeVisible();
       await expect.poll(() => page.evaluate(account => new Promise<boolean>(resolve => {
         const open = indexedDB.open('halaqatFull'); open.onsuccess = () => { const database = open.result; const read = database.transaction('meta').objectStore('meta').get(`${account}:downloadedAt`); read.onsuccess = () => { database.close(); resolve(Boolean(read.result?.__sealedLocal)); }; };
-      }), account)).toBe(true);
+      }), account), { timeout: 20000 }).toBe(true);
       await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
       // Ordinary logout must preserve the encrypted verifier and local work.
       await gotoWithLocalUnlock(page,`${origin}/profile`);

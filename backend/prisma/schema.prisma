@@ -540,10 +540,13 @@ model Attendance {
 
 model AbsencePermissionRequest {
   id           String        @id @default(uuid())
-  studentId    String
+  studentId    String?
   requesterId  String
   date         DateTime      @db.Date
+  endDate      DateTime?     @db.Date
+  note         String?
   reason       String
+  /// Legacy name: the value is the inclusive number of days, not minutes.
   durationMinutes Int @default(1)
   status       RequestStatus @default(PENDING)
   decidedById  String?
@@ -551,13 +554,14 @@ model AbsencePermissionRequest {
   decisionNote String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student      Student?      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   requester    User          @relation("AbsencePermissionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
   decidedBy    User?         @relation("AbsencePermissionDecider", fields: [decidedById], references: [id], onDelete: SetNull)
 
-  @@unique([studentId, date])
+  @@index([studentId, date])
   @@index([status, date])
   @@index([requesterId, createdAt])
+  @@index([requesterId, date])
   @@map("absence_permission_requests")
 }
 

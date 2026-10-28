@@ -7,6 +7,7 @@
     "test:prayer": "node --import tsx --test src/lib/prayer-times.test.ts src/lib/notification-audio.test.mjs",
     "test:e2e:prayer": "playwright test --config playwright.prayer.config.ts",
     "test:e2e:offline": "playwright test --config playwright.offline.config.ts",
+    "test:e2e:personal": "playwright test --config playwright.personal.config.ts",
     "test:full-offline": "node --import tsx --test src/lib/offline-engine.test.ts src/lib/local-api.test.ts src/lib/db-migration.test.ts src/lib/offline-prefetch.test.ts src/lib/offline-login.test.ts src/lib/queued-credentials.test.ts src/lib/security-session.test.ts src/lib/local-encryption.test.ts",
     "dev": "vite",
     "build": "tsc -b && vite build",

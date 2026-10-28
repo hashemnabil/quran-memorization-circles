@@ -131,9 +131,20 @@ export class CommunityController {
     if(existing){await this.prisma.schoolFollow.delete({where:{userId:user.id}});return {following:false};}
     await this.prisma.schoolFollow.create({data:{userId:user.id}});const admins=await this.prisma.user.findMany({where:{role:Role.ADMIN,isActive:true,deletedAt:null},select:{id:true}});await Promise.all(admins.map(a=>this.notifyInteraction(user.id,a.id,'تابع صفحة المدرسة','/community/school')));return {following:true};
   }
+  @Get('school/followers')
+  async followers(@Query('page') rawPage?:string){
+    const page=Number(rawPage??1);
+    if(!Number.isSafeInteger(page)||page<1||page>1000000)throw new BadRequestException('رقم الصفحة غير صالح');
+    const rows=await this.prisma.schoolFollow.findMany({
+      where:{user:{isActive:true,deletedAt:null}},
+      orderBy:[{createdAt:'desc'},{userId:'asc'}],skip:(page-1)*50,take:51,
+      select:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}}},
+    });
+    return {data:rows.slice(0,50).map(row=>row.user),hasMore:rows.length>50};
+  }
   @Get('school/follow')
   async following(@CurrentUser() user:AuthUser){
-    const [follow,count]=await Promise.all([this.prisma.schoolFollow.findUnique({where:{userId:user.id}}),this.prisma.schoolFollow.count()]);
+    const [follow,count]=await Promise.all([this.prisma.schoolFollow.findUnique({where:{userId:user.id}}),this.prisma.schoolFollow.count({where:{user:{isActive:true,deletedAt:null}}})]);
     return {following:!!follow,count};
   }
 }

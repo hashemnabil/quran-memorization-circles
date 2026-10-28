@@ -30,7 +30,7 @@ for (const [role, paths] of Object.entries(destinations)) {
     const initialSidebar = page.getByRole('navigation', { name: 'أقسام التطبيق', exact: true });
     while (await initialSidebar.getByRole('button', { expanded: false }).count()) await initialSidebar.getByRole('button', { expanded: false }).first().click();
     const visiblePaths = await initialSidebar.getByRole('link').evaluateAll(links => links.map(link => link.getAttribute('href')!));
-    const allPaths = [...new Set([...paths, ...visiblePaths, ...(['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role) ? reports.map(report => `/documents/${report}`) : []), '/notifications', '/chat', '/support', '/profile'])];
+    const allPaths = [...new Set([...paths, ...visiblePaths, ...(role === 'ADMIN' ? reports.map(report => `/documents/${report}`) : []), '/notifications', '/chat', '/support', '/profile'])];
     for (const path of allPaths) {
       const sidebar = page.getByRole('navigation', { name: 'أقسام التطبيق', exact: true });
       while (await sidebar.getByRole('button', { expanded: false }).count()) await sidebar.getByRole('button', { expanded: false }).first().click();

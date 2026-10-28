@@ -462,7 +462,7 @@ export class FullSyncService {
       throw new BadRequestException('عملية غير مدعومة');
     }
     if (op.table === 'absencePermissions') {
-      if (op.action === 'create') return s.attendance.createAbsencePermission(user, op.data as { studentId: string; date: string; reason: string });
+      if (op.action === 'create') return s.attendance.createAbsencePermission(user, op.data as { studentId: string; date: string; reason: string; durationMinutes: number });
       if (op.action === 'approve' && admin) return s.attendance.decideAbsencePermission(user, id, true, op.data.decisionNote);
       if (op.action === 'reject' && admin) return s.attendance.decideAbsencePermission(user, id, false, op.data.decisionNote);
     }

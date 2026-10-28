@@ -1,8 +1,25 @@
 import { readActiveIdentity } from './active-identity';
 import { db, entityTables, type EntityTable } from './db';
 import { accountId, get, mergeRows, remove, save, update } from './offline-engine';
+import { readLocalSupport, writeLocalSupport } from './local-support';
+import { localConversation, createLocalConversation } from './local-conversations';
+import { cacheConversations } from './conversation-cache';
+import { queueCertificateDraft } from './local-certificates';
+
+export async function cancelRejectedMessageChange(messageId: string) {
+  const account = accountId();
+  await db.transaction('rw', db.queue, db.table('chatMessages'), async () => {
+    const operations = await db.queue.where('accountId').equals(account).filter(op => op.table === 'chatMessages' && op.entityId === messageId).toArray();
+    const op = operations[0];
+    if (operations.length !== 1 || !op.error || !['update', 'delete'].includes(op.action)) throw new Error('يمكن إلغاء تعديل أو حذف رفضه الخادم فقط');
+    await db.table('chatMessages').update([account, messageId], { body: op.data.previousBody, editedAt: op.data.previousEditedAt, synced: 1, pendingDelete: 0 });
+    await db.queue.delete(op.id!);
+  });
+  window.dispatchEvent(new Event('halaqat:changed'));
+}
 
 export async function localRead(path: string, params: Record<string, any> = {}): Promise<any | undefined> {
+  if (path.split('?')[0].startsWith('/support')) return readLocalSupport(path, params);
   if (path.split('?')[0] === '/profile-reviews') { const kind = new URL(path, 'https://local.invalid').searchParams.get('kind') || params.kind; const data = (await get('profileReviews')).filter(row => !kind || row.kind === kind).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))); const queue = await db.queue.where('accountId').equals(accountId()).filter(op => op.table === 'profileReviews').toArray(); return { data: data.map(row => ({ ...row, syncError: queue.find(op => op.entityId === row.id)?.error })), meta: { total: data.length, hasNextPage: false } }; }
   if (path === '/profile-reviews/me') {
     const account = accountId(); const reference = (await db.meta.get(`${account}:reference:/profile-reviews/me`))?.value;
@@ -11,6 +28,11 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   const url = new URL(path, 'https://local.invalid');
   url.searchParams.forEach((value, key) => { params[key] ??= value; });
   const segments = url.pathname.split('/').filter(Boolean);
+  if (['students','courses','circles','teachers','exams','recitations','media-activities','transfers','suspensions','preparations'].includes(segments[0]) && /^[0-9a-f-]{36}$/i.test(segments[1] || '')) segments[1] = (await db.meta.get(`${accountId()}:id:${segments[1]}`))?.value || segments[1];
+  if (segments[0] === 'chat' && segments[1] === 'conversations') {
+    if (segments[2]) segments[2] = (await db.meta.get(`${accountId()}:id:${segments[2]}`))?.value || segments[2];
+    if (segments.length <= 3) return localConversation(url.pathname);
+  }
   if (url.pathname === '/settings' || url.pathname === '/settings/public') {
     const rows = await get('schoolSettings');
     if (rows.length) return rows.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
@@ -20,6 +42,21 @@ export async function localRead(path: string, params: Record<string, any> = {}):
     const settings = (await get('schoolSettings')).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
     if (!settings) return undefined;
     return Object.fromEntries(['donationsEnabled','donationTitle','donationDescription','donationGoalAmount','donationRaisedAmount','donationCurrency','donationMethod','donationLink','donationBankPalestine','donationIslamicBank','donationJawwal','donationPalPay'].map(key => [key, settings[key]]));
+  }
+  if (url.pathname === '/community/users/' + accountId()) {
+    return (await get('accountPreferences')).find(row=>row.id===accountId()) || (await db.responses.get(responseKey(accountId(),path,params)))?.data;
+  }
+  if (url.pathname === '/community/feed') {
+    const posts=(await get('communityPosts')).filter(row=>(!params.userId || row.authorId===params.userId && !row.schoolPost) && (params.school!=='true' || row.schoolPost)).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+    const comments=await get('communityComments');
+    return posts.map(post=>{const rows=[...(post.comments||[])];for(const comment of comments.filter(row=>row.postId===post.id)) { const index=rows.findIndex(row=>row.id===comment.id); if(index<0)rows.push(comment);else rows[index]=comment; }return {...post,comments:rows,_count:{likes:post._count?.likes||0,comments:Math.max(post._count?.comments||0,rows.length)}};});
+  }
+  if (segments[0] === 'chat' && segments[1]==='conversations' && segments[3]==='messages') {
+      const errors = await db.queue.where('accountId').equals(accountId()).filter(op => op.table === 'chatMessages' && !!op.error).toArray();
+      const rows=(await db.table('chatMessages').where('accountId').equals(accountId()).toArray()).filter(row=>row.conversationId===segments[2] && (!row.pendingDelete || errors.some(op=>op.entityId===row.id)))
+        .map(row=>({...row,syncError:errors.find(op=>op.entityId===row.id)?.error,rejectedChange:errors.some(op=>op.entityId===row.id && ['update','delete'].includes(op.action))})).sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
+    const limit=Math.max(1,Number(params.limit)||100), page=Math.max(1,Number(params.page)||1);
+    return {data:rows.slice(Math.max(0,rows.length-page*limit), rows.length-(page-1)*limit),meta:{total:rows.length,page,limit,hasNextPage:rows.length>page*limit}};
   }
   if (segments[0] === 'courses' && segments[2] === 'attendance' && segments[3] === 'sheet') {
     const cached = await db.responses.get(responseKey(accountId(), path, params));
@@ -189,6 +226,14 @@ export async function localRead(path: string, params: Record<string, any> = {}):
 export async function rememberRead(path: string, params: any, data: any) {
   const account = accountId();
   await db.responses.put({ key: responseKey(account, path, params), accountId: account, data });
+  if (path.split('?')[0] === '/media-activities' && Array.isArray(data)) await mergeRows('mediaActivities', data, account);
+  if (path === '/chat/conversations' && Array.isArray(data)) await cacheConversations(account, data, true);
+  if (/^\/chat\/conversations\/[^/]+$/.test(path) && data?.id) await cacheConversations(account, [data]);
+  if (path === '/support') await mergeRows('supportTickets', data?.data || [], account);
+  if (/^\/support\/[^/]+$/.test(path) && data?.id) await mergeRows('supportTickets', [data], account);
+  if (/^\/chat\/conversations\/[^/]+\/messages$/.test(path)) await mergeRows('chatMessages', data?.data||[], account);
+  if (path==='/community/feed') { await mergeRows('communityPosts',data||[],account); await mergeRows('communityComments',(data||[]).flatMap((post:any)=>(post.comments||[]).map((comment:any)=>({...comment,postId:post.id}))),account); }
+  if (path==='/community/users/'+account) await mergeRows('accountPreferences',[data],account);
   if (path === '/profile-reviews/me') { await db.meta.put({ key: `${account}:reference:/profile-reviews/me`, value: data }); await mergeRows('profileReviews', data.requests || [], account); }
   if (path.split('?')[0] === '/profile-reviews') await mergeRows('profileReviews', data.data || [], account);
   const segments = path.split('?')[0].split('/').filter(Boolean);
@@ -202,7 +247,55 @@ export function responseKey(account: string, path: string, params: any) {
   return JSON.stringify([account, path, Object.entries(params || {}).sort(([a], [b]) => a.localeCompare(b))]);
 }
 export async function localWrite(method: string, path: string, data: any): Promise<any | undefined> {
+  if (path.startsWith('/support')) return writeLocalSupport(method, path, data);
   const route = path.split('/').filter(Boolean);
+  if (route[0] === 'chat' && route[1] === 'conversations' && route.length === 3 && ['direct', 'group'].includes(route[2]) && method === 'post') return createLocalConversation(route[2], data);
+  if (route[0] === 'chat' && route[1] === 'conversations' && route[2] && !['direct', 'group'].includes(route[2])) route[2] = (await db.meta.get(`${accountId()}:id:${route[2]}`))?.value || route[2];
+  if (route[0] === 'chat' && route[1] === 'conversations' && route[3] === 'read' && method === 'patch') {
+    const draft = await localConversation('/chat/conversations/' + route[2]);
+    if (draft?.synced === 0) return { ...draft, unreadCount: 0 };
+  }
+  if (route[0] === 'chat' && route[1] === 'conversations' && route[3] === 'messages' && route.length === 5 && ['patch', 'delete'].includes(method)) {
+    const actor = readActiveIdentity();
+    const message = (await get('chatMessages')).find(row => row.id === route[4] && row.conversationId === route[2]);
+    const detail = (await db.responses.get(responseKey(accountId(), '/chat/conversations/' + route[2], undefined)))?.data;
+    if (!actor || !message || !detail) throw Object.assign(new Error('حمّل الرسالة والمحادثة قبل تعديلها دون اتصال'), { localWriteRejected: true });
+    if (message.synced === 0) throw Object.assign(new Error('انتظر مزامنة التغيير السابق على الرسالة'), { localWriteRejected: true });
+    const mine = (message.senderId || message.sender?.id) === actor.id;
+    if (method === 'patch' && (!mine || detail.canPost === false) || method === 'delete' && !mine && !detail.isAdmin && actor.role !== 'ADMIN')
+      throw Object.assign(new Error('لا تملك صلاحية تعديل هذه الرسالة'), { localWriteRejected: true });
+    if (method === 'patch' && (typeof data?.body !== 'string' || !data.body.trim() || data.body.length > 4000)) throw Object.assign(new Error('نص الرسالة غير صالح'), { localWriteRejected: true });
+    return save('chatMessages', { id: message.id, conversationId: route[2], previousBody: message.body, previousEditedAt: message.editedAt || null,
+      ...(method === 'patch' ? { body: data.body.trim(), editedAt: new Date().toISOString() } : { pendingDelete: 1 }) }, method === 'patch' ? 'update' : 'delete');
+  }
+  if (route[0]==='chat' && route[1]==='conversations' && route[3]==='messages' && route.length===4 && method==='post') {
+    const actor=readActiveIdentity();
+      const detail=await localConversation('/chat/conversations/'+route[2]) || (await db.responses.get(responseKey(accountId(),'/chat/conversations/'+route[2],undefined)))?.data;
+    if(!actor || !detail || detail.canPost===false) throw Object.assign(new Error('نزّل المحادثة المسموح بها قبل إرسال رسائل دون اتصال'),{localWriteRejected:true});
+    if(typeof data?.body!=='string'||!data.body.trim()||data.body.length>4000)throw Object.assign(new Error('نص الرسالة غير صالح'),{localWriteRejected:true});
+    return save('chatMessages',{conversationId:route[2],body:data.body.trim(),sender:actor,createdAt:new Date().toISOString()},'create');
+  }
+  if (path==='/community/nickname' && method==='patch') {
+    if(typeof data?.nickname!=='string'||data.nickname.length>60)throw Object.assign(new Error('الكنية غير صالحة'),{localWriteRejected:true});
+    return save('accountPreferences',{id:accountId(),nickname:data.nickname.trim()},'update');
+  }
+  if (path==='/community/posts' && method==='post') {
+    const actor=readActiveIdentity();if(!actor || data.schoolPost&&actor.role!=='ADMIN')throw Object.assign(new Error('النشر باسم المدرسة للإدارة فقط'),{localWriteRejected:true});
+    if(typeof data?.body!=='string'||!data.body.trim()||data.body.length>2000)throw Object.assign(new Error('المنشور غير صالح'),{localWriteRejected:true});
+    return save('communityPosts',{body:data.body.trim(),schoolPost:!!data.schoolPost,authorId:actor.id,author:actor,comments:[],likes:[],_count:{likes:0,comments:0},createdAt:new Date().toISOString()},'create');
+  }
+  if (route[0]==='community' && route[1]==='posts' && route.length===3 && method==='delete') {
+    const post=(await get('communityPosts')).find(row=>row.id===route[2]);const actor=readActiveIdentity();
+    if(!post || post.authorId!==actor?.id && actor?.role!=='ADMIN')throw Object.assign(new Error('لا تملك صلاحية حذف المنشور'),{localWriteRejected:true});
+    return remove('communityPosts',route[2]);
+  }
+  if (route[0]==='community' && route.length===4 && method==='post' && (route[1]==='posts'&&route[3]==='comments'||route[1]==='comments'&&route[3]==='replies')) {
+    if(typeof data?.body!=='string'||!data.body.trim()||data.body.length>500)throw Object.assign(new Error('التعليق غير صالح'),{localWriteRejected:true});
+    const parent=route[1]==='comments'?(await get('communityComments')).find(row=>row.id===route[2]):null;
+    const postId=parent?.postId||route[2];
+    if(route[1]==='comments'&&!parent || !(await get('communityPosts')).some(row=>row.id===postId))throw Object.assign(new Error('نزّل المنشور والتعليق قبل كتابة رد دون اتصال'),{localWriteRejected:true});
+    return save('communityComments',{body:data.body.trim(),postId,parentId:parent?.id||null,user:readActiveIdentity(),createdAt:new Date().toISOString(),_count:{likes:0}},'create');
+  }
   if (method === 'patch' && path === '/settings') {
     if (readActiveIdentity()?.role !== 'ADMIN') throw Object.assign(new Error('تعديل إعدادات الحملة متاح للإدارة فقط'), { localWriteRejected: true });
     const allowed = ['name','mosqueName','logoUrl','phone','email','address','about','facebook','twitter','instagram','youtube','telegram','whatsapp','website','academicYear','donationsEnabled','donationTitle','donationDescription','donationGoalAmount','donationRaisedAmount','donationCurrency','donationMethod','donationLink','donationBankPalestine','donationIslamicBank','donationJawwal','donationPalPay'];
@@ -227,6 +320,33 @@ export async function localWrite(method: string, path: string, data: any): Promi
     const existing = (await get('courseAttendance')).find(row => row.courseId === courseId && row.date === date && Array.isArray(row.entries));
     return save('courseAttendance', { courseId, date, entries: data.entries, ...(existing ? { id: existing.id } : {}), createdAt: new Date().toISOString() }, 'create');
   }
+  if (route[0] === 'courses' && route[2] === 'students' && (method === 'post' && route.length === 3 || method === 'delete' && route.length === 4)) {
+    const actor = readActiveIdentity();
+    if (!actor || !['ADMIN','SUPERVISOR'].includes(actor.role)) throw Object.assign(new Error('تسجيل الطلاب في الدورات متاح للإدارة والإشراف'), { localWriteRejected: true });
+    const account = accountId();
+    const courseId = (await db.meta.get(`${account}:id:${route[1]}`))?.value || route[1];
+    const course = (await get('courses')).find(row => row.id === courseId);
+    if (!course || !Array.isArray(course.students)) throw Object.assign(new Error('حمّل تفاصيل الدورة قبل تعديل تسجيل الطلاب دون اتصال'), { localWriteRejected: true });
+    let students = [...course.students];
+    if (method === 'post') {
+      if (!Array.isArray(data?.studentIds) || !data.studentIds.length || data.studentIds.length > 200 || data.studentIds.some((id: any) => typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id))) throw Object.assign(new Error('اختر طلابًا صالحين للتسجيل'), { localWriteRejected: true });
+      const ids = [...new Set<string>(data.studentIds)]; const known = await get('students');
+      if (ids.some(id => !known.some(row => row.id === id))) throw Object.assign(new Error('حمّل الطلاب المحددين قبل تسجيلهم دون اتصال'), { localWriteRejected: true });
+      for (const id of ids) {
+        const student = known.find(row => row.id === id)!;
+        const previous = students.find(row => row.id === id);
+        const pending = { id, fullName: student.fullName, code: student.code, phone: student.phone, guardianPhone: student.guardianPhone, nationalId: student.nationalId, birthDate: student.birthDate,
+          enrollmentId: previous?.enrollmentId || crypto.randomUUID(), enrolledAt: previous?.enrolledAt || new Date().toISOString(), endedAt: null, isCurrent: true, pending: true };
+        students = [...students.filter(row => row.id !== id), pending];
+      }
+      if (accountId() !== account) throw new Error('تغيّر الحساب؛ لم يُحفظ طلب التسجيل');
+      return save('courses', { id: courseId, studentIds: ids, students, studentsCount: students.filter(row => row.isCurrent).length, enrollmentPending: true }, 'enroll');
+    }
+    if (!students.some(row => row.id === route[3] && row.isCurrent)) throw Object.assign(new Error('الطالب غير مسجل في النسخة المحلية للدورة'), { localWriteRejected: true });
+    students = students.map(row => row.id === route[3] ? { ...row, endedAt: new Date().toISOString(), isCurrent: false, pending: true } : row);
+    if (accountId() !== account) throw new Error('تغيّر الحساب؛ لم يُحفظ طلب إنهاء التسجيل');
+    return save('courses', { id: courseId, studentId: route[3], students, studentsCount: students.filter(row => row.isCurrent).length, enrollmentPending: true }, 'unenroll');
+  }
   if (method === 'post' && route[0] === 'staff-attendance' && route.length === 1) {
     const actor = readActiveIdentity();
     if (!['ADMIN', 'SUPERVISOR'].includes(actor?.role || '') || !data?.date || !Array.isArray(data.entries) || !data.entries.length) throw Object.assign(new Error('سجّل حضورًا صحيحًا للكادر قبل الحفظ'), { localWriteRejected: true });
@@ -242,6 +362,8 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (route[0] === 'certificates') {
     const actor = readActiveIdentity();
+    if (method === 'post' && path === '/certificates/issue') return queueCertificateDraft('issue', data);
+    if (method === 'post' && path === '/certificates/monthly-reports/issue') return queueCertificateDraft('publish-monthly-report', data);
     if (route[1] === 'requests' && method === 'post' && route.length === 2) {
       if (actor?.role !== 'STUDENT') throw Object.assign(new Error('طلب الملف متاح للطالب'), { localWriteRejected: true });
       const student = (await get('students')).find(row => row.selfAccountId === actor.id);
@@ -276,11 +398,20 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (route[0] === 'media-activities') {
     if (!['ADMIN','SUPERVISOR'].includes(readActiveIdentity()?.role || '')) throw Object.assign(new Error('إدارة الأنشطة متاحة للإدارة والإشراف'), { localWriteRejected: true });
-    if (method === 'post' && route.length === 1) {
+    if (method === 'post' && route.length === 1 || method === 'patch' && route.length === 2) {
       if (!data?.title?.trim() || !data?.description?.trim() || !data?.activityDate || !data?.type) throw Object.assign(new Error('أكمل بيانات النشاط الإعلامي قبل الحفظ'), { localWriteRejected: true });
-      return save('mediaActivities', { ...data, createdBy: readActiveIdentity() }, 'create');
+      if (!['REPORT_FILLING','PHOTOGRAPHY','PUBLISHING','EDITING','DESIGN'].includes(data.type) || !Number.isFinite(Date.parse(data.activityDate)) || data.workUrl && !/^https?:\/\//i.test(data.workUrl.trim())) throw Object.assign(new Error('نوع النشاط أو تاريخه أو رابطه غير صالح'), { localWriteRejected: true });
+      if (method === 'post') return save('mediaActivities', { ...data, title: data.title.trim(), description: data.description.trim(), workUrl: data.workUrl?.trim() || null, createdBy: readActiveIdentity() }, 'create');
+      const current = (await get('mediaActivities')).find(row => row.id === route[1]);
+      if (!current) throw Object.assign(new Error('حمّل النشاط قبل تعديله دون اتصال'), { localWriteRejected: true });
+      const baseline = (row: any) => ({ type: row.type, title: row.title, description: row.description, activityDate: new Date(row.activityDate).toISOString(), workUrl: row.workUrl || null });
+      return save('mediaActivities', { ...data, id: current.id, title: data.title.trim(), description: data.description.trim(), workUrl: data.workUrl?.trim() || null, previous: data.previous || baseline(current) }, 'update');
     }
-    if (method === 'delete' && route.length === 2) return remove('mediaActivities', route[1]);
+    if (method === 'delete' && route.length === 2) {
+      const current = (await get('mediaActivities')).find(row => row.id === route[1]);
+      if (!current) throw Object.assign(new Error('حمّل النشاط قبل حذفه دون اتصال'), { localWriteRejected: true });
+      return save('mediaActivities', { id: current.id, pendingDelete: 1, previous: { type: current.type, title: current.title, description: current.description, activityDate: new Date(current.activityDate).toISOString(), workUrl: current.workUrl || null } }, 'delete');
+    }
   }
   if (route[0] === 'preparations') {
     const actor = readActiveIdentity();
@@ -320,7 +451,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
   if (route[0] === 'attendance' && route[1] === 'absence-permissions') {
     const actor = readActiveIdentity();
     if (method === 'post' && route.length === 2) {
-      if (!actor || !['STUDENT','TEACHER','SUPERVISOR'].includes(actor.role) || !data?.studentId || !data?.date || !String(data.reason || '').trim()) throw Object.assign(new Error('بيانات طلب الإذن غير مكتملة أو لا تملك صلاحية تقديمه'), { localWriteRejected: true });
+      if (!actor || actor.role !== 'STUDENT' || !data?.studentId || data.studentId !== actor.id || !data?.date || !String(data.reason || '').trim() || !Number.isInteger(data.durationMinutes) || data.durationMinutes < 1 || data.durationMinutes > 7) throw Object.assign(new Error('يقدم الطالب طلب الإذن لنفسه مع مدة من 1 إلى 7 أيام'), { localWriteRejected: true });
       const student = (await get('students')).find(row => row.id === data.studentId);
       if (!student) throw Object.assign(new Error('حمّل بيانات الطالب قبل تقديم طلب دون اتصال'), { localWriteRejected: true });
       return save('absencePermissions', { ...data, studentId: student.id, student, requesterId: actor.id, requester: { id: actor.id, fullName: actor.fullName, role: actor.role }, status: 'PENDING', createdAt: new Date().toISOString() }, 'create');
@@ -364,6 +495,14 @@ export async function localWrite(method: string, path: string, data: any): Promi
     const actor = readActiveIdentity();
     if (!actor || !['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(actor.role)) throw Object.assign(new Error('لا تملك صلاحية تقديم الطلب'), { localWriteRejected: true });
     const table = route[0] as 'transfers' | 'suspensions';
+    if (method === 'patch' && route.length === 2) {
+      const id = (await db.meta.get(`${accountId()}:id:${route[1]}`))?.value || route[1];
+      const current = (await get(table)).find(row => row.id === id);
+      if (!current || current.status !== 'PENDING' || current.pendingDecision || table === 'transfers' && current.kind !== 'STUDENT_TRANSFER') throw Object.assign(new Error('يمكن تعديل سبب طلب طالب معلق فقط'), { localWriteRejected: true });
+      if ((current.requestedById || current.requestedBy?.id) !== actor.id && actor.role !== 'ADMIN') throw Object.assign(new Error('يمكن تعديل الطلب من قبل منشئه أو الإدارة فقط'), { localWriteRejected: true });
+      if (typeof data?.reason !== 'string' || !data.reason.trim() || data.reason.length > 1000 || Object.keys(data).some(key => !['reason','previousReason'].includes(key))) throw Object.assign(new Error('اكتب سببًا صالحًا لا يتجاوز 1000 حرف'), { localWriteRejected: true });
+      return save(table, { id, reason: data.reason.trim(), previousReason: data.previousReason !== undefined ? data.previousReason : current.reason ?? null }, 'update');
+    }
     if (method === 'post' && (table === 'suspensions' && route.length === 1 || table === 'transfers' && route[1] === 'students')) {
       if (!data?.studentId || !String(data?.reason || '').trim()) throw Object.assign(new Error('اختر الطالب واكتب سبب الطلب'), { localWriteRejected: true });
       const student = (await get('students')).find(row => row.id === data.studentId);
@@ -433,8 +572,8 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   let table = parts[0] as EntityTable; let id = parts[1]; let action: string | undefined;
   if (table === 'students' && parts[2] === 'notes' && method === 'post') return save('behaviors', { ...data, studentId: id });
-  if (table === 'students' && id === 'bulk-delete' && method === 'post' && Array.isArray(data?.ids)) { for (const rowId of data.ids) await remove('students', rowId); return { deleted: data.ids.length }; }
-  if (table === 'notifications' && id === 'read-all' && method === 'patch') { for (const row of await get('notifications')) if (!row.isRead) await save('notifications', { id: row.id, isRead: true }, 'read'); return { message: 'تم تعليم الإشعارات كمقروءة محليًا' }; }
+  if (table === 'students' && id === 'bulk-delete' && method === 'post' && Array.isArray(data?.ids)) { for (const rowId of data.ids) await remove('students', rowId); return { deleted: data.ids.length, synced: 0 }; }
+  if (table === 'notifications' && id === 'read-all' && method === 'patch') { for (const row of await get('notifications')) if (!row.isRead) await save('notifications', { id: row.id, isRead: true }, 'read'); return { message: 'تم تعليم الإشعارات كمقروءة محليًا', synced: 0 }; }
   if (table === 'notifications' && parts[2] === 'read' && method === 'patch') return save('notifications', { id, isRead: true }, 'read');
   if (table === 'exams' && id === 'requests' && parts.length === 2 && method === 'post') { table = 'examRequests'; id = ''; }
   else if (table === 'exams' && parts[2] === 'result' && method === 'patch') action = 'result';
@@ -450,6 +589,10 @@ export async function localWrite(method: string, path: string, data: any): Promi
     return save(table, data || {});
   }
   if (method === 'patch' && id) return action ? save(table, { ...data, id }, action) : update(table, id, data || {});
+  if (method === 'delete' && id && table === 'exams') {
+    const exam=(await get('exams')).find(row=>row.id===id);
+    if(!exam || !['SCHEDULED','CANCELLED'].includes(exam.status) || exam.score != null || exam.result != null || exam.gradedAt) throw Object.assign(new Error('يُحذف موعد غير مرصود فقط؛ صحّح نتائج الاختبارات المكتملة من سجلها'),{localWriteRejected:true});
+  }
   if (method === 'delete' && id) return remove(table, id);
   return undefined;
 }

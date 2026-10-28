@@ -5,7 +5,9 @@ import { initOffline, refreshOffline } from '@/lib/offline-engine';
 import { useAuthStore } from '@/store/auth';
 import { queryClient } from '@/lib/queryClient';
 import { getSyncProgress } from '@/lib/sync-progress';
-import { tokenStore } from '@/lib/api';
+import { tokenStore, syncQueuedAvatar, syncQueuedStudentPhotos } from '@/lib/api';
+import { studentPhotoCount } from '@/lib/pending-student-photos';
+import { localDomainLabels } from '@/lib/local-domain-labels';
 
 export default function OfflineSystem() {
   const account = useAuthStore((state) => state.user?.id);
@@ -13,13 +15,19 @@ export default function OfflineSystem() {
   const [pending, setPending] = useState(0); const [last, setLast] = useState('');
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(getSyncProgress);
+  const [rejected, setRejected] = useState<Array<{ id: string; label: string; message: string }>>([]);
   const refresh = async () => {
     if (!account) return;
-    setPending(await db.queue.where('accountId').equals(account).count());
-    setLast((await db.meta.get(`${account}:lastSync`))?.value || '');
+    const operations = await db.queue.where('accountId').equals(account).toArray();
+    const count = operations.length + ((await db.meta.get(`${account}:pendingAvatar`)) ? 1 : 0) + await studentPhotoCount(account);
+    const lastSync = (await db.meta.get(`${account}:lastSync`))?.value || '';
+    if (useAuthStore.getState().user?.id !== account) return;
+    setPending(count); setLast(lastSync);
+    setRejected(operations.filter(operation => !!operation.error).map(operation => ({ id: operation.opId, label: localDomainLabels[operation.table] || 'عملية محفوظة', message: operation.error! })));
   };
 
   useEffect(() => {
+    setPending(0); setLast(''); setError(''); setRejected([]);
     if (!account) return;
     let active = true;
     let running = false;
@@ -41,6 +49,11 @@ export default function OfflineSystem() {
         // the server session is verified, even if the sync cursor is unchanged.
         if (refreshReads || wasLocal) await queryClient.invalidateQueries();
         await (initial ? initOffline() : refreshOffline({ checkDelta: refreshReads }));
+        if (active && useAuthStore.getState().user?.id === account) {
+          const results = await Promise.allSettled([syncQueuedAvatar(), syncQueuedStudentPhotos()]);
+          const rejected = results.find(result => result.status === 'rejected');
+          if (rejected?.status === 'rejected') throw rejected.reason;
+        }
       }
       catch (e) { if (active) setError(e instanceof Error ? e.message : String(e)); }
       finally {
@@ -91,8 +104,13 @@ export default function OfflineSystem() {
     window.addEventListener('online', start); window.addEventListener('offline', start);
     window.addEventListener('halaqat:changed', changed);
     const interval = setInterval(update, 2000);
+    const avatarRetry = setInterval(() => {
+      if (active && navigator.onLine && !running) void db.meta.get(`${account}:pendingAvatar`)
+        .then(async pending => { if ((pending || await studentPhotoCount(account)) && active) void synchronize(); }).catch(() => undefined);
+    }, 60_000);
     return () => {
       active = false; clearInterval(interval);
+      clearInterval(avatarRetry);
       clearTimeout(initialTimer); clearTimeout(refreshTimer);
       clearTimeout(remoteTimer);
       window.removeEventListener('halaqat:sync-progress', progressChanged);
@@ -115,5 +133,12 @@ export default function OfflineSystem() {
       {syncing ? `جارٍ المزامنة ${progress.percent}٪` : waiting ? 'بانتظار المزامنة' : 'تمت المزامنة'}
       {syncing && <span role="progressbar" aria-label="تقدم مراحل المزامنة" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent} className="h-1.5 w-14 overflow-hidden rounded-full bg-blue-100"><span className="block h-full rounded-full bg-blue-500 transition-[width] motion-reduce:transition-none" style={{ width: `${progress.percent}%` }} /></span>}
     </span>
+    {last && Number.isFinite(Date.parse(last)) && <time dateTime={last} className="text-slate-500">آخر مزامنة: {new Intl.DateTimeFormat('ar-SA', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(last))}</time>}
+    {rejected.length > 0 && <details className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+      <summary className="cursor-pointer font-bold">تعذّر اعتماد {rejected.length} عملية — عرض الأسباب</summary>
+      <p className="mt-2 leading-6">تعديلاتك محفوظة على الجهاز. راجع البيانات أو الصلاحيات المذكورة؛ لم تُعتمد هذه العمليات على الخادم.</p>
+      <ul className="mt-2 space-y-2">{rejected.slice(0,10).map(operation => <li key={operation.id}><strong>{operation.label}:</strong> {operation.message}</li>)}</ul>
+      {rejected.length > 10 && <p className="mt-2">توجد {rejected.length - 10} عمليات إضافية تحتاج المراجعة.</p>}
+    </details>}
   </div>;
 }

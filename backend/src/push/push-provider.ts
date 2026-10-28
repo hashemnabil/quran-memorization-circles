@@ -9,6 +9,9 @@ export function signProviderJwt(header: object, claims: object, key: string, alg
   const body = `${encoded(header)}.${encoded(claims)}`;
   return `${body}.${sign(algorithm, Buffer.from(body), { key: key.replace(/\\n/g, '\n'), ...(algorithm === 'SHA256' ? { dsaEncoding: 'ieee-p1363' as const } : {}) }).toString('base64url')}`;
 }
+export function validAndroidChannel(value: unknown): value is string {
+  return typeof value === 'string' && (/^school-general-(default|silent|calm|electronic|clear|custom)-v[12](-[a-f0-9]{12})?$/.test(value) || /^school-general-(default|silent|calm|electronic|clear|school|soft|bright|pulse)-v3-b[01]$/.test(value) || /^school-general-custom-v3-[a-f0-9]{12}-b[01]$/.test(value));
+}
 export function safePushLink(value?: string | null) {
   return value && /^\/(?!\/)[a-zA-Z0-9/_?=&%-]*$/.test(value) ? value : '/notifications';
 }
@@ -27,14 +30,14 @@ export class PushProvider {
     const body = content ? (notice.body || 'لديك إشعار جديد').slice(0, 400) : 'لديك إشعار جديد، افتح التطبيق للاطلاع عليه';
     const data = { notificationId: notice.id, accountId: notice.userId || '', link: safePushLink(notice.link) };
     if (platform === 'android') {
-      const selectedChannel = notificationChannelId && /^school-general-(default|silent|calm|electronic|clear|custom)-v1$/.test(notificationChannelId) ? notificationChannelId : 'halaqat-updates';
+      const selectedChannel = notificationChannelId && validAndroidChannel(notificationChannelId) ? notificationChannelId : 'halaqat-updates';
       const mode = selectedChannel.split('-')[2];
-      const sound = mode === 'silent' ? undefined : ['calm', 'electronic', 'clear'].includes(mode) ? `school_${mode}` : 'default';
+      const sound = mode === 'silent' ? undefined : ['calm', 'electronic', 'clear', 'school', 'soft', 'bright', 'pulse'].includes(mode) ? `school_${mode}` : 'default';
       const access = await this.googleToken();
       const response = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(this.env.FCM_PROJECT_ID!)}/messages:send`, {
         method: 'POST', headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(10000),
         body: JSON.stringify({ message: { token, notification: { title, body }, data,
-          android: { priority: 'HIGH', ttl: '86400s', notification: { channel_id: selectedChannel, tag: notice.id, sound, icon: 'ic_stat_halaqat' } } } }),
+            android: { priority: 'HIGH', ttl: '86400s', notification: { channel_id: selectedChannel, tag: notice.id, sound, icon: 'ic_stat_halaqat', ...(selectedChannel.includes('-v3-') ? { default_vibrate_timings: false, vibrate_timings: selectedChannel.endsWith('-b1') ? ['0s','0.14s'] : ['0s','0s'] } : {}) } } } }),
       });
       if (!response.ok) {
         const result: any = await response.json().catch(() => ({}));

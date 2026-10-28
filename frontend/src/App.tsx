@@ -1,3 +1,5 @@
+import { ThemeProvider } from '@/components/ThemeSelect';
+import AppSecurityGate from '@/components/AppSecurityGate';
 import ProfileVerificationPage, { ProfileReviewsPage } from '@/pages/ProfileVerificationPage';
 import NativeBackNavigation from '@/components/NativeBackNavigation';
 import MeetingsPage from '@/pages/MeetingsPage';
@@ -109,9 +111,9 @@ export default function App() {
   useEffect(() => startHeartbeat(), []);
 
   return (
-    <AppLaunchGate>
+    <AppLaunchGate><ThemeProvider />
       <NativeBackNavigation />
-      <Suspense fallback={<LoadingState />}>
+      <AppSecurityGate><Suspense fallback={<LoadingState />}>
       <Routes>
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/about" element={<AboutPage />} />
@@ -342,13 +344,13 @@ export default function App() {
             </RequireRole>
           }
         />
-        <Route path="profile" element={<ProfilePage />} />
+        <Route path="profile" element={<ProfilePage />} /><Route path="profile/settings" element={<ProfilePage settings />} />
 
         <Route path="forbidden" element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       </Routes>
-      </Suspense>
+      </Suspense></AppSecurityGate>
     </AppLaunchGate>
   );
 }

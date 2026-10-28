@@ -9,9 +9,13 @@ import { credentialStorage } from './credential-storage';
 import { createSessionStore } from './session-store';
 import { assertNoPendingWrites } from './account-cleanup';
 import { readActiveIdentity } from './active-identity';
+import { syncPendingAvatar } from './pending-avatar';
+import { createReadRefresh } from './read-refresh';
+import { syncStudentPhotos } from './pending-student-photos';
+import { localConversation } from './local-conversations';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
-const CONFIGURED_API_URL = import.meta.env.VITE_API_URL?.trim();
+const CONFIGURED_API_URL = import.meta.env?.VITE_API_URL?.trim();
 // Android APKs must never send relative /api requests to the WebView's local
 // origin. Keep the deployed API as the native default while allowing builds to
 // override it explicitly. Browser development continues to use Vite's proxy.
@@ -30,6 +34,34 @@ export const api = axios.create({
 });
 
 const networkAdapter = axios.getAdapter(api.defaults.adapter!);
+const refreshRead = createReadRefresh();
+export async function syncQueuedStudentPhotos() {
+  const account = accountId();
+  if (!navigator.onLine || tokenStore.isLocal()) return;
+  await syncStudentPhotos(account, {
+    currentAccount: () => readActiveIdentity()?.id || '',
+    upload: async blob => {
+      const body = new FormData(); body.append('file', blob, 'student.' + ({ 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }[blob.type] || 'jpg'));
+      return (await api.post('/uploads/avatar', body, { headers: { 'Content-Type': 'multipart/form-data' }, _expectedAccount: account } as any)).data.url;
+    },
+    // Bypass optimistic adapters: deletion of a file draft requires server acknowledgement.
+    update: async (student, photoUrl) => { await api.patch(`/students/${student}/photo`, { photoUrl }, { adapter: networkAdapter, _expectedAccount: account } as any); },
+  });
+}
+export async function syncQueuedAvatar() {
+  const account = accountId();
+  if (!navigator.onLine || tokenStore.isLocal()) return;
+  await syncPendingAvatar(account, {
+    currentAccount: () => readActiveIdentity()?.id || '',
+    upload: async blob => {
+      const body = new FormData();
+      body.append('file', blob, 'avatar.' + (blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'));
+      const { data } = await api.post('/uploads/avatar', body, { headers: { 'Content-Type': 'multipart/form-data' }, _expectedAccount: account } as any);
+      return data.url;
+    },
+    update: async avatarUrl => { await api.patch('/auth/profile', { avatarUrl }, { _expectedAccount: account } as any); },
+  });
+}
 configureOffline(async (method, path, data) => {
   if (tokenStore.isLocal()) throw new Error('افتح الجلسة على الخادم قبل المزامنة؛ تعديلاتك محفوظة محليًا');
   const response = await api.request({ method, url: path, data, adapter: networkAdapter });
@@ -43,7 +75,28 @@ configureOffline(async (method, path, data) => {
 });
 api.defaults.adapter = async (config) => {
   const path = config.url || ''; const method = (config.method || 'get').toLowerCase();
-  if (path === '/settings/public' && method === 'get') return networkAdapter(config);
+  if (path === '/settings/public' && method === 'get') {
+    // This endpoint is intentionally public: its cache contains school details,
+    // never an account snapshot or locally unapproved settings edits.
+    const key = `public:school-settings:${BASE_URL}`;
+    const cached = await db.meta.get(key).catch(() => undefined);
+    const fetchPublic = async () => {
+      const result = await networkAdapter(config);
+      let data = result.data;
+      if (typeof data === 'string') { try { data = JSON.parse(data); } catch { return result; } }
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        await db.meta.put({ key, value: data }).catch(() => undefined);
+        if (cached && JSON.stringify(data) !== JSON.stringify(cached.value)) window.dispatchEvent(new Event('halaqat:changed'));
+      }
+      return result;
+    };
+    if (cached) {
+      if (navigator.onLine) refreshRead(key, async () => { await fetchPublic(); });
+      return { data: cached.value, status: 200, statusText: 'Local', headers: {}, config };
+    }
+    if (!navigator.onLine) throw new Error('لا توجد بيانات مدرسة محفوظة بعد؛ يلزم الاتصال لتنزيلها أول مرة');
+    return fetchPublic();
+  }
   if (path === '/auth/change-password') await assertNoPendingWrites(accountId());
   // Authentication and sync are network boundaries, never optimistic local successes.
   if (method === 'get' && path === '/auth/me' && (!navigator.onLine || tokenStore.isLocal())) {
@@ -64,10 +117,57 @@ api.defaults.adapter = async (config) => {
     if (local !== undefined) return response(await settleLocalWrite(local));
   }
   if (method === 'get' && config.responseType !== 'blob') {
-    const localTable = path.startsWith('/exams/requests') ? 'examRequests' : path === '/attendance/absence-permissions' ? 'absencePermissions' : path === '/attendance/summons' ? 'guardianSummons' : path.split('/').filter(Boolean)[0];
+    if (/^\/(?:students|courses|circles|teachers|exams|recitations|transfers|suspensions|preparations)\/[0-9a-f-]{36}(?:\?|$)/i.test(path)) {
+      const draft = await localRead(path, { ...config.params });
+      if (draft?.synced === 0) return response(draft);
+    }
+    if (/^\/chat\/conversations\/[^/]+$/.test(path)) {
+      const draft = await localConversation(path);
+      if (draft?.synced === 0) return response(draft);
+    }
+    if (/^\/support\/[^/]+$/.test(path) && !['/support/staff', '/support/stats'].includes(path)) {
+      const pendingTicket = await localRead(path, { ...config.params });
+      if (pendingTicket?.synced === 0) return response(pendingTicket);
+    }
+    // Only serve a response actually downloaded for this exact account/path/
+    // parameter set. An unbootstrapped local table can look like an empty list.
+    // Pending writes keep the existing reconciliation path authoritative.
+    const scopedConversation = path.match(/^\/chat\/conversations\/([0-9a-f-]{36})(?:\/messages)?$/i)?.[1];
+    const conversationCacheAllowed = !scopedConversation || !(await db.meta.get(`${account}:conversationListKnown`))?.value || !!(await localConversation(`/chat/conversations/${scopedConversation}`));
+    if (navigator.onLine && !tokenStore.isLocal() && !(config as any)._backgroundRead
+      && conversationCacheAllowed && !(await db.queue.where('accountId').equals(account).count())) {
+      const key = responseKey(account, path, config.params);
+      const cached = await db.responses.get(key);
+      const cachedData = path.startsWith('/support') || /^\/chat\/conversations(?:\/[^/]+)?$/.test(path) ? await localRead(path, { ...config.params }) : cached?.data;
+      stillCurrent();
+      if (cached && cachedData !== undefined && !(cached as any).__lockedLocal) {
+        refreshRead(key, async () => {
+          stillCurrent();
+          try {
+            // Use the full client so token refresh and server rejections retain
+            // their normal handling. Do not inherit a completed view's signal.
+            const fresh = await api.request({ ...config, signal: undefined, adapter: api.defaults.adapter, _backgroundRead: true, _expectedAccount: account } as any);
+            stillCurrent();
+            if (JSON.stringify(fresh.data) !== JSON.stringify(cachedData)) window.dispatchEvent(new Event('halaqat:changed'));
+          } catch (error) {
+            stillCurrent();
+            if (axios.isAxiosError(error) && [403, 404].includes(error.response?.status || 0)) {
+              await db.responses.delete(key);
+              window.dispatchEvent(new Event('halaqat:changed'));
+            }
+            throw error;
+          }
+        });
+        return response(cachedData);
+      }
+    }
+    const localTable = path.split('?')[0] === '/support' ? 'supportTickets' : path.startsWith('/exams/requests') ? 'examRequests' : path === '/attendance/absence-permissions' ? 'absencePermissions' : path === '/attendance/summons' ? 'guardianSummons' : path.split('/').filter(Boolean)[0];
     if (!navigator.onLine || tokenStore.isLocal()) {
+      const conversationId = path.match(/^\/chat\/conversations\/([0-9a-f-]{36})(?:\/messages)?$/i)?.[1];
+      if (conversationId && (await db.meta.get(`${account}:conversationListKnown`))?.value && !(await localConversation(`/chat/conversations/${conversationId}`))) throw new Error('لم تعد المحادثة ضمن القائمة المسموح بها لهذا الحساب');
       const local = await localRead(path, { ...config.params });
       if (local !== undefined) return response(local);
+      if (/^\/support(?:\/[0-9a-f-]{36})?(?:\?|$)/i.test(path)) throw new Error('طلب الدعم غير محفوظ أو لم يعد ضمن صلاحيات الحساب');
       const cached = await db.responses.get(responseKey(account, path, config.params));
       if (cached && (!navigator.onLine || tokenStore.isLocal())) return response(cached.data);
       if (!navigator.onLine || tokenStore.isLocal()) {
@@ -81,8 +181,11 @@ api.defaults.adapter = async (config) => {
     try { result = await networkAdapter(config); }
     catch (error) {
       if (axios.isAxiosError(error) && !error.response) {
+        const conversationId = path.match(/^\/chat\/conversations\/([0-9a-f-]{36})(?:\/messages)?$/i)?.[1];
+        if (conversationId && (await db.meta.get(`${account}:conversationListKnown`))?.value && !(await localConversation(`/chat/conversations/${conversationId}`))) throw error;
         const local = await localRead(path, { ...config.params });
         if (local !== undefined) return response(local);
+        if (/^\/support(?:\/[0-9a-f-]{36})?(?:\?|$)/i.test(path)) throw error;
         const cached = await db.responses.get(responseKey(account, path, config.params));
         if (cached) return response(cached.data);
         const url = new URL(path, 'https://local.invalid');
@@ -95,6 +198,18 @@ api.defaults.adapter = async (config) => {
     if (typeof data === 'string') { try { data = JSON.parse(data); } catch { /* Non-JSON responses are preserved verbatim. */ } }
     stillCurrent();
     await rememberRead(path, config.params, data);
+    if (path.split('?')[0] === '/media-activities' && Array.isArray(data)) {
+      const dirty = await db.table('mediaActivities').where('accountId').equals(account).filter(row => row.synced === 0).toArray();
+      if (dirty.length) {
+        const local = await localRead(path, { ...config.params }) || [];
+        const changedIds = new Set(dirty.map(row => row.id));
+        data = [...data.filter((row: any) => !changedIds.has(row.id)), ...local.filter((row: any) => changedIds.has(row.id))]
+          .sort((a: any, b: any) => String(b.activityDate).localeCompare(String(a.activityDate)) || String(b.createdAt).localeCompare(String(a.createdAt)));
+      }
+    }
+    if (path === '/chat/conversations' && Array.isArray(data)) data = await localConversation(path) ?? data;
+    if (path === '/community/feed' || /^\/chat\/conversations\/[^/]+\/messages$/.test(path)) data = await localRead(path, { ...config.params }) ?? data;
+    if (path.startsWith('/community/users/') && path.endsWith('/' + account)) data = { ...data, ...(await localRead(path, { ...config.params })) };
     // Keep pending offline-created rows visible in server-backed collection views.
     // The remote response remains authoritative for every row already on the server.
     if (Array.isArray(data?.data) && db.tables.some(table => table.name === localTable)) {
@@ -130,6 +245,36 @@ api.interceptors.request.use(async (config) => {
     return config;
   }
   await tokenStore.ready();
+  if (config.url && /^\/(?:students|courses|circles|teachers|exams|recitations|media-activities|transfers|suspensions|preparations)\/[0-9a-f-]{36}(?:\/.*)?$/i.test(config.url)) {
+    const owner = readActiveIdentity()?.id;
+    if (owner) {
+      const localId = config.url.split('/')[2];
+      const mapped = (await db.meta.get(`${owner}:id:${localId}`))?.value;
+      if (typeof mapped === 'string') config.url = config.url.replace(localId, mapped);
+      if (readActiveIdentity()?.id !== owner) throw new axios.CanceledError('Account changed during entity request');
+    }
+  }
+  if (config.url && /^\/chat\/conversations\/[0-9a-f-]{36}(?:\/.*)?$/i.test(config.url)) {
+    const owner = readActiveIdentity()?.id;
+    if (owner) {
+      const localId = config.url.split('/')[3];
+      const mapped = (await db.meta.get(`${owner}:id:${localId}`))?.value;
+      if (typeof mapped === 'string') config.url = config.url.replace(localId, mapped);
+      if (readActiveIdentity()?.id !== owner) throw new axios.CanceledError('Account changed during conversation request');
+    }
+  }
+  if (config.url && /^\/support\/[0-9a-f-]{36}(?:\/reply)?$/i.test(config.url)) {
+    const owner = readActiveIdentity()?.id;
+    if (owner) {
+      const localId = config.url.split('/')[2];
+      const mapped = (await db.meta.get(`${owner}:id:${localId}`))?.value;
+      if (typeof mapped === 'string') config.url = config.url.replace(localId, mapped);
+      if (readActiveIdentity()?.id !== owner) throw new axios.CanceledError('Account changed during support request');
+    }
+  }
+  if ((config as any)._expectedAccount && (config as any)._expectedAccount !== readActiveIdentity()?.id) {
+    throw new axios.CanceledError('Account changed before request');
+  }
   if (tokenStore.isClosing() && !['get', 'head'].includes(config.method || 'get') && config.url !== '/auth/logout' && !config.url?.startsWith('/push/devices')) {
     throw Object.assign(new Error('تسجيل الخروج قيد التنفيذ؛ انتظر قبل إجراء تعديل جديد'), { localWriteRejected: true });
   }

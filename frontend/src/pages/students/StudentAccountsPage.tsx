@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -10,7 +11,7 @@ export default function StudentAccountsPage() {
  const qc=useQueryClient(); const [search,setSearch]=useState(''); const [studentId,setStudentId]=useState(''); const [selectedResetIds,setSelectedResetIds]=useState<string[]>([]);
  const q=useQuery({queryKey:['student-accounts'],queryFn:async()=>(await api.get<Account[]>('/students/accounts')).data});
  const s=useQuery({queryKey:['students','account-options'],queryFn:async()=>(await api.get<{data:Student[]}>('/students',{params:{page:1,limit:100}})).data});
- const create=useMutation({mutationFn:async(id:string)=>(await api.post(`/students/${id}/account`)).data,onSuccess:()=>{setStudentId('');toast.success('تم إنشاء الحساب؛ كلمة المرور المؤقتة ظاهرة في الجدول');void qc.invalidateQueries({queryKey:['student-accounts']});},onError:e=>toast.error(apiError(e))});
+ const create=useMutation({mutationFn:async(id:string)=>(await api.post(`/students/${id}/account`)).data,onSuccess:(_offlineWriteResult)=>{setStudentId('');notifyWriteSuccess(_offlineWriteResult, 'تم إنشاء الحساب؛ كلمة المرور المؤقتة ظاهرة في الجدول');void qc.invalidateQueries({queryKey:['student-accounts']});},onError:e=>toast.error(apiError(e))});
  const reset=useMutation({mutationFn:async(ids:string[])=>{const response=await api.post<{total:number;succeeded:number;failed:number;results:Array<{id:string;ok:boolean;error?:string}>}>('/students/accounts/reset-password-bulk',{ids});return response.data;},onSuccess:result=>{if(result.succeeded)toast.success(`تم تغيير كلمة السر لـ ${result.succeeded} طالب${result.failed?`، وفشل ${result.failed}`:''}`);if(result.failed)toast.error(`تعذر تغيير كلمة السر لـ ${result.failed} طالب. تم تحديدهم لإعادة المحاولة.`);if(!result.succeeded&&!result.failed)toast.error('لم يتم تحديد طلاب لتغيير كلمات سرهم');setSelectedResetIds(result.results.filter(x=>!x.ok).map(x=>x.id));void qc.invalidateQueries({queryKey:['student-accounts']});},onError:e=>toast.error(apiError(e))});
  const toggle=useMutation({mutationFn:(a:Account)=>api.patch(`/students/${a.id}/account/active`,{isActive:!a.isActive}),onSuccess:()=>void qc.invalidateQueries({queryKey:['student-accounts']}),onError:e=>toast.error(apiError(e))});
  const exportFile=async()=>{try{const r=await api.post('/students/accounts/export-with-temporary-passwords',{}, {responseType:'blob'});const u=URL.createObjectURL(r.data);const a=document.createElement('a');a.href=u;a.download='student-accounts.xlsx';a.click();URL.revokeObjectURL(u);}catch(e){toast.error(apiError(e));}};

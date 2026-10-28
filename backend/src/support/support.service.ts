@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { NotificationType, Prisma, Role, TicketPriority, TicketStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/services/activity.service';
@@ -302,7 +302,7 @@ export class SupportService {
     return message;
   }
 
-  async update(actor: AuthUser, id: string, dto: UpdateTicketDto) {
+  async update(actor: AuthUser, id: string, dto: UpdateTicketDto, expectedUpdatedAt?: string) {
     if (!this.isStaff(actor)) throw new ForbiddenException('هذا الإجراء متاح لفريق الدعم فقط');
 
     const ticket = await this.prisma.supportTicket.findFirst({ where: { id, deletedAt: null } });
@@ -323,18 +323,21 @@ export class SupportService {
       if (!assignee) throw new BadRequestException('المستخدم المحدد ليس من فريق الدعم');
     }
 
-    const updated = await this.prisma.supportTicket.update({
-      where: { id },
-      data: {
+    const changes = {
         status: dto.status,
         priority: dto.priority,
         category: dto.category,
         ...(dto.assignedToId !== undefined ? { assignedToId: dto.assignedToId || null } : {}),
         ...(dto.status === TicketStatus.RESOLVED ? { resolvedAt: new Date() } : {}),
         ...(dto.status === TicketStatus.CLOSED ? { closedAt: new Date() } : {}),
-      },
-      include: TICKET_INCLUDE,
-    });
+      };
+    let updated;
+    if (expectedUpdatedAt) {
+      const result = await this.prisma.supportTicket.updateMany({ where: { id, deletedAt: null, updatedAt: new Date(expectedUpdatedAt) }, data: { ...changes, updatedAt: new Date() } });
+      if (!result.count) throw new ConflictException('تغيّر طلب الدعم من جهاز آخر؛ راجع النسخة الحديثة قبل تعديل الحالة أو الإسناد');
+      updated = await this.prisma.supportTicket.findUnique({ where: { id }, include: TICKET_INCLUDE });
+      if (!updated) throw new NotFoundException('طلب الدعم غير موجود');
+    } else updated = await this.prisma.supportTicket.update({ where: { id }, data: changes, include: TICKET_INCLUDE });
 
     if (dto.status && dto.status !== ticket.status && ticket.createdById) {
       await this.notifications.notify({

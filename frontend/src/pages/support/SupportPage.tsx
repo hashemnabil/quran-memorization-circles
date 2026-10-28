@@ -176,7 +176,8 @@ export default function SupportPage() {
                 <li key={ticket.id}>
                   <Link to={`/support/${ticket.id}`} className="flex flex-wrap items-center gap-3 px-5 py-4 transition hover:bg-slate-50">
                     <span className="numeric shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">
-                      #{ticket.number}
+                      {ticket.number ? `#${ticket.number}` : 'محلي'}
+                      {ticket.synced === 0 && <span className="block text-amber-700">بانتظار تأكيد الخادم</span>}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-slate-800">{ticket.subject}</p>
@@ -232,8 +233,9 @@ function NewTicketModal({ onClose }: { onClose: () => void }) {
 
   const create = useMutation({
     mutationFn: () => api.post('/support', { subject, description, category, priority }),
-    onSuccess: () => {
-      toast.success('تم إرسال طلب الدعم');
+    onSuccess: (response) => {
+      if (response.data?.synced === 0) toast('حُفظ طلب الدعم على الجهاز، بانتظار تأكيد الخادم');
+      else toast.success('تم إرسال طلب الدعم');
       queryClient.invalidateQueries({ queryKey: ['support'] });
       onClose();
     },

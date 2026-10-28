@@ -33,6 +33,7 @@ export function useRealtime() {
       // Business events also change list data (requests, exams, tickets).
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
 
+      if (document.querySelector('[data-security-blocked]')) return;
       toast(payload.notification.title, {
         icon: '🔔',
         duration: 5000,

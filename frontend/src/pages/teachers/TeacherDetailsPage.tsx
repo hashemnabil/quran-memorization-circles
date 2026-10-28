@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -247,8 +248,8 @@ function EditTeacherModal({ teacher, onClose }: { teacher: TeacherProfile; onClo
           };
       return api.patch(`/teachers/${teacher.id}`, payload);
     },
-    onSuccess: () => {
-      toast.success('تم تحديث بيانات المعلم');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تحديث بيانات المعلم');
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
       onClose();
     },

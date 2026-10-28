@@ -14,7 +14,7 @@ async function derive(password: string, salt: Uint8Array) {
     { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
 export async function rememberOfflineLogin(username: string, password: string, user: AuthUser, _legacyTokens?: { accessToken: string; refreshToken: string }) {
-  if (!user.isActive || user.role === 'PARENT') return;
+  if (!user.isActive) return;
   const accountVersion = accountGeneration.get(user.id) || 0;
   const usernameVersion = usernameGeneration.get(recordKey(username)) || 0;
   const activeKey = dataKey(user.id);

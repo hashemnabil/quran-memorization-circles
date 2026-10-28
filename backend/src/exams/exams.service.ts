@@ -258,6 +258,22 @@ const EXAM_INCLUDE = {
 
 @Injectable()
 export class ExamsService {
+  async removeUngraded(actor: AuthUser, id: string) {
+    if (![Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(actor.role as any)) throw new ForbiddenException('حذف الموعد للمخولين بإدارة الطالب فقط');
+    const removed = await this.prisma.$transaction(async tx => {
+      const exam = await tx.exam.findUnique({ where: { id } });
+      if (!exam) throw new NotFoundException('الاختبار غير موجود');
+      await this.acl.assertStudentWriteAccess(actor, exam.studentId);
+      // Graded history also drives independent milestone records and memorization totals.
+      // It must be corrected through the result workflow, never removed as an appointment.
+      const result = await tx.exam.deleteMany({ where: { id, status: { in: [ExamStatus.SCHEDULED, ExamStatus.CANCELLED] }, score: null, result: null, gradedAt: null } });
+      if (!result.count) throw new ConflictException('لا يُحذف اختبار مرصود أو مكتمل؛ صحّح النتيجة من سجل الاختبارات للحفاظ على تقدم الطالب');
+      if (exam.requestId) await tx.examRequest.updateMany({ where: { id: exam.requestId, status: ExamRequestStatus.SCHEDULED }, data: { status: ExamRequestStatus.PENDING } });
+      return exam;
+    });
+    await this.activity.log({ userId: actor.id, action: 'EXAM_APPOINTMENT_DELETE', entityType: 'Exam', entityId: id, summary: 'حذف موعد اختبار غير مرصود وإعادة طلبه للانتظار', metadata: { studentId: removed.studentId, requestId: removed.requestId } });
+    return { deleted: true, id };
+  }
   async committeeGradingSettings(id:string){
     const committee=await this.prisma.examCommittee.findUnique({where:{id},select:{mistakePenalty:true,alertPenalty:true}});
     if(!committee)throw new NotFoundException('اللجنة غير موجودة');

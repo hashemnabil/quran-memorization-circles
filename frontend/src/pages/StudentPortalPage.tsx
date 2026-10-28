@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { FormEvent, useEffect, useState } from 'react';
 import PrayerCard from '@/components/PrayerCard';
 import { useNavigate } from 'react-router-dom';
@@ -27,8 +28,8 @@ export default function StudentPortalPage() {
       if (user) await rememberOfflineLogin(user.username, newPassword, { ...user, mustChangePassword: false });
       return result;
     },
-    onSuccess: async () => {
-      toast.success('تم تغيير كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.');
+    onSuccess: async (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تغيير كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.');
       await logout();
       navigate('/login', { replace: true });
     },

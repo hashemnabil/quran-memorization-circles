@@ -1,9 +1,10 @@
 import { create } from 'zustand';
+import { offlineAccessAllowed, recordServerVerification } from '@/lib/offline-access';
 import axios from 'axios';
 import { api, tokenStore } from '@/lib/api';
 import { clearHeartbeat, expireStaleSession } from '@/lib/session';
 import { resetQueryCache, queryClient } from '@/lib/queryClient';
-import { clearPersistedQueryCache, persistQueryCache } from '@/lib/offline/queryCache';
+import { clearPersistedQueryCache, persistQueryCache, restoreQueryCache } from '@/lib/offline/queryCache';
 import { clearOfflineOperations } from '@/lib/offline/outbox';
 import { clearOfflineReplica } from '@/lib/offline/changeFeed';
 import type { AuthUser, Role } from '@/types';
@@ -18,7 +19,7 @@ import { forgetEncryptionMarker } from '@/lib/local-encryption';
 import { cacheReconnectCredentials, restoreReconnectCredentials, clearReconnectCredentials, type ReconnectCredentials } from '@/lib/reconnect-credentials';
 
 const OFFLINE_USER_KEY = 'qc.offlineUser';
-const allowedRoles: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'STUDENT', 'SUPPORT'];
+const allowedRoles: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'STUDENT', 'PARENT', 'SUPPORT'];
 // Supplied password stays in RAM plus encrypted tab storage until verification;
 // it is never included in tokens, IndexedDB, localStorage, exports or logs.
 let reconnectCredentials: ReconnectCredentials | undefined;
@@ -66,6 +67,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       try {
         const session = await unlockOfflineLogin(username, password);
         await protectLocalAccount(session.user.id);
+        if (!await offlineAccessAllowed(session.user.id)) throw new Error('يلزم الاتصال للتحقق من الحساب كل 30 يومًا؛ بياناتك وتعديلاتك المحلية محفوظة');
         await persistDataSession(session.user.id).catch(() => undefined);
         resetQueryCache();
         await tokenStore.ready().catch(() => undefined);
@@ -100,6 +102,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw Object.assign(new Error(`نجح التحقق من الحساب، وتعذر ${localStage}: ${detail}`), { offlineLoginError: true });
     }
     const user = await adoptSession(data, set);
+    await import('@/lib/local-lock').then(module => module.resetLockAfterOnlineLogin(user.id));
     reconnectCredentials = undefined;
     clearReconnectCredentials();
     return user;
@@ -177,9 +180,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   async loadSession() {
     try { await tokenStore.ready(); } catch { set({ status: 'unauthenticated', user: null }); return; }
     const owner = tokenStore.owner();
+    let offlineAllowed = true;
     if (owner) {
       try {
         await restoreDataSession(owner);
+        offlineAllowed = await offlineAccessAllowed(owner);
         const identity = (await db.meta.get(`${owner}:identity`))?.value;
         if (identity?.id === owner) cacheOfflineUser(identity);
       } catch { set({ status: 'unauthenticated', user: null }); return; }
@@ -191,6 +196,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (local && sessionStorage.getItem('qc.localUnlocked') === local.id) {
         try {
           await restoreDataSession(local.id);
+          if (!await offlineAccessAllowed(local.id)) throw new Error('يلزم التحقق من الخادم بعد 30 يومًا');
           reconnectCredentials = restoreReconnectCredentials(local.id);
           if (reconnectCredentials) {
             tokenStore.setLocal(true); set({ user: local, status: 'authenticated' }); return;
@@ -205,22 +211,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // identity immediately. Do not wait for an impossible /auth/me request.
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       const offlineUser = readOfflineUser();
-      set(offlineUser
+      set(offlineUser && offlineAllowed
         ? { user: offlineUser, status: 'authenticated' }
         : { user: null, status: 'unauthenticated' });
       return;
     }
 
-    set({ status: 'loading' });
+    const cachedIdentity = readOfflineUser();
+    if (cachedIdentity && cachedIdentity.id === owner && offlineAllowed) {
+      await restoreQueryCache(owner, () => tokenStore.owner() === owner).catch(() => false);
+      if (tokenStore.owner() !== owner) return;
+      set({ user: cachedIdentity, status: 'authenticated' });
+    } else set({ status: 'loading' });
     try {
       const { data } = await api.get('/auth/me');
+      if (tokenStore.owner() !== owner) return;
+      await recordServerVerification(data.id);
       cacheOfflineUser(data as AuthUser);
       set({ user: data, status: 'authenticated' });
     } catch (error) {
+      if (tokenStore.owner() !== owner) return;
       const isAxios = axios.isAxiosError(error);
       const status = isAxios ? error.response?.status : undefined;
       const isTemporaryFailure = !isAxios || !error.response || status === 408 || status === 429 || (status !== undefined && status >= 500);
-      const offlineUser = isTemporaryFailure ? readOfflineUser() : null;
+      const offlineUser = isTemporaryFailure && offlineAllowed ? readOfflineUser() : null;
       if (offlineUser) {
         // Cached reads may render offline; writes still require server authorization.
         set({ user: offlineUser, status: 'authenticated' });
@@ -263,6 +277,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { data } = await api.get('/auth/me');
     if (get().user?.id === account) {
       await db.meta.put({ key: `${account}:identity`, value: data });
+      await recordServerVerification(account);
       if (get().user?.id === account) { cacheOfflineUser(data); set({ user: data }); reconnectCredentials = undefined; clearReconnectCredentials(); }
     }
     } catch (error) {
@@ -299,6 +314,7 @@ async function adoptSession(
   const me = await api.get('/auth/me');
   cacheOfflineUser(me.data as AuthUser);
   await db.meta.put({ key: `${me.data.id}:identity`, value: me.data });
+  await recordServerVerification(me.data.id);
   set({ user: me.data, status: 'authenticated' });
   return me.data as AuthUser;
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser, Roles } from '../common/decorators';
@@ -21,6 +21,9 @@ import { ExamsService } from './exams.service';
 @Controller('exams')
 export class ExamsController {
   constructor(private readonly service: ExamsService) {}
+  @Delete(':id')
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) { return this.service.removeUngraded(user, id); }
 
   @Get('committees/:id/grading-settings')
   @Roles(Role.ADMIN,Role.EXAM_COMMITTEE)

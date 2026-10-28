@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -52,8 +53,8 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
   const requests = requestsQuery.data?.data ?? [];
   const submitSectionRequest = useMutation({
     mutationFn: (codeOrSection: string) => api.post('/exams/requests', combinedPlan().some(stage => stage.code === codeOrSection) ? { studentId, combinedStage: codeOrSection } : { studentId, sectionIds: [codeOrSection] }),
-    onSuccess: async () => {
-      toast.success('تم تقديم طلب الاختبار وتحديث حالة المقرر');
+    onSuccess: async (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تقديم طلب الاختبار وتحديث حالة المقرر');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['exams'] }),
         queryClient.invalidateQueries({ queryKey: ['students', studentId] }),
@@ -70,8 +71,8 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
       examDate: draft.examDate || null,
       examinerName: draft.examinerName || null,
     })).data,
-    onSuccess: () => {
-      toast.success('تم حفظ سجل المقرر');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حفظ سجل المقرر');
       // Keep every exam screen and the student's progression in sync after an
       // administrative status change, including request/scheduled/completed.
       queryClient.invalidateQueries({ queryKey: ['exams'] });

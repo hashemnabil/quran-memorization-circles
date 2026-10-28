@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -142,8 +143,8 @@ export default function StudentsPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/students/${id}`),
-    onSuccess: () => {
-      toast.success('تم حذف الطالب');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف الطالب');
       queryClient.invalidateQueries({ queryKey: ['students'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -774,8 +775,8 @@ function ReturnToCircleModal({ student, onClose }: { student: Student; onClose: 
         circleId: circleId || undefined,
         note: note || undefined,
       }),
-    onSuccess: () => {
-      toast.success(`تمت إعادة ${student.fullName} إلى الحلقات`);
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, `تمت إعادة ${student.fullName} إلى الحلقات`);
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['suspensions'] });
       onClose();

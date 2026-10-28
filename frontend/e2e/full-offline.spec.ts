@@ -1,3 +1,4 @@
+import { gotoWithLocalUnlock, unlockLocalGate } from './local-security-helpers';
 import { test, expect, chromium, type BrowserContext } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -59,10 +60,11 @@ for (const rejected of [false, true]) {
       return page;
     };
     const signIn = async (page: Awaited<ReturnType<typeof start>>) => {
-      await page.goto(`${origin}/login`);
+      await gotoWithLocalUnlock(page,`${origin}/login`);
       await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
       await page.getByLabel('كلمة المرور', { exact: true }).fill(password);
       await page.getByRole('button', { name: 'دخول', exact: true }).click();
+    await unlockLocalGate(page);
       await expect(page).not.toHaveURL(/\/login$/);
     };
     const queue = (page: Awaited<ReturnType<typeof start>>) => page.evaluate(() => new Promise<any[]>(resolve => {
@@ -70,27 +72,27 @@ for (const rejected of [false, true]) {
     }));
     try {
       let page = await start(false); await signIn(page);
-      await page.goto(`${origin}/attendance?circleId=${circleId}`);
+      await gotoWithLocalUnlock(page,`${origin}/attendance?circleId=${circleId}`);
       await expect(page.getByText(fixtures.students[0].fullName, { exact: true })).toBeVisible();
       await expect.poll(() => page.evaluate(account => new Promise<boolean>(resolve => {
         const open = indexedDB.open('halaqatFull'); open.onsuccess = () => { const database = open.result; const read = database.transaction('meta').objectStore('meta').get(`${account}:downloadedAt`); read.onsuccess = () => { database.close(); resolve(Boolean(read.result?.__sealedLocal)); }; };
       }), account)).toBe(true);
       await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
       // Ordinary logout must preserve the encrypted verifier and local work.
-      await page.goto(`${origin}/profile`);
+      await gotoWithLocalUnlock(page,`${origin}/profile`);
       await page.locator('main').getByRole('button', { name: 'تسجيل الخروج', exact: true }).click();
       await expect(page).toHaveURL(/\/login$/);
       await context!.close(); context = undefined;
 
       page = await start(true); await signIn(page);
       expect(logins).toBe(1); // No API login was possible in the restarted process.
-      await page.goto(`${origin}/attendance?circleId=${circleId}`);
+      await gotoWithLocalUnlock(page,`${origin}/attendance?circleId=${circleId}`);
       await expect(page.getByText(fixtures.students[0].fullName, { exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'تعيين الكل غائب', exact: true }).click();
       await page.getByRole('button', { name: 'حفظ الكشف', exact: true }).first().click();
       await expect.poll(async () => (await queue(page)).length).toBe(1);
       const pending = (await queue(page))[0]; expect(pending.__sealedLocal).toBeTruthy(); expect(JSON.stringify(pending)).not.toContain(fixtures.students[0].fullName);
-      await page.goto(`${origin}/profile`);
+      await gotoWithLocalUnlock(page,`${origin}/profile`);
       await page.locator('main').getByRole('button', { name: 'تسجيل الخروج', exact: true }).click();
       await expect(page).toHaveURL(/\/login$/);
       expect((await queue(page))[0].opId).toBe(pending.opId);
@@ -111,10 +113,10 @@ for (const rejected of [false, true]) {
         expect(logins).toBe(2); expect(posts).toBe(1); expect(serverRows[0].status).toBe('ABSENT');
         // Let the online attendance screen hydrate from the refreshed local cache
         // before testing a second offline navigation after synchronization.
-        await page.goto(`${origin}/attendance?circleId=${circleId}`);
+        await gotoWithLocalUnlock(page,`${origin}/attendance?circleId=${circleId}`);
         await expect(page.getByText(fixtures.students[0].fullName, { exact: true })).toBeVisible({ timeout: 15000 });
         offlineMode = true; await context!.setOffline(true);
-        await page.reload();
+        await page.reload(); await unlockLocalGate(page);
         await expect(page.getByText(fixtures.students[0].fullName, { exact: true })).toBeVisible({ timeout: 15000 });
       }
     } finally { await context?.close(); await rm(profile, { recursive: true, force: true }); }
@@ -151,10 +153,11 @@ test('student first password change preserves offline login with the new passwor
     if (path === '/api/sync-all') return route.fulfill({ json: { data: url.searchParams.get('table') === 'students' ? [student] : fixtures[url.searchParams.get('table') || ''] || [], meta: { hasNextPage: false } } });
     return route.fulfill({ json: { data: [], meta: { hasNextPage: false, total: 0 } } });
   });
-  await page.goto('/login');
+  await gotoWithLocalUnlock(page,'/login');
   await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
   await page.getByLabel('كلمة المرور', { exact: true }).fill(initialPassword);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
+    await unlockLocalGate(page);
   await page.getByLabel(/^كلمة المرور المؤقتة/).fill(initialPassword);
   await expect.poll(() => page.evaluate(account => new Promise<boolean>(resolve => {
     const open = indexedDB.open('halaqatFull'); open.onsuccess = () => { const database = open.result; const read = database.transaction('students').objectStore('students').getAll(); read.onsuccess = () => { database.close(); resolve(read.result.some(row => row.accountId === account && row.__sealedLocal)); }; };
@@ -167,6 +170,7 @@ test('student first password change preserves offline login with the new passwor
   await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
   await page.getByLabel('كلمة المرور', { exact: true }).fill(newPassword);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
+    await unlockLocalGate(page);
   await expect(page).toHaveURL(url => url.pathname === '/' || url.pathname === '/student');
   // Offline login is successful when routing leaves the login screen; the student home
   // layout can render different headings while its cached records hydrate.
@@ -176,7 +180,7 @@ test('student first password change preserves offline login with the new passwor
 
 test('public deletion entry identifies the school and production CSP blocks injected inline scripts', async ({ page }) => {
   await page.route('**/api/**', route => route.fulfill({ json: { name: schoolName } }));
-  await page.goto('/account-deletion');
+  await gotoWithLocalUnlock(page,'/account-deletion');
   await expect(page.getByRole('heading', { name: 'طلب حذف الحساب والبيانات' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'تسجيل الدخول للتحقق من هويتي' })).toBeVisible();
   const executed = await page.evaluate(() => {
@@ -215,7 +219,7 @@ for (const width of [1280, 390]) {
       }
       return route.fulfill({ json: { data: [], meta: { page: 1, total: 0, totalPages: 1, hasNextPage: false } } });
     });
-    await page.goto('/profile');
+    await gotoWithLocalUnlock(page,'/profile');
     await expect(page.getByRole('button', { name: 'قائمة الحساب', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
     await page.getByRole('link', { name: 'الإشعارات', exact: true }).first().click();
@@ -228,7 +232,7 @@ for (const width of [1280, 390]) {
     await page.getByRole('link', { name: 'المحادثات', exact: true }).first().click();
     await expect(page).toHaveURL(/\/chat$/);
     // Cache the support screen, then exercise a real sidebar link while offline.
-    await page.goto('/support');
+    await gotoWithLocalUnlock(page,'/support');
     await expect(page.locator('main h1').first()).toBeVisible();
     await context.setOffline(true);
     if (width < 1024) await page.getByRole('button', { name: 'فتح القائمة', exact: true }).click();
@@ -272,7 +276,7 @@ test('notification links open their exact exam and request records offline, incl
     }
     return route.fulfill({ json: { data, meta: { page: 1, total: data.length, totalPages: 1, hasNextPage: false } } });
   });
-  await page.goto('/notifications');
+  await gotoWithLocalUnlock(page,'/notifications');
   await expect.poll(() => page.evaluate(account => new Promise(resolve => {
     const open = indexedDB.open('halaqatFull'); open.onsuccess = () => {
       const database = open.result; const read = database.transaction('meta').objectStore('meta').get(`${account}:sectionsDownloadedAt`);
@@ -319,7 +323,7 @@ test('exam committee tabs work without offering forbidden student files or repor
     }
     return route.fulfill({ json: { data, meta: { page: 1, total: data.length, totalPages: 1, hasNextPage: false } } });
   });
-  await page.goto('/exams');
+  await gotoWithLocalUnlock(page,'/exams');
   await expect(page.getByRole('cell', { name: student.fullName, exact: false })).toBeVisible();
   await expect(page.locator(`a[href="/students/${student.id}"]`)).toHaveCount(0);
   await expect(page.locator('a[href="/documents/exams"]')).toHaveCount(0);
@@ -359,7 +363,7 @@ test('administrator creates a user and student account, resets password offline 
     if (url.pathname === '/api/users/stats') return route.fulfill({ json: { total: 0, active: 0, inactive: 0, byRole: [] } });
     return route.fulfill({ json: { data: [], meta: { page: 1, total: 0, totalPages: 1, hasNextPage: false } } });
   });
-  await page.goto('/student-accounts');
+  await gotoWithLocalUnlock(page,'/student-accounts');
   await expect.poll(() => page.evaluate(() => new Promise(resolve => {
     const open = indexedDB.open('halaqatFull'); open.onsuccess = () => {
       const database = open.result;
@@ -389,7 +393,7 @@ test('administrator creates a user and student account, resets password offline 
 
 test('website login opens immediately without native splash or onboarding', async ({ page }) => {
   await page.route('**/api/**', route => route.fulfill({ json: { name: schoolName } }));
-  await page.goto('/login');
+  await gotoWithLocalUnlock(page,'/login');
   await expect(page.getByRole('heading', { name: schoolName, exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'تسجيل الدخول', exact: true })).toBeVisible();
   await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).toHaveCount(0);
@@ -402,7 +406,7 @@ test('website login opens immediately without native splash or onboarding', asyn
 
 test('public privacy page and support dialog work with keyboard focus contained and restored', async ({ page }) => {
   await page.route('**/api/**', route => route.fulfill({ json: { name: 'School' } }));
-  await page.goto('/login');
+  await gotoWithLocalUnlock(page,'/login');
   await page.getByRole('link', { name: 'معلومات عن البرنامج', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'قسم الإدارة', exact: true })).toBeVisible();
   await page.screenshot({ path: 'test-results/about-program-desktop.png', fullPage: true, animations: 'disabled' });
@@ -427,14 +431,14 @@ test('public privacy page and support dialog work with keyboard focus contained 
 
 test('local Arabic font files and brand assets are cached before an offline login reload', async ({ page, context }) => {
   await page.route('**/api/**', route => route.fulfill({ json: { name: schoolName } }));
-  await page.goto('/login');
+  await gotoWithLocalUnlock(page,'/login');
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   await expect.poll(() => page.evaluate(async () => (await caches.keys()).filter(key => key.startsWith('quran-circles-shell-')).length)).toBeGreaterThan(0);
   const cached = await page.evaluate(async () => (await Promise.all((await caches.keys()).filter(key => key.startsWith('quran-circles-shell-')).map(async key => (await (await caches.open(key)).keys()).map(request => request.url)))).flat());
   expect(cached.filter(url => url.endsWith('.woff2')).length).toBe(4);
   expect(cached.some(url => url.endsWith('/brand-logo.png'))).toBe(true);
-  await context.setOffline(true); await page.reload();
+  await context.setOffline(true); await page.reload(); await unlockLocalGate(page);
   await expect(page.getByRole('heading', { name: schoolName, exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'تسجيل الدخول', exact: true })).toBeVisible();
   expect(await page.evaluate(async () => { await document.fonts.load('16px Tajawal', 'العربية'); return document.fonts.check('16px Tajawal', 'العربية'); })).toBe(true);
@@ -446,7 +450,7 @@ test('unexpected screen errors offer recovery without clearing the saved account
     const url = new URL(route.request().url());
     return route.fulfill({ json: url.pathname === '/api/auth/me' ? user : url.pathname === '/api/announcements/active' ? { unexpected: true } : { name: 'School', data: [], meta: { total: 0, totalPages: 1 } } });
   });
-  await page.goto('/profile');
+  await gotoWithLocalUnlock(page,'/profile');
   await expect(page.getByRole('heading', { name: 'تعذر عرض الصفحة', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'إعادة فتح الصفحة', exact: true })).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.id)).toBe(account);
@@ -462,7 +466,7 @@ test('native launch shows only a logo and introduces the app once', async ({ pag
     }).observe(document, { childList: true, subtree: true });
   });
   await page.route('**/api/**', route => route.fulfill({ json: { name: 'حلقات التحفيظ' } }));
-  await page.goto('/login');
+  await gotoWithLocalUnlock(page,'/login');
   const splash = page.getByRole('status', { name: 'بدء التطبيق', exact: true });
   await expect(page.getByRole('heading', { name: 'كل آية، خطوة إلى الأمام' })).toBeVisible();
   expect(await page.evaluate(() => (window as any).__nativeSplashText)).toBe('');
@@ -474,7 +478,7 @@ test('native launch shows only a logo and introduces the app once', async ({ pag
   await page.getByRole('button', { name: 'متابعة', exact: true }).click();
   await page.getByRole('button', { name: 'ابدأ الآن', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'تسجيل الدخول', exact: true })).toBeVisible();
-  await page.reload();
+  await page.reload(); await unlockLocalGate(page);
   await expect(splash).not.toBeVisible();
   await expect(page.getByRole('main', { name: 'التعريف بالتطبيق', exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'تسجيل الدخول', exact: true })).toBeVisible();
@@ -486,7 +490,7 @@ test('password recovery collects account identity and queues a request offline',
     if (new URL(route.request().url()).pathname === '/api/support/public') { requests.push(route.request().postDataJSON()); return route.fulfill({ json: { number: 30 } }); }
     return route.fulfill({ json: { name: schoolName } });
   });
-  await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/login');
+  await page.setViewportSize({ width: 390, height: 844 }); await gotoWithLocalUnlock(page,'/login');
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await context.setOffline(true);
   await page.getByRole('button', { name: 'طلب تغيير كلمة المرور', exact: true }).click();
@@ -525,27 +529,29 @@ test('online reads use the server and persist the fresh record for the next offl
     if (path === '/api/sync-all') return route.fulfill({ json: { data: url.searchParams.get('table') === 'students' ? [{ ...fixtures.students[0], fullName: 'نسخة محلية قديمة' }] : [], meta: { hasNextPage: false } } });
     return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
   });
-  await page.goto('/login');
+  await gotoWithLocalUnlock(page,'/login');
   await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
   await page.getByLabel('كلمة المرور', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
+    await unlockLocalGate(page);
   await expect(page).not.toHaveURL(/\/login$/);
-  await page.goto('/students'); await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await gotoWithLocalUnlock(page,'/students'); await expect(page.getByText(name, { exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(account => new Promise(resolve => { const request = indexedDB.open('halaqatFull'); request.onsuccess = () => { const db = request.result; const read = db.transaction('meta').objectStore('meta').get(`${account}:downloadedAt`); read.onsuccess = () => { resolve(Boolean(read.result)); db.close(); }; }; }), account)).toBe(true);
   name = 'تعديل جديد على الخادم'; const before = reads;
-  await page.reload(); await expect(page.getByText(name, { exact: true })).toBeVisible(); expect(reads).toBeGreaterThan(before);
+  await page.reload(); await unlockLocalGate(page); await expect(page.getByText(name, { exact: true })).toBeVisible(); expect(reads).toBeGreaterThan(before);
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
-  disconnected = true; await context.setOffline(true); await page.reload(); await expect(page.getByText(name, { exact: true })).toBeVisible();
+  disconnected = true; await context.setOffline(true); await page.reload(); await unlockLocalGate(page); await expect(page.getByText(name, { exact: true })).toBeVisible();
   // Enter a real password-unlocked local session with no server tokens. An
   // ordinary online-manager refetch alone still reads locally in this mode.
-  await page.goto('/profile');
+  await gotoWithLocalUnlock(page,'/profile');
   await page.locator('main').getByRole('button', { name: 'تسجيل الخروج', exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
   await page.getByLabel('كلمة المرور', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
+    await unlockLocalGate(page);
   await expect(page).not.toHaveURL(/\/login$/);
-  await page.goto('/students'); await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await gotoWithLocalUnlock(page,'/students'); await expect(page.getByText(name, { exact: true })).toBeVisible();
   // Reconnect while staying on the same screen: fresh server data must replace
   // the local result without a reload, navigation or manual sync button.
   name = 'بيانات أحدث بعد عودة الاتصال'; const offlineReads = reads;
@@ -564,7 +570,7 @@ test('all recipient accounts, educational staff and circle students remain selec
     const path = new URL(route.request().url()).pathname;
     return route.fulfill({ json: path === '/api/auth/me' ? user : path === '/api/notifications/recipients' ? directory : path === '/api/announcements/active' ? [] : path === '/api/sync-all/watermark' ? { cursor: '0' } : { data: [], meta: { hasNextPage: false } } });
   });
-  await page.goto('/admin/notifications');
+  await gotoWithLocalUnlock(page,'/admin/notifications');
   await page.getByLabel('الفئة', { exact: true }).selectOption('STUDENT');
   await page.getByLabel('المستلمون', { exact: true }).selectOption('SELECTED');
   await expect(page.getByRole('checkbox', { name: /^طالب القائمة 124 / })).toBeVisible();
@@ -573,7 +579,7 @@ test('all recipient accounts, educational staff and circle students remain selec
   await expect(page.getByRole('checkbox', { name: /^طالب القائمة 124 / })).toHaveCount(0);
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
-  await context.setOffline(true); await page.reload();
+  await context.setOffline(true); await page.reload(); await unlockLocalGate(page);
   await page.getByLabel('الفئة', { exact: true }).selectOption('CIRCLE');
   await page.getByLabel(/^الحلقة/).selectOption(circleId);
   await page.getByLabel('المستلمون', { exact: true }).selectOption('SELECTED');
@@ -606,7 +612,7 @@ test('activity archive opens records older than the former 100-record limit and 
     }
     return route.fulfill({ json: path === '/api/announcements/active' ? [] : path === '/api/notifications/recipients' ? { users: [], circles: [], studentsWithoutAccounts: [] } : path === '/api/sync-all/watermark' ? { cursor: '0' } : { data: [], meta: { hasNextPage: false } } });
   });
-  await page.goto('/admin/activity');
+  await gotoWithLocalUnlock(page,'/admin/activity');
   await page.getByRole('button', { name: '3', exact: true }).click();
   await expect(page.getByText('أول نشاط محفوظ في المدرسة', { exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(account => new Promise<number>(resolve => {
@@ -614,7 +620,7 @@ test('activity archive opens records older than the former 100-record limit and 
   }), account)).toBe(125);
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
-  await context.setOffline(true); await page.reload();
+  await context.setOffline(true); await page.reload(); await unlockLocalGate(page);
   await page.getByLabel('ترتيب النشاطات').selectOption('asc');
   await expect(page.getByText('أول نشاط محفوظ في المدرسة', { exact: true })).toBeVisible();
   await page.getByLabel('البحث في النشاط أو اسم المستخدم').fill('أول نشاط');
@@ -633,7 +639,7 @@ test('admin broadcast targets selected accounts and stays durable offline', asyn
     if (path === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
     return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
   });
-  await page.goto('/admin/notifications');
+  await gotoWithLocalUnlock(page,'/admin/notifications');
   await expect(page.getByRole('heading', { name: 'إرسال الإشعارات' })).toBeVisible();
   await page.getByLabel(/^عنوان الإشعار/).fill('موعد اللقاء');
   await page.getByLabel(/^نص الإشعار/).fill('نلتقي غدًا بعد العصر.');
@@ -679,7 +685,7 @@ test('student save explains missing fields, confirms online creation and works o
     }
     return route.fulfill({ status: 403, json: { message: 'Initial bootstrap not ready' } });
   });
-  await page.goto('/students');
+  await gotoWithLocalUnlock(page,'/students');
   await page.getByRole('button', { name: 'تسجيل طالب', exact: true }).click();
   await page.getByLabel('الاسم الكامل').fill('طالب متصل جديد');
   await page.getByRole('button', { name: 'حفظ', exact: true }).click();
@@ -692,7 +698,7 @@ test('student save explains missing fields, confirms online creation and works o
   finally { release(); }
   await expect(page.getByRole('heading', { name: 'تسجيل طالب جديد' })).not.toBeVisible();
   await expect(page.getByText('طالب متصل جديد', { exact: true })).toBeVisible();
-  await page.reload();
+  await page.reload(); await unlockLocalGate(page);
   await expect(page.getByText('طالب متصل جديد', { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await context.setOffline(true);
@@ -735,7 +741,7 @@ test('student edits remain pending offline and online until administrative appro
     }
     return route.fulfill({ status: 403, json: { message: 'Not used' } });
   });
-  await page.goto('/');
+  await gotoWithLocalUnlock(page,'/');
   await expect(page.getByRole('heading', { name: 'التحضير المطلوب' })).toBeVisible();
   await expect(page.getByText('تحضير محفوظ للطالب')).toBeVisible();
   await expect(page.getByText('قاعة الاختبار التجريبية', { exact: false })).toBeVisible();
@@ -765,7 +771,7 @@ test('student edits remain pending offline and online until administrative appro
   await expect(page.getByText('طلبك بانتظار مراجعة الإدارة', { exact: true })).toBeVisible();
   expect(student.nationalId).toBe('123456789'); expect(reviews[0].patch.nationalId).toBe('123456780');
   await page.evaluate(async () => { await navigator.serviceWorker.ready; if (!navigator.serviceWorker.controller) await new Promise<void>(resolve => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })); });
-  await context.setOffline(true); await page.reload();
+  await context.setOffline(true); await page.reload(); await unlockLocalGate(page);
   await expect(page.getByText('Proposed offline address', { exact: true })).toBeVisible();
   await expect(page.getByText('تحضير محفوظ للطالب')).toBeVisible();
   await page.screenshot({ path: 'test-results/student-review-pending.png', fullPage: true });
@@ -800,7 +806,7 @@ test('administration queues approval and reasoned rejection offline without appl
     if (url.pathname.endsWith('/unread-count')) return route.fulfill({ json: { count: 0 } });
     return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
   });
-  await page.goto('/profile-reviews/teachers');
+  await gotoWithLocalUnlock(page,'/profile-reviews/teachers');
   await expect(page.getByRole('heading', { name: 'تحقق من بيانات المحفظ', exact: true })).toBeVisible();
   await expect(page.getByText('عنوان المحفظ المقترح', { exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => new Promise(resolve => { const open = indexedDB.open('halaqatFull'); open.onsuccess = () => { const database = open.result; const request = database.transaction('meta').objectStore('meta').get('00000000-0000-4000-8000-000000000001:downloadedAt'); request.onsuccess = () => { resolve(!!request.result); database.close(); }; }; }))).toBe(true);
@@ -846,7 +852,7 @@ test('cold offline navigation opens downloaded core screens and searches locally
     return route.fulfill({ status: 403, json: { message: 'Unused in this offline test' } });
   });
   // Opening the app must prepare offline data without visiting settings or pressing a button.
-  await page.goto('/');
+  await gotoWithLocalUnlock(page,'/');
   await expect(page.locator('main h1').first()).toBeVisible();
   await expect.poll(() => page.evaluate(() => new Promise((resolve) => {
     const request = indexedDB.open('halaqatFull');
@@ -861,19 +867,19 @@ test('cold offline navigation opens downloaded core screens and searches locally
   await page.evaluate(async () => { await navigator.serviceWorker.ready; if (!navigator.serviceWorker.controller) await new Promise<void>((resolve) => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })); });
   await context.setOffline(true);
   for (const path of ['/students', '/circles', '/teachers', '/attendance', '/recitations', '/reports', '/media-schedule', '/teacher-duties', '/support', '/settings/offline', '/']) {
-    await page.goto(path);
+    await gotoWithLocalUnlock(page,path);
     await expect(page.locator('main h1').first(), `${path}: ${errors.join('; ')}`).toBeVisible();
     await expect(page.locator('main')).not.toContainText('تعذر تحميل');
   }
-  await page.goto('/students');
+  await gotoWithLocalUnlock(page,'/students');
   await expect(page.locator('main')).toContainText('طالب أوفلاين');
-  await page.goto('/media-schedule');
+  await gotoWithLocalUnlock(page,'/media-schedule');
   await page.getByLabel('شو بدنا نعمل؟').fill('تصوير نشاط دون نت');
   await page.getByLabel('الفكرة').fill('فكرة إعلامية');
   await page.getByLabel('المحتوى').fill('محتوى تجريبي');
   await page.getByRole('button', { name: 'حفظ', exact: true }).click();
   await expect(page.locator('table')).toContainText('تصوير نشاط دون نت');
-  await page.reload();
+  await page.reload(); await unlockLocalGate(page);
   await expect(page.locator('table')).toContainText('تصوير نشاط دون نت');
   await page.getByRole('button', { name: 'تعديل', exact: true }).click();
   await page.getByLabel('شو بدنا نعمل؟').fill('تعديل دون نت');
@@ -885,21 +891,21 @@ test('cold offline navigation opens downloaded core screens and searches locally
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'حذف', exact: true }).click();
   await expect(page.locator('table')).not.toContainText('تعديل دون نت');
-  await page.goto('/teacher-duties');
+  await gotoWithLocalUnlock(page,'/teacher-duties');
   await page.getByLabel('محفظ النظام', { exact: true }).check();
   await page.getByRole('button', { name: 'حفظ التعيين' }).click();
   await expect(page.locator('table')).toContainText('محفظ النظام');
   const dutyExport = page.waitForEvent('download');
   await page.getByRole('button', { name: 'تصدير Excel' }).click();
   expect((await dutyExport).suggestedFilename()).toBe('teacher-duties.xlsx');
-  await page.goto('/students');
+  await gotoWithLocalUnlock(page,'/students');
   const search = page.getByPlaceholder('بحث بالاسم أو رقم الطالب أو رقم الهوية...');
   await search.fill('اسم غير موجود');
   await expect(page.locator('main')).not.toContainText('طالب أوفلاين');
   await search.fill('طالب أوفلاين');
   await expect(page.locator('main')).toContainText('طالب أوفلاين');
   // A roster refresh while editing must not reset an absence selection to present.
-  await page.goto(`/attendance?circleId=${circleId}`);
+  await gotoWithLocalUnlock(page,`/attendance?circleId=${circleId}`);
   await expect(page.getByText('طالب أوفلاين', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'تعيين الكل غائب', exact: true }).click();
   await page.evaluate(({ account, studentId }) => new Promise<void>((resolve, reject) => {
@@ -918,7 +924,7 @@ test('cold offline navigation opens downloaded core screens and searches locally
   await expect(page.getByText('طالب بعد التحديث', { exact: true })).toBeVisible();
   const row = page.locator('li').filter({ has: page.getByText('طالب بعد التحديث', { exact: true }) });
   await expect(row.locator('button[aria-pressed="true"]')).toContainText('غياب');
-  await page.goto('/');
+  await gotoWithLocalUnlock(page,'/');
   await expect(page.locator('main h1').first()).toBeVisible();
   await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
   await page.screenshot({ path: 'test-results/design-desktop.png', fullPage: true, animations: 'disabled' });

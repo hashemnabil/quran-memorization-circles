@@ -1,8 +1,10 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
+import { cancelRejectedMessageChange } from '@/lib/local-api';
 import { getSocket } from '@/lib/socket';
 import { useAuthStore } from '@/store/auth';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -53,7 +55,7 @@ export default function ChatPage() {
   const soundContext=useRef<AudioContext|null>(null);
   const lastSound=useRef(0);
   const playSound=(kind:'sent'|'received')=>{
-    if(!soundsEnabled||document.visibilityState!=='visible'||Date.now()-lastSound.current<180)return;
+    if(!soundsEnabled||document.visibilityState!=='visible'||document.querySelector('[data-security-blocked]')||Date.now()-lastSound.current<180)return;
     lastSound.current=Date.now();
     try{
       const ctx=soundContext.current??new AudioContext();soundContext.current=ctx;
@@ -92,6 +94,9 @@ export default function ChatPage() {
     queryFn: async () => (await api.get<Conversation>(`/chat/conversations/${id}`)).data,
     enabled: !!id,
   });
+  useEffect(() => {
+    if (active?.id && active.id !== id) navigate(`/chat/${active.id}`, { replace: true });
+  }, [active?.id, id, navigate]);
 
   const { data: messages, isLoading: loadingMessages } = useQuery({
     queryKey: ['chat', 'messages', id],
@@ -111,8 +116,9 @@ export default function ChatPage() {
 
   const send = useMutation({
     mutationFn: (text: string) => api.post(`/chat/conversations/${id}/messages`, { body: text }),
-    onSuccess: () => {
-      playSound('sent');
+    onSuccess: (response) => {
+      if (response.data?.synced === 0) toast('حُفظت الرسالة على الجهاز، بانتظار تأكيد الإرسال');
+      else playSound('sent');
       setBody('');
       queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
@@ -123,8 +129,9 @@ export default function ChatPage() {
   const edit = useMutation({
     mutationFn: ({ messageId, text }: { messageId: string; text: string }) =>
       api.patch(`/chat/conversations/${id}/messages/${messageId}`, { body: text }),
-    onSuccess: () => {
-      toast.success('تم تعديل الرسالة');
+    onSuccess: (response) => {
+      if (response.data?.synced === 0) toast('حُفظ التعديل على الجهاز، بانتظار تأكيد الخادم');
+      else toast.success('تم تعديل الرسالة');
       setEditing(null);
       setBody('');
       queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
@@ -135,8 +142,9 @@ export default function ChatPage() {
 
   const remove = useMutation({
     mutationFn: (messageId: string) => api.delete(`/chat/conversations/${id}/messages/${messageId}`),
-    onSuccess: () => {
-      toast.success('تم حذف الرسالة');
+    onSuccess: (response) => {
+      if (response.data?.synced === 0) toast('حُفظ طلب الحذف على الجهاز، بانتظار تأكيد الخادم');
+      else toast.success('تم حذف الرسالة');
       queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
     },
@@ -251,7 +259,7 @@ export default function ChatPage() {
 
   const filtered = conversations?.filter((c) => c.title.toLowerCase().includes(search.toLowerCase())) ?? [];
   const isGroup = active?.type === 'GROUP';
-  const canModerate = !!active?.isAdmin;
+  const canModerate = !!active?.isAdmin && active?.synced !== 0;
   const otherMember = active?.type === 'DIRECT' ? active.members?.find((member) => member.user.id !== user.id) : undefined;
   const otherLastReadAt = otherMember?.lastReadAt ? new Date(otherMember.lastReadAt).getTime() : 0;
 
@@ -272,7 +280,7 @@ export default function ChatPage() {
         }
       />
 
-      <div className="grid gap-5 lg:grid-cols-[20rem_1fr]">
+      <div className="chat-layout grid gap-5 lg:grid-cols-[20rem_1fr]">
         {/* Conversation list */}
         <Card className={cx('overflow-hidden', id && 'hidden lg:block')} padded={false}>
           <div className="border-b border-slate-100 p-3">
@@ -303,6 +311,7 @@ export default function ChatPage() {
                       <span className="flex items-center gap-1.5">
                         <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">
                           {conversation.title}
+                          {conversation.synced === 0 && <span className="block text-[10px] font-normal text-amber-700">{conversation.syncError ? 'تعذرت المزامنة؛ الطلب محفوظ' : 'بانتظار تأكيد الخادم'}</span>}
                         </span>
                         {conversation.isClosed && <IconLock size={12} className="shrink-0 text-slate-400" />}
                         {conversation.lastMessageAt && (
@@ -334,7 +343,7 @@ export default function ChatPage() {
         </Card>
 
         {/* Message pane */}
-        <Card className={cx('flex flex-col overflow-hidden', !id && 'hidden lg:flex')} padded={false}>
+        <Card className={cx('chat-conversation flex flex-col overflow-hidden', !id && 'hidden lg:flex')} padded={false}>
           {!id ? (
             <EmptyState
               title="اختر محادثة"
@@ -360,6 +369,7 @@ export default function ChatPage() {
                 />
                 <div className="min-w-0 flex-1">
                   <button type="button" className="truncate font-bold text-slate-800 hover:underline" onClick={()=>isGroup?setPanel('members'):otherMember&&navigate('/community/users/'+otherMember.user.id)}>{active?.title ?? 'محادثة'}</button>
+                  {active?.synced === 0 && <p className="text-[11px] text-amber-700" role="status">{active.syncError || 'المحادثة والرسائل محفوظة على الجهاز؛ بانتظار تأكيد الخادم'}</p>}
                   <p className="truncate text-[11px] text-slate-400">
                     {typingUsers.length
                       ? `${typingUsers.join('، ')} يكتب الآن...`
@@ -409,7 +419,7 @@ export default function ChatPage() {
 
               <div
                 className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-4 py-4 sm:px-5"
-                style={{ minHeight: '24rem', maxHeight: 'calc(100vh - 24rem)' }}
+                style={{ minHeight: 0 }}
               >
                 {loadingMessages ? (
                   <div className="grid h-40 place-items-center">
@@ -422,8 +432,8 @@ export default function ChatPage() {
                     const mine = message.sender.id === user.id;
                     const showAuthor = !mine && (index === 0 || messages.data[index - 1].sender.id !== message.sender.id);
                     // Author may edit; author or group admin may delete.
-                    const canEdit = mine;
-                    const canDelete = mine || canModerate;
+                    const canEdit = mine && message.synced !== 0;
+                    const canDelete = message.synced !== 0 && (mine || canModerate);
 
                     return (
                       <div
@@ -454,7 +464,11 @@ export default function ChatPage() {
                           <p className={cx('mt-1 text-[10px] text-slate-400', mine && 'text-left')}>
                             {timeAgo(message.createdAt)}
                             {message.editedAt && <span className="mr-1">• مُعدَّلة</span>}
-                            {mine && active?.type === 'DIRECT' && (
+                            {message.synced === 0 && !message.syncError && <span className="mr-1 text-amber-700">• بانتظار تأكيد الخادم</span>}
+                            {message.syncError && <span className="block text-red-700" role="status">{message.syncError}
+                              {message.rejectedChange && <button type="button" className="mx-1 underline" onClick={async () => { try { await cancelRejectedMessageChange(message.id); await queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] }); toast('أُلغي الطلب المرفوض؛ تُجلب النسخة الحديثة عند الاتصال'); } catch (error) { toast.error(apiError(error)); } }}>إلغاء الطلب المرفوض</button>}
+                            </span>}
+                            {mine && message.synced !== 0 && active?.type === 'DIRECT' && (
                               <span className={cx('mr-1', otherLastReadAt >= new Date(message.createdAt).getTime() ? 'font-semibold text-sky-600' : 'text-slate-400')}>
                                 • {otherLastReadAt >= new Date(message.createdAt).getTime() ? 'تمت المشاهدة' : 'تم الإرسال'}
                               </span>
@@ -593,8 +607,8 @@ function MembersModal({
 
   const removeMember = useMutation({
     mutationFn: (userId: string) => api.delete(`/chat/conversations/${conversation.id}/members/${userId}`),
-    onSuccess: () => {
-      toast.success('تمت إزالة العضو');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت إزالة العضو');
       refresh();
     },
     onError: (error) => toast.error(apiError(error)),
@@ -697,8 +711,8 @@ function AddMembersModal({ conversation, onClose }: { conversation: Conversation
 
   const add = useMutation({
     mutationFn: () => api.post(`/chat/conversations/${conversation.id}/members`, { memberIds: selected }),
-    onSuccess: () => {
-      toast.success('تمت إضافة الأعضاء');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت إضافة الأعضاء');
       onClose();
     },
     onError: (error) => toast.error(apiError(error)),
@@ -773,8 +787,8 @@ function GroupSettingsModal({ conversation, onClose }: { conversation: Conversat
   const save = useMutation({
     mutationFn: () =>
       api.patch(`/chat/conversations/${conversation.id}`, { title, description, adminOnly, isClosed }),
-    onSuccess: () => {
-      toast.success('تم حفظ إعدادات المجموعة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حفظ إعدادات المجموعة');
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', conversation.id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
       onClose();
@@ -784,8 +798,8 @@ function GroupSettingsModal({ conversation, onClose }: { conversation: Conversat
 
   const leave = useMutation({
     mutationFn: () => api.delete(`/chat/conversations/${conversation.id}/members/me`),
-    onSuccess: () => {
-      toast.success('تمت مغادرة المجموعة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت مغادرة المجموعة');
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
       onClose();
       navigate('/chat');
@@ -905,6 +919,7 @@ function NewConversationModal({ mode, onClose }: { mode: 'direct' | 'group'; onC
       return (await api.post('/chat/conversations/group', { title, memberIds: selected })).data;
     },
     onSuccess: (conversation: any) => {
+      if (conversation.synced === 0) toast('حُفظت المحادثة على الجهاز، بانتظار تأكيد الخادم');
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
       onClose();
       navigate(`/chat/${conversation.id}`);

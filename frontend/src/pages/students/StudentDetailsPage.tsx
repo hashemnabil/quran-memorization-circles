@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -183,8 +184,8 @@ export default function StudentDetailsPage() {
   const rejectRequest = useMutation({
     mutationFn: ({ requestId, reason }: { requestId: string; reason: string }) =>
       api.patch(`/exams/requests/${requestId}/reject`, { reviewNote: reason }),
-    onSuccess: () => {
-      toast.success('تم رفض طلب الاختبار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم رفض طلب الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -192,8 +193,8 @@ export default function StudentDetailsPage() {
 
   const deleteExam = useMutation({
     mutationFn: (examId: string) => api.delete(`/exams/${examId}`),
-    onSuccess: () => {
-      toast.success('تم حذف الاختبار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -201,8 +202,8 @@ export default function StudentDetailsPage() {
 
   const deleteNote = useMutation({
     mutationFn: (noteId: string) => api.delete(`/students/${id}/notes/${noteId}`),
-    onSuccess: () => {
-      toast.success('تم حذف الملاحظة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف الملاحظة');
       queryClient.invalidateQueries({ queryKey: ['students', id, 'notes'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -840,8 +841,8 @@ function ExamsTabComponent({
                             className="text-red-600 hover:bg-red-50"
                             onClick={async () => {
                               const ok = await confirm({
-                                title: 'حذف الاختبار',
-                                message: 'سيتم حذف هذا الاختبار نهائياً. هل أنت متأكد؟',
+                                title: 'حذف موعد اختبار غير مرصود',
+                                message: 'يُحذف الموعد غير المرصود ويعود طلبه للانتظار. لا تُحذف النتائج المكتملة أو سجلات التقدم. هل تريد المتابعة؟',
                                 confirmLabel: 'حذف',
                                 variant: 'danger',
                               });
@@ -1044,8 +1045,8 @@ function EvaluationModal({ student, onClose }: { student: Student; onClose: () =
 
   const mutation = useMutation({
     mutationFn: () => api.patch(`/students/${student.id}/evaluation`, { evaluation, note: note || undefined }),
-    onSuccess: () => {
-      toast.success('تم تحديث تقييم الطالب');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تحديث تقييم الطالب');
       queryClient.invalidateQueries({ queryKey: ['students'] });
       onClose();
     },
@@ -1100,8 +1101,8 @@ function NoteModal({ studentId, onClose }: { studentId: string; onClose: () => v
 
   const mutation = useMutation({
     mutationFn: () => api.post(`/students/${studentId}/notes`, { body, isPrivate }),
-    onSuccess: () => {
-      toast.success('تمت إضافة الملاحظة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت إضافة الملاحظة');
       queryClient.invalidateQueries({ queryKey: ['students', studentId, 'notes'] });
       onClose();
     },
@@ -1145,8 +1146,8 @@ function TransferModal({ student, onClose }: { student: Student; onClose: () => 
 
   const mutation = useMutation({
     mutationFn: () => api.post('/transfers/students', { studentId: student.id, reason }),
-    onSuccess: () => {
-      toast.success('تم إرسال طلب النقل إلى الإدارة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إرسال طلب النقل إلى الإدارة');
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
       onClose();
     },
@@ -1197,8 +1198,8 @@ function SuspendModal({ student, onClose }: { student: Student; onClose: () => v
 
   const mutation = useMutation({
     mutationFn: () => api.post('/suspensions', { studentId: student.id, reason }),
-    onSuccess: () => {
-      toast.success('تم إرسال الطلب إلى الإدارة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إرسال الطلب إلى الإدارة');
       queryClient.invalidateQueries({ queryKey: ['suspensions'] });
       onClose();
     },
@@ -1401,8 +1402,8 @@ function PointsTab({ student, canManage }: { student: Student; canManage: boolea
 
   const award = useMutation({
     mutationFn: () => api.post(`/students/${student.id}/surahs`, { surah, points }),
-    onSuccess: () => {
-      toast.success('تم تسجيل إتمام السورة ومنح نقاطها');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تسجيل إتمام السورة ومنح نقاطها');
       setSurah('');
       queryClient.invalidateQueries({ queryKey: ['students', student.id] });
     },
@@ -1412,8 +1413,8 @@ function PointsTab({ student, canManage }: { student: Student; canManage: boolea
   const removeSurah = useMutation({
     mutationFn: (completionId: string) =>
       api.delete(`/students/${student.id}/surahs/${completionId}`),
-    onSuccess: () => {
-      toast.success('تم حذف السجل');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف السجل');
       queryClient.invalidateQueries({ queryKey: ['students', student.id] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -1709,8 +1710,8 @@ function PreparationModal({ student, onClose }: { student: Student; onClose: () 
         note: form.note || undefined,
         dueDate: form.dueDate || undefined,
       }),
-    onSuccess: () => {
-      toast.success('تم إنشاء التكليف وإشعار ولي الأمر');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إنشاء التكليف وإشعار ولي الأمر');
       queryClient.invalidateQueries({ queryKey: ['preparations', student.id] });
       onClose();
     },
@@ -1819,8 +1820,8 @@ function StudentExamRequestModal({ student, onClose }: { student: Student; onClo
       sectionIds,
       note: note || undefined,
     }),
-    onSuccess: async () => {
-      toast.success('تم تقديم طلب الاختبار وحفظه');
+    onSuccess: async (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تقديم طلب الاختبار وحفظه');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['exams'] }),
         queryClient.invalidateQueries({ queryKey: ['students', student.id] }),

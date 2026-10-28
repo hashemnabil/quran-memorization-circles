@@ -1,4 +1,3 @@
-import ThemeSelect from '@/components/ThemeSelect';
 import { NativePushConnection } from '@/components/NativePush';
 import PrayerReminderConnection from '@/components/PrayerReminderConnection';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -370,7 +369,6 @@ export default function AppLayout() {
               )}
             </NavLink>
 
-            <ThemeSelect />
             <div ref={accountMenu} className="relative">
               <button
                 onClick={() => setMenuOpen((v) => !v)}
@@ -383,7 +381,7 @@ export default function AppLayout() {
 
               {menuOpen && (
                 <>
-                  <div className="absolute left-0 z-20 mt-2 w-60 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-card-hover animate-fade-in">
+                  <div data-back-overlay className="absolute left-0 z-20 mt-2 w-60 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-card-hover animate-fade-in">
                     <div className="border-b border-slate-100 px-4 py-3">
                       <p className="truncate text-sm font-bold text-slate-800">{user.fullName}</p>
                       <p className="truncate text-xs text-slate-400" dir="ltr">
@@ -397,6 +395,7 @@ export default function AppLayout() {
                     >
                       <IconUser size={17} /> الملف الشخصي
                     </NavLink>
+                    <NavLink to="/profile/settings" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"><IconSettings size={17} /> إعدادات حسابي</NavLink>
                     {user.role === 'ADMIN' && (
                       <NavLink
                         to="/settings"

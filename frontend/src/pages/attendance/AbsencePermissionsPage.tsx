@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -17,6 +18,7 @@ export default function AbsencePermissionsPage() {
   const [studentId, setStudentId] = useState('');
   const [date, setDate] = useState(todayInput());
   const [reason, setReason] = useState('');
+  const [durationMinutes, setDurationMinutes] = useState(1);
   const [summonsTitle, setSummonsTitle] = useState('استدعاء ولي أمر مع إنذار');
   const [summonsBody, setSummonsBody] = useState('');
 
@@ -29,18 +31,19 @@ export default function AbsencePermissionsPage() {
   const summonsQuery = useQuery<any[]>({ queryKey: ['attendance','summons'], enabled: admin, queryFn: async () => (await api.get('/attendance/summons')).data });
   const refresh = async () => { await qc.invalidateQueries({ queryKey: ['attendance','absence-permissions'] }); await qc.invalidateQueries({ queryKey: ['attendance','summons'] }); await qc.invalidateQueries({ queryKey: ['attendance'] }); };
 
-  const request = useMutation({ networkMode: 'always', mutationFn: () => api.post('/attendance/absence-permissions', { studentId: ownStudent ? own?.id : studentId, date, reason }), onSuccess: async () => { toast.success('تم إرسال طلب الإذن للإدارة'); setReason(''); await refresh(); }, onError: error => toast.error(apiError(error)) });
+  const request = useMutation({ networkMode: 'always', mutationFn: () => api.post('/attendance/absence-permissions', { studentId: own?.id, date, reason, durationMinutes }), onSuccess: async (_offlineWriteResult) => { notifyWriteSuccess(_offlineWriteResult, 'تم إرسال طلب الإذن للإدارة'); setReason(''); await refresh(); }, onError: error => toast.error(apiError(error)) });
   const decide = useMutation({ networkMode: 'always', mutationFn: ({ id, action }: { id: string; action: 'approve'|'reject' }) => api.patch(`/attendance/absence-permissions/${id}/${action}`, {}), onSuccess: refresh, onError: error => toast.error(apiError(error)) });
-  const summon = useMutation({ networkMode: 'always', mutationFn: () => api.post('/attendance/summons', { studentId, title: summonsTitle, body: summonsBody }), onSuccess: async () => { toast.success('تم حفظ الاستدعاء وإرسال إشعار لولي الأمر'); setSummonsBody(''); await refresh(); }, onError: error => toast.error(apiError(error)) });
+  const summon = useMutation({ networkMode: 'always', mutationFn: () => api.post('/attendance/summons', { studentId, title: summonsTitle, body: summonsBody }), onSuccess: async (_offlineWriteResult) => { notifyWriteSuccess(_offlineWriteResult, 'تم حفظ الاستدعاء وإرسال إشعار لولي الأمر'); setSummonsBody(''); await refresh(); }, onError: error => toast.error(apiError(error)) });
 
   return <div dir="rtl" className="space-y-5">
     <PageHeader title="طلبات إذن الغياب" subtitle="يُسجّل الغياب بعذر في كشف الحضور بعد موافقة الإدارة." />
-    <Card><form className="grid gap-4 md:grid-cols-2" onSubmit={event => { event.preventDefault(); request.mutate(); }}>
+    {ownStudent && <Card><form className="grid gap-4 md:grid-cols-2" onSubmit={event => { event.preventDefault(); request.mutate(); }}>
+      <label className="text-sm font-semibold">مدة الإذن بالأيام<select className="input mt-1" value={durationMinutes} onChange={event => setDurationMinutes(Number(event.target.value))}>{[1,2,3,4,5,6,7].map(days => <option key={days} value={days}>{days} أيام</option>)}</select></label>
       {!ownStudent && <label className="text-sm font-semibold">الطالب<Select value={studentId} onChange={event => setStudentId(event.target.value)} required><option value="">اختر الطالب</option>{students.map(student => <option key={student.id} value={student.id}>{student.fullName} — {student.code}</option>)}</Select></label>}
       <label className="text-sm font-semibold">تاريخ الغياب<Input type="date" min={todayInput()} value={date} onChange={event => setDate(event.target.value)} required /></label>
       <label className="text-sm font-semibold md:col-span-2">سبب طلب الإذن<textarea className="mt-1 w-full rounded-xl border border-slate-300 p-3" rows={3} maxLength={500} value={reason} onChange={event => setReason(event.target.value)} required /></label>
       <div><Button type="submit" disabled={request.isPending || !reason.trim() || (!ownStudent && !studentId)}>{request.isPending ? 'جارٍ الإرسال…' : 'إرسال طلب الإذن'}</Button></div>
-    </form></Card>
+    </form></Card>}
 
     {admin && <Card><h2 className="mb-4 text-lg font-bold">استدعاء ولي أمر مع إنذار</h2><form className="grid gap-4 md:grid-cols-2" onSubmit={event => { event.preventDefault(); summon.mutate(); }}>
       <label className="text-sm font-semibold">الطالب<Select value={studentId} onChange={event => setStudentId(event.target.value)} required><option value="">اختر الطالب</option>{students.map(student => <option key={student.id} value={student.id}>{student.fullName} — {student.code}</option>)}</Select></label>

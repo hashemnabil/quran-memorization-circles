@@ -304,14 +304,17 @@ export class CoursesService {
   // --- enrolment -----------------------------------------------------------
 
   async enroll(actor: AuthUser, courseId: string, dto: EnrollStudentsDto) {
-    const course = await this.prisma.course.findFirst({
+    const { course, students, fresh, existing } = await this.prisma.$transaction(async tx => {
+    // Serialize capacity checks for the same course, including offline replay.
+    await tx.$queryRaw`SELECT id FROM courses WHERE id = ${courseId}::uuid FOR UPDATE`;
+    const course = await tx.course.findFirst({
       where: { id: courseId, deletedAt: null },
       select: { id: true, name: true, capacity: true, _count: { select: { enrollments: true } } },
     });
     if (!course) throw new NotFoundException('الدورة غير موجودة');
 
     const ids = [...new Set(dto.studentIds)];
-    const students = await this.prisma.student.findMany({
+    const students = await tx.student.findMany({
       where: { id: { in: ids }, deletedAt: null },
       select: { id: true, fullName: true, parentProfile: { select: { userId: true } } },
     });
@@ -319,7 +322,7 @@ export class CoursesService {
       throw new BadRequestException('بعض الطلاب المحددين غير موجودين');
     }
 
-    const existing = await this.prisma.courseEnrollment.findMany({
+    const existing = await tx.courseEnrollment.findMany({
       where: { courseId, studentId: { in: ids } },
       select: { studentId: true, endedAt: true },
     });
@@ -332,21 +335,23 @@ export class CoursesService {
       );
     }
 
-    await this.prisma.$transaction([
+    await Promise.all([
       ...fresh.map((s) =>
-        this.prisma.courseEnrollment.create({ data: { courseId, studentId: s.id } }),
+        tx.courseEnrollment.create({ data: { courseId, studentId: s.id } }),
       ),
       // Someone who left and is coming back gets their existing row reopened
       // rather than a second one, so the history stays a single line per course.
       ...existing
         .filter((e) => e.endedAt !== null)
         .map((e) =>
-          this.prisma.courseEnrollment.updateMany({
+          tx.courseEnrollment.updateMany({
             where: { courseId, studentId: e.studentId },
             data: { endedAt: null },
           }),
         ),
     ]);
+    return { course, students, fresh, existing };
+    }, { timeout: 30000 });
 
     for (const student of students) {
       if (student.parentProfile?.userId) {

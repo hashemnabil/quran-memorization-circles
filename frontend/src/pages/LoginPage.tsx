@@ -13,7 +13,6 @@ import { phoneError, PHONE_HINT, USERNAME_HINT } from '@/lib/validation';
 import type { AuthUser, SchoolSettings } from '@/types';
 import { savePendingSupport } from '@/lib/offline/pendingSupport';
 import { BRANDING_CACHE_KEY, DEFAULT_SCHOOL_NAME, DEFAULT_SCHOOL_LOGO, cachedSchoolBranding } from '@/config/branding';
-import ThemeSelect from '@/components/ThemeSelect';
 
 const DONATION_CACHE_KEY = 'qc.publicDonationInfo';
 function readCachedDonationInfo(): Partial<SchoolSettings> | null {
@@ -52,11 +51,11 @@ export default function LoginPage() {
   return (
     <div className="login-screen" dir="rtl">
       <div className="login-panel">
-        <div className="login-theme"><ThemeSelect /></div>
         <header className="login-brand flex flex-col items-center text-center">
           <span className="login-brand-mark"><img src={settings?.logoUrl || cachedBranding.logoUrl || DEFAULT_SCHOOL_LOGO} alt="" onError={event => { if (!event.currentTarget.src.endsWith(DEFAULT_SCHOOL_LOGO)) event.currentTarget.src = DEFAULT_SCHOOL_LOGO; }} className="h-full w-full object-contain" /></span>
           <h1 className="mt-5 text-lg font-extrabold leading-8 text-white sm:text-xl">{settings?.name?.trim() || cachedBranding.name || DEFAULT_SCHOOL_NAME}</h1>
         </header>
+        <div className="login-greeting"><span>أهلًا بعودتك</span><h2>خطوتك اليوم، نورٌ للغد</h2><p>سجّل دخولك وتابع رحلتك مع القرآن الكريم</p></div>
         <CredentialsStep onAuthenticated={onAuthenticated} />
         <button type="button" onClick={() => setPasswordRequestOpen(true)} className="mt-3 min-h-11 w-full rounded-xl text-sm font-bold text-primary-700 hover:bg-primary-50">طلب تغيير كلمة المرور</button>
         <button type="button" onClick={() => setSupportOpen(true)} className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-primary-800"><IconLifeBuoy size={18} />الدعم الفني</button>

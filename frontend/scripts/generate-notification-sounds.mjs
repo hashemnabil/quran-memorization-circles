@@ -1,34 +1,30 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+﻿// Original notification-only synthesis. No samples or third-party recordings.
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
-
-// Original procedural sound design for this project; no third-party recordings.
-const root = fileURLToPath(new URL('../', import.meta.url));
-const rate = 44100;
+const output = fileURLToPath(new URL('../public/sounds/', import.meta.url));
+const native = fileURLToPath(new URL('../android/app/src/main/res/raw/', import.meta.url));
+mkdirSync(output, { recursive: true }); mkdirSync(native, { recursive: true });
 const definitions = {
-  calm: { duration: .85, events: [[0, 680, .26], [.13, 1020, .18]], modulation: .15 },
-  electronic: { duration: .65, events: [[0, 840, .20], [.12, 1120, .22], [.23, 840, .13]], modulation: .6 },
-  clear: { duration: .7, events: [[0, 1250, .28], [.09, 1875, .12]], modulation: .25 },
+ school: { duration: .62, voices: [{ hz: 932, at: 0, gain: .65, decay: .082 }, { hz: 1398, at: .085, gain: .30, decay: .072 }] },
+ soft: { duration: .58, voices: [{ hz: 740, at: 0, gain: .65, decay: .095 }, { hz: 1110, at: .055, gain: .18, decay: .075 }] },
+ bright: { duration: .51, voices: [{ hz: 1046, at: 0, gain: .59, decay: .066 }, { hz: 1569, at: .075, gain: .22, decay: .055 }] },
+ pulse: { duration: .55, voices: [{ hz: 880, at: 0, gain: .55, decay: .055 }, { hz: 1174, at: .105, gain: .32, decay: .065 }] },
 };
-for (const [name, definition] of Object.entries(definitions)) {
-  const samples = Math.ceil(rate * definition.duration);
-  const buffer = Buffer.alloc(44 + samples * 2);
-  buffer.write('RIFF', 0); buffer.writeUInt32LE(buffer.length - 8, 4); buffer.write('WAVEfmt ', 8);
-  buffer.writeUInt32LE(16, 16); buffer.writeUInt16LE(1, 20); buffer.writeUInt16LE(1, 22);
-  buffer.writeUInt32LE(rate, 24); buffer.writeUInt32LE(rate * 2, 28); buffer.writeUInt16LE(2, 32); buffer.writeUInt16LE(16, 34);
-  buffer.write('data', 36); buffer.writeUInt32LE(samples * 2, 40);
-  for (let i = 0; i < samples; i++) {
-    const time = i / rate;
-    let value = 0;
-    for (const [start, frequency, gain] of definition.events) {
-      const t = time - start;
-      if (t < 0) continue;
-      const envelope = Math.min(1, t / .012) * Math.exp(-t * 9) * Math.min(1, (definition.duration - time) / .04);
-      value += gain * envelope * Math.sin(2 * Math.PI * frequency * t + definition.modulation * Math.sin(2 * Math.PI * frequency * 2 * t) * Math.exp(-t * 20));
-    }
-    buffer.writeInt16LE(Math.round(Math.max(-.65, Math.min(.65, value)) * 32767), 44 + i * 2);
+for (const [name, { duration, voices }] of Object.entries(definitions)) {
+ const rate = 44100, count = Math.round(rate * duration), samples = new Float64Array(count); let peak = 0;
+ for (let index = 0; index < count; index++) {
+  const time = index / rate; let value = 0;
+  for (const voice of voices) {
+   const t = time - voice.at; if (t < 0) continue;
+   const envelope = (1 - Math.exp(-t / .007)) * Math.exp(-t / voice.decay);
+   const phase = 2 * Math.PI * voice.hz * t;
+   value += voice.gain * envelope * (Math.sin(phase) + .055 * Math.sin(phase * 2) * Math.exp(-t / .045));
   }
-  for (const [folder, filename] of [['public/sounds', `${name}.wav`], ['android/app/src/main/res/raw', `school_${name}.wav`]]) {
-    mkdirSync(resolve(root, folder), { recursive: true }); writeFileSync(resolve(root, folder, filename), buffer);
-  }
+  samples[index] = value * Math.min(1, (duration - time) / .05); peak = Math.max(peak, Math.abs(samples[index]));
+ }
+ const bytes = Buffer.alloc(44 + count * 2);bytes.write('RIFF');bytes.writeUInt32LE(bytes.length-8,4);bytes.write('WAVEfmt ',8);bytes.writeUInt32LE(16,16);bytes.writeUInt16LE(1,20);bytes.writeUInt16LE(1,22);bytes.writeUInt32LE(rate,24);bytes.writeUInt32LE(rate*2,28);bytes.writeUInt16LE(2,32);bytes.writeUInt16LE(16,34);bytes.write('data',36);bytes.writeUInt32LE(count*2,40);
+ for(let index=0;index<count;index++)bytes.writeInt16LE(Math.round(samples[index]/peak*.48*32767),44+index*2);
+ writeFileSync(output+name+'.wav',bytes);writeFileSync(native+'school_'+name+'.wav',bytes);
 }
+writeFileSync(output+'ORIGIN.md','# مصدر الأصوات\n\nschool وsoft وbright وpulse أصوات إلكترونية أصلية ولّدها سكربت المشروع generate-notification-sounds.mjs، دون استخدام تسجيلات أو عينات خارجية. مخصصة للإشعارات والمعاينة بطلب المستخدم؛ لا يوجد شعار صوتي أو تشغيل عند فتح التطبيق.\n');
+console.log('Generated four original notification WAVs, 44.1 kHz mono PCM, peak -6.4 dBFS.');

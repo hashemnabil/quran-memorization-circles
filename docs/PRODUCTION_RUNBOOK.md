@@ -17,6 +17,16 @@ npm --prefix frontend run build
 
 Compile with development dependencies installed; `nest`, TypeScript and the Prisma CLI are build tools. If pruning dev dependencies from the runtime image, generate Prisma first and retain a separate migration job/image with the Prisma CLI. The runtime is `node backend/dist/main.js` with working directory/environment chosen consistently for uploads.
 
+### Offline communication/support release ordering (2026-10-28)
+
+Deploy the updated backend before the new web/APK client. Support snapshots use `GET /sync-all?table=supportTickets`; incremental support data is opt-in through `support=1` on the delta endpoint, preserving responses for already published clients. Existing domain authorization still applies to ticket creation/replies, internal notes and reserved account-deletion/password-reset requests.
+
+The current client upgrades IndexedDB to version 14 without clearing account data or pending operations. Rehearse upgrades from versions 12 and 13 with encrypted saved accounts. Do not clear IndexedDB to roll back a client with pending work; an older client whose maximum schema version is below 14 cannot safely reopen a version-14 database. Keep the backend backward compatible while preparing a client fix.
+
+Version 14 adds durable conversation drafts. Publish backend handling for `chatConversations/create` before the client. Existing conversation lists and prefetched detail snapshots refresh the scoped local conversation cache; the delta endpoint does not send an unknown new conversation table to older clients. Rehearse a new offline group with dependent messages, rejection after contact permissions change, reuse of an existing direct thread, and replay after a lost acknowledgement. Support status/assignment replay also requires this backend: it atomically checks the server's `updatedAt` baseline before changing the ticket.
+
+Before releasing this feature, run `npm --prefix frontend run test:local-security`, `npm --prefix frontend run test:full-offline`, `npm --prefix backend run test:full-offline` and `npm --prefix backend run test:domain-safety`, followed by the builds above. Test ticket creation offline, a dependent reply before creation is acknowledged, lost-response replay, cross-account access and customer exclusion of internal notes against isolated PostgreSQL. Passing mocked/unit tests does not replace that staging exercise.
+
 ## Required configuration
 
 Set `NODE_ENV=production`, direct and pooled PostgreSQL URLs, a unique random `JWT_ACCESS_SECRET` of at least 32 characters, exact HTTPS browser `CORS_ORIGINS`, and HTTPS `PUBLIC_URL` for generated upload links. Do not commit secrets. Capacitor clients may additionally require `capacitor://localhost`, `ionic://localhost`, `http://localhost` or `https://localhost` depending on the native build. No wildcard origin is accepted. API docs are off in production unless explicitly enabled with `ENABLE_API_DOCS=true` behind restricted ingress.

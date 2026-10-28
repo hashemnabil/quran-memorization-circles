@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -54,8 +55,8 @@ export default function SettingsPage() {
 
   const save = useMutation({
     mutationFn: () => api.patch('/settings', form),
-    onSuccess: () => {
-      toast.success('تم حفظ الإعدادات');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حفظ الإعدادات');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -67,8 +68,8 @@ export default function SettingsPage() {
       formData.append('file', file);
       return api.post('/settings/logo', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
     },
-    onSuccess: () => {
-      toast.success('تم رفع الشعار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم رفع الشعار');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -76,8 +77,8 @@ export default function SettingsPage() {
 
   const removeLogo = useMutation({
     mutationFn: () => api.delete('/settings/logo'),
-    onSuccess: () => {
-      toast.success('تمت إزالة الشعار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت إزالة الشعار');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
     onError: (error) => toast.error(apiError(error)),

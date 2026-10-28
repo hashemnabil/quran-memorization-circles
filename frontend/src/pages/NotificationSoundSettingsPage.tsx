@@ -25,7 +25,12 @@ export default function NotificationSoundSettingsPage() {
       await saveGeneralSound(account, selected, selected === 'custom' ? imported : undefined, vibrate);
       soundRef.current = selected; setSound(selected); setImported(undefined); setSavedToken(token => token + 1);
       setStatus('حُفظ اختيارك على هذا الجهاز. يُستخدم عند وصول الإشعارات، وتُحدّث قناة إشعارات الخلفية عند اتصال التطبيق بالخادم.');
-    } catch (cause) { setStatus(cause instanceof Error ? cause.message : 'تعذر حفظ الاختيار'); }
+    } catch (cause) {
+      // Keep the web/PWA preference durable even when a native channel is unavailable.
+      try { localStorage.setItem(`qc.notification-sound.v1:${account}`, selected); } catch { /* storage policy */ }
+      soundRef.current = selected; setSound(selected);
+      setStatus(cause instanceof Error ? cause.message : 'تعذر حفظ الاختيار');
+    }
     finally { setBusy(false); }
   };
   return <div className="prayer-page notification-sound-page"><PageHeader title="صوت الإشعارات" subtitle="الملف الشخصي ← الإعدادات ← الإشعارات" action={<PrayerBackButton />} />

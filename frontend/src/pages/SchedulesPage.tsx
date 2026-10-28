@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import JSZip from 'jszip';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -34,10 +35,10 @@ export function MediaSchedulePage() {
   const [editing, setEditing] = useState<string | null>(null);
   const query = useQuery({ queryKey: ['schedule-media'], queryFn: async () => (await api.get<Media[]>('/schedules/media')).data });
   const save = useMutation({ mutationFn: () => editing ? api.patch('/schedules/media/' + editing, form) : api.post('/schedules/media', form),
-    onSuccess: () => { toast.success('تم الحفظ'); setEditing(null); setForm(initialMedia); void qc.invalidateQueries({ queryKey: ['schedule-media'] }); },
+    onSuccess: (_offlineWriteResult) => { notifyWriteSuccess(_offlineWriteResult, 'تم الحفظ'); setEditing(null); setForm(initialMedia); void qc.invalidateQueries({ queryKey: ['schedule-media'] }); },
     onError: e => toast.error(apiError(e)) });
   const remove = useMutation({ mutationFn: (id: string) => api.delete('/schedules/media/' + id),
-    onSuccess: () => { toast.success('تم الحذف'); void qc.invalidateQueries({ queryKey: ['schedule-media'] }); }, onError: e => toast.error(apiError(e)) });
+    onSuccess: (_offlineWriteResult) => { notifyWriteSuccess(_offlineWriteResult, 'تم الحذف'); void qc.invalidateQueries({ queryKey: ['schedule-media'] }); }, onError: e => toast.error(apiError(e)) });
   return <div className="space-y-5" dir="rtl"><PageHeader title="جدول الإعلام" subtitle="خطة الإعلام الخاصة بالإدارة — الحفظ والتعديل والتصدير يعملان دون اتصال" />
     <Card title={editing ? 'تعديل خطة إعلامية' : 'إضافة خطة إعلامية'}><form className="grid gap-3 md:grid-cols-2" onSubmit={e => { e.preventDefault(); save.mutate(); }}>
       <Input label="اليوم" value={form.day} required onChange={e => setForm({ ...form, day: e.target.value })} />
@@ -59,10 +60,10 @@ export function TeacherDutyPage() {
   const duties = useQuery({ queryKey: ['teacher-duties'], queryFn: async () => (await api.get<Duty[]>('/schedules/duties')).data });
   const teachers = useQuery({ queryKey: ['duty-teachers'], enabled: admin, queryFn: async () => (await api.get<Teacher[]>('/schedules/teachers')).data });
   const save = useMutation({ mutationFn: () => editing ? api.patch('/schedules/duties/' + editing, form) : api.post('/schedules/duties', form),
-    onSuccess: () => { toast.success('تم حفظ النظام محليًا؛ تصل الإشعارات إلى المحفّظين بعد المزامنة'); setEditing(null); setForm({ date: localDate(), day: dayName(localDate()), note: '', teacherUserIds: [] }); void qc.invalidateQueries({ queryKey: ['teacher-duties'] }); },
+    onSuccess: (_offlineWriteResult) => { notifyWriteSuccess(_offlineWriteResult, 'تم حفظ النظام محليًا؛ تصل الإشعارات إلى المحفّظين بعد المزامنة'); setEditing(null); setForm({ date: localDate(), day: dayName(localDate()), note: '', teacherUserIds: [] }); void qc.invalidateQueries({ queryKey: ['teacher-duties'] }); },
     onError: e => toast.error(apiError(e)) });
   const remove = useMutation({ mutationFn: (id: string) => api.delete('/schedules/duties/' + id),
-    onSuccess: () => { toast.success('تم الحذف'); void qc.invalidateQueries({ queryKey: ['teacher-duties'] }); }, onError: e => toast.error(apiError(e)) });
+    onSuccess: (_offlineWriteResult) => { notifyWriteSuccess(_offlineWriteResult, 'تم الحذف'); void qc.invalidateQueries({ queryKey: ['teacher-duties'] }); }, onError: e => toast.error(apiError(e)) });
   const names = (d: Duty) => d.assignments.map(a => a.teacherName || teachers.data?.find(t => t.id === a.teacherUserId)?.fullName || a.teacherUserId).join('، ');
   return <div className="space-y-5" dir="rtl"><PageHeader title="جدول نظام المحفّظين" subtitle="الحفظ والتعديل والتصدير دون اتصال — إشعار بعد المزامنة وتذكير قبل الموعد بيوم وصباح الموعد" />
     {admin && <Card title={editing ? 'تعديل النظام' : 'تعيين نظام'}><form className="grid gap-3 md:grid-cols-2" onSubmit={e => { e.preventDefault(); save.mutate(); }}>

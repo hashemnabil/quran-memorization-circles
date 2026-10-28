@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import PdfDownloadLink from '@/components/PdfDownloadLink';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -21,7 +22,7 @@ export default function StudentFilesPage() {
   const certificates = useQuery({ queryKey:['student-files','certificates'], queryFn: async () => (await api.get<any[]>('/certificates/mine')).data });
   const create = useMutation({
     mutationFn: () => api.post('/certificates/requests', { kind: requestType, ...(requestType === 'CERTIFICATE' ? { certificateKind, courseName: courseName || undefined } : { periodFrom, periodTo }), requestNote }),
-    onSuccess: async () => { toast.success('تم إرسال الطلب للإدارة'); setRequestNote(''); await qc.invalidateQueries({ queryKey:['student-files'] }); },
+    onSuccess: async (_offlineWriteResult) => { notifyWriteSuccess(_offlineWriteResult, 'تم إرسال الطلب للإدارة'); setRequestNote(''); await qc.invalidateQueries({ queryKey:['student-files'] }); },
     onError: (e) => toast.error(apiError(e)),
   });
   return <div className="space-y-6" dir="rtl">

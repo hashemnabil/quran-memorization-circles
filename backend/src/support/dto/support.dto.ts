@@ -3,6 +3,7 @@ import { TicketPriority, TicketStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsEmail,
+  IsBoolean,
   IsEnum,
   IsNotEmpty,
   IsOptional,
@@ -95,6 +96,7 @@ export class ReplyTicketDto {
 
   @ApiPropertyOptional({ description: 'ملاحظة داخلية بين موظفي الدعم فقط' })
   @IsOptional()
+  @IsBoolean()
   isInternal?: boolean;
 }
 

@@ -14,6 +14,7 @@ beforeEach(async () => {
   for (const table of db.tables) await table.clear();
   configureOffline(async () => { throw new Error('network unavailable'); }, () => account);
   await db.meta.put({ key: `${account}:broadcastActivityV1`, value: true });
+  await db.meta.put({ key: `${account}:supportDownloadedAt`, value: 'ready' });
 });
 after(() => db.close());
 
@@ -25,6 +26,22 @@ test('recipient and activity upgrade runs once without resetting existing entity
   await refreshOffline(); await refreshOffline();
   assert.deepEqual(domains, [['broadcast_activity_v1']]);
   assert.equal((await db.meta.get(`${account}:deltaCursor`))?.value, '50');
+});
+
+test('support bootstrap downloads its scoped snapshot once while preserving the existing cursor', async () => {
+  online = true; const paths: string[] = [];
+  await db.meta.delete(`${account}:supportDownloadedAt`);
+  await db.meta.bulkPut([{ key: `${account}:downloadedAt`, value: 'ready' }, { key: `${account}:deltaCursor`, value: '50' }, { key: `${account}:chatContactPolicyV1`, value: true }]);
+  configureOffline(async (_method, path) => {
+    paths.push(path);
+    if (path === '/sync-all?table=supportTickets&page=1') return { data: [{ id: 'ticket', subject: 'Support', status: 'OPEN' }], meta: { hasNextPage: false } };
+    if (path === '/sync-all/watermark') return { cursor: '50' };
+    throw new Error(`Unexpected download: ${path}`);
+  }, () => account);
+  await refreshOffline(); await refreshOffline();
+  assert.equal(paths.filter(path => path.includes('table=supportTickets')).length, 1);
+  assert.equal((await db.meta.get(`${account}:deltaCursor`))?.value, '50');
+  assert.equal((await db.table('supportTickets').get([account, 'ticket']))?.subject, 'Support');
 });
 
 test('contact policy upgrade refreshes only contact domains once without restarting the download', async () => {
@@ -357,7 +374,7 @@ test('startup checks the server silently and downloads only changes missed by re
   cursor = '11';
   // No socket event: reopening still discovers the new server revision.
   await initOffline();
-  assert.deepEqual(paths, ['/sync-all/watermark', '/sync-all/delta?since=10']);
+  assert.deepEqual(paths, ['/sync-all/watermark', '/sync-all/delta?since=10&communication=1&support=1']);
   paths.length = 0;
   await initOffline(); await refreshOffline();
   assert.deepEqual(paths, ['/sync-all/watermark']);
@@ -373,7 +390,7 @@ test('delta updates only changed rows, removes synced tombstones and preserves d
     return { cursor: '11', hasMore: false, changedEntities: ['students'], tables: { students: { data: [{ id: 'changed', fullName: 'after' }], visibleIds: ['old', 'changed'] } } };
   }, () => account);
   online = true; await pullAll();
-  assert.deepEqual(paths, ['/sync-all/delta?since=10']);
+  assert.deepEqual(paths, ['/sync-all/delta?since=10&communication=1&support=1']);
   const rows = await get('students');
   assert.equal(rows.find(row => row.id === 'old')?.fullName, 'unchanged');
   assert.equal(rows.find(row => row.id === 'changed')?.fullName, 'after');
@@ -394,7 +411,7 @@ test('a failed section patch does not advance the delta cursor and the same chan
   await assert.rejects(pullAll(), /interrupted/);
   assert.equal((await db.meta.get(`${account}:deltaCursor`))?.value, '10');
   fail = false; await pullAll();
-  assert.deepEqual(paths, ['/sync-all/delta?since=10', '/sync-all/delta?since=10']);
+  assert.deepEqual(paths, ['/sync-all/delta?since=10&communication=1&support=1', '/sync-all/delta?since=10&communication=1&support=1']);
 });
 test('pull cannot overwrite pending edits or resurrect pending deletes', async () => {
   await save('students', { id: 's1', fullName: 'محلي' });

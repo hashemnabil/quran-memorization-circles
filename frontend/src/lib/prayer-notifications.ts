@@ -14,7 +14,7 @@ export function refreshPrayerReminders(account: string, requestPermission = fals
     if (permission.display !== 'granted') throw new Error('لم يُمنح إذن الإشعارات. فعّله من إعدادات أندرويد ثم أعد الحفظ.');
     const { channelId } = await configureSound(account, 'prayer', preferences.sound, imported);
     if (readActiveIdentity()?.id !== account) return '';
-    const reminders = prayerReminders(preferences, new Date(), 370).map(p => ({ at: p.remindAt.getTime(), title: `تذكير صلاة ${p.label} — غزة`, body: `موعد ${p.label} ${prayerTimeLabel(p.at)} — غزة، فلسطين` }));
+    const reminders = prayerReminders(preferences, new Date(), 370).map(p => ({ at: p.remindAt.getTime(), adhan: p.remindAt.getTime() === p.at.getTime(), title: `تذكير صلاة ${p.label} — غزة`, body: `موعد ${p.label} ${prayerTimeLabel(p.at)} — غزة، فلسطين` }));
     const result = await SchoolNotifications.schedulePrayers({ accountId: account, channelId, reminders });
     return `جُدولت التذكيرات محليًا لمدة عام، وتتجدد عند فتح التطبيق. ${result.exact ? '' : 'التنبيهات تقريبية وفق قيود أندرويد وقد تتأخر مع توفير البطارية.'}`;
   };

@@ -63,9 +63,10 @@ export default function CourseDetailsPage() {
         }
       />
 
+      {course.synced === 0 && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">تعديلات الدورة والتسجيل محفوظة على الجهاز، بانتظار التحقق من الصلاحيات والمقاعد وتأكيد الخادم.</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label="الطلاب المسجلون"
+          label={course.enrollmentPending ? 'التسجيل المحلي — بانتظار الاعتماد' : 'الطلاب المسجلون'}
           value={`${current.length} / ${course.capacity}`}
           icon={<IconUsers size={20} />}
         />
@@ -122,8 +123,9 @@ function StudentsTab({ course, canManage }: { course: Course; canManage: boolean
   const unenroll = useMutation({
     mutationFn: async (studentId: string) =>
       (await api.delete(`/courses/${course.id}/students/${studentId}`)).data,
-    onSuccess: () => {
-      toast.success('تم إنهاء تسجيل الطالب');
+    onSuccess: (res) => {
+      if (res?.synced === 0) toast('حُفظ طلب إنهاء التسجيل على الجهاز، بانتظار تأكيد الخادم');
+      else toast.success('تم إنهاء تسجيل الطالب');
       void qc.invalidateQueries({ queryKey: ['courses', course.id] });
     },
     onError: (err) => toast.error(apiError(err, 'تعذر إنهاء التسجيل')),
@@ -174,6 +176,7 @@ function StudentsTab({ course, canManage }: { course: Course; canManage: boolean
                         {s.fullName}
                       </Link>
                       <span className="numeric block text-xs text-slate-400">{s.code}</span>
+                      {s.pending && <span className="block text-xs text-amber-700">بانتظار تأكيد الخادم</span>}
                     </td>
                     <td className="numeric">{s.nationalId ?? '—'}</td>
                     <td className="numeric">{s.phone ?? s.guardianPhone ?? '—'}</td>
@@ -258,7 +261,8 @@ function EnrollModal({
     mutationFn: async () =>
       (await api.post(`/courses/${courseId}/students`, { studentIds: picked })).data,
     onSuccess: (res) => {
-      toast.success(res.message ?? 'تم التسجيل');
+      if (res?.synced === 0) toast('حُفظ التسجيل على الجهاز، بانتظار التحقق من المقاعد وتأكيد الخادم');
+      else toast.success(res.message ?? 'تم التسجيل');
       setPicked([]);
       setSearch('');
       void qc.invalidateQueries({ queryKey: ['courses', courseId] });

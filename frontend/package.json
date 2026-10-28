@@ -18,7 +18,15 @@
     "mobile:ios": "node scripts/capacitor-cli.mjs open ios",
     "mobile:add:android": "node scripts/capacitor-cli.mjs add android",
     "mobile:add:ios": "node scripts/capacitor-cli.mjs add ios",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:local-security": "node --import ./scripts/register-test-loader.mjs --test src/lib/app-lock.test.ts src/lib/back-navigation.test.ts src/lib/communication-offline.test.ts src/lib/offline-access-policy.test.ts src/lib/notification-audio.test.mjs src/lib/pending-avatar.test.ts src/lib/read-refresh.test.ts src/lib/pending-student-photos.test.ts src/lib/audio-logo-samples.test.mjs src/lib/local-support.test.ts src/lib/local-conversations.test.ts",
+    "review:mobile": "node scripts/review-mobile.mjs",
+    "test:notification-sounds": "node --import ./scripts/register-test-loader.mjs --test src/lib/exclusive-audio-preview.test.ts src/lib/notification-sound-policy.test.ts src/lib/notification-sound-storage.test.ts src/lib/notification-audio.test.mjs",
+    "test:sound-channels": "node scripts/test-sound-channels.mjs",
+    "review:notification-sounds": "node scripts/review-notification-sounds.mjs",
+    "generate:notification-sounds": "node scripts/generate-notification-sounds.mjs",
+    "generate:audio-logo-samples": "node scripts/generate-audio-logo-samples.mjs",
+    "review:theme": "node --import ./scripts/register-test-loader.mjs scripts/review-theme-transition.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "6.0.1",

@@ -14,6 +14,7 @@ import {
   SuspensionAction,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdatePendingReasonDto } from '../common/dto/pending-request.dto';
 import { AccessControlService } from '../common/services/access-control.service';
 import { ActivityService } from '../common/services/activity.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -447,6 +448,18 @@ export class SuspensionsService {
     ]);
 
     return paginate(rows.map((r) => this.decorate(r)), total, query.page, query.limit);
+  }
+
+  async updatePendingReason(actor: AuthUser, id: string, dto: UpdatePendingReasonDto) {
+    const request = await this.prisma.suspensionRequest.findUnique({ where: { id } });
+    if (!request) throw new NotFoundException('الطلب غير موجود');
+    if (request.status !== RequestStatus.PENDING) throw new BadRequestException('يمكن تعديل سبب طلب معلق فقط');
+    if (request.requestedById !== actor.id && actor.role !== Role.ADMIN) throw new ForbiddenException('التعديل متاح لمنشئ الطلب أو الإدارة فقط');
+    await this.acl.assertStudentWriteAccess(actor, request.studentId);
+    if (!dto.reason.trim()) throw new BadRequestException('سبب الطلب مطلوب');
+    const result = await this.prisma.suspensionRequest.updateMany({ where: { id, status: RequestStatus.PENDING, reason: dto.previousReason }, data: { reason: dto.reason.trim() } });
+    if (!result.count) throw new ConflictException('تغيّر الطلب أو تم البت فيه؛ راجع النسخة الحديثة قبل التعديل');
+    return this.findOne(actor, id);
   }
 
   async findOne(user: AuthUser, id: string) {

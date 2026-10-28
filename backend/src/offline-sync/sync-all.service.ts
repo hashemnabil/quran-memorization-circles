@@ -1,3 +1,6 @@
+import { ChatService } from '../chat/chat.service';
+import { SendMessageDto, EditMessageDto, CreateDirectConversationDto, CreateGroupConversationDto } from '../chat/dto/chat.dto';
+import { CommunityController } from '../community/community.controller';
 import { ProfileReviewsService } from '../profile-reviews/profile-reviews.service';
 import { SchoolOperationsService } from '../school-operations/school-operations.service';
 import { TransfersService } from '../transfers/transfers.service';
@@ -32,7 +35,7 @@ import { ExamsService } from '../exams/exams.service';
 import { CreateExamRequestDto, QueryExamRequestsDto, QueryExamsDto, RecordResultDto, UpdateExamDto, ScheduleExamDto, ReviewExamRequestDto } from '../exams/dto/exam.dto';
 import { HistoricalExamDto } from '../exams/dto/exam.dto';
 import { CoursesService } from '../courses/courses.service';
-import { QueryCoursesDto, CreateCourseDto, UpdateCourseDto, RecordCourseAttendanceDto } from '../courses/dto/course.dto';
+import { QueryCoursesDto, CreateCourseDto, UpdateCourseDto, RecordCourseAttendanceDto, EnrollStudentsDto } from '../courses/dto/course.dto';
 import { SchedulesService } from '../schedules/schedules.service';
 import { UsersService } from '../users/users.service';
 import { CreateUserDto, UpdateUserDto, QueryUsersDto, ResetPasswordDto } from '../users/dto/user.dto';
@@ -47,6 +50,9 @@ import { StaffAttendanceService } from '../staff-attendance/staff-attendance.ser
 import { RecordStaffAttendanceDto } from '../staff-attendance/dto/staff-attendance.dto';
 import { SettingsService } from '../settings/settings.service';
 import { UpdateSettingsDto } from '../settings/dto/settings.dto';
+import { SupportService } from '../support/support.service';
+import { UpdatePendingReasonDto } from '../common/dto/pending-request.dto';
+import { CreateTicketDto, ReplyTicketDto, QueryTicketsDto, UpdateTicketDto } from '../support/dto/support.dto';
 
 type Operation = { opId: string; accountId?: string; table: string; action: string; entityId: string; data: Record<string, any> };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -70,7 +76,8 @@ export class FullSyncService {
     const announcements = new AnnouncementsService(prisma, activity);
     const mediaActivities = new MediaActivitiesService(prisma);
     const certificates = new CertificatesService(prisma, { emitToUser() {} } as unknown as RealtimeGateway);
-    return { prisma, acl, students, transfers, suspensions, operations, users: new UsersService(prisma, this.config, activity, acl, new UploadsService(this.config)), notifications, schedules: new SchedulesService(prisma, notifications), circles: new CirclesService(prisma, acl, activity, notifications),
+    return { prisma, acl, students, chat: new ChatService(prisma, { emitToConversation() {}, emitToUser() {}, isOnline() { return false; } } as unknown as RealtimeGateway, notifications, acl), community: new CommunityController(prisma), transfers, suspensions, operations, users: new UsersService(prisma, this.config, activity, acl, new UploadsService(this.config)), notifications, schedules: new SchedulesService(prisma, notifications), circles: new CirclesService(prisma, acl, activity, notifications),
+      support: new SupportService(prisma, activity, notifications, { emitToUser() {} } as unknown as RealtimeGateway),
       teachers: new TeachersService(prisma, this.config, activity, acl),
       recitations: new RecitationsService(prisma, acl, activity, students),
       attendance: new AttendanceService(prisma, acl, activity, notifications),
@@ -82,6 +89,23 @@ export class FullSyncService {
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const empty = { data: [], meta: { hasNextPage: false } };
     switch (table) {
+      case 'chatConversations': return { data: page === 1 ? await s.chat.listConversations(user) : [], meta: { hasNextPage: false } };
+      case 'supportTickets': {
+        const result = await s.support.findAll(user, plainToInstance(QueryTicketsDto, query));
+        const messages = await this.prisma.ticketMessage.findMany({ where: { ticketId: { in: result.data.map(ticket => ticket.id) }, ...(![Role.ADMIN, Role.SUPPORT].includes(user.role as any) ? { isInternal: false } : {}) }, include: { sender: { select: { id: true, fullName: true, role: true, avatarUrl: true } } }, orderBy: { createdAt: 'asc' } });
+        return { ...result, data: result.data.map(ticket => ({ ...ticket, messages: messages.filter(message => message.ticketId === ticket.id) })) };
+      }
+      case 'chatMessages': {
+        const data = await this.prisma.message.findMany({
+          where: { deletedAt: null, conversation: { members: { some: { userId: user.id, leftAt: null } } } },
+          include: { sender: { select: { id: true, fullName: true, role: true, avatarUrl: true } } },
+          orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], skip: (page - 1) * 200, take: 200,
+        });
+        return {data,meta:{hasNextPage:data.length===200}};
+      }
+      case 'communityPosts': return {data:page===1?await s.community.feed():[],meta:{hasNextPage:false}};
+      case 'communityComments': return {data:page===1?(await s.community.feed()).flatMap(post=>post.comments):[],meta:{hasNextPage:false}};
+      case 'accountPreferences': return {data:page===1?[await s.community.profile(user.id)]:[],meta:{hasNextPage:false}};
       case 'meetings': return { data: user.role === Role.ADMIN && page === 1 ? await s.operations.meetings(user) : [], meta: { hasNextPage: false } };
       case 'examCommittees': return { data: (staff || user.role === Role.EXAM_COMMITTEE) && page === 1 ? await s.operations.committees(user) : [], meta: { hasNextPage: false } };
       case 'absencePermissions': {
@@ -174,7 +198,7 @@ export class FullSyncService {
     const rows = await this.prisma.$queryRaw<Array<{ seq: bigint }>>`SELECT COALESCE(MAX("seq"), 0)::bigint AS "seq" FROM sync_changes`;
     return { cursor: rows[0].seq.toString() };
   }
-  async delta(user: AuthUser, since: string) {
+  async delta(user: AuthUser, since: string, includeCommunication = false, includeSupport = false) {
     if (!/^(0|[1-9]\d*)$/.test(since) || since.length > 19 || BigInt(since) > 9223372036854775807n) throw new BadRequestException('مؤشر غير صالح');
     const changes = await this.prisma.syncChange.findMany({ where: { seq: { gt: BigInt(since) } }, orderBy: { seq: 'asc' }, take: 200 });
     const affected = new Map<string, Set<string> | undefined>();
@@ -185,6 +209,10 @@ export class FullSyncService {
     };
     const direct: Record<string, string> = { profile_reviews: 'profileReviews', absence_permission_requests: 'absencePermissions', guardian_summons: 'guardianSummons', preparation_assignments: 'preparations', surah_completions: 'surahCompletions', announcements: 'announcements', media_activities: 'mediaActivities', school_settings: 'schoolSettings', student_file_requests: 'certificateRequests', certificate_records: 'certificates', certificate_templates: 'certificateTemplates', students: 'students', circles: 'circles', teacher_profiles: 'teachers', attendance: 'attendance', staff_attendance: 'staffAttendance', course_attendance: 'courseAttendance', recitations: 'recitations', exams: 'exams', exam_requests: 'examRequests', student_notes: 'behaviors', notifications: 'notifications', courses: 'courses', media_plans: 'mediaPlans', teacher_duties: 'teacherDuties' };
     for (const change of changes) {
+        if (includeSupport && ['support_tickets', 'ticket_messages', 'users'].includes(change.entity)) add('supportTickets');
+      if (includeCommunication && ['messages','conversation_members','users'].includes(change.entity)) add('chatMessages');
+      if (includeCommunication && ['CommunityPost','CommunityComment','CommunityLike','CommunityCommentLike'].includes(change.entity)) { add('communityPosts'); add('communityComments'); }
+      if (includeCommunication && change.entity==='users' && change.entityId===user.id) add('accountPreferences');
       if (change.entity === 'meetings') add('meetings');
       if (change.entity === 'exam_committees') add('examCommittees');
       if (change.entity === 'transfer_requests') add('transfers');
@@ -292,13 +320,72 @@ export class FullSyncService {
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const admin = user.role === Role.ADMIN;
     const id = op.entityId;
+    if (op.table === 'chatConversations' && op.action === 'create') {
+      let conversation: { id: string };
+      if (op.data.kind === 'direct') conversation = await s.chat.createDirect(user, await this.dto(CreateDirectConversationDto, { userId: op.data.userId }));
+      else if (op.data.kind === 'group') conversation = await s.chat.createGroup(user, await this.dto(CreateGroupConversationDto, { title: op.data.title, description: op.data.description, memberIds: op.data.memberIds }));
+      else throw new BadRequestException('نوع المحادثة غير صالح');
+      return s.chat.findOne(user, conversation.id);
+    }
+    if (op.table === 'supportTickets') {
+      if (op.action === 'update') {
+        if (typeof op.data.previousUpdatedAt !== 'string' || !Number.isFinite(Date.parse(op.data.previousUpdatedAt))) throw new BadRequestException('نسخة طلب الدعم الأصلية غير صالحة');
+        const dto = await this.dto(UpdateTicketDto, { status: op.data.status, priority: op.data.priority, category: op.data.category, assignedToId: op.data.assignedToId });
+        await s.support.update(user, id, dto, op.data.previousUpdatedAt);
+        return s.support.findOne(user, id);
+      }
+      if (op.action === 'create') {
+        const ticket = await s.support.create(user, await this.dto(CreateTicketDto, { subject: op.data.subject, description: op.data.description, category: op.data.category, priority: op.data.priority }));
+        return s.support.findOne(user, ticket.id);
+      }
+      if (op.action === 'reply') {
+        await s.support.reply(user, id, await this.dto(ReplyTicketDto, { body: op.data.replyBody, isInternal: op.data.isInternal }));
+        return s.support.findOne(user, id);
+      }
+      throw new BadRequestException('عملية دعم غير مدعومة');
+    }
+    if (op.table === 'exams' && op.action === 'delete') return s.exams.removeUngraded(user, id);
+    if (op.table === 'chatMessages' && op.action === 'create') {
+      if (!uuid.test(op.data.conversationId)) throw new BadRequestException('محادثة غير صالحة');
+      return s.chat.send(user, op.data.conversationId, await this.dto(SendMessageDto, {body:op.data.body}));
+    }
+    if (op.table === 'chatMessages' && ['update', 'delete'].includes(op.action)) {
+      if (!uuid.test(op.data.conversationId) || !uuid.test(id) || typeof op.data.previousBody !== 'string'
+        || op.data.previousBody.length > 4000 || !(op.data.previousEditedAt === null || typeof op.data.previousEditedAt === 'string' && Number.isFinite(Date.parse(op.data.previousEditedAt))))
+        throw new BadRequestException('نسخة الرسالة الأصلية غير صالحة');
+      const expected = { body: op.data.previousBody, editedAt: op.data.previousEditedAt };
+      if (op.action === 'delete') return s.chat.deleteMessage(user, op.data.conversationId, id, expected);
+      const dto = await this.dto(EditMessageDto, { body: op.data.body });
+      return s.chat.editMessage(user, op.data.conversationId, id, dto.body, expected);
+    }
+    if (op.table === 'accountPreferences' && op.action === 'update') {
+      if (id !== user.id) throw new ForbiddenException('إعدادات الحساب الحالي فقط');
+      return s.community.nickname(user, op.data.nickname);
+    }
+    if (op.table === 'communityPosts') {
+      if (op.action === 'create') return s.community.post(user, {body:op.data.body,schoolPost:op.data.schoolPost});
+      if (op.action === 'delete') return s.community.remove(user,id);
+    }
+    if (op.table === 'communityComments' && op.action === 'create') {
+      if (!uuid.test(op.data.postId)) throw new BadRequestException('منشور غير صالح');
+      if (op.data.parentId) {
+        const parent=await s.prisma.communityComment.findUnique({where:{id:op.data.parentId}});
+        if (!parent || parent.postId!==op.data.postId) throw new BadRequestException('الرد لا يتبع هذا المنشور');
+        return s.community.reply(user,op.data.parentId,op.data.body);
+      }
+      return s.community.comment(user,op.data.postId,op.data.body);
+    }
     if (['meetings', 'examCommittees'].includes(op.table)) {
       if (op.action === 'delete') return s.operations.remove(user, op.table as any, id);
       if (['create','update'].includes(op.action)) return s.operations.write(user, op.table as any, op.data, id, op.action === 'create');
     }
     if (staff && ['transfers','suspensions'].includes(op.table)) {
       const pick = (fields: string[]) => Object.fromEntries(fields.filter(field => op.data[field] !== undefined).map(field => [field, op.data[field]]));
-      if (op.action !== 'create' && op.action !== 'cancel' && !admin) throw new ForbiddenException('قرار الطلب للإدارة فقط');
+      if (!['create','cancel','update'].includes(op.action) && !admin) throw new ForbiddenException('قرار الطلب للإدارة فقط');
+      if (op.action === 'update') {
+        const dto = await this.dto(UpdatePendingReasonDto, pick(['reason','previousReason']));
+        return op.table === 'transfers' ? s.transfers.updatePendingReason(user, id, dto) : s.suspensions.updatePendingReason(user, id, dto);
+      }
       if (op.table === 'transfers') {
         if (op.action === 'create') return s.transfers.requestStudentTransfer(user, await this.dto(CreateStudentTransferDto, pick(['studentId','reason'])));
         if (op.action === 'approve') return s.transfers.approve(user, id, await this.dto(ApproveStudentTransferDto, pick(['toCircleId','decisionNote'])));
@@ -340,6 +427,15 @@ export class FullSyncService {
       }
     }
     if (op.table === 'courses' && [Role.ADMIN, Role.SUPERVISOR].includes(user.role as any)) {
+      if (op.action === 'enroll') {
+        await s.courses.enroll(user, id, await this.dto(EnrollStudentsDto, { studentIds: op.data.studentIds }));
+        return s.courses.findOne(id, user);
+      }
+      if (op.action === 'unenroll') {
+        if (!uuid.test(op.data.studentId)) throw new BadRequestException('معرّف الطالب غير صالح');
+        await s.courses.unenroll(user, id, op.data.studentId);
+        return s.courses.findOne(id, user);
+      }
       if (op.action === 'create') return s.courses.create(user, await this.dto(CreateCourseDto, op.data));
       if (op.action === 'update') return s.courses.update(user, id, await this.dto(UpdateCourseDto, op.data));
       if (op.action === 'delete' && admin) return s.courses.remove(user, id);
@@ -366,7 +462,7 @@ export class FullSyncService {
       throw new BadRequestException('عملية غير مدعومة');
     }
     if (op.table === 'absencePermissions') {
-      if (op.action === 'create') return s.attendance.createAbsencePermission(user, op.data as { studentId: string; date: string; reason: string });
+      if (op.action === 'create') return s.attendance.createAbsencePermission(user, op.data as { studentId: string; date: string; reason: string; durationMinutes: number });
       if (op.action === 'approve' && admin) return s.attendance.decideAbsencePermission(user, id, true, op.data.decisionNote);
       if (op.action === 'reject' && admin) return s.attendance.decideAbsencePermission(user, id, false, op.data.decisionNote);
     }
@@ -384,12 +480,15 @@ export class FullSyncService {
     }
     if (op.table === 'mediaActivities' && [Role.ADMIN, Role.SUPERVISOR].includes(user.role as any)) {
       if (op.action === 'create') return s.mediaActivities.create(user, op.data);
-      if (op.action === 'delete') return s.mediaActivities.remove(id);
+      if (op.action === 'update') return s.mediaActivities.update(user, id, op.data);
+      if (op.action === 'delete') return s.mediaActivities.remove(id, op.data.previous);
     }
     if (op.table === 'certificateRequests') {
+      if (op.action === 'publish-monthly-report' && admin) return s.certificates.publishMonthlyReport(user, { studentId: op.data.studentId, from: op.data.from, to: op.data.to, fileUrl: op.data.fileUrl, reportDraft: op.data.reportDraft });
       if (op.action === 'create' && user.role === Role.STUDENT) return s.certificates.createRequest(user, op.data);
       if (op.action === 'decision' && admin) return s.certificates.decideRequest(user, id, op.data);
     }
+    if (op.table === 'certificates' && op.action === 'issue' && admin) return s.certificates.issueRecord(user, { studentId: op.data.studentId, templateId: op.data.templateId, kind: op.data.kind, title: op.data.title, details: op.data.details, fileUrl: op.data.fileUrl });
     if (op.table === 'certificateTemplates' && admin) {
       if (op.action === 'create') return s.certificates.createTemplate(user, op.data);
       if (op.action === 'deactivate') return s.certificates.deactivateTemplate(id);

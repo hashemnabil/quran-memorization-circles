@@ -146,7 +146,7 @@ export function Field({
     <div className={className}>
       {label && (
         <label htmlFor={htmlFor} className="label">
-          {label} {required && <span className="text-red-500">*</span>}
+          {label} {required && <span aria-hidden="true" className="text-red-500">*</span>}
         </label>
       )}
       {children}
@@ -331,6 +331,7 @@ export function Modal({
     const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') || []).filter(element => element.getClientRects().length > 0);
     const frame = requestAnimationFrame(() => (focusable()[0] || dialogRef.current)?.focus());
     const onKey = (e: KeyboardEvent) => {
+      if (document.documentElement.dataset.appLocked === '1') return;
       const dialogs = document.querySelectorAll('[role="dialog"]');
       if (dialogs[dialogs.length - 1] !== dialogRef.current) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeRef.current(); }
@@ -355,7 +356,7 @@ export function Modal({
   const sizes = { sm: 'max-w-md', md: 'max-w-2xl', lg: 'max-w-4xl', xl: 'max-w-6xl' };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-900/50 p-0 backdrop-blur-sm sm:items-center sm:p-4 animate-fade-in">
+    <div data-app-modal className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-900/50 p-0 backdrop-blur-sm sm:items-center sm:p-4 animate-fade-in">
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
       <div
         role="dialog"
@@ -587,7 +588,7 @@ export function Lightbox({
   onClose: () => void;
 }) {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => document.documentElement.dataset.appLocked !== '1' && e.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKey);
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -599,6 +600,7 @@ export function Lightbox({
 
   return createPortal(
     <div
+      data-app-modal
       className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/85 p-4 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"

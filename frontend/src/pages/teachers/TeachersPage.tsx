@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { passwordError } from '@/lib/validation';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -62,8 +63,8 @@ export default function TeachersPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/teachers/${id}`),
-    onSuccess: () => {
-      toast.success('تم حذف المعلم');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف المعلم');
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -271,8 +272,8 @@ function TeacherFormModal({ onClose }: { onClose: () => void }) {
 
   const create = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.post('/teachers', payload),
-    onSuccess: () => {
-      toast.success('تمت إضافة المعلم وإنشاء حساب الدخول');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت إضافة المعلم وإنشاء حساب الدخول');
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
       onClose();
     },
@@ -378,8 +379,8 @@ function SwapTeachersModal({ onClose }: { onClose: () => void }) {
 
   const mutation = useMutation({
     mutationFn: () => api.post('/transfers/teachers/swap', { teacherAId, teacherBId, reason }),
-    onSuccess: () => {
-      toast.success('تم إنشاء طلب التبادل، بانتظار اعتماد الإدارة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إنشاء طلب التبادل، بانتظار اعتماد الإدارة');
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
       onClose();
     },

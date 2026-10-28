@@ -12,7 +12,9 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SchoolNotificationsPlugin.class);
+        registerPlugin(DeviceSecurityPlugin.class);
         super.onCreate(savedInstanceState);
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         View content = findViewById(android.R.id.content);
         ViewCompat.setOnApplyWindowInsetsListener(content, (view, insets) -> {

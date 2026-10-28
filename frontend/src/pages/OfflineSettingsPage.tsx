@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { db, entityTables } from '@/lib/db';
 import { accountId, clearLocal, exportLocal, importLocal } from '@/lib/offline-engine';
 import { queryClient } from '@/lib/queryClient';
+import { localDomainLabels } from '@/lib/local-domain-labels';
 
 export default function OfflineSettingsPage() {
   const [counts, setCounts] = useState<Record<string, number>>({}); const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false);
@@ -11,7 +12,7 @@ export default function OfflineSettingsPage() {
   const download = async () => { const backup = await exportLocal(); const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = `halaqat-${new Date().toISOString().slice(0, 10)}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
   return <section dir="rtl" className="space-y-5 p-5"><h1 className="text-2xl font-bold">إدارة البيانات المحلية</h1>
     <p>يتم تنزيل البيانات وتحديثها تلقائيًا عند فتح التطبيق وعودة الاتصال، دون الحاجة لأي زر. تعديلاتك تُحفظ محليًا وتُرسل تلقائيًا عند توفر الإنترنت.</p>
-    <table className="w-full text-right"><thead><tr><th>الجدول</th><th>عدد السجلات</th></tr></thead><tbody>{Object.entries(counts).map(([table, count]) => <tr key={table}><td>{table}</td><td>{count}</td></tr>)}</tbody></table>
+    <table className="w-full text-right"><thead><tr><th>البيانات</th><th>عدد السجلات</th></tr></thead><tbody>{Object.entries(counts).map(([table, count]) => <tr key={table}><td>{localDomainLabels[table] || 'بيانات محفوظة'}</td><td>{count}</td></tr>)}</tbody></table>
     <div className="flex flex-wrap gap-4">
       <button className="btn-secondary" disabled={busy} onClick={() => void run(download)}>تصدير كل البيانات JSON</button>
       <label className="btn-secondary">استيراد JSON<input type="file" accept="application/json,.json" disabled={busy} className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void run(async () => importLocal(JSON.parse(await file.text()))); }} /></label>

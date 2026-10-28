@@ -496,8 +496,12 @@ export interface Exam {
 }
 
 export interface SupportTicket {
+  pendingUpdate?: boolean;
+  pendingStatus?: TicketStatus | null;
+  synced?: number;
+  syncError?: string;
   id: string;
-  number: number;
+  number: number | null;
   subject: string;
   description: string;
   category?: string | null;
@@ -517,6 +521,7 @@ export interface SupportTicket {
 }
 
 export interface TicketMessage {
+  synced?: number;
   id: string;
   body: string;
   isInternal: boolean;
@@ -542,6 +547,8 @@ export interface ChatMember {
 }
 
 export interface Conversation {
+  synced?: number;
+  syncError?: string;
   contactRestricted?: boolean;
   id: string;
   type: 'DIRECT' | 'GROUP';
@@ -566,6 +573,9 @@ export interface Conversation {
 }
 
 export interface ChatMessage {
+  synced?: number;
+  syncError?: string;
+  rejectedChange?: boolean;
   id: string;
   conversationId: string;
   body: string;
@@ -620,6 +630,8 @@ export interface ActivityEntry {
 // ---------------------------------------------------------------------------
 
 export interface Course {
+  synced?: number;
+  enrollmentPending?: boolean;
   id: string;
   name: string;
   code: string;
@@ -642,6 +654,7 @@ export interface Course {
 }
 
 export interface CourseStudent {
+  pending?: boolean;
   enrollmentId: string;
   id: string;
   code: string;

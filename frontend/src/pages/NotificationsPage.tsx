@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -50,8 +51,8 @@ export default function NotificationsPage() {
 
   const markAll = useMutation({
     mutationFn: () => api.patch('/notifications/read-all'),
-    onSuccess: () => {
-      toast.success('تم تعليم جميع الإشعارات كمقروءة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تعليم جميع الإشعارات كمقروءة');
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -129,11 +130,11 @@ export default function NotificationsPage() {
           />
         ) : (
           <>
-            <ul className="divide-y divide-slate-100">
+            <ul className="notification-list divide-y divide-slate-100">
               {data.data.map((notification) => (
                 <li
                   key={notification.id}
-                  className={cx('flex items-start gap-3 px-5 py-4 transition', !notification.isRead && 'bg-primary-50/40')}
+                  className={cx('notification-item flex items-start gap-3 px-5 py-4 transition', !notification.isRead && 'notification-unread bg-primary-50/40')}
                 >
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-lg">
                     {NOTIFICATION_ICONS[notification.type] ?? '🔔'}

@@ -40,7 +40,10 @@ export class AttendanceService {
     });
   }
 
-  async createAbsencePermission(user: AuthUser, input: { studentId: string; date: string; reason: string }) {
+  async createAbsencePermission(user: AuthUser, input: { studentId: string; date: string; reason: string; durationMinutes: number }) {
+    if (user.role !== 'STUDENT') throw new BadRequestException('Only the student can submit this request');
+    const durationMinutes = Number.isInteger(input.durationMinutes) ? input.durationMinutes : 1;
+    if (durationMinutes < 1 || durationMinutes > 7) throw new BadRequestException('Duration must be between 1 and 7 days');
     if (!input?.studentId || !input.date || !input.reason?.trim()) throw new BadRequestException('الطالب والتاريخ والسبب مطلوبة');
     const student = await this.acl.assertStudentAccess(user, input.studentId);
     if (user.role === 'STUDENT') {
@@ -53,7 +56,7 @@ export class AttendanceService {
     if (await this.prisma.attendance.findUnique({ where: { studentId_date: { studentId: student.id, date } } }))
       throw new ConflictException('يوجد سجل حضور لهذا الطالب في التاريخ المحدد');
     const request = await this.prisma.absencePermissionRequest.create({
-      data: { studentId: student.id, requesterId: user.id, date, reason: input.reason.trim().slice(0, 500) },
+      data: { studentId: student.id, requesterId: user.id, date, durationMinutes, reason: input.reason.trim().slice(0, 500) },
       include: { student: { select: { id: true, fullName: true, code: true } }, requester: { select: { fullName: true } } },
     });
     await this.notifications.notifyRoles([Role.ADMIN], { type: NotificationType.ATTENDANCE, title: 'طلب إذن غياب جديد', body: `${request.student.fullName} — ${input.date}`, link: '/absence-permissions', data: { absencePermissionId: request.id } });

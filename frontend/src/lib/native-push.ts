@@ -9,6 +9,8 @@ import { androidNotifications, configureSound, readGeneralSound, SchoolNotificat
 export const nativePushAvailable = () => Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('PushNotifications');
 export const nativePushClientConfigured = () => Capacitor.getPlatform() !== 'android' || import.meta.env.VITE_ANDROID_FCM_CONFIGURED === 'true';
 export class PushSetupError extends Error {}
+export function hideNotificationPreview(account: string) { try { return localStorage.getItem('qc.push-private:'+account) !== '0'; } catch { return true; } }
+export function saveNotificationPrivacy(account: string, hidden: boolean) { localStorage.setItem('qc.push-private:'+account, hidden?'1':'0'); window.dispatchEvent(new Event('qc:notification-sound')); }
 const installationKey = 'halaqat.push.installation';
 async function installationId() {
   const existing = (await Preferences.get({ key: installationKey })).value;
@@ -46,7 +48,7 @@ export async function connectNativePush(account: string, navigate: (path: string
     if (!owned()) return;
     void installationId().then(async id => {
       const channel = androidNotifications() ? await configureSound(account, 'general', readGeneralSound(account)) : undefined;
-      if (owned()) { await api.post('/push/devices', { installationId: id, platform: Capacitor.getPlatform(), token: token.value, notificationChannelId: channel?.channelId }); window.dispatchEvent(new CustomEvent('halaqat:push-status', { detail: 'تم تفعيل إشعارات الجوال' })); }
+      if (owned()) { await api.post('/push/devices', { installationId: id, platform: Capacitor.getPlatform(), token: token.value, notificationChannelId: channel?.channelId, hidePreview: hideNotificationPreview(account) }); if (owned() && androidNotifications() && channel) await SchoolNotifications.confirmGeneralChannel({ accountId: account, channelId: channel.channelId }).catch(() => undefined); window.dispatchEvent(new CustomEvent('halaqat:push-status', { detail: 'تم تفعيل إشعارات الجوال' })); }
     }).catch(() => {
       window.dispatchEvent(new CustomEvent('halaqat:push-status', { detail: 'تعذر تسجيل الجهاز؛ أعد تفعيل الإشعارات عند الاتصال' }));
     });
@@ -60,7 +62,7 @@ export async function connectNativePush(account: string, navigate: (path: string
       const channel = androidNotifications() ? await configureSound(account, 'general', readGeneralSound(account)) : { channelId: 'halaqat-updates' };
       if (!owned()) return;
       if (androidNotifications()) {
-        await SchoolNotifications.showGeneral({ accountId: account, id: hashNotification(notification.data?.notificationId || notification.id), title: notification.title || 'حلقات القرآن', body: notification.body || 'لديك إشعار جديد', link: notificationLink(notification.data) });
+        await SchoolNotifications.showGeneral({ accountId: account, id: hashNotification(notification.data?.notificationId || notification.id), title: hideNotificationPreview(account) || document.querySelector('[data-security-blocked]') ? 'مدرسة عبدالله بن عمر' : notification.title || 'حلقات القرآن', body: hideNotificationPreview(account) || document.querySelector('[data-security-blocked]') ? 'لديك إشعار جديد. افتح التطبيق لعرض التفاصيل.' : notification.body || 'لديك إشعار جديد', link: notificationLink(notification.data) });
         return;
       }
       await LocalNotifications.schedule({ notifications: [{ id: hashNotification(notification.data?.notificationId || notification.id), title: notification.title || 'حلقات القرآن', body: notification.body || 'لديك إشعار جديد', channelId: channel.channelId, smallIcon: 'ic_stat_halaqat', extra: { ...notification.data, accountId: account } }] });

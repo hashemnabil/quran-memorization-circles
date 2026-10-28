@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { ExamResultDialog as ResultModal } from '@/components/ExamResultDialog';
 import CommitteesTab, {type Committee} from './CommitteesTab';
 import CombinedTab from './CombinedTab';
@@ -214,8 +215,8 @@ function RequestsTab({ canManage }: { canManage: boolean }) {
 
   const cancel = useMutation({
     mutationFn: (id: string) => api.patch(`/exams/requests/${id}/cancel`),
-    onSuccess: () => {
-      toast.success('تم إلغاء الطلب');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إلغاء الطلب');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -363,8 +364,8 @@ function ExamsTab({ mode, canManage }: { mode: 'scheduled' | 'history'; canManag
 
   const absent = useMutation({
     mutationFn: (id: string) => api.patch(`/exams/${id}/absent`),
-    onSuccess: () => {
-      toast.success('تم تسجيل الغياب');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تسجيل الغياب');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -531,8 +532,8 @@ function ScheduleModal({ request, onClose }: { request: ExamRequest; onClose: ()
         location: location || undefined,
         notes: notes || undefined,
       }),
-    onSuccess: () => {
-      toast.success('تمت جدولة الاختبار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت جدولة الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
       onClose();
     },
@@ -580,8 +581,8 @@ function RejectModal({ request, onClose }: { request: ExamRequest; onClose: () =
 
   const mutation = useMutation({
     mutationFn: () => api.patch(`/exams/requests/${request.id}/reject`, { reviewNote: reviewNote || undefined }),
-    onSuccess: () => {
-      toast.success('تم رفض الطلب');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم رفض الطلب');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
       onClose();
     },
@@ -624,8 +625,8 @@ function EditExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
         examinerId: examinerId || undefined,
         location: location || undefined,
       }),
-    onSuccess: () => {
-      toast.success('تم تعديل الاختبار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تعديل الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
       onClose();
     },
@@ -698,8 +699,8 @@ function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Stud
         combinedStage: combinedPlan().some(stage => stage.code === planCode) ? planCode : undefined,
         note: note || undefined,
       }),
-    onSuccess: () => {
-      toast.success('تم تقديم طلب الاختبار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تقديم طلب الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
       onClose();
     },

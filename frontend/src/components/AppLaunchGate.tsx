@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { useCachedImage } from '@/hooks/useCachedImage';
 import { api } from '@/lib/api';
 import type { SchoolSettings } from '@/types';
-import { DEFAULT_SCHOOL_LOGO } from '@/config/branding';
+import { DEFAULT_SCHOOL_LOGO, DEFAULT_SCHOOL_NAME } from '@/config/branding';
 
 const BRAND_CACHE_KEY = 'qc.schoolBranding';
 
@@ -20,9 +20,10 @@ export default function AppLaunchGate({ children }: { children: ReactNode }) {
 
 function NativeLaunchGate({ children }: { children: ReactNode }) {
   const [onboardingDone, setOnboardingDone] = useState(() => {
-    try { return !Capacitor.isNativePlatform() || localStorage.getItem('qc.onboarding.completed') === '1'; } catch { return !Capacitor.isNativePlatform(); }
+    try { return localStorage.getItem('qc.onboarding.completed') === '1'; } catch { return false; }
   });
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [leaving, setLeaving] = useState(false);
   const [branding, setBranding] = useState<Branding>(readCachedBranding);
   const logo = useCachedImage(branding.logoUrl);
   const [logoFailed, setLogoFailed] = useState(false);
@@ -40,8 +41,11 @@ function NativeLaunchGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const timer = window.setTimeout(() => setShowSplash(false), reduced ? 0 : Capacitor.isNativePlatform() ? 850 : 450);
-    return () => window.clearTimeout(timer);
+    if (reduced) { setShowSplash(false); return; }
+    const duration = Capacitor.isNativePlatform() ? 900 : 560;
+    const fade = window.setTimeout(() => setLeaving(true), duration - 120);
+    const finish = window.setTimeout(() => setShowSplash(false), duration);
+    return () => { window.clearTimeout(fade); window.clearTimeout(finish); };
   }, []);
 
   if (!onboardingDone && !showSplash) {
@@ -52,11 +56,13 @@ function NativeLaunchGate({ children }: { children: ReactNode }) {
     <>
       {onboardingDone && children}
       {showSplash && (
-        <div dir="rtl" role="status" aria-label="بدء التطبيق" className="fixed inset-0 z-[190] flex flex-col items-center justify-center gap-6 overflow-hidden bg-[#103c30] px-6 text-center text-[#e7ce95]">
-          <div className="launch-logo" aria-hidden="true">
-            {logo && !logoFailed ? <img src={logo} alt="" onError={() => setLogoFailed(true)} className="h-36 w-36 object-contain" /> : <img src={DEFAULT_SCHOOL_LOGO} alt="" className="h-36 w-36 object-contain" />}
+        <div dir="rtl" role="status" aria-label="بدء التطبيق" className={`app-launch ${leaving ? 'is-leaving' : ''}`}>
+          <div className="app-launch__emblem" aria-hidden="true">
+            <span className="app-launch__ring" /><span className="app-launch__ring app-launch__ring--outer" />
+            <div className="app-launch__logo">{logo && !logoFailed ? <img src={logo} alt="" onError={() => setLogoFailed(true)} /> : <img src={DEFAULT_SCHOOL_LOGO} alt="" />}</div>
           </div>
-          <p className="launch-logo max-w-sm text-lg font-bold leading-8">مدرسة عبدالله بن عمر لتحفيظ القرآن الكريم</p>
+          <span className="app-launch__rule" aria-hidden="true" />
+          <p className="app-launch__name">{branding.name || DEFAULT_SCHOOL_NAME}</p>
         </div>
       )}
     </>

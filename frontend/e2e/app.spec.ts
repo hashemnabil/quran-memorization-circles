@@ -1,13 +1,15 @@
+import { gotoWithLocalUnlock, unlockLocalGate } from './local-security-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 const fixtures = JSON.parse(readFileSync('e2e/.accounts.json', 'utf8'));
 async function login(page: Page, role: string) {
   await page.addInitScript(() => localStorage.setItem('qc.onboarding.completed', '1'));
-  await page.goto('/login');
+  await gotoWithLocalUnlock(page,'/login');
   await expect(page.getByRole('status', { name: 'بدء التطبيق' })).not.toBeVisible();
   await page.getByLabel('اسم المستخدم', { exact: true }).fill(fixtures.accounts[role].username);
   await page.getByLabel('كلمة المرور', { exact: true }).fill(fixtures.accounts[role].password);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
+    await unlockLocalGate(page);
   if (role !== 'PARENT') await expect(page).not.toHaveURL(/\/login$/);
 }
 const destinations: Record<string, string[]> = {
@@ -28,13 +30,13 @@ for (const [role, paths] of Object.entries(destinations)) {
     const initialSidebar = page.getByRole('navigation', { name: 'أقسام التطبيق', exact: true });
     while (await initialSidebar.getByRole('button', { expanded: false }).count()) await initialSidebar.getByRole('button', { expanded: false }).first().click();
     const visiblePaths = await initialSidebar.getByRole('link').evaluateAll(links => links.map(link => link.getAttribute('href')!));
-    const allPaths = [...new Set([...paths, ...visiblePaths, ...(['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role) ? reports.map(report => `/documents/${report}`) : []), '/notifications', '/chat', '/support', '/profile'])];
+    const allPaths = [...new Set([...paths, ...visiblePaths, ...(role === 'ADMIN' ? reports.map(report => `/documents/${report}`) : []), '/notifications', '/chat', '/support', '/profile'])];
     for (const path of allPaths) {
       const sidebar = page.getByRole('navigation', { name: 'أقسام التطبيق', exact: true });
       while (await sidebar.getByRole('button', { expanded: false }).count()) await sidebar.getByRole('button', { expanded: false }).first().click();
       const link = sidebar.locator(`a[href="${path}"]`);
       if (await link.count()) await link.click();
-      else await page.goto(path);
+      else await gotoWithLocalUnlock(page,path);
       await expect(page, `Role ${role} failed navigation to ${path}`).toHaveURL(url => url.pathname === path || (role === 'STUDENT' && url.pathname === '/student' && path !== '/student'));
       await expect(page.getByRole('status', { name: 'بدء التطبيق' })).not.toBeVisible();
       await expect(page.locator('main h1').first()).toBeVisible();
@@ -42,7 +44,7 @@ for (const [role, paths] of Object.entries(destinations)) {
     }
     // Check the account menu from a known authorized page rather than the last
     // visited destination (which may render with a different page shell).
-    await page.goto(role === 'STUDENT' ? '/student' : role === 'SUPPORT' ? '/support' : '/profile');
+    await gotoWithLocalUnlock(page,role === 'STUDENT' ? '/student' : role === 'SUPPORT' ? '/support' : '/profile');
     await expect(page.getByRole('button', { name: 'قائمة الحساب', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
     await page.locator('header').getByRole('link', { name: 'الإشعارات', exact: true }).click();
@@ -51,7 +53,7 @@ for (const [role, paths] of Object.entries(destinations)) {
   });
 }
 test('student contact picker offers assigned teachers, supervisor and administrators online and offline', async ({ page, context }) => {
-  await login(page, 'STUDENT'); await page.goto('/chat');
+  await login(page, 'STUDENT'); await gotoWithLocalUnlock(page,'/chat');
   await page.getByRole('button', { name: 'محادثة جديدة', exact: true }).click();
   const dialog = page.getByRole('dialog');
   for (const role of ['ADMIN', 'TEACHER', 'SUPERVISOR']) await expect(dialog.getByRole('button', { name: new RegExp(`Browser ${role}`) })).toBeVisible();
@@ -72,17 +74,17 @@ test('parent portal remains disabled and teaching accounts cannot visit user adm
   await login(page, 'PARENT');
   await expect(page.getByText('تم إيقاف بوابة ولي الأمر؛ يرجى استخدام حساب الطالب')).toBeVisible();
   await login(page, 'TEACHER');
-  await page.goto('/users');
+  await gotoWithLocalUnlock(page,'/users');
   await expect(page).toHaveURL(/\/forbidden$/);
 });
 test('student files render on a phone-sized viewport without horizontal overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await login(page, 'STUDENT'); await page.goto('/my-files');
+  await login(page, 'STUDENT'); await gotoWithLocalUnlock(page,'/my-files');
   await expect(page.getByRole('heading', { name: 'ملفاتي', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2)).toBe(true);
 });
 test('student can reload the cached shell and file screen in airplane mode and reconnect', async ({ page, context }) => {
-  await login(page, 'STUDENT'); await page.goto('/my-files');
+  await login(page, 'STUDENT'); await gotoWithLocalUnlock(page,'/my-files');
   await expect(page.getByRole('heading', { name: 'ملفاتي', exact: true })).toBeVisible();
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
@@ -121,7 +123,7 @@ async function readTeacherOutbox(page: Page): Promise<Array<{ id: number; opId: 
 test('offline attendance survives a lost committed response and replays with the same operation ID', async ({ page, context }) => {
   test.setTimeout(75000);
   await login(page, 'TEACHER');
-  await page.goto(`/attendance?circleId=${fixtures.circle.id}`);
+  await gotoWithLocalUnlock(page,`/attendance?circleId=${fixtures.circle.id}`);
   await expect(page.getByText(fixtures.student.fullName, { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'تعيين الكل غائب', exact: true }).click();
   await context.setOffline(true);

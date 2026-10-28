@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -89,8 +90,8 @@ export default function RecitationsPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/recitations/${id}`),
-    onSuccess: () => {
-      toast.success('تم حذف السجل');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف السجل');
       queryClient.invalidateQueries({ queryKey: ['recitations'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -415,8 +416,8 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
 
   const create = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.post('/recitations', payload),
-    onSuccess: () => {
-      toast.success('تم تسجيل التسميع');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تسجيل التسميع');
       queryClient.invalidateQueries({ queryKey: ['recitations'] });
       onClose();
     },

@@ -1,6 +1,7 @@
 import { db } from './db';
 import { reportSyncProgress } from './sync-progress';
 import { applySnapshotPatch } from './snapshot-delta';
+import { cacheConversations } from './conversation-cache';
 
 type Send = (method: string, path: string, headers?: Record<string, string>) => Promise<any>;
 type Snapshot = { data: any; rows?: any[]; paginated: boolean; registry?: boolean; savedAt: string };
@@ -87,6 +88,8 @@ export async function prefetchSections(send: Send, account: string, currentAccou
     }
     if (currentAccount() !== account) return;
     const data = paginated ? { ...result, [registry ? 'items' : 'data']: rows } : result;
+    if (path === '/chat/conversations' && Array.isArray(data)) await cacheConversations(account, data, true);
+    if (/^\/chat\/conversations\/[^/]+$/.test(path) && data?.id) await cacheConversations(account, [data]);
     if (path === '/profile-reviews/me' && data?.profile && Array.isArray(data.requests)) {
       await db.meta.put({ key: `${account}:reference:/profile-reviews/me`, value: data });
       await db.transaction('rw', db.table('profileReviews'), async () => {

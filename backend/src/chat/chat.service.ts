@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -406,7 +407,7 @@ export class ChatService {
   }
 
   /** Editing is limited to the author; the message is flagged as edited. */
-  async editMessage(user: AuthUser, conversationId: string, messageId: string, body: string) {
+  async editMessage(user: AuthUser, conversationId: string, messageId: string, body: string, expected?: { body: string; editedAt: string | null }) {
     await this.assertMember(user, conversationId);
     const recipients = await this.prisma.conversationMember.findMany({
       where: { conversationId, leftAt: null, userId: { not: user.id } }, select: { userId: true },
@@ -421,6 +422,16 @@ export class ChatService {
       throw new ForbiddenException('يمكن تعديل الرسالة من قبل مرسلها فقط');
     }
 
+    if (expected) {
+      const result = await this.prisma.message.updateMany({
+        where: { id: messageId, conversationId, deletedAt: null, body: expected.body, editedAt: expected.editedAt ? new Date(expected.editedAt) : null },
+        data: { body, editedAt: new Date() },
+      });
+      if (!result.count) throw new ConflictException('تغيّرت الرسالة من جهاز آخر؛ راجع النسخة الحديثة قبل تعديلها');
+      const updated = await this.prisma.message.findUnique({ where: { id: messageId }, include: { sender: { select: { id: true, fullName: true, role: true, avatarUrl: true } } } });
+      this.realtime.emitToConversation(conversationId, 'chat:message-edited', updated);
+      return updated;
+    }
     const updated = await this.prisma.message.update({
       where: { id: messageId },
       data: { body, editedAt: new Date() },
@@ -431,7 +442,7 @@ export class ChatService {
     return updated;
   }
 
-  async deleteMessage(user: AuthUser, conversationId: string, messageId: string) {
+  async deleteMessage(user: AuthUser, conversationId: string, messageId: string, expected?: { body: string; editedAt: string | null }) {
     await this.assertMember(user, conversationId);
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, conversationId, deletedAt: null },
@@ -449,7 +460,10 @@ export class ChatService {
       throw new ForbiddenException('يمكن حذف الرسالة من قبل مرسلها أو مشرف المجموعة');
     }
 
-    await this.prisma.message.update({ where: { id: messageId }, data: { deletedAt: new Date() } });
+    if (expected) {
+      const result = await this.prisma.message.updateMany({ where: { id: messageId, conversationId, deletedAt: null, body: expected.body, editedAt: expected.editedAt ? new Date(expected.editedAt) : null }, data: { deletedAt: new Date() } });
+      if (!result.count) throw new ConflictException('تغيّرت الرسالة من جهاز آخر؛ راجع النسخة الحديثة قبل حذفها');
+    } else await this.prisma.message.update({ where: { id: messageId }, data: { deletedAt: new Date() } });
     this.realtime.emitToConversation(conversationId, 'chat:message-deleted', {
       conversationId,
       messageId,

@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -75,8 +76,8 @@ export default function CirclesPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/circles/${id}`),
-    onSuccess: () => {
-      toast.success('تم حذف الحلقة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف الحلقة');
       queryClient.invalidateQueries({ queryKey: ['circles'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -292,8 +293,8 @@ function CircleFormModal({ onClose }: { onClose: () => void }) {
 
   const create = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.post('/circles', payload),
-    onSuccess: () => {
-      toast.success('تم إنشاء الحلقة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إنشاء الحلقة');
       queryClient.invalidateQueries({ queryKey: ['circles'] });
       onClose();
     },

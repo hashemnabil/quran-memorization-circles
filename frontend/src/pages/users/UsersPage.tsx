@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { passwordError } from '@/lib/validation';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -78,8 +79,8 @@ export default function UsersPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/users/${id}`),
-    onSuccess: () => {
-      toast.success('تم حذف المستخدم');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف المستخدم');
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (error) => toast.error(apiError(error)),

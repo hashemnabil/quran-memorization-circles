@@ -150,3 +150,99 @@ test('domain dispatch rejects writes from a read-only student account', async ()
   const service = new FullSyncService({} as any, {} as any);
   await assert.rejects((service as any).apply({}, { ...user, role: Role.STUDENT }, operation()), /غير مسموحة/);
 });
+
+test('queued messages reuse a committed receipt and validate through the chat service', async () => {
+  const {service}=fixture(); let sends=0;
+  (service as any).apply=(FullSyncService.prototype as any).apply.bind(service);
+  (service as any).services=()=>({chat:{send:async(actor:any,conversation:string,dto:any)=>{assert.equal(actor.id,user.id);assert.equal(conversation,'22222222-2222-4222-8222-222222222222');sends++;return {id:randomUUID(),body:dto.body};}}});
+  const op={...operation(),table:'chatMessages',action:'create',data:{conversationId:'22222222-2222-4222-8222-222222222222',body:'Hello'}};
+  assert.equal((await service.push(user,{operations:[op]})).outcomes[0].status,'applied');
+  assert.equal((await service.push(user,{operations:[op]})).outcomes[0].status,'applied');assert.equal(sends,1);
+  assert.equal((await service.push(user,{operations:[{...op,data:{...op.data,body:'Changed'}}]})).outcomes[0].status,'rejected');
+  assert.equal((await service.push(user,{operations:[{...op,opId:randomUUID(),data:{...op.data,body:''}}]})).outcomes[0].status,'rejected');
+});
+test('queued message changes dispatch the original snapshot and replay only once', async () => {
+  const {service}=fixture();const calls:any[]=[];
+  (service as any).apply=(FullSyncService.prototype as any).apply.bind(service);
+  (service as any).services=()=>({chat:{editMessage:async(...args:any[])=>{calls.push(args);return {id:args[2],body:args[3]};},deleteMessage:async(...args:any[])=>{calls.push(args);return {message:'deleted'};}}});
+  const op={...operation(),table:'chatMessages',action:'update',data:{conversationId:'22222222-2222-4222-8222-222222222222',body:'Edited',previousBody:'Original',previousEditedAt:null}};
+  assert.equal((await service.push(user,{operations:[op]})).outcomes[0].status,'applied');
+  assert.equal((await service.push(user,{operations:[op]})).outcomes[0].status,'applied');
+  assert.equal(calls.length,1);assert.deepEqual(calls[0].slice(1),[op.data.conversationId,op.entityId,'Edited',{body:'Original',editedAt:null}]);
+  assert.equal((await service.push(user,{operations:[{...op,opId:randomUUID(),data:{...op.data,previousEditedAt:'invalid'}}]})).outcomes[0].status,'rejected');
+  assert.equal(calls.length,1);
+  assert.equal((await service.push(user,{operations:[{...op,opId:randomUUID(),action:'delete'}]})).outcomes[0].status,'applied');
+  assert.deepEqual(calls[1].slice(1),[op.data.conversationId,op.entityId,{body:'Original',editedAt:null}]);
+});
+
+test('conversation creation reuses receipts, validates members and ignores client moderation claims', async () => {
+ const {service}=fixture();let creates=0;const calls:any[]=[];const canonical=randomUUID();
+ (service as any).apply=(FullSyncService.prototype as any).apply.bind(service);
+ (service as any).services=()=>({chat:{createGroup:async(actor:any,dto:any)=>{creates++;calls.push([actor,dto]);return {id:canonical};},createDirect:async(actor:any,dto:any)=>{calls.push([actor,dto]);return {id:canonical};},findOne:async()=>({id:canonical,canPost:true})}});
+ const op={...operation(),table:'chatConversations',action:'create',data:{kind:'group',title:'Study group',memberIds:[randomUUID()],isAdmin:true,createdById:'forged'}};
+ assert.equal((await service.push(user,{operations:[op]})).outcomes[0].status,'applied');
+ assert.equal((await service.push(user,{operations:[op]})).outcomes[0].status,'applied');assert.equal(creates,1);
+ assert.equal(calls[0][0].id,user.id);assert(!('isAdmin' in calls[0][1]));assert(!('createdById' in calls[0][1]));
+ assert.equal((await service.push(user,{operations:[{...op,opId:randomUUID(),data:{...op.data,memberIds:['invalid']}}]})).outcomes[0].status,'rejected');assert.equal(creates,1);
+});
+
+test('support creation and replies reuse receipts and validate only permitted fields', async () => {
+  const {service}=fixture();let creates=0,replies=0;
+  (service as any).apply=(FullSyncService.prototype as any).apply.bind(service);
+  const id=randomUUID();
+  (service as any).services=()=>({support:{create:async(_actor:any,dto:any)=>{assert.equal(dto.subject,'Help');assert(!('createdById' in dto));creates++;return {id};},findOne:async()=>({id,number:1,messages:[]}),reply:async()=>{replies++;}}});
+  const op={...operation(),table:'supportTickets',action:'create',data:{subject:'Help',description:'Issue',priority:'NORMAL',createdById:'fake-author'}};
+  await service.push(user,{operations:[op]});await service.push(user,{operations:[op]});assert.equal(creates,1);
+  const reply={...operation(),table:'supportTickets',action:'reply',entityId:id,data:{replyBody:'Reply',isInternal:false}};
+  await service.push(user,{operations:[reply]});await service.push(user,{operations:[reply]});assert.equal(replies,1);
+  assert.equal((await service.push(user,{operations:[{...reply,opId:randomUUID(),data:{replyBody:'Reply',isInternal:'false'}}]})).outcomes[0].status,'rejected');
+});
+
+test('support status replay forwards the server baseline and validates assignment/status fields', async () => {
+ const {service}=fixture();const calls:any[]=[];const id=randomUUID(), revision='2026-10-28T09:00:00.000Z';
+ (service as any).apply=(FullSyncService.prototype as any).apply.bind(service);
+ (service as any).services=()=>({support:{update:async(...args:any[])=>{calls.push(args);},findOne:async()=>({id,status:'CLOSED'})}});
+ const op={...operation(),table:'supportTickets',action:'update',entityId:id,data:{status:'CLOSED',previousUpdatedAt:revision}};
+ assert.equal((await service.push(user,{operations:[op]})).outcomes[0].status,'applied');
+ assert.equal(calls[0][3],revision);assert.equal(calls[0][2].status,'CLOSED');
+ assert.equal((await service.push(user,{operations:[{...op,opId:randomUUID(),data:{...op.data,previousUpdatedAt:'invalid'}}]})).outcomes[0].status,'rejected');
+ assert.equal((await service.push(user,{operations:[{...op,opId:randomUUID(),data:{...op.data,status:'INVALID'}}]})).outcomes[0].status,'rejected');
+ assert.equal(calls.length,1);
+});
+
+test('queued nickname edits cannot select another account or apply arbitrary user fields', async () => {
+  const {service}=fixture();const calls:any[]=[];
+  (service as any).apply=(FullSyncService.prototype as any).apply.bind(service);
+  (service as any).services=()=>({community:{nickname:async(...args:any[])=>{calls.push(args);return {id:user.id,nickname:args[1]};}}});
+  const op={...operation(),table:'accountPreferences',action:'update',entityId:user.id,data:{nickname:'Name',role:'ADMIN',isActive:true}};
+  assert.equal((await service.push(user,{operations:[op]})).outcomes[0].status,'applied');assert.deepEqual(calls[0],[user,'Name']);
+  assert.equal((await service.push(user,{operations:[{...op,opId:randomUUID(),entityId:randomUUID()}]})).outcomes[0].status,'rejected');assert.equal(calls.length,1);
+});
+test('message snapshots scope to the authenticated active conversation membership',async()=>{
+  let query:any;const service=new FullSyncService({message:{findMany:async(args:any)=>{query=args;return [];}}} as any,{} as any);
+  (service as any).services=()=>({});await service.pull(user,'chatMessages',1);
+  assert.deepEqual(query.where,{deletedAt:null,conversation:{members:{some:{userId:user.id,leftAt:null}}}});
+});
+
+test('support snapshots use the authorized ticket list and exclude internal messages for students', async () => {
+ let query:any;
+ const service=new FullSyncService({ticketMessage:{findMany:async(args:any)=>{query=args;return [{id:'reply',ticketId:'visible-ticket',isInternal:false}];}}} as any,{} as any);
+ (service as any).services=()=>({support:{findAll:async()=>({data:[{id:'visible-ticket'}],meta:{hasNextPage:false}})}});
+ const result=await service.pull({...user,role:Role.STUDENT},'supportTickets',1);
+ assert.deepEqual(query.where,{ticketId:{in:['visible-ticket']},isInternal:false});
+ assert.equal(result.data[0].messages.length,1);
+});
+
+test('support delta snapshots are opt-in for compatibility with already published clients', async () => {
+ const service=new FullSyncService({syncChange:{findMany:async()=>[{seq:1n,entity:'ticket_messages',entityId:randomUUID(),payload:{}}]}} as any,{} as any);
+ let pulls=0;(service as any).pull=async()=>{pulls++;return {data:[],meta:{hasNextPage:false}};};
+ assert.deepEqual((await service.delta(user,'0',true)).tables,{});assert.equal(pulls,0);
+ assert('supportTickets' in (await service.delta(user,'0',true,true)).tables);assert.equal(pulls,1);
+});
+
+test('communication tables are opt-in so published older apps keep their existing sync protocol',async()=>{
+ const service=new FullSyncService({syncChange:{findMany:async()=>[{seq:1n,entity:'messages',entityId:randomUUID(),payload:{}}]}} as any,{} as any);
+ let pulls=0;(service as any).pull=async()=>{pulls++;return {data:[],meta:{hasNextPage:false}};};
+ assert.deepEqual((await service.delta(user,'0')).tables,{});assert.equal(pulls,0);
+ assert('chatMessages' in (await service.delta(user,'0',true)).tables);assert.equal(pulls,1);
+});

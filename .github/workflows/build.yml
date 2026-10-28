@@ -37,6 +37,10 @@ jobs:
           cache-dependency-path: |
             backend/package-lock.json
             frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - run: node backend/scripts/check-secrets.mjs --history
       - run: npm ci --prefix backend
       - run: npm ci --prefix frontend
@@ -44,11 +48,15 @@ jobs:
       - run: npm audit --prefix frontend --omit=dev --audit-level=moderate
       - run: npm --prefix frontend run test:offline
       - run: npm --prefix frontend run test:full-offline
+      - run: npm --prefix frontend run test:local-security
+      - run: npm --prefix frontend run test:notification-sounds
+      - run: npm --prefix frontend run test:sound-channels
       - run: backend/node_modules/.bin/prisma generate --schema backend/prisma/schema.prisma
       - run: npm --prefix backend run test:security
       - run: npm --prefix backend run test:production-start
       - run: npm --prefix backend run test:realtime-sync
       - run: npm --prefix backend run test:full-offline
+      - run: npm --prefix backend run test:domain-safety
       - run: npm --prefix backend run test:offline-sync
       - run: npm --prefix backend run test:sync-protocol
       - run: npm --prefix backend run test:attendance-replay

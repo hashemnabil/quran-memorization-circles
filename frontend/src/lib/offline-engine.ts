@@ -50,7 +50,11 @@ export async function save(table: EntityTable, data: Record<string, any>, action
   }
   const existing = await db.table(table).get([account, id]);
   const row: LocalRow = { createdAt: new Date().toISOString(), ...(table === 'behaviors' ? { author: { id: account, fullName: 'محفوظ محليًا' } } : {}), ...existing, ...data, id, accountId: account, synced: 0, updatedAt: new Date().toISOString() };
+  if (typeof data._localPreviewUrl === 'string') { row.fileUrl = data._localPreviewUrl; delete row._localPreviewUrl; }
   if (table === 'profileReviews' && action === 'decision') { row.pendingDecision = data.status; row.status = existing?.status || 'PENDING'; }
+  if (table === 'supportTickets' && action === 'update') {
+    for (const field of ['status', 'priority', 'assignedToId', 'assignedTo', 'category']) row[field] = existing?.[field];
+  }
   if (table === 'teachers') {
     row.user = { ...existing?.user, ...(row.user || {}) };
     for (const field of ['fullName', 'username', 'email', 'phone', 'avatarUrl', 'jobTitle', 'specialization']) if (data[field] !== undefined) row.user[field] = data[field];
@@ -99,7 +103,7 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     row.points = Math.round(Math.max(0, Number(row.versesCount || 0) - Number(row.mistakes || 0) - Number(row.warnings || 0) * 0.25) * 100) / 100;
   }
   const opId = crypto.randomUUID();
-  const { credentialPending: _pendingCredential, activationPending: _pendingActivation, ...wireData } = data;
+  const { credentialPending: _pendingCredential, activationPending: _pendingActivation, _localPreviewUrl: _preview, ...wireData } = data;
   const queued: QueuedWrite = { accountId: account, opId, table, action, entityId: id, data: wireData, createdAt: row.updatedAt };
   const sealed = await sealCredentials(queued);
   const candidates = await db.queue.where('accountId').equals(account).filter(item => item.table === table && item.entityId === id).toArray();
@@ -107,6 +111,10 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     (action === 'update' && ['create', 'update'].includes(candidates[0].action) || ['questionnaire', 'decision'].includes(action) && candidates[0].action === action) ? candidates[0] : undefined;
   const corrected = candidate ? await sealCredentials({ ...candidate, opId, data: { ...await openCredentials(candidate), ...wireData } }) : undefined;
   await db.transaction('rw', db.table(table), db.queue, async () => {
+    if (['issue','publish-monthly-report'].includes(action)) {
+      const files = await db.queue.where('accountId').equals(account).filter(operation => operation.table === 'certificates' || operation.table === 'certificateRequests').toArray();
+      if (files.reduce((size, operation) => size + (operation.data.fileUrl?.length || 0), 0) + (wireData.fileUrl?.length || 0) > 16 * 1024 * 1024) throw new Error('بلغت ملفات PDF المعلقة حد التخزين؛ لم تُفقد الملفات المحفوظة');
+    }
     await db.table(table).put(row);
     const pending = await db.queue.where('accountId').equals(account)
       .filter(item => item.table === table && item.entityId === id).toArray();
@@ -128,6 +136,10 @@ export async function save(table: EntityTable, data: Record<string, any>, action
   return { ...row, _writeOpId: opId, _writeTable: table };
 }
 export async function settleLocalWrite(local: any) {
+  if (['chatMessages','chatConversations','communityPosts','communityComments','accountPreferences','supportTickets'].includes(local?._writeTable)) {
+    void syncAll().catch(() => undefined);
+    return local;
+  }
   if (!navigator.onLine || !local?._writeOpId) return local;
   const account = accountId();
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -200,6 +212,7 @@ async function downloadAll() {
     }
     // Full snapshots reconcile deletions and scope changes; dirty edits remain queued.
     await db.table(table).where('accountId').equals(account).filter((row: LocalRow) => row.synced === 1 && !received.has(row.id)).delete();
+    if (table === 'chatConversations') await db.meta.put({ key: `${account}:conversationListKnown`, value: true });
     } catch (error) {
       // One unavailable table must not prevent the remaining tables downloading.
       failure ||= error;
@@ -220,7 +233,7 @@ async function downloadDelta(account: string, initialCursor: string) {
   let cursor = initialCursor;
   const entities = new Set<string>();
   for (;;) {
-    const result = await transport('get', `/sync-all/delta?since=${encodeURIComponent(cursor)}`);
+    const result = await transport('get', `/sync-all/delta?since=${encodeURIComponent(cursor)}&communication=1&support=1`);
     if (currentAccount() !== account) return;
     if (!result?.tables || !/^(0|[1-9]\d*)$/.test(result.cursor) || BigInt(result.cursor) < BigInt(cursor) || result.hasMore && result.cursor === cursor) throw new Error('استجابة تحديث غير صالحة؛ بقي مؤشر المزامنة محفوظًا');
     for (const [name, value] of Object.entries(result.tables)) {
@@ -269,7 +282,9 @@ async function synchronize() {
   let failure: string | undefined;
   while (remaining.length) {
     for (const op of remaining) if (op.action === 'create' && referencesBlocked(op.data)) blocked.add(op.entityId);
-    const batch = remaining.filter(op => !blocked.has(op.entityId) && !referencesBlocked(op.data)).slice(0, 50);
+    const eligible = remaining.filter(op => !blocked.has(op.entityId) && !referencesBlocked(op.data)).slice(0, 50);
+    const fileIndex = eligible.findIndex(operation => typeof operation.data.fileUrl === 'string' && operation.data.fileUrl.startsWith('data:'));
+    const batch = fileIndex === 0 ? eligible.slice(0,1) : fileIndex > 0 ? eligible.slice(0,fileIndex) : eligible;
     if (!batch.length) break;
     const operations = await Promise.all(batch.map(async op => ({ ...op, data: await openCredentials(op) })));
     const result = await transport('post', '/sync-all', { operations });
@@ -334,10 +349,10 @@ async function acknowledge(operation: QueuedWrite, server: any) {
         }
       }
       for (const name of entityTables) await db.table(name).where('accountId').equals(operation.accountId).modify((row: any) => {
-        for (const field of ['studentId', 'circleId', 'teacherId', 'committeeId', 'requestId']) if (row[field] === operation.entityId) row[field] = canonicalId;
+        for (const field of ['studentId', 'circleId', 'teacherId', 'committeeId', 'requestId', 'postId', 'parentId', 'conversationId', 'courseId']) if (row[field] === operation.entityId) row[field] = canonicalId;
       });
     }
-    await table.put({ ...local, ...server, id: canonicalId, accountId: operation.accountId, synced: 1, activationPending: false, credentialPending: false });
+    await table.put({ ...local, ...server, id: canonicalId, accountId: operation.accountId, synced: 1, activationPending: false, credentialPending: false, ...(['issue','publish-monthly-report'].includes(operation.action) ? { issuancePending: false } : {}), ...(operation.table === 'supportTickets' ? { pendingUpdate: false, pendingStatus: null } : {}), ...(operation.table === 'courses' ? { enrollmentPending: false } : {}) });
   });
 }
 export async function initOffline() {
@@ -376,6 +391,25 @@ export function reconcileAfterNetworkWrite(): Promise<void> {
 async function refreshOnce(options: { forceDownload?: boolean; checkDelta?: boolean }) {
   if (!navigator.onLine || !currentAccount()) return;
   const account = accountId();
+  if ((await db.meta.get(`${account}:needsCommunicationBootstrap`))?.value) {
+    for (const table of ['chatMessages','communityPosts','communityComments','accountPreferences'] as const) for (let page = 1; ; page++) {
+      const result = await transport('get', `/sync-all?table=${table}&page=${page}`);
+      if (currentAccount() !== account) return;
+      await mergeRows(table, result.data, account);
+      if (!result.meta?.hasNextPage) break;
+    }
+    await db.meta.delete(`${account}:needsCommunicationBootstrap`);
+  }
+  if (!(await db.meta.get(`${account}:supportDownloadedAt`))) {
+    for (let page = 1; ; page++) {
+      const result = await transport('get', `/sync-all?table=supportTickets&page=${page}`);
+      if (currentAccount() !== account) return;
+      await mergeRows('supportTickets', result.data, account);
+      if (!result.meta?.hasNextPage) break;
+    }
+    await db.meta.put({ key: `${account}:supportDownloadedAt`, value: new Date().toISOString() });
+    await db.meta.delete(`${account}:needsSupportBootstrap`);
+  }
   if ((await db.meta.get(`${account}:needsProfileReviewsBootstrap`))?.value) {
     for (let page = 1; ; page++) {
       const result = await transport('get', `/sync-all?table=profileReviews&page=${page}`);
@@ -501,7 +535,7 @@ export async function exportLocal() {
 export async function importLocal(value: any) {
   const account = accountId();
   if (value?.version !== 1 || value.accountId !== account || !value.tables || !Array.isArray(value.queue)) throw new Error('ملف النسخة الاحتياطية غير صالح أو يخص حسابًا آخر');
-  for (const table of ['mediaPlans', 'teacherDuties', 'dutyTeachers', 'users', 'studentAccounts', 'transfers', 'suspensions', 'meetings', 'examCommittees']) value.tables[table] ??= [];
+  for (const table of ['mediaPlans', 'teacherDuties', 'dutyTeachers', 'users', 'studentAccounts', 'transfers', 'suspensions', 'meetings', 'examCommittees', 'chatMessages', 'communityPosts', 'communityComments', 'accountPreferences']) value.tables[table] ??= [];
   for (const table of entityTables) {
     if (!Array.isArray(value.tables[table]) || value.tables[table].some((row: any) => typeof row.id !== 'string' || row.accountId !== account)) throw new Error('سجلات غير صالحة');
   }

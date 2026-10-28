@@ -1,3 +1,4 @@
+import { gotoWithLocalUnlock, unlockLocalGate } from './local-security-helpers';
 import { test, expect } from '@playwright/test';
 
 // PARENT login is explicitly disabled by the existing server. Do not enable it here.
@@ -21,10 +22,11 @@ for (const role of ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'SUPPORT
       if (path.startsWith('/api/offline-sync/') || path.startsWith('/api/sync/')) return route.fulfill({ json: { data: [], changes: [], meta: { hasNextPage: false }, serverTime: new Date().toISOString() } });
       return route.fulfill({ json: { data: [], meta: { hasNextPage: false, total: 0 } } });
     });
-    await page.goto('/login');
+    await gotoWithLocalUnlock(page,'/login');
     await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
     await page.getByLabel('كلمة المرور', { exact: true }).fill('test-password-2026');
     await page.getByRole('button', { name: 'دخول', exact: true }).click();
+    await unlockLocalGate(page);
     const card = page.getByRole('region', { name: 'مواقيت الصلاة — غزة' });
     await expect(card).toBeVisible(); await expect(card.locator('.prayer-slot')).toHaveCount(6);
     await expect(card.locator('.prayer-countdown')).toHaveText(/\d{2}:\d{2}:\d{2}/);
@@ -40,32 +42,32 @@ for (const role of ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'SUPPORT
     await page.getByRole('button', { name: 'حفظ الإعدادات' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'حُفظت' })).toBeVisible();
     expect(await page.evaluate(id => JSON.parse(localStorage.getItem(`qc.prayers.v1:${id}`)!).prayers.fajr.before, user.id)).toBe(10);
-    await page.goto('/profile/settings/notifications/sound');
+    await gotoWithLocalUnlock(page,'/profile/settings/notifications/sound');
     await expect(page.getByRole('heading', { name: 'صوت الإشعارات', exact: true })).toBeVisible();
-    await page.getByRole('radio', { name: 'إشراقة — صوت هادئ' }).check();
-    await page.getByRole('button', { name: 'معاينة إشراقة — صوت هادئ' }).click();
+    await page.getByRole('radio', { name: 'إشراقة' }).check();
+    await page.getByRole('button', { name: 'تشغيل إشراقة' }).click();
     await expect.poll(() => page.evaluate(() => performance.getEntriesByType('resource').some(entry => entry.name.endsWith('/sounds/calm.wav')))).toBe(true);
     await page.getByRole('button', { name: 'حفظ الاختيار' }).click();
-    expect(await page.evaluate(id => localStorage.getItem(`qc.notification-sound.v1:${id}`), user.id)).toBe('calm');
-    await page.getByRole('radio', { name: 'بدون صوت' }).check();
+    await expect.poll(() => page.evaluate(id => localStorage.getItem(`qc.notification-sound.v1:${id}`), user.id)).toBe('calm');
+    await page.getByRole('radio', { name: 'صامت' }).check();
     await page.getByRole('button', { name: 'حفظ الاختيار' }).click();
-    expect(await page.evaluate(id => localStorage.getItem(`qc.notification-sound.v1:${id}`), user.id)).toBe('silent');
+    await expect.poll(() => page.evaluate(id => localStorage.getItem(`qc.notification-sound.v1:${id}`), user.id)).toBe('silent');
     if (role === 'ADMIN') {
       await page.locator('input[type=file]').setInputFiles('public/sounds/clear.wav');
       await expect(page.getByRole('radio', { name: 'clear.wav', exact: true })).toBeChecked();
-      await page.reload();
-      await expect(page.getByRole('radio', { name: 'بدون صوت', exact: true })).toBeChecked();
+      await page.reload(); await unlockLocalGate(page);
+      await expect(page.getByRole('radio', { name: 'صامت', exact: true })).toBeChecked();
       await expect(page.getByRole('radio', { name: 'clear.wav', exact: true })).toHaveCount(0);
       await page.locator('input[type=file]').setInputFiles('public/sounds/clear.wav');
       await expect(page.getByRole('radio', { name: 'clear.wav', exact: true })).toBeChecked();
       await page.getByRole('button', { name: 'حفظ الاختيار' }).click();
-      await page.reload();
+      await page.reload(); await unlockLocalGate(page);
       await expect(page.getByRole('radio', { name: 'clear.wav', exact: true })).toBeChecked();
       expect(await page.evaluate(() => localStorage.getItem('qc.notification-sound.v1:other-account'))).toBeNull();
       await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)), { timeout: 20000 }).toBe(true);
       // Bundled sounds and routes must survive a real network-offline reload.
       await page.context().setOffline(true);
-      await page.goto('/prayer-times');
+      await gotoWithLocalUnlock(page,'/prayer-times');
       await expect(page.getByRole('heading', { name: 'مواقيت الصلاة', exact: true })).toBeVisible();
       await expect(page.locator('.prayer-slot')).toHaveCount(6);
       const offlineSound = await page.evaluate(async () => { const cached = await caches.match('/sounds/calm.wav', { ignoreVary: true }); const response = await fetch('/sounds/calm.wav'); return { status: response.status, bytes: (await response.arrayBuffer()).byteLength, cachedStatus: cached?.status, controlled: !!navigator.serviceWorker.controller }; });

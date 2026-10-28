@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { canVisitStudentRoute } from './student-route-policy.js';
 test('students can reach their files/profile while management pages remain closed', () => {
-  for (const path of ['/prayer-times', '/prayer-times/reminders', '/profile/settings/notifications/sound']) {
+  for (const path of ['/prayer-times', '/prayer-times/reminders', '/profile/settings/notifications/sound', '/profile/settings', '/community/users/me', '/community/posts', '/community/users/00000000-0000-4000-8000-000000000001']) {
     assert.equal(canVisitStudentRoute(path), true, path);
     assert.equal(canVisitStudentRoute(path, true), false, path);
   }

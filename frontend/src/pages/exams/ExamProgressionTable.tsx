@@ -156,7 +156,10 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
                 {canRequest && !canEditMilestones && <td>{(row.section || row.stage) && row.unlocked && !row.passed && !row.pending && !row.requested ? <button className="btn btn-primary btn-sm" disabled={submitSectionRequest.isPending} onClick={() => submitSectionRequest.mutate(row.stage?.code || row.section!.id)}>طلب اختبار</button> : <span className="text-xs text-slate-400">{row.passed ? 'مجتاز' : row.pending || row.requested ? 'طلب قائم' : 'حسب التسلسل'}</span>}</td>}
                 {canEditMilestones && <td>
                   <div className="flex flex-wrap items-start gap-1">
-                  {canRequest && (row.section || row.stage) && row.unlocked && !row.passed && !row.pending && !row.requested && <button className="btn btn-primary btn-sm" disabled={submitSectionRequest.isPending} onClick={() => submitSectionRequest.mutate(row.stage?.code || row.section!.id)}>طلب</button>}
+                  {canRequest && <div className="space-y-1">
+                    <button type="button" className="btn btn-primary btn-sm" disabled={submitSectionRequest.isPending || !(row.section || row.stage) || !row.unlocked || row.passed || row.pending || row.requested} onClick={() => submitSectionRequest.mutate(row.stage?.code || row.section!.id)}>طلب اختبار</button>
+                    {(row.passed || row.pending || row.requested || !row.unlocked || !(row.section || row.stage)) && <p className="max-w-48 text-xs text-slate-500">{row.passed?'اجتاز الطالب هذا الاختبار':row.pending||row.requested?'يوجد طلب قائم لهذا الاختبار':!row.unlocked?row.stage?'يجب اجتياز الأجزاء المطلوبة والمجمّعة السابقة أولًا':'يجب اجتياز الاختبار السابق أولًا':'جارٍ تحميل بيانات المقرر'}</p>}
+                  </div>}
                   {editing === row.key ? (
                     <div className="min-w-56 space-y-1">
                       <select className="form-input w-full" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}>

@@ -63,6 +63,9 @@ for (const role of ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'SUPPORT
       await page.locator('input[type=file]').setInputFiles('public/sounds/clear.wav');
       await expect(page.getByRole('radio', { name: 'clear.wav', exact: true })).toBeChecked();
       await page.getByRole('button', { name: 'حفظ الاختيار' }).click();
+      // Saving encrypts and commits the imported file asynchronously. A click
+      // only starts that work; wait for confirmation before unloading the page.
+      await expect(page.getByRole('status').filter({ hasText: 'حُفظ اختيارك' })).toBeVisible();
       await page.reload(); await unlockLocalGate(page);
       await expect(page.getByRole('radio', { name: 'clear.wav', exact: true })).toBeChecked();
       expect(await page.evaluate(() => localStorage.getItem('qc.notification-sound.v1:other-account'))).toBeNull();

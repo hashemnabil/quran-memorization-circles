@@ -306,7 +306,7 @@ export class CoursesService {
   async enroll(actor: AuthUser, courseId: string, dto: EnrollStudentsDto) {
     const { course, students, fresh, existing } = await this.prisma.$transaction(async tx => {
     // Serialize capacity checks for the same course, including offline replay.
-    await tx.$queryRaw`SELECT id FROM courses WHERE id = ${courseId}::uuid FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM courses WHERE id = ${courseId} FOR UPDATE`;
     const course = await tx.course.findFirst({
       where: { id: courseId, deletedAt: null },
       select: { id: true, name: true, capacity: true, _count: { select: { enrollments: true } } },

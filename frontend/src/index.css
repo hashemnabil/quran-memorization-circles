@@ -561,3 +561,13 @@ body:has([data-security-blocked]) [data-rht-toaster]{visibility:hidden!important
 @media(max-width:639px){.notification-sounds-grid{grid-template-columns:1fr}.notification-sound-card{padding:12px 10px}.sound-preview-button{min-width:70px}.sound-library-intro h2{font-size:21px}.app-launch__name{font-size:19px}.sound-save-actions>*{flex:1;min-width:130px}}
 @media(prefers-reduced-motion:no-preference){.app-launch__ring{animation:launch-ring-in .34s ease-out both}.app-launch__ring--outer{animation-delay:.055s}.app-launch__logo{animation:launch-official-in .38s .07s cubic-bezier(.2,.7,.2,1) both}.app-launch__rule{animation:launch-rule-in .24s .16s ease-out both}.app-launch__name{animation:launch-name-in .26s .18s ease-out both}@keyframes launch-official-in{from{opacity:0;transform:scale(.91);clip-path:circle(25%)}to{opacity:1;transform:scale(1);clip-path:circle(75%)}}@keyframes launch-ring-in{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}@keyframes launch-rule-in{from{opacity:0;transform:scaleX(.2)}to{opacity:1;transform:scaleX(1)}}@keyframes launch-name-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}}
 @media(prefers-reduced-motion:reduce){.app-launch{transition:none}.app-launch__emblem *,.app-launch__name,.app-launch__rule{animation:none!important}}
+
+/* Stories use the visible viewport outside page cards and navigation. */
+.community-story-viewer {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
+  overscroll-behavior: contain;
+}

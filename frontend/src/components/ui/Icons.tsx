@@ -6,7 +6,7 @@ import type { SVGProps } from 'react';
  */
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
-function Base({ size = 20, children, ...props }: IconProps) {
+function Base({ size = 20, children, className, ...props }: IconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -18,7 +18,7 @@ function Base({ size = 20, children, ...props }: IconProps) {
       strokeWidth={1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="app-icon"
+      className={['app-icon', className].filter(Boolean).join(' ')}
       focusable="false"
       aria-hidden="true"
       {...props}

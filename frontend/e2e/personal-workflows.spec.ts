@@ -123,6 +123,34 @@ test('the prayer card displays the mosque and keeps its asset available offline'
     return response.ok && String.fromCharCode(...bytes.slice(0, 4)) === 'OggS' && bytes.length > 1000000;
   })).toBe(true);
 });
+test('shared interface stays usable on narrow screens, desktop and dark mode', async ({ page }, info) => {
+  await setup(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const width of [360, 390, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    await gotoWithLocalUnlock(page, '/absence-permissions');
+    await expect(page.locator('.page-heading h1')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    if (width < 1024) {
+      const navigation = page.getByRole('navigation', { name: 'التنقل الرئيسي للجوال' });
+      await expect(navigation.locator('svg')).toHaveCount(5);
+      for (const item of await navigation.locator('a, button').all()) {
+        const bounds = await item.boundingBox();
+        expect(bounds!.height).toBeGreaterThanOrEqual(44);
+        expect(bounds!.width).toBeGreaterThanOrEqual(44);
+      }
+    }
+    await page.screenshot({ path: info.outputPath(`interface-${width}.png`), fullPage: true });
+  }
+  await page.evaluate(() => {
+    localStorage.setItem('qc.theme', 'dark');
+    window.dispatchEvent(new CustomEvent('qc:theme', { detail: 'dark' }));
+  });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('.page-heading h1')).toBeVisible();
+  await page.screenshot({ path: info.outputPath('interface-dark.png'), fullPage: true });
+});
+
 test('bundled adhan preview plays and stops from the prayer settings', async ({ page }) => {
   await setup(page);
   await gotoWithLocalUnlock(page, '/prayer-times/reminders');

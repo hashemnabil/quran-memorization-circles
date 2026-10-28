@@ -445,13 +445,58 @@ export class ExamsService {
    */
   async milestoneRecords(user: AuthUser, studentId: string) {
     await this.acl.assertStudentAccess(user, studentId);
-    return this.prisma.examMilestoneRecord.findMany({
-      where: { studentId },
-      include: { section: { select: { id: true, name: true, code: true, order: true, kind: true, minScore: true } } },
-      orderBy: { section: { order: 'asc' } },
+    const [records,exams]=await Promise.all([
+      this.prisma.examMilestoneRecord.findMany({
+        where:{studentId},include:{section:{select:{id:true,name:true,code:true,order:true,kind:true,minScore:true}}},orderBy:{section:{order:'asc'}},
+      }),
+      this.prisma.exam.findMany({where:{studentId,combinedStage:{not:null}},orderBy:[{updatedAt:'desc'},{createdAt:'desc'}]}),
+    ]);
+    const seen=new Set<string>();
+    const combined=exams.flatMap(exam=>{
+      if(seen.has(exam.combinedStage!))return [];
+      seen.add(exam.combinedStage!);
+      const meta=(exam.grading as any)?.adminCombinedMilestone;
+      const stage=combinedPlan().find(row=>row.code===exam.combinedStage);
+      if(!meta||!stage)return [];
+      return [{id:exam.id,studentId,sectionId:exam.sectionId,status:meta.status,result:exam.result,score:exam.score,
+        requestedAt:meta.requestedAt,examDate:meta.examDate,examinerName:meta.examinerName,note:exam.notes,
+        section:{id:stage.code,code:stage.code,name:stage.label,order:stage.at,kind:'COMBINED',minScore:80}}];
     });
+    return [...records,...combined];
   }
 
+  async updateCombinedMilestone(actor:AuthUser,studentId:string,stageCode:string,dto:UpdateExamMilestoneDto){
+    if(actor.role!==Role.ADMIN)throw new ForbiddenException('تعديل سجل المجتمعة متاح للإدارة فقط');
+    const stage=combinedPlan().find(row=>row.code===stageCode);
+    if(!stage)throw new BadRequestException('مرحلة المجتمعة غير صالحة');
+    const student=await this.acl.assertStudentWriteAccess(actor,studentId);
+    const section=await this.prisma.examSection.findFirst({where:{code:`JUZ-${String(stage.fromJuz).padStart(2,'0')}`,isActive:true}});
+    if(!section)throw new NotFoundException('مقرر الجزء غير موجود');
+    const score=dto.status==='COMPLETED'?(dto.score??80):null;
+    const saved=await this.prisma.$transaction(async tx=>{
+      // Serialize administrative edits of the same student's combined stage.
+      await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${`combined-milestone:${studentId}:${stageCode}`}))) AS locked`;
+      const previous=await tx.exam.findFirst({where:{studentId,combinedStage:stageCode},orderBy:[{updatedAt:'desc'},{createdAt:'desc'}]});
+      const active=await tx.examRequest.findMany({where:{studentId,combinedStage:stageCode,status:{in:['PENDING','SCHEDULED']}}});
+      const requestIds=[...new Set([...active.map(row=>row.id),...(previous?.requestId?[previous.requestId]:[])])];
+      const grading=previous?.grading&&typeof previous.grading==='object'&&!Array.isArray(previous.grading)?previous.grading:{};
+      const data={
+        requestId:dto.status==='REQUESTED'||dto.status==='NOT_REQUESTED'?null:previous?.requestId??active[0]?.id??null,
+        status:dto.status==='COMPLETED'?ExamStatus.COMPLETED:dto.status==='SCHEDULED'?ExamStatus.SCHEDULED:ExamStatus.CANCELLED,
+        score,result:score===null?null:score>=80?ExamResult.PASSED:ExamResult.FAILED,
+        evaluation:score===null?null:evaluationFromScore(score),
+        scheduledAt:dto.examDate?this.parseDate(dto.examDate):previous?.scheduledAt??new Date(),
+        gradedById:score===null?null:actor.id,gradedAt:score===null?null:new Date(),notes:dto.note??null,
+        grading:{...grading,adminCombinedMilestone:{status:dto.status,requestedAt:dto.requestedAt??null,examDate:dto.examDate??null,examinerName:dto.examinerName??null,updatedById:actor.id}},
+      };
+      const exam=previous?await tx.exam.update({where:{id:previous.id},data}):await tx.exam.create({data:{studentId,sectionId:section.id,combinedStage:stageCode,...data}});
+      await tx.examRequest.updateMany({where:{id:{in:requestIds}},data:{status:dto.status==='COMPLETED'?'COMPLETED':dto.status==='SCHEDULED'?'SCHEDULED':dto.status==='REQUESTED'?'PENDING':'CANCELLED'}});
+      if(dto.status==='REQUESTED'&&!requestIds.length)await tx.examRequest.create({data:{studentId,sectionId:section.id,teacherId:await this.resolveTeacherId(actor,student.circleId),combinedStage:stageCode,note:dto.note??null,...(dto.requestedAt?{createdAt:this.parseDate(dto.requestedAt)}:{})}});
+      return exam;
+    });
+    await this.activity.log({userId:actor.id,action:'EXAM_COMBINED_MILESTONE_OVERRIDE',summary:`تعديل سجل ${stage.label} للطالب ${studentId}: ${dto.status}`,entityType:'Exam',entityId:saved.id});
+    return saved;
+  }
   async updateMilestoneRecord(actor: AuthUser, studentId: string, sectionId: string, dto: UpdateExamMilestoneDto) {
     if (actor.role !== Role.ADMIN) {
       throw new ForbiddenException('تعديل السجل اليدوي للمقررات متاح للإدارة فقط');
@@ -489,7 +534,7 @@ export class ExamsService {
 
       if (dto.status === 'COMPLETED' && completedScore !== null && completedResult !== null) {
         const existingManualExam = await tx.exam.findFirst({
-          where: { studentId, sectionId, requestId: null },
+          where: { studentId, sectionId, requestId: null, combinedStage:null },
           orderBy: { scheduledAt: 'desc' },
         });
         const examData = {
@@ -547,10 +592,10 @@ export class ExamsService {
         },
       }),
       
-      // ✅ تأكد من أن الطالب قد اجتاز الاختبار بالفعل (مكتمل وناجح)
+      // Individual section eligibility excludes combined exam grades.
       this.prisma.exam.findMany({
         where: {
-          studentId,
+          studentId, combinedStage:null,
           status: ExamStatus.COMPLETED,
           result: ExamResult.PASSED,
           // ✅ تأكد من وجود درجة
@@ -972,7 +1017,11 @@ export class ExamsService {
   private async combinedSections(studentId: string, code: string) {
     const stage = combinedPlan().find(row => row.code === code);
     if (!stage) throw new BadRequestException('مرحلة المجتمعة غير صالحة');
-    const completed = await this.prisma.exam.findMany({where:{studentId,status:'COMPLETED',result:'PASSED'},include:{section:true}});
+    const allExams=await this.prisma.exam.findMany({where:{studentId},include:{section:true},orderBy:[{updatedAt:'desc'},{createdAt:'desc'}]});
+    const latestCombined=new Map<string,(typeof allExams)[number]>();
+    for(const exam of allExams)if(exam.combinedStage&&!latestCombined.has(exam.combinedStage))latestCombined.set(exam.combinedStage,exam);
+    const completed=allExams.filter(exam=>exam.status==='COMPLETED'&&exam.result==='PASSED'&&(!exam.combinedStage||latestCombined.get(exam.combinedStage)?.id===exam.id));
+    if(latestCombined.get(code)?.status==='SCHEDULED')throw new ConflictException('يوجد اختبار مجدول لهذه المجتمعة');
     const records = await this.prisma.examMilestoneRecord.findMany({where:{studentId,status:'COMPLETED',result:'PASSED'},include:{section:true}});
     const passed = new Set([...records.map(row=>row.section.code), ...completed.filter(row=>!row.combinedStage).map(row=>row.section.code)]);
     for (let juz=stage.fromJuz;juz<=stage.toJuz;juz++) if (!passed.has(`JUZ-${String(juz).padStart(2,'0')}`)) throw new BadRequestException('يجب اجتياز اختبارات الأجزاء المطلوبة قبل المجتمعة');
@@ -1065,6 +1114,7 @@ export class ExamsService {
     const request = await this.prisma.examRequest.findUnique({where:{id}});
     if (!request) throw new NotFoundException('طلب الاختبار غير موجود');
     if (request.status !== ExamRequestStatus.PENDING) throw new BadRequestException('لا يمكن تعديل طلب بعد جدولته');
+    if(request.combinedStage&&actor.role!==Role.ADMIN)throw new ForbiddenException('تعديل طلب المجتمعة متاح للإدارة فقط');
     if (actor.role !== Role.ADMIN && actor.teacherId !== request.teacherId) throw new ForbiddenException('لا يمكنك تعديل هذا الطلب');
     return this.prisma.examRequest.update({where:{id},data:{note:dto.note.trim()||null},include:REQUEST_INCLUDE});
   }
@@ -1411,7 +1461,7 @@ export class ExamsService {
   private async updateStudentMemorization(tx: any, studentId: string) {
     const passedExams = await tx.exam.findMany({
       where: {
-        studentId,
+        studentId, combinedStage:null,
         status: ExamStatus.COMPLETED,
         result: ExamResult.PASSED,
       },

@@ -22,6 +22,7 @@ import { AuthUser } from '../common/decorators';
 import { EVALUATION_LABELS, evaluationFromScore } from '../common/grading';
 import { calculateExamGrade } from './exam-scoring';
 import { combinedPlan } from './combined-plan';
+import { ensureExamProgramme } from './ensure-exam-programme';
 import { HistoricalExamDto } from './dto/exam.dto';
 import {
   HIZB_PER_JUZ,
@@ -371,6 +372,7 @@ export class ExamsService {
       return this.sectionsCache;
     }
 
+    await ensureExamProgramme(this.prisma);
     this.sectionsCache = await this.prisma.examSection.findMany({
       where: { isActive: true },
       orderBy: { order: 'asc' },
@@ -470,6 +472,7 @@ export class ExamsService {
     const stage=combinedPlan().find(row=>row.code===stageCode);
     if(!stage)throw new BadRequestException('مرحلة المجتمعة غير صالحة');
     const student=await this.acl.assertStudentWriteAccess(actor,studentId);
+    await this.getCachedSections();
     const section=await this.prisma.examSection.findFirst({where:{code:`JUZ-${String(stage.fromJuz).padStart(2,'0')}`,isActive:true}});
     if(!section)throw new NotFoundException('مقرر الجزء غير موجود');
     const score=dto.status==='COMPLETED'?(dto.score??80):null;
@@ -503,6 +506,7 @@ export class ExamsService {
     }
     const student = await this.prisma.student.findFirst({ where: { id: studentId, deletedAt: null }, select: { id: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
+    await this.getCachedSections();
     const section = await this.prisma.examSection.findFirst({ where: { OR: [{ id: sectionId }, { code: sectionId }], isActive: true } });
     if (!section) throw new NotFoundException('مقرر الاختبار غير موجود');
     // Progression may omit locked sections; accept the stable row code and persist its real ID.
@@ -573,6 +577,7 @@ export class ExamsService {
 
   async eligibility(user: AuthUser, studentId: string): Promise<EligibilityResult> {
     await this.acl.assertStudentAccess(user, studentId);
+    await this.getCachedSections();
 
     // ✅ تشخيص المشكلة - سجل البيانات
 
@@ -1019,6 +1024,7 @@ export class ExamsService {
   private async combinedSections(studentId: string, code: string) {
     const stage = combinedPlan().find(row => row.code === code);
     if (!stage) throw new BadRequestException('مرحلة المجتمعة غير صالحة');
+    await this.getCachedSections();
     const allExams=await this.prisma.exam.findMany({where:{studentId},include:{section:true},orderBy:[{updatedAt:'desc'},{createdAt:'desc'}]});
     const latestCombined=new Map<string,(typeof allExams)[number]>();
     for(const exam of allExams)if(exam.combinedStage&&!latestCombined.has(exam.combinedStage))latestCombined.set(exam.combinedStage,exam);

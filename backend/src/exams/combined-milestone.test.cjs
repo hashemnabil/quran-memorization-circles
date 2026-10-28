@@ -16,7 +16,7 @@ function load(file) {
   const localRequire=id=>{
     if(id==='@nestjs/common')return nest;
     if(id==='@prisma/client')return enums;
-    if(id==='./combined-plan'||id==='../common/grading')return load(path.resolve(path.dirname(file),id+'.ts'));
+    if(id==='./combined-plan'||id==='../common/grading'||id==='./ensure-exam-programme')return load(path.resolve(path.dirname(file),id+'.ts'));
     return {};
   };
   vm.runInThisContext('(function(require,module,exports){'+js+'\n})',{filename:file})(localRequire,mod,mod.exports);
@@ -36,6 +36,7 @@ function fixture(previous=null,active=[]) {
   const prisma={...tx,$transaction:async work=>work(tx),examSection:{findFirst:async()=>({id:'juz-anchor'})},examMilestoneRecord:{findMany:async()=>[]}};
   const service=new ExamsService(prisma,{assertStudentWriteAccess:async()=>{calls.access++;return {id:'student',circleId:'circle'};},assertStudentAccess:async()=>{}},{log:async row=>calls.logs.push(row)},{});
   service.resolveTeacherId=async()=> 'teacher';
+  service.getCachedSections=async()=>[];
   return {service,calls,prisma};
 }
 const tests=[];
@@ -104,5 +105,23 @@ test('milestone save URLs include a section code even without an eligibility row
   assert.equal(examMilestonePath('student','JUZ-28'),'/exams/milestones/student/JUZ-28');
   assert.equal(examMilestonePath('student',stage),'/exams/combined-milestones/student/'+stage);
   assert.throws(()=>examMilestonePath('student',''));assert.throws(()=>examMilestonePath(undefined,'JUZ-28'));
+});
+test('legacy programme repair adds missing juz, reactivates retired rows and preserves IDs and grades',async()=>{
+  const {ensureExamProgramme,examProgramme}=load(path.join(__dirname,'ensure-exam-programme.ts'));
+  const rows=Array.from({length:60},(_,i)=>({id:'hizb-'+(i+1),code:`HIZB-${String(i+1).padStart(2,'0')}`,name:'Hizb '+(i+1),order:i+1,kind:'HIZB',isActive:true,isRequired:true,gradeSentinel:97}));
+  rows.push({id:'retired-juz-26',code:'JUZ-26',name:'الجزء 26',order:1001,kind:'JUZ',isActive:false,isRequired:false,gradeSentinel:88});
+  rows.push({id:'custom',code:'CUSTOM',name:'Custom exam',order:61,kind:'JUZ',isActive:true,isRequired:false,gradeSentinel:77});
+  let writes=0;
+  const section={findMany:async()=>rows.map(row=>({...row})),
+    update:async({where,data})=>{const row=rows.find(row=>row.id===where.id);if(data.order!=null)assert.ok(!rows.some(other=>other.id!==row.id&&other.order===data.order),'unique order collision');Object.assign(row,data);writes++;return row;},
+    create:async({data})=>{assert.ok(!rows.some(row=>row.order===data.order||row.code===data.code||row.name===data.name),'unique constraint collision');const row={id:'new-'+data.code,...data};rows.push(row);writes++;return row;},
+  };
+  const prisma={$transaction:async work=>work({$queryRaw:async()=>[],examSection:section})};
+  assert.equal(await ensureExamProgramme(prisma),true);
+  assert.equal(rows.length,91);
+  for(const item of examProgramme){const row=rows.find(row=>row.code===item.code);assert.equal(row.order,item.order);assert.equal(row.isActive,true);assert.equal(row.isRequired,true);}
+  assert.equal(rows.find(row=>row.code==='JUZ-26').id,'retired-juz-26');assert.equal(rows.find(row=>row.id==='retired-juz-26').gradeSentinel,88);
+  assert.equal(rows.find(row=>row.id==='hizb-60').gradeSentinel,97);assert.equal(rows.find(row=>row.id==='custom').gradeSentinel,77);
+  const before=writes;assert.equal(await ensureExamProgramme(prisma),false);assert.equal(writes,before,'retry must not rewrite records');
 });
 (async()=>{for(const {name,run} of tests){await run();console.log('PASS '+name);}console.log(tests.length+' checks passed');})().catch(error=>{console.error(error);process.exitCode=1;});

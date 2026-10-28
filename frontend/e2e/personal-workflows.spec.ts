@@ -99,6 +99,13 @@ test('school branding, the donation entry and mosque image render locally', asyn
   await expect(page.getByRole('heading', { name: school, exact: true })).toBeVisible();
   await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
   await expect(page.locator('.login-panel').getByRole('link', { name: 'المساهمة والتبرع', exact: true })).toBeVisible();
+  for (const viewport of [{ width: 360, height: 640 }, { width: 390, height: 844 }, { width: 320, height: 568 }]) {
+    await page.setViewportSize(viewport);
+    // Viewport changes trigger responsive layout and resize handlers. Observe
+    // the resulting layout rather than sampling during the resize transition.
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(true);
+  }
   await page.screenshot({ path: info.outputPath('login-donation.png'), fullPage: true });
   const image = await page.request.get('/prayer-mosque.jpg');
   expect(image.ok()).toBe(true); expect(image.headers()['content-type']).toContain('image/jpeg');

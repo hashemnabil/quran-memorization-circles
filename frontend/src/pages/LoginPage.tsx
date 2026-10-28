@@ -50,9 +50,11 @@ export default function LoginPage() {
         </header>
         <div className="login-greeting"><span>أهلًا بعودتك</span><h2>خطوتك اليوم، نورٌ للغد</h2><p>سجّل دخولك وتابع رحلتك مع القرآن الكريم</p></div>
         <CredentialsStep onAuthenticated={onAuthenticated} />
+        <div className="login-secondary-actions">
         <button type="button" onClick={() => setPasswordRequestOpen(true)} className="mt-3 min-h-11 w-full rounded-xl text-sm font-bold text-primary-700 hover:bg-primary-50">طلب تغيير كلمة المرور</button>
         <button type="button" onClick={() => setSupportOpen(true)} className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-primary-800"><IconLifeBuoy size={18} />الدعم الفني</button>
         <Link to="/about" className="mt-2 block py-2 text-center text-xs font-semibold text-slate-500 hover:text-primary-800">معلومات عن البرنامج</Link>
+        </div>
         <Link to="/contribute" aria-label="المساهمة والتبرع" className="login-donation"><span className="login-donation-icon" aria-hidden="true">♡</span><span><strong>ساهم في رحلة تعليم القرآن</strong><small>المساهمة والتبرع للمدرسة</small></span><span aria-hidden="true">←</span></Link>
       </div>
       <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />

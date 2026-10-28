@@ -48,10 +48,10 @@ for (const role of ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'SUPPORT
     await page.getByRole('button', { name: 'تشغيل إشراقة' }).click();
     await expect.poll(() => page.evaluate(() => performance.getEntriesByType('resource').some(entry => entry.name.endsWith('/sounds/calm.wav')))).toBe(true);
     await page.getByRole('button', { name: 'حفظ الاختيار' }).click();
-    expect(await page.evaluate(id => localStorage.getItem(`qc.notification-sound.v1:${id}`), user.id)).toBe('calm');
+    await expect.poll(() => page.evaluate(id => localStorage.getItem(`qc.notification-sound.v1:${id}`), user.id)).toBe('calm');
     await page.getByRole('radio', { name: 'صامت' }).check();
     await page.getByRole('button', { name: 'حفظ الاختيار' }).click();
-    expect(await page.evaluate(id => localStorage.getItem(`qc.notification-sound.v1:${id}`), user.id)).toBe('silent');
+    await expect.poll(() => page.evaluate(id => localStorage.getItem(`qc.notification-sound.v1:${id}`), user.id)).toBe('silent');
     if (role === 'ADMIN') {
       await page.locator('input[type=file]').setInputFiles('public/sounds/clear.wav');
       await expect(page.getByRole('radio', { name: 'clear.wav', exact: true })).toBeChecked();

@@ -30,14 +30,15 @@ self.addEventListener('install', (event) => {
           const bytes = new Uint8Array(data);
           const signature = String.fromCharCode(...bytes.slice(0, 4));
           const format = String.fromCharCode(...bytes.slice(8, 12));
-          if (bytes.length <= 44 || signature !== 'RIFF' || format !== 'WAVE') throw new Error(`Invalid audio asset: ${asset}`);
+          const ogg = new URL(asset).pathname.endsWith('.ogg');
+          if (bytes.length <= 44 || (ogg ? signature !== 'OggS' : signature !== 'RIFF' || format !== 'WAVE')) throw new Error(`Invalid audio asset: ${asset}`);
           if (assetResponse.status === 206) {
             const range = /^bytes 0-(\d+)\/(\d+)$/.exec(assetResponse.headers.get('Content-Range') || '');
             if (!range || Number(range[1]) + 1 !== bytes.length || Number(range[2]) !== bytes.length) throw new Error(`Incomplete audio asset: ${asset}`);
           }
           // CacheStorage cannot store a 206 response. Normalize only a verified
           // complete file, so future range or ordinary requests can read it offline.
-          assetResponse = new Response(data, { status: 200, headers: { 'Content-Type': 'audio/wav', 'Content-Length': String(bytes.length) } });
+          assetResponse = new Response(data, { status: 200, headers: { 'Content-Type': ogg ? 'audio/ogg' : 'audio/wav', 'Content-Length': String(bytes.length) } });
         }
         return [asset, assetResponse];
       }));
@@ -80,7 +81,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method === 'GET' && request.destination === 'image') {
     // Private account images belong in encrypted IndexedDB, never a shared
     // plaintext CacheStorage bucket. Bundled public branding stays available.
-    const publicAsset = url.origin === self.location.origin && (url.pathname === '/brand-logo.png' || url.pathname === '/favicon.svg' || url.pathname.startsWith('/onboarding/') || url.pathname.startsWith('/assets/'));
+    const publicAsset = url.origin === self.location.origin && (url.pathname === '/prayer-mosque.jpg' || url.pathname === '/brand-logo.png' || url.pathname === '/favicon.svg' || url.pathname.startsWith('/onboarding/') || url.pathname.startsWith('/assets/'));
     if (!publicAsset) { event.respondWith(fetch(request, { cache: 'no-store' })); return; }
     event.respondWith((async () => {
       const cache = await caches.open('quran-circles-images');
@@ -114,7 +115,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/sounds/') || url.pathname === '/manifest.webmanifest' || url.pathname === '/favicon.ico' || url.pathname.startsWith('/icons/')) {
+  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/sounds/') || url.pathname === '/prayer-mosque.jpg' || url.pathname === '/manifest.webmanifest' || url.pathname === '/favicon.ico' || url.pathname.startsWith('/icons/')) {
     event.respondWith((async () => {
       // Vite can add Vary: Origin. Module-script requests carry Origin while
       // worker precache requests do not; immutable public assets are identical.

@@ -1,13 +1,13 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { IconDashboard, IconUser, IconMenu } from '@/components/ui/Icons';
+import { IconDashboard, IconUser, IconMenu, IconPost, IconSchool } from '@/components/ui/Icons';
 import type { Role } from '@/types';
 
 export default function MobileNavigation({ role, onMenu }: { role: Role; onMenu: () => void }) {
   const { pathname } = useLocation();
   const items = [
     { to: '/', label: 'الرئيسية', icon: <IconDashboard /> },
-    { to: '/community', label: 'المنشورات', icon: <span aria-hidden="true" className="text-xl leading-none">▤</span> },
-    { to: '/community/school', label: 'المدرسة', icon: <span aria-hidden="true" className="text-xl leading-none">🏫</span> },
+    { to: '/community', label: 'المنشورات', icon: <IconPost /> },
+    { to: '/community/school', label: 'المدرسة', icon: <IconSchool /> },
     { to: '/community/users/me', label: 'ملفي', icon: <IconUser /> },
   ];
   return <nav aria-label="التنقل الرئيسي للجوال" className="mobile-navigation lg:hidden" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '5px', paddingInline: '8px' }} dir="rtl">

@@ -48,17 +48,21 @@ export function countdown(at: Date, now = Date.now()) {
 export type ReminderPreferences = {
   enabled: boolean;
   sound: string;
+  adhanEnabled?: boolean;
+  adhanSource?: 'builtin' | 'custom';
   hijriOffset: number;
   prayers: Record<ObligatoryPrayer, { enabled: boolean; before: number }>;
 };
 export function defaultPrayerPreferences(): ReminderPreferences {
-  return { enabled: false, sound: 'default', hijriOffset: 0, prayers: Object.fromEntries(obligatoryPrayers.map(p => [p.id, { enabled: true, before: 0 }])) as ReminderPreferences['prayers'] };
+  return { enabled: false, sound: 'default', adhanEnabled: false, adhanSource: 'builtin', hijriOffset: 0, prayers: Object.fromEntries(obligatoryPrayers.map(p => [p.id, { enabled: true, before: 0 }])) as ReminderPreferences['prayers'] };
 }
 export function readPrayerPreferences(account: string): ReminderPreferences {
   const defaults = defaultPrayerPreferences();
   try {
     const value = JSON.parse(localStorage.getItem(`qc.prayers.v1:${account}`) || '{}');
     return { enabled: value.enabled === true, sound: ['default', 'silent', 'calm', 'electronic', 'clear', 'custom'].includes(value.sound) ? value.sound : 'default',
+      adhanEnabled: typeof value.adhanEnabled === 'boolean' ? value.adhanEnabled : value.sound === 'custom',
+      adhanSource: value.adhanSource === 'custom' || value.adhanSource === undefined && value.sound === 'custom' ? 'custom' : 'builtin',
       hijriOffset: [-2, -1, 0, 1, 2].includes(value.hijriOffset) ? value.hijriOffset : 0,
       prayers: Object.fromEntries(obligatoryPrayers.map(p => [p.id, { enabled: typeof value.prayers?.[p.id]?.enabled === 'boolean' ? value.prayers[p.id].enabled : true,
         before: [0, 5, 10, 15].includes(value.prayers?.[p.id]?.before) ? value.prayers[p.id].before : 0 }])) as ReminderPreferences['prayers'] };
@@ -75,4 +79,13 @@ export function prayerReminders(preferences: ReminderPreferences, now = new Date
     .filter(p => p.id !== 'sunrise' && preferences.prayers[p.id].enabled)
     .map(p => ({ ...p, remindAt: new Date(p.at.getTime() - preferences.prayers[p.id as ObligatoryPrayer].before * 60000) }))
     .filter(p => p.remindAt.getTime() > now.getTime());
+}
+/** Early reminders and the actual adhan are independent, chronologically ordered events. */
+export function prayerAlarmEvents(preferences: ReminderPreferences, now = new Date(), days = 30) {
+  const events = prayerReminders(preferences, now, days).map(p => ({ ...p, adhan: preferences.adhanEnabled === true && p.remindAt.getTime() === p.at.getTime(), adhanSource: preferences.adhanSource || 'builtin' }));
+  if (preferences.adhanEnabled) {
+    const atTime = { ...preferences, prayers: Object.fromEntries(obligatoryPrayers.map(p => [p.id, { ...preferences.prayers[p.id], before: 0 }])) as ReminderPreferences['prayers'] };
+    for (const prayer of prayerReminders(atTime, now, days)) if (preferences.prayers[prayer.id as ObligatoryPrayer].before > 0) events.push({ ...prayer, adhan: true, adhanSource: preferences.adhanSource || 'builtin' });
+  }
+  return events.sort((a, b) => a.remindAt.getTime() - b.remindAt.getTime());
 }

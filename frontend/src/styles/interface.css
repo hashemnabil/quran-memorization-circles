@@ -1,0 +1,90 @@
+/* Shared interface treatment. Surfaces inherit the existing light/dark tokens. */
+body {
+  font-family: 'Tajawal', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.app-shell {
+  --interface-radius: 16px;
+  --interface-shadow: 0 2px 8px rgb(18 55 45 / 3%);
+}
+.app-shell .app-workspace { background: none; }
+.app-shell .card {
+  border-radius: var(--interface-radius);
+  border-color: var(--line, #dfe8e3);
+  box-shadow: var(--interface-shadow);
+}
+.app-shell .card > header {
+  border-start-start-radius: var(--interface-radius);
+  border-start-end-radius: var(--interface-radius);
+}
+.page-heading { align-items: center; row-gap: 16px; }
+.page-heading h1 { line-height: 1.5; letter-spacing: -.025em; }
+.page-heading p { line-height: 1.9; }
+.page-heading-actions { align-items: center; }
+.app-icon { flex-shrink: 0; vertical-align: middle; }
+.app-shell .btn-primary,
+.app-shell .btn-secondary,
+.app-shell .btn-danger,
+.app-shell .btn-ghost {
+  min-height: 44px;
+  border-radius: 12px;
+  font-weight: 700;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.app-shell .app-icon-button { min-width: 44px; min-height: 44px; border-radius: 12px; }
+.app-shell .input {
+  min-height: 46px;
+  border-radius: 12px;
+  box-shadow: none;
+  transition: border-color .15s ease;
+}
+.app-shell textarea.input { min-height: 110px; line-height: 1.9; }
+.app-shell .label { font-weight: 700; margin-bottom: 8px; }
+.app-shell :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid #49a77b;
+  outline-offset: 3px;
+}
+.app-shell .table-wrap {
+  border-radius: 14px;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+.app-shell .table { font-variant-numeric: tabular-nums; }
+.app-shell .table th { font-size: 12px; white-space: nowrap; }
+.app-shell .table td { padding-block: 15px; vertical-align: middle; }
+.app-shell .table :is(button, a) { touch-action: manipulation; }
+.sidebar-shell .sidebar-search { min-height: 44px; border-radius: 12px; }
+.mobile-navigation { box-shadow: 0 -1px 12px rgb(18 55 45 / 4%); }
+.mobile-navigation-item { position: relative; gap: 4px; border-radius: 12px; }
+.mobile-navigation-item .app-icon { width: 22px; height: 22px; stroke-width: 1.7; }
+.mobile-navigation-active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 20px;
+  height: 3px;
+  border-radius: 0 0 4px 4px;
+  background: currentColor;
+}
+
+@media (max-width: 639px) {
+  .app-shell { --interface-radius: 14px; }
+  .app-shell .page-heading { margin-bottom: 20px; padding-bottom: 16px; }
+  .page-heading h1 { font-size: 22px; }
+  .page-heading p { font-size: 13px; margin-top: 6px; }
+  .page-heading-actions { gap: 8px; }
+  .app-shell .input { font-size: 16px; min-height: 48px; }
+  .app-shell .card > header { padding: 16px; }
+  /* Keep the chat composer compact when the keyboard opens. */
+  .app-shell .chat-composer textarea { min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell *, .app-shell *::before, .app-shell *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

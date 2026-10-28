@@ -44,7 +44,7 @@ export default function PrayerCard() {
   // Only the countdown ticks each second. The card updates at prayer/day boundaries.
   const onChange = useState(() => () => setRevision(v => v + 1))[0];
   return <section className="prayer-card" dir="rtl" aria-label="مواقيت الصلاة — غزة" data-revision={revision}>
-    <img className="prayer-mosque" src="/onboarding/quran-mosque.jpg" alt="" aria-hidden="true" />
+    <img className="prayer-mosque" src="/prayer-mosque.jpg" alt="" aria-hidden="true" />
     <div className="prayer-card-heading"><div><p className="prayer-eyebrow">📍 غزة — فلسطين</p><h2>مواقيت الصلاة — غزة</h2></div><IconMosque size={48} aria-hidden="true" /></div>
     <NextPrayerCountdown onChange={onChange} />
     <p className="prayer-date">{new Intl.DateTimeFormat('ar', { timeZone: GAZA_ZONE, dateStyle: 'full' }).format(day)} <span> · </span>{new Intl.DateTimeFormat('ar-u-ca-islamic-civil', { timeZone: GAZA_ZONE, day: 'numeric', month: 'long', year: 'numeric' }).format(hijri)}</p>

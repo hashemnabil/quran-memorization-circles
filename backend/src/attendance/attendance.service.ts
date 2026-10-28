@@ -1,4 +1,5 @@
 import { createAbsenceAlerts } from './absence-alerts';
+import { absencePeriod, type AbsenceInput } from './absence-period';
 import { applyAttendanceEntries } from './attendance-write';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { AttendanceStatus, Notification, NotificationType, Prisma, Role } from '@prisma/client';
@@ -32,56 +33,65 @@ export class AttendanceService {
   ) {}
 
   async absencePermissions(user: AuthUser) {
-    const scope = await this.acl.studentScope(user);
     return this.prisma.absencePermissionRequest.findMany({
-      where: user.role === 'ADMIN' ? {} : { student: scope },
+      where: user.role === 'ADMIN' ? {} : { requesterId: user.id },
       include: { student: { select: { id: true, fullName: true, code: true, circleId: true } }, requester: { select: { id: true, fullName: true, role: true } }, decidedBy: { select: { fullName: true } } },
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }], take: 500,
     });
   }
 
-  async createAbsencePermission(user: AuthUser, input: { studentId: string; date: string; reason: string; durationMinutes: number }) {
-    if (user.role !== 'STUDENT') throw new BadRequestException('Only the student can submit this request');
-    const durationMinutes = Number.isInteger(input.durationMinutes) ? input.durationMinutes : 1;
-    if (durationMinutes < 1 || durationMinutes > 7) throw new BadRequestException('Duration must be between 1 and 7 days');
-    if (!input?.studentId || !input.date || !input.reason?.trim()) throw new BadRequestException('الطالب والتاريخ والسبب مطلوبة');
-    const student = await this.acl.assertStudentAccess(user, input.studentId);
-    if (user.role === 'STUDENT') {
-      const own = await this.prisma.student.findFirst({ where: { id: student.id, userId: user.id }, select: { id: true } });
-      if (!own) throw new NotFoundException('لا يوجد ملف طالب مرتبط بهذا الحساب');
-    }
-    if (!student.circleId) throw new BadRequestException('الطالب غير مرتبط بحلقة');
-    const date = toDateOnly(input.date);
-    if (date < toDateOnly(new Date())) throw new BadRequestException('تاريخ الإذن يجب أن يكون اليوم أو في المستقبل');
-    if (await this.prisma.attendance.findUnique({ where: { studentId_date: { studentId: student.id, date } } }))
-      throw new ConflictException('يوجد سجل حضور لهذا الطالب في التاريخ المحدد');
-    const request = await this.prisma.absencePermissionRequest.create({
-      data: { studentId: student.id, requesterId: user.id, date, durationMinutes, reason: input.reason.trim().slice(0, 500) },
-      include: { student: { select: { id: true, fullName: true, code: true } }, requester: { select: { fullName: true } } },
+  async createAbsencePermission(user: AuthUser, input: AbsenceInput) {
+    if (user.role === 'PARENT' || input.requesterId && input.requesterId !== user.id) throw new BadRequestException('يمكنك تقديم طلب إذن لنفسك فقط');
+    const period = absencePeriod(input);
+    const student = user.role === 'STUDENT' ? await this.prisma.student.findFirst({ where: { userId: user.id }, select: { id: true, circleId: true } }) : null;
+    if (user.role === 'STUDENT' && !student) throw new NotFoundException('لا يوجد ملف طالب مرتبط بهذا الحساب');
+    if (input.studentId && input.studentId !== student?.id) throw new BadRequestException('لا يمكنك طلب إذن لطالب آخر');
+    if (student && !student.circleId) throw new BadRequestException('الطالب غير مرتبط بحلقة');
+    if (period.date < toDateOnly(new Date())) throw new BadRequestException('تاريخ الإذن يجب أن يكون اليوم أو في المستقبل');
+    const request = await this.prisma.$transaction(async tx => {
+      // Serialize this account's requests across devices before checking overlap.
+      await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${`absence:${user.id}`}))) AS locked`;
+      const overlap = await tx.absencePermissionRequest.findFirst({ where: { requesterId: user.id, status: { in: ['PENDING', 'APPROVED'] }, date: { lte: period.endDate }, OR: [{ endDate: { gte: period.date } }, { endDate: null, date: { gte: period.date } }] } });
+      if (overlap) throw new ConflictException('لديك طلب إذن قائم يتداخل مع هذه الفترة');
+      return tx.absencePermissionRequest.create({
+        data: { studentId: student?.id || null, requesterId: user.id, ...period },
+        include: { student: { select: { id: true, fullName: true, code: true } }, requester: { select: { fullName: true } } },
+      });
     });
-    await this.notifications.notifyRoles([Role.ADMIN], { type: NotificationType.ATTENDANCE, title: 'طلب إذن غياب جديد', body: `${request.student.fullName} — ${input.date}`, link: '/absence-permissions', data: { absencePermissionId: request.id } });
-    await this.activity.log({ userId: user.id, action: 'ABSENCE_PERMISSION_REQUEST', summary: `طلب إذن غياب للطالب ${request.student.fullName}`, entityType: 'AbsencePermissionRequest', entityId: request.id });
+    await this.notifications.notifyRoles([Role.ADMIN], { type: NotificationType.ATTENDANCE, title: 'طلب إذن غياب جديد', body: `${request.requester.fullName} — ${input.date} إلى ${period.endDate.toISOString().slice(0, 10)}`, link: '/absence-permissions', data: { absencePermissionId: request.id } });
+    await this.activity.log({ userId: user.id, action: 'ABSENCE_PERMISSION_REQUEST', summary: `طلب إذن غياب شخصي: ${request.requester.fullName}`, entityType: 'AbsencePermissionRequest', entityId: request.id });
     return request;
   }
 
   async decideAbsencePermission(actor: AuthUser, id: string, approve: boolean, decisionNote?: string) {
+    if (actor.role !== 'ADMIN') throw new BadRequestException('اعتماد الإذن متاح للإدارة فقط');
     const request = await this.prisma.absencePermissionRequest.findUnique({ where: { id }, include: { student: { select: { id: true, fullName: true, circleId: true, userId: true, parentProfile: { select: { userId: true } } } } } });
     if (!request) throw new NotFoundException('طلب الإذن غير موجود');
     if (request.status !== 'PENDING') throw new ConflictException('تم اتخاذ قرار بهذا الطلب مسبقًا');
-    if (approve && !request.student.circleId) throw new BadRequestException('الطالب لم يعد مرتبطًا بحلقة');
+    if (approve && request.student && !request.student.circleId) throw new BadRequestException('الطالب لم يعد مرتبطًا بحلقة');
     const saved = await this.prisma.$transaction(async tx => {
+      const claim = await tx.absencePermissionRequest.updateMany({ where: { id, status: 'PENDING' }, data: { status: approve ? 'APPROVED' : 'REJECTED', decidedById: actor.id, decidedAt: new Date(), decisionNote: decisionNote?.trim() || null } });
+      if (!claim.count) throw new ConflictException('تم اتخاذ قرار بهذا الطلب مسبقًا');
       if (approve) {
-        const attendance = await tx.attendance.findUnique({ where: { studentId_date: { studentId: request.studentId, date: request.date } } });
-        if (attendance) throw new ConflictException('يوجد سجل حضور لهذا الطالب في التاريخ؛ لم يتم اعتماد الطلب');
-        await tx.attendance.create({ data: { studentId: request.studentId, circleId: request.student.circleId!, date: request.date, status: AttendanceStatus.EXCUSED, note: request.reason, recordedById: actor.id } });
+        const end = request.endDate || new Date(request.date.getTime() + (request.durationMinutes - 1) * 86400000);
+        for (let day = request.date.getTime(); day <= end.getTime(); day += 86400000) {
+          const date = new Date(day);
+          if (request.studentId && request.student) {
+            if (await tx.attendance.findUnique({ where: { studentId_date: { studentId: request.studentId, date } } })) throw new ConflictException('يوجد سجل حضور خلال الفترة؛ لم يتم اعتماد الطلب');
+            await tx.attendance.create({ data: { studentId: request.studentId, circleId: request.student.circleId!, date, status: AttendanceStatus.EXCUSED, note: request.reason, recordedById: actor.id } });
+          } else {
+            if (await tx.staffAttendance.findUnique({ where: { userId_date: { userId: request.requesterId, date } } })) throw new ConflictException('يوجد سجل حضور للكادر خلال الفترة؛ لم يتم اعتماد الطلب');
+            await tx.staffAttendance.create({ data: { userId: request.requesterId, date, status: AttendanceStatus.EXCUSED, note: request.reason, recordedById: actor.id } });
+          }
+        }
       }
       return tx.absencePermissionRequest.update({ where: { id }, data: { status: approve ? 'APPROVED' : 'REJECTED', decidedById: actor.id, decidedAt: new Date(), decisionNote: decisionNote?.trim() || null } });
     });
     const resultTitle = approve ? 'تمت الموافقة على إذن الغياب' : 'تم رفض إذن الغياب';
     const resultBody = decisionNote?.trim() || (approve ? 'سُجّل الغياب بعذر في الحضور.' : 'راجع الإدارة لمعرفة التفاصيل.');
     await this.notifications.notify({ userId: request.requesterId, type: NotificationType.ATTENDANCE, title: resultTitle, body: resultBody, link: '/absence-permissions', data: { absencePermissionId: id } });
-    await this.notifications.notifyStudent(request.studentId, { type: NotificationType.ATTENDANCE, title: resultTitle, body: resultBody, data: { absencePermissionId: id } });
-    await this.activity.log({ userId: actor.id, action: approve ? 'ABSENCE_PERMISSION_APPROVE' : 'ABSENCE_PERMISSION_REJECT', summary: `${resultTitle}: ${request.student.fullName}`, entityType: 'AbsencePermissionRequest', entityId: id });
+    if (request.studentId) await this.notifications.notifyStudent(request.studentId, { type: NotificationType.ATTENDANCE, title: resultTitle, body: resultBody, data: { absencePermissionId: id } });
+    await this.activity.log({ userId: actor.id, action: approve ? 'ABSENCE_PERMISSION_APPROVE' : 'ABSENCE_PERMISSION_REJECT', summary: `${resultTitle}: ${request.requesterId}`, entityType: 'AbsencePermissionRequest', entityId: id });
     return saved;
   }
 

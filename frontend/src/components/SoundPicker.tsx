@@ -56,7 +56,7 @@ export default function SoundPicker({ account, scope, value, onChange, onImport,
       {SOUNDS.filter(sound => sound.id === 'silent').map(sound => option(sound))}
     </section>
     <p className="prayer-help">ملف حتى 5 ميجابايت و{scope === 'prayer' ? '10 دقائق للأذان' : '30 ثانية للإشعارات'}. يُحفظ الملف المستورد مشفّرًا محليًا، ويُنسخ في تطبيق أندرويد إلى مساحة التطبيق الخاصة.</p>
-    {scope === 'prayer' && <p className="prayer-help">للأذان الكامل اختر تسجيلًا من جهازك وحدد التذكير عند دخول الوقت. اقلب الهاتف ووجهه للأسفل لإيقاف الأذان أو استخدم زر الإيقاف في الإشعار.</p>}
+    {scope === 'prayer' && <p className="prayer-help">هذه نغمة التذكير المبكر. للأذان استخدم قسم «الأذان عند دخول الوقت» واختر التسجيل المضمّن أو تسجيلك من الجهاز.</p>}
     {error && <p role="alert" className="prayer-status">{error}</p>}
   </div>;
 }

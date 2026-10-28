@@ -85,12 +85,12 @@ export class AttendanceController {
   }
 
   @Get('absence-permissions')
-  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT, Role.SUPPORT, Role.EXAM_COMMITTEE)
   absencePermissions(@CurrentUser() user: AuthUser) { return this.service.absencePermissions(user); }
 
   @Post('absence-permissions')
-  @Roles(Role.STUDENT)
-  createAbsencePermission(@CurrentUser() user: AuthUser, @Body() body: { studentId: string; date: string; reason: string; durationMinutes: number }) {
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT, Role.SUPPORT, Role.EXAM_COMMITTEE)
+  createAbsencePermission(@CurrentUser() user: AuthUser, @Body() body: import('./absence-period').AbsenceInput) {
     return this.service.createAbsencePermission(user, body);
   }
 

@@ -21,11 +21,11 @@ export class SettingsService {
     if (!row) {
       // Prisma can emulate an upsert with empty update as read-then-insert.
       // Native ON CONFLICT DO NOTHING keeps concurrent first requests safe.
-      await this.prisma.schoolSettings.createMany({ data: [{ id: SETTINGS_ID, name: 'مدرسة عبدالله بن عمر لتعلم القرآن الكريم والسنة النبوية' }], skipDuplicates: true });
+      await this.prisma.schoolSettings.createMany({ data: [{ id: SETTINGS_ID, name: 'مدرسة عبدالله بن عمر لتعليم القران الكريم والسنة النبوية' }], skipDuplicates: true });
       row = await this.prisma.schoolSettings.findUniqueOrThrow({ where: { id: SETTINGS_ID } });
     }
-    const oldNames = ['مدرسة عبدالله بن عمر', 'مدرسة عبدالله بن عمر لتحفيظ القرآن الكريم', 'مدرسة عبدالله بن عمر لتحفيظ القرآن الكريم والسنة النبوية'];
-    const name = oldNames.includes(row.name.trim()) ? 'مدرسة عبدالله بن عمر لتعلم القرآن الكريم والسنة النبوية' : row.name;
+    const oldNames = ['مدرسة عبدالله بن عمر لتعلم القرآن الكريم والسنة النبوية', 'مدرسة عبدالله بن عمر', 'مدرسة عبدالله بن عمر لتحفيظ القرآن الكريم', 'مدرسة عبدالله بن عمر لتحفيظ القرآن الكريم والسنة النبوية'];
+    const name = oldNames.includes(row.name.trim()) ? 'مدرسة عبدالله بن عمر لتعليم القران الكريم والسنة النبوية' : row.name;
     return { ...row, name, logoUrl: this.absoluteLogo(row.logoUrl) };
   }
 
@@ -74,7 +74,7 @@ export class SettingsService {
     // The school name backs page titles and the login screen, so it falls back
     // to the default rather than becoming blank.
     if (data.name === null || data.name === '') {
-      data.name = 'مدرسة عبدالله بن عمر لتعلم القرآن الكريم والسنة النبوية';
+      data.name = 'مدرسة عبدالله بن عمر لتعليم القران الكريم والسنة النبوية';
     }
 
     const updated = await this.prisma.schoolSettings.update({

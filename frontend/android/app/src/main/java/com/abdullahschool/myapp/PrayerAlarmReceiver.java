@@ -61,6 +61,13 @@ public class PrayerAlarmReceiver extends BroadcastReceiver {
                     NotificationCompat.Builder builder = new NotificationCompat.Builder(context, prefs.getString("channel", "school-prayer-default-v1"))
                         .setSmallIcon(R.drawable.ic_stat_halaqat).setContentTitle(item.getString("title")).setContentText(item.getString("body"))
                         .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).setContentIntent(content).setAutoCancel(true);
+                    boolean adhan = item.optBoolean("adhan", false);
+                    if (adhan && Build.VERSION.SDK_INT >= 26) {
+                        android.app.NotificationChannel channel = new android.app.NotificationChannel("school-prayer-adhan-v1", "موعد الأذان", NotificationManager.IMPORTANCE_DEFAULT);
+                        channel.setSound(null, null);
+                        context.getSystemService(NotificationManager.class).createNotificationChannel(channel);
+                        builder.setChannelId("school-prayer-adhan-v1");
+                    }
                     if (Build.VERSION.SDK_INT < 26) {
                         String sound = prefs.getString("channel", "");
                         if (sound.contains("-default-")) builder.setSound(android.provider.Settings.System.DEFAULT_NOTIFICATION_URI);
@@ -72,11 +79,13 @@ public class PrayerAlarmReceiver extends BroadcastReceiver {
                             builder.setSound(android.net.Uri.parse("android.resource://" + context.getPackageName() + "/" + resource));
                         }
                     }
+                    if (adhan && Build.VERSION.SDK_INT < 26) builder.setSound(null);
                     NotificationManagerCompat.from(context).notify(ALARM_ID, builder.build());
                     prefs.edit().putLong("lastDelivered", at).apply();
-                    if (prefs.getString("channel", "").startsWith("school-prayer-custom-v2") && item.optBoolean("adhan", false)) {
+                    if (adhan && now - at < 2 * 60000L) {
                         try {
-                            Intent play = new Intent(context, AdhanService.class).putExtra("account", prefs.getString("account", ""));
+                            String source = item.optString("adhanSource", prefs.getString("channel", "").startsWith("school-prayer-custom-v2") ? "custom" : "builtin");
+                            Intent play = new Intent(context, AdhanService.class).putExtra("account", prefs.getString("account", "")).putExtra("source", source);
                             ContextCompat.startForegroundService(context, play);
                         } catch (Exception error) { android.util.Log.w("SchoolAdhan", "Background playback restricted; reminder delivered", error); }
                     }

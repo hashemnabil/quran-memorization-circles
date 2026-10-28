@@ -10,6 +10,7 @@ import OfflineStatus from './components/OfflineStatus';
 import { ConfirmProvider } from '@/components/ui';
 import { queryClient } from '@/lib/queryClient';
 import './index.css';
+import './styles/interface.css';
 
 // Capacitor APKs ship the built web assets locally. Do not register the PWA
 // service worker inside the native WebView: it can interfere with startup and

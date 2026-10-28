@@ -18,6 +18,7 @@ export async function prefetchSections(send: Send, account: string, currentAccou
   const manager = ['ADMIN', 'SUPERVISOR'].includes(role);
   const today = new Date().toISOString().slice(0, 10);
   const paths = new Set(['/settings/public', '/settings', '/announcements/active', '/users/directory', '/support', '/support/stats', '/chat/conversations', '/chat/unread-count', '/dashboard/overview']);
+  if (role !== 'PARENT') paths.add('/attendance/absence-permissions');
   if (staff) ['/parents/options', '/transfers', '/suspensions', '/suspensions/active', '/preparations', '/attendance/stats', '/exams/upcoming'].forEach(path => paths.add(path));
   if (manager) ['/users/staff', '/courses/stats', '/staff-attendance', '/staff-attendance/history', '/staff-attendance/summary', '/media-activities'].forEach(path => paths.add(path));
   if (manager) paths.add(`/staff-attendance/sheet?date=${today}`);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth';
 import { Button, Card, PageHeader } from '@/components/ui';
@@ -15,21 +15,22 @@ export default function NotificationSoundSettingsPage() {
   const [sound, setSound] = useState(() => readGeneralPreferences(account).sound as string);
   const [vibrate, setVibrate] = useState(() => readGeneralPreferences(account).vibrate);
   const [imported, setImported] = useState<ImportedAudio>();
+  const soundRef = useRef(sound);
   const [savedToken, setSavedToken] = useState(0);
   const [busy, setBusy] = useState(false); const [status, setStatus] = useState('');
-  const save = async (selected = sound) => {
+  const save = async (selected = soundRef.current) => {
     setBusy(true); setStatus('');
     try {
       await notificationPreview.stop();
       await saveGeneralSound(account, selected, selected === 'custom' ? imported : undefined, vibrate);
-      setSound(selected); setImported(undefined); setSavedToken(token => token + 1);
+      soundRef.current = selected; setSound(selected); setImported(undefined); setSavedToken(token => token + 1);
       setStatus('حُفظ اختيارك على هذا الجهاز. يُستخدم عند وصول الإشعارات، وتُحدّث قناة إشعارات الخلفية عند اتصال التطبيق بالخادم.');
     } catch (cause) { setStatus(cause instanceof Error ? cause.message : 'تعذر حفظ الاختيار'); }
     finally { setBusy(false); }
   };
   return <div className="prayer-page notification-sound-page"><PageHeader title="صوت الإشعارات" subtitle="الملف الشخصي ← الإعدادات ← الإشعارات" action={<PrayerBackButton />} />
     <div className="sound-library-intro"><span aria-hidden="true"><IconBell size={25} /></span><div><h2>نغمة تناسبك</h2><p>استمع، اختر، ثم احفظ. المعاينة تعمل بزر التشغيل فقط.</p></div></div>
-    <Card><fieldset disabled={busy}><SoundPicker account={account} scope="general" value={sound} savedToken={savedToken} onChange={selected => { setSound(selected); setStatus(''); }} onImport={setImported} />
+    <Card><fieldset disabled={busy}><SoundPicker account={account} scope="general" value={sound} savedToken={savedToken} onChange={selected => { soundRef.current = selected; setSound(selected); setStatus(''); }} onImport={setImported} />
       <section className="sound-vibration"><label><input type="checkbox" checked={vibrate} onChange={event => setVibrate(event.target.checked)} /><span><strong>الاهتزاز</strong><small>إعداد مستقل؛ يمكنك استخدام الاهتزاز مع الوضع الصامت.</small></span></label></section>
     </fieldset>
     <div className="sound-save-actions"><Button loading={busy} onClick={() => void save()}>حفظ الاختيار</Button><Button variant="secondary" disabled={busy} onClick={() => void save('default')}>استعادة صوت الجهاز</Button></div>

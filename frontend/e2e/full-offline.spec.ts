@@ -728,7 +728,9 @@ test('student edits remain pending offline and online until administrative appro
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/auth/me') return route.fulfill({ json: identity });
-    if (url.pathname === '/api/profile-reviews/me') return route.fulfill({ json: { id: student.id, kind: 'STUDENT', profile: student, requests: reviews } });
+    // Simulate an older profile read completing after the sync acknowledgement.
+    // The accepted request remains available through the sync replica below.
+    if (url.pathname === '/api/profile-reviews/me') return route.fulfill({ json: { id: student.id, kind: 'STUDENT', profile: student, requests: [] } });
     if (url.pathname === '/api/students/me') return route.fulfill({ json: student });
     if (url.pathname === '/api/students/me/history') return route.fulfill({ json: { exams: [{ id: 'scheduled-exam', status: 'SCHEDULED', scheduledAt: '2030-01-01T10:00:00Z', location: 'قاعة الاختبار التجريبية', section: { name: 'الحزب الأول' } }] } });
     if (url.pathname === '/api/preparations') return route.fulfill({ json: { data: [{ id: 'prep-one', fromSurah: 'البقرة', fromAyah: 1, toSurah: 'البقرة', toAyah: 5, note: 'تحضير محفوظ للطالب' }], meta: { hasNextPage: false } } });
@@ -777,6 +779,16 @@ test('student edits remain pending offline and online until administrative appro
   await expect(page.getByText('Proposed offline address', { exact: true })).toBeVisible();
   await context.setOffline(false);
   await expect.poll(() => reviews.length).toBe(1);
+  await expect.poll(() => page.evaluate(() => new Promise<number>((resolve, reject) => {
+    const open = indexedDB.open('halaqatFull');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const database = open.result;
+      const read = database.transaction('queue').objectStore('queue').count();
+      read.onsuccess = () => { database.close(); resolve(read.result); };
+      read.onerror = () => { database.close(); reject(read.error); };
+    };
+  }))).toBe(0);
   await expect(page.getByText('طلبك بانتظار مراجعة الإدارة', { exact: true })).toBeVisible();
   expect(student.nationalId).toBe('123456789'); expect(reviews[0].patch.nationalId).toBe('123456780');
   await page.evaluate(async () => { await navigator.serviceWorker.ready; if (!navigator.serviceWorker.controller) await new Promise<void>(resolve => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })); });

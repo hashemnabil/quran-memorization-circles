@@ -138,7 +138,7 @@ api.defaults.adapter = async (config) => {
       && conversationCacheAllowed && !(await db.queue.where('accountId').equals(account).count())) {
       const key = responseKey(account, path, config.params);
       const cached = await db.responses.get(key);
-      const cachedData = path.startsWith('/support') || /^\/chat\/conversations(?:\/[^/]+)?$/.test(path) ? await localRead(path, { ...config.params }) : cached?.data;
+      const cachedData = path === '/profile-reviews/me' || path.startsWith('/support') || /^\/chat\/conversations(?:\/[^/]+)?$/.test(path) ? await localRead(path, { ...config.params }) : cached?.data;
       stillCurrent();
       if (cached && cachedData !== undefined && !(cached as any).__lockedLocal) {
         refreshRead(key, async () => {
@@ -198,6 +198,10 @@ api.defaults.adapter = async (config) => {
     if (typeof data === 'string') { try { data = JSON.parse(data); } catch { /* Non-JSON responses are preserved verbatim. */ } }
     stillCurrent();
     await rememberRead(path, config.params, data);
+    // A read started before submission can finish after the outbox commits.
+    // Reconcile requests from the durable replica so that stale responses cannot
+    // hide a queued or acknowledged request while its profile awaits approval.
+    if (path === '/profile-reviews/me') data = await localRead(path, { ...config.params }) ?? data;
     if (path.split('?')[0] === '/media-activities' && Array.isArray(data)) {
       const dirty = await db.table('mediaActivities').where('accountId').equals(account).filter(row => row.synced === 0).toArray();
       if (dirty.length) {

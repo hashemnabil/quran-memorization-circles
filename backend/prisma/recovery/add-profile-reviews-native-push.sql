@@ -27,7 +27,7 @@ ALTER TABLE "notifications" ADD COLUMN "pushQueuedAt" TIMESTAMP(3);
 CREATE INDEX "notifications_pushQueuedAt_createdAt_idx" ON "notifications"("pushQueuedAt", "createdAt");
 CREATE TABLE "push_devices" (
   "id" TEXT PRIMARY KEY, "installationId" TEXT NOT NULL, "userId" TEXT NOT NULL, "platform" TEXT NOT NULL,
-  "token" TEXT NOT NULL, "enabled" BOOLEAN NOT NULL DEFAULT true,
+  "token" TEXT NOT NULL, "enabled" BOOLEAN NOT NULL DEFAULT true, "hidePreview" BOOLEAN NOT NULL DEFAULT true,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL
 );
 CREATE UNIQUE INDEX "push_devices_installationId_key" ON "push_devices"("installationId");

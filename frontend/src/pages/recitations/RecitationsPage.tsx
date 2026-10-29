@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -89,8 +90,8 @@ export default function RecitationsPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/recitations/${id}`),
-    onSuccess: () => {
-      toast.success('تم حذف السجل');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف السجل');
       queryClient.invalidateQueries({ queryKey: ['recitations'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -371,11 +372,11 @@ export default function RecitationsPage() {
   );
 }
 
-function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: string; onClose: () => void }) {
+export function RecitationFormModal({ defaultCircleId, student, onClose }: { defaultCircleId?: string; student?: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [circleId, setCircleId] = useState(defaultCircleId ?? '');
+  const [circleId, setCircleId] = useState(student?.circleId ?? defaultCircleId ?? '');
   const [form, setForm] = useState({
-    studentId: '',
+    studentId: student?.id ?? '',
     date: todayInput(),
     type: 'MEMORIZATION',
     fromSurah: 'النبأ',
@@ -392,6 +393,7 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
 
   const { data: circles } = useQuery({
     queryKey: ['circles', 'options'],
+    enabled: !student,
     queryFn: async () => (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data,
   });
 
@@ -406,18 +408,21 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
     queryFn: async () =>
       (await api.get<PaginatedResponse<Student>>('/students', { params: { circleId, limit: 200, status: 'ACTIVE' } })).data
         .data,
-    enabled: !!circleId,
+    enabled: !!circleId && !student,
   });
 
   useEffect(() => {
-    if (!circleId && circles?.length) setCircleId(circles[0].id);
-  }, [circles, circleId]);
+    if (!student && !circleId && circles?.length) setCircleId(circles[0].id);
+  }, [circles, circleId, student]);
 
   const create = useMutation({
+    networkMode: 'always',
     mutationFn: (payload: Record<string, unknown>) => api.post('/recitations', payload),
-    onSuccess: () => {
-      toast.success('تم تسجيل التسميع');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تسجيل التسميع');
       queryClient.invalidateQueries({ queryKey: ['recitations'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       onClose();
     },
     onError: (error) => toast.error(apiError(error)),
@@ -468,7 +473,7 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
     <Modal
       open
       onClose={onClose}
-      title="تسجيل تسميع"
+      title={student?`إضافة تسميع — ${student.fullName}`:"تسجيل تسميع"}
       size="lg"
       footer={
         <>
@@ -482,7 +487,7 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Select
+        {student?<div className="rounded-xl bg-slate-50 p-3 font-bold sm:col-span-2">{student.fullName}</div>:<><Select
           label="الحلقة"
           value={circleId}
           onChange={(e) => {
@@ -506,6 +511,7 @@ function RecitationFormModal({ defaultCircleId, onClose }: { defaultCircleId?: s
           ))}
         </Select>
 
+        </>}
         <Input label="التاريخ" type="date" required max={todayInput()} value={form.date} onChange={(e) => set('date', e.target.value)} />
         <Select label="نوع التسميع" value={form.type} onChange={(e) => set('type', e.target.value)}>
           {Object.entries(RECITATION_TYPE_LABELS).map(([key, label]) => (

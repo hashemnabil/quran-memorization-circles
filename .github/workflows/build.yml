@@ -6,18 +6,86 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: quran_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d quran_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      CORS_ORIGINS: http://127.0.0.1:4173
+      NODE_ENV: test
+      JWT_ACCESS_SECRET: test-only-key-for-ci-with-no-production-access-123456789
+      DATABASE_URL: postgresql://postgres@localhost:5432/quran_test?schema=public
+      DIRECT_URL: postgresql://postgres@localhost:5432/quran_test?schema=public
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: |
             backend/package-lock.json
             frontend/package-lock.json
-      - run: npm install --prefix backend
-      - run: npm install --prefix frontend
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: node backend/scripts/check-secrets.mjs --history
+      - run: npm ci --prefix backend
+      - run: npm ci --prefix frontend
+      - run: npm audit --prefix backend --omit=dev --audit-level=moderate
+      - run: npm audit --prefix frontend --omit=dev --audit-level=moderate
       - run: npm --prefix frontend run test:offline
+      - run: npm --prefix frontend run test:full-offline
+      - run: npm --prefix frontend run test:local-security
+      - run: npm --prefix frontend run test:notification-sounds
+      - run: npm --prefix frontend run test:sound-channels
+      - run: npm --prefix frontend run test:adhan
       - run: backend/node_modules/.bin/prisma generate --schema backend/prisma/schema.prisma
+      - run: npm --prefix backend run test:founder
+      - run: npm --prefix backend run test:founder-audit
+      - run: npm --prefix backend run test:security
+      - run: npm --prefix backend run test:production-start
+      - run: npm --prefix backend run test:realtime-sync
+      - run: npm --prefix backend run test:full-offline
+      - run: npm --prefix backend run test:domain-safety
+      - run: npm --prefix backend run test:offline-sync
+      - run: npm --prefix backend run test:sync-protocol
+      - run: npm --prefix backend run test:attendance-replay
+      - run: npm --prefix backend run prisma:deploy
+      - run: node --test -r ts-node/register src/founder/founder.integration.test.ts
+        working-directory: backend
+      - run: node scripts/recovery.integration.mjs
+        working-directory: backend
+      - run: npm --prefix backend run test:api-integration
+      - run: npm --prefix backend run test:journal-order-integration
+      - run: npm --prefix backend run test:sync-push-integration
+      - run: npm --prefix backend run test:attendance-lock-integration
+      - run: npm --prefix backend run test:backup-restore
       - run: npm --prefix backend run build
+      - run: node scripts/runtime-start.integration.mjs
+        working-directory: backend
       - run: npm --prefix frontend run build
+        env:
+          NODE_ENV: production
+      - run: node backend/scripts/e2e-fixtures.mjs
+      - run: npx --prefix frontend playwright install --with-deps chromium
+      - run: npm --prefix frontend run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-failures
+          path: |
+            frontend/playwright-report
+            frontend/test-results

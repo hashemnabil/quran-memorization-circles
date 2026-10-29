@@ -1,3 +1,5 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
+import PdfDownloadLink from '@/components/PdfDownloadLink';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -20,7 +22,7 @@ export default function StudentFilesPage() {
   const certificates = useQuery({ queryKey:['student-files','certificates'], queryFn: async () => (await api.get<any[]>('/certificates/mine')).data });
   const create = useMutation({
     mutationFn: () => api.post('/certificates/requests', { kind: requestType, ...(requestType === 'CERTIFICATE' ? { certificateKind, courseName: courseName || undefined } : { periodFrom, periodTo }), requestNote }),
-    onSuccess: async () => { toast.success('تم إرسال الطلب للإدارة'); setRequestNote(''); await qc.invalidateQueries({ queryKey:['student-files'] }); },
+    onSuccess: async (_offlineWriteResult) => { notifyWriteSuccess(_offlineWriteResult, 'تم إرسال الطلب للإدارة'); setRequestNote(''); await qc.invalidateQueries({ queryKey:['student-files'] }); },
     onError: (e) => toast.error(apiError(e)),
   });
   return <div className="space-y-6" dir="rtl">
@@ -40,10 +42,10 @@ export default function StudentFilesPage() {
       </form>
     </Card>
     <Card title="شهاداتي">
-      {certificates.isLoading ? <LoadingState /> : certificates.data?.length ? <div className="divide-y">{certificates.data.map((c:any)=><div key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-semibold">{c.title}</p><p className="text-sm text-slate-500">{new Date(c.issuedAt).toLocaleDateString('ar')}</p></div><a className="text-primary-700 underline" href={c.fileUrl} target="_blank" rel="noreferrer">تنزيل الشهادة</a></div>)}</div> : <p className="text-sm text-slate-500">لا توجد شهادات منشورة حتى الآن.</p>}
+      {certificates.isLoading ? <LoadingState /> : certificates.data?.length ? <div className="divide-y">{certificates.data.map((c:any)=><div key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-semibold">{c.title}</p><p className="text-sm text-slate-500">{new Date(c.issuedAt).toLocaleDateString('ar')}</p></div><PdfDownloadLink url={c.fileUrl} title={c.title}>تنزيل الشهادة</PdfDownloadLink></div>)}</div> : <p className="text-sm text-slate-500">لا توجد شهادات منشورة حتى الآن.</p>}
     </Card>
     <Card title="طلباتي">
-      {requests.isLoading ? <LoadingState /> : requests.data?.length ? <div className="divide-y">{requests.data.map(r=><div key={r.id} className="flex flex-wrap items-start justify-between gap-3 py-3"><div><p className="font-semibold">{r.kind === 'CERTIFICATE' ? kinds[r.certificateKind || ''] || 'طلب شهادة' : 'تقرير شهري'}</p><p className="text-sm text-slate-500">{r.periodFrom ? new Date(r.periodFrom).toLocaleDateString('ar') : ''}{r.periodTo ? ' — '+new Date(r.periodTo).toLocaleDateString('ar') : ''}</p>{r.decisionNote && <p className="mt-1 text-sm">{r.decisionNote}</p>}</div><div className="text-sm"><span className="rounded-full bg-slate-100 px-3 py-1">{statusLabels[r.status] || r.status}</span>{r.status === 'READY' && r.fileUrl && <p className="mt-2"><a className="text-primary-700 underline" href={r.fileUrl} target="_blank" rel="noreferrer">تنزيل الملف</a></p>}</div></div>)}</div> : <p className="text-sm text-slate-500">ما عندك طلبات لحد الآن.</p>}
+      {requests.isLoading ? <LoadingState /> : requests.data?.length ? <div className="divide-y">{requests.data.map(r=><div key={r.id} className="flex flex-wrap items-start justify-between gap-3 py-3"><div><p className="font-semibold">{r.kind === 'CERTIFICATE' ? kinds[r.certificateKind || ''] || 'طلب شهادة' : 'تقرير شهري'}</p><p className="text-sm text-slate-500">{r.periodFrom ? new Date(r.periodFrom).toLocaleDateString('ar') : ''}{r.periodTo ? ' — '+new Date(r.periodTo).toLocaleDateString('ar') : ''}</p>{r.decisionNote && <p className="mt-1 text-sm">{r.decisionNote}</p>}</div><div className="text-sm"><span className="rounded-full bg-slate-100 px-3 py-1">{statusLabels[r.status] || r.status}</span>{r.status === 'READY' && r.fileUrl && <p className="mt-2"><PdfDownloadLink url={r.fileUrl}>تنزيل الملف</PdfDownloadLink></p>}</div></div>)}</div> : <p className="text-sm text-slate-500">ما عندك طلبات لحد الآن.</p>}
     </Card>
   </div>;
 }

@@ -1,12 +1,22 @@
-import { ChangeEvent, FormEvent, useRef, useState } from 'react';
+import { notifyWriteSuccess } from '@/lib/write-feedback';
+import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
+import ThemeSelect from '@/components/ThemeSelect';
+import LocalSecuritySettings from '@/components/LocalSecuritySettings';
+import FirstUseOnboarding from '@/components/FirstUseOnboarding';
+import { passwordError } from '@/lib/validation';
+import { NativePushSettings } from '@/components/NativePush';
+import { Link } from 'react-router-dom';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { api, apiError } from '@/lib/api';
+import { api, apiError, syncQueuedAvatar } from '@/lib/api';
+import { queueAvatar, readPendingAvatar } from '@/lib/pending-avatar';
 import { useAuthStore } from '@/store/auth';
-import { Avatar, Badge, Button, Card, Input, PageHeader, Spinner, StatCard, Textarea } from '@/components/ui';
+import { Avatar, Badge, Button, Card, Input, Modal, PageHeader, Spinner, StatCard, Textarea } from '@/components/ui';
 import { PHONE_HINT, emailError, phoneError } from '@/lib/validation';
 import {
+  IconSettings,
   IconCamera,
   IconCircleGroup,
   IconGraduation,
@@ -16,9 +26,14 @@ import {
 } from '@/components/ui/Icons';
 import { EMPLOYMENT_LABELS, ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateTime, formatParts } from '@/lib/format';
+import { rememberOfflineLogin } from '@/lib/offline-login';
 
-export default function ProfilePage() {
-  const { user, logout, setUser } = useAuthStore();
+export default function ProfilePage({ settings = false }: { settings?: boolean }) {
+  const cover = useCuratedBackground('PROFILE_COVER');
+  const [replayIntro, setReplayIntro] = useState(false);
+  const [nickname, setNickname] = useState('');
+  const [savingNickname, setSavingNickname] = useState(false);
+  const { user, logout, forgetDevice, setUser } = useAuthStore();
   const navigate = useNavigate();
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -35,10 +50,16 @@ export default function ProfilePage() {
     },
   });
 
+  useEffect(() => { if (profile) setNickname(profile.nickname || ''); }, [profile?.nickname]);
+
   const changePassword = useMutation({
-    mutationFn: () => api.patch('/auth/change-password', { currentPassword, newPassword }),
-    onSuccess: async () => {
-      toast.success('تم تغيير كلمة المرور، يرجى تسجيل الدخول مجدداً');
+    mutationFn: async () => {
+      const result = await api.patch('/auth/change-password', { currentPassword, newPassword });
+      if (user) await rememberOfflineLogin(user.username, newPassword, { ...user, mustChangePassword: false });
+      return result;
+    },
+    onSuccess: async (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تغيير كلمة المرور، يرجى تسجيل الدخول مجدداً');
       await logout();
       navigate('/login', { replace: true });
     },
@@ -51,7 +72,7 @@ export default function ProfilePage() {
     e.preventDefault();
     const next: Record<string, string> = {};
     if (!currentPassword) next.currentPassword = 'كلمة المرور الحالية مطلوبة';
-    if (newPassword.length < 6) next.newPassword = 'كلمة المرور الجديدة 6 أحرف على الأقل';
+    if (passwordError(newPassword)) next.newPassword = passwordError(newPassword);
     if (newPassword !== confirmPassword) next.confirmPassword = 'كلمتا المرور غير متطابقتين';
     if (newPassword && newPassword === currentPassword) next.newPassword = 'يجب أن تختلف عن الحالية';
     setErrors(next);
@@ -63,11 +84,14 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader title="الملف الشخصي" subtitle="بياناتك في النظام وإعدادات الحساب" />
+      {replayIntro && <div className="fixed inset-0 z-[200] overflow-y-auto"><FirstUseOnboarding onComplete={() => setReplayIntro(false)} /></div>}
+      <PageHeader title={settings ? "إعدادات الحساب" : "الملف الشخصي"} subtitle="رحلتك مع القرآن في مكان واحد" action={<Link className="app-icon-button" aria-label={settings ? "الملف الشخصي" : "إعدادات الحساب"} to={settings ? "/profile" : "/profile/settings"}><IconSettings size={21} /></Link>} />
+      {!settings && <><div className="profile-cover" style={cover.url ? { backgroundImage: `linear-gradient(#12372d66,#12372d99),url("${cover.url}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}><div className="absolute bottom-3 end-3 z-10"><BackgroundChoice value={cover} label="خلفية الصفحة" /></div><span>رحلة نور مع القرآن</span><p>كل آية تحفظها، أثر يبقى معك</p></div></>}
+      <Link to="/community/users/me" className="inline-flex rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white">👤 افتح ملفي الشخصي العام ومنشوراتي</Link>
 
 
       <div className="grid gap-5 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+        <Card className={settings ? "lg:col-span-1" : "profile-identity lg:col-span-1"}>
           <div className="flex flex-col items-center gap-3 py-2 text-center">
             <AvatarUploader user={user} onUpdated={setUser} />
             <div>
@@ -102,12 +126,18 @@ export default function ProfilePage() {
             className="mt-5 w-full"
             icon={<IconLogout size={16} />}
             onClick={async () => {
-              await logout();
-              navigate('/login', { replace: true });
+              try { await logout(); navigate('/login', { replace: true }); }
+              catch (error) { toast.error(apiError(error)); }
             }}
           >
             تسجيل الخروج
           </Button>
+            <p className="mt-2 text-xs leading-6 text-slate-500">تبقى بياناتك مشفرة على الجهاز، ويمكنك الدخول بكلمة مرورك دون نت. التعديلات المعلقة تبقى محفوظة.</p>
+            <Button variant="secondary" className="mt-3 w-full" onClick={async () => {
+              if (!window.confirm('حذف بيانات هذا الحساب من هذا الجهاز وإلغاء الدخول دون نت؟ لا يمكن الحذف بوجود تعديلات غير مزامنة.')) return;
+              try { await forgetDevice(); navigate('/login', { replace: true }); } catch (error) { toast.error(apiError(error)); }
+            }}>حذف بيانات الحساب من هذا الجهاز</Button>
+          <Link to="/account-deletion" className="mt-3 block py-3 text-center text-sm font-bold text-red-700">طلب حذف الحساب والبيانات</Link>
         </Card>
 
         <div className="space-y-5 lg:col-span-2">
@@ -162,8 +192,15 @@ export default function ProfilePage() {
             </Card>
           )}
 
-          <ProfileDetailsCard profile={profile} onUpdated={setUser} />
+          {['STUDENT', 'TEACHER'].includes(user.role) ? <Card title="بياناتي الشخصية"><Button onClick={() => navigate('/verify-profile')}>تحقق من بياناتي</Button></Card> : <ProfileDetailsCard profile={profile} onUpdated={setUser} />}
 
+          {settings && <>
+          <LocalSecuritySettings />
+          <Card title="دليل التطبيق"><p className="mb-3 text-sm text-slate-500">تعرّف على الحلقات والمتابعة والتواصل.</p><Button variant="secondary" onClick={() => setReplayIntro(true)}>إعادة مشاهدة شرح التطبيق</Button></Card>
+          <Card title="المظهر"><div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"><span className="text-sm text-slate-500">اختر مظهر التطبيق</span><ThemeSelect /></div></Card>
+          <Card title="الكنية"><form className="flex gap-2" onSubmit={async e => { e.preventDefault(); setSavingNickname(true); try { const result = await api.patch('/community/nickname', { nickname: nickname.trim() }); if(result.data?.synced===0) toast('حُفظت الكنية محليًا، بانتظار المزامنة'); else toast.success('تم حفظ الكنية'); } catch (error) { toast.error(apiError(error)); } finally { setSavingNickname(false); } }}><Input aria-label="الكنية" placeholder={profile?.nickname || 'أضف كنيتك'} maxLength={60} value={nickname} onChange={e => setNickname(e.target.value)} /><Button type="submit" loading={savingNickname}>حفظ</Button></form></Card>
+          <NativePushSettings />
+          <Card title="الإعدادات — الإشعارات"><Link className="btn-secondary inline-flex" to="/profile/settings/notifications/sound">صوت الإشعارات</Link><Link className="mt-3 block text-sm underline" to="/prayer-times/reminders">إعدادات تذكيرات الصلاة</Link></Card>
           <Card title="تغيير كلمة المرور" subtitle="سيتم إنهاء جميع جلساتك بعد التغيير">
             <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
               <Input
@@ -183,7 +220,7 @@ export default function ProfilePage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 error={errors.newPassword}
-                hint="6 أحرف على الأقل"
+                hint="أي طول تختاره"
                 dir="ltr"
               />
               <Input
@@ -202,6 +239,8 @@ export default function ProfilePage() {
               </div>
             </form>
           </Card>
+          </>}
+          {!settings && <Card title="منشوراتي"><Link className="btn-primary inline-flex" to="/community/users/me">عرض ملفي ومنشوراتي</Link></Card>}
         </div>
       </div>
     </>
@@ -230,31 +269,60 @@ function AvatarUploader({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-
-  const pick = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    // Reset immediately so choosing the same file twice still fires a change.
-    e.target.value = '';
-    if (!file) return;
-
+  const account = useAuthStore(state => state.user?.id);
+  const [pendingPreview, setPendingPreview] = useState<string>();
+  useEffect(() => {
+    let active = true;
+    let preview: string | undefined;
+    let generation = 0;
+    const refresh = async () => {
+      const version = ++generation;
+      const pending = account ? await readPendingAvatar(account) : undefined;
+      if (!active || version !== generation) return;
+      if (preview) URL.revokeObjectURL(preview);
+      preview = pending ? URL.createObjectURL(pending.blob) : undefined;
+      setPendingPreview(preview);
+    };
+    const changed = () => { void refresh().catch(() => undefined); };
+    changed();
+    window.addEventListener('halaqat:changed', changed);
+    return () => { active = false; if (preview) URL.revokeObjectURL(preview); window.removeEventListener('halaqat:changed', changed); };
+  }, [account]);
+  const [cropUrl,setCropUrl]=useState<string|null>(null);
+  const [zoom,setZoom]=useState(1);
+  const [position,setPosition]=useState({x:0,y:0});
+  const [dimensions,setDimensions]=useState({w:1,h:1});
+  const drag=useRef<{x:number;y:number;px:number;py:number}|null>(null);
+  useEffect(()=>()=>{if(cropUrl)URL.revokeObjectURL(cropUrl);},[cropUrl]);
+  const size=280, base=Math.max(size/dimensions.w,size/dimensions.h);
+  const w=dimensions.w*base*zoom,h=dimensions.h*base*zoom;
+  const clamp=(x:number,y:number,z=zoom)=>({x:Math.max(-(dimensions.w*base*z-size)/2,Math.min((dimensions.w*base*z-size)/2,x)),y:Math.max(-(dimensions.h*base*z-size)/2,Math.min((dimensions.h*base*z-size)/2,y))});
+  const saveCrop=async()=>{
+    if(!cropUrl)return;
     setUploading(true);
-    try {
-      const body = new FormData();
-      body.append('file', file);
-      const { data } = await api.post('/uploads/avatar', body, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      const me = await api.patch('/auth/profile', { avatarUrl: data.url });
-      onUpdated({ ...me.data, avatarUrl: data.url });
-      toast.success('تم تحديث الصورة الشخصية');
-      // Re-read so every consumer of /auth/me sees the new picture.
-      const fresh = await api.get('/auth/me');
-      onUpdated(fresh.data);
-    } catch (error) {
-      toast.error(apiError(error, 'تعذر رفع الصورة'));
-    } finally {
-      setUploading(false);
-    }
+    try{
+      const image=new Image();image.src=cropUrl;await image.decode();
+      const canvas=document.createElement('canvas');canvas.width=512;canvas.height=512;
+      const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Canvas unavailable');
+      ctx.drawImage(image,(size/2-w/2+position.x)*512/size,(size/2-h/2+position.y)*512/size,w*512/size,h*512/size);
+      const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Crop failed')),'image/jpeg',0.9));
+      if (!account) throw new Error('يلزم تسجيل الدخول');
+      await queueAvatar(account, blob);
+      setCropUrl(null);
+      toast('حُفظت الصورة على الجهاز، بانتظار تأكيد الخادم');
+      try {
+        await syncQueuedAvatar();
+        if (!(await readPendingAvatar(account)) && useAuthStore.getState().user?.id === account) {
+          const fresh=await api.get('/auth/me');onUpdated(fresh.data);toast.success('تم تحديث الصورة الشخصية');
+        }
+      } catch { toast('الصورة محفوظة؛ ستُعاد محاولة رفعها عند الاتصال'); }
+    }catch(error){toast.error(apiError(error,'تعذر رفع الصورة'));}finally{setUploading(false);}
+  };
+
+  const pick=(e:ChangeEvent<HTMLInputElement>)=>{
+    const file=e.target.files?.[0];e.target.value='';if(!file)return;
+    if(!file.type.startsWith('image/')){toast.error('اختر صورة صالحة');return;}
+    setZoom(1);setPosition({x:0,y:0});setDimensions({w:1,h:1});setCropUrl(URL.createObjectURL(file));
   };
 
   const remove = async () => {
@@ -277,11 +345,11 @@ function AvatarUploader({
           on its corner replaces it. One button doing both meant you could never
           simply look at your own photo. */}
       <div className="relative">
-        <Avatar name={user.fullName} src={user.avatarUrl} size={88} preview />
+        <Avatar name={user.fullName} src={pendingPreview || user.avatarUrl} size={88} preview />
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          disabled={uploading}
+          disabled={uploading || !!pendingPreview}
           className="absolute -bottom-0.5 -left-0.5 grid h-8 w-8 place-items-center rounded-full bg-primary-600 text-white shadow-md ring-2 ring-white transition hover:bg-primary-700 disabled:opacity-60"
           title="تغيير الصورة الشخصية"
           aria-label="تغيير الصورة الشخصية"
@@ -293,12 +361,13 @@ function AvatarUploader({
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif"
+        accept="image/png,image/jpeg,image/webp"
         onChange={pick}
         className="hidden"
       />
 
-      {user.avatarUrl && (
+      {pendingPreview && <div className="text-center text-xs text-amber-700" role="status">الصورة بانتظار المزامنة <button type="button" disabled={uploading} className="underline" onClick={async () => { setUploading(true); try { await syncQueuedAvatar(); if (account && !(await readPendingAvatar(account)) && useAuthStore.getState().user?.id === account) { const fresh = await api.get('/auth/me'); onUpdated(fresh.data); toast.success('تم تحديث الصورة الشخصية'); } } catch (error) { toast.error(apiError(error, 'الصورة محفوظة، تعذر رفعها الآن')); } finally { setUploading(false); } }}>إعادة المحاولة</button></div>}
+      {user.avatarUrl && !pendingPreview && (
         <button
           type="button"
           onClick={remove}
@@ -308,6 +377,20 @@ function AvatarUploader({
           إزالة الصورة
         </button>
       )}
+      {cropUrl&&<Modal open onClose={()=>setCropUrl(null)} title="تحديد الصورة الشخصية">
+        <div className="space-y-4">
+          <p className="text-sm">حرّك الصورة بإصبعك أو الماوس لتحديد الجزء الظاهر داخل الدائرة.</p>
+          <div className="relative mx-auto overflow-hidden rounded-full border-4 border-primary-500 bg-slate-100 touch-none" style={{width:size,height:size}}
+            onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);drag.current={x:e.clientX,y:e.clientY,px:position.x,py:position.y};}}
+            onPointerMove={e=>{if(drag.current)setPosition(clamp(drag.current.px+e.clientX-drag.current.x,drag.current.py+e.clientY-drag.current.y));}}
+            onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}}>
+            <img src={cropUrl} alt="معاينة قص الصورة" draggable={false} onLoad={e=>{setDimensions({w:e.currentTarget.naturalWidth,h:e.currentTarget.naturalHeight});setPosition({x:0,y:0});}}
+              className="absolute max-w-none select-none pointer-events-none" style={{width:w,height:h,left:size/2-w/2+position.x,top:size/2-h/2+position.y}}/>
+          </div>
+          <label className="block text-sm">تكبير الصورة: {zoom.toFixed(1)}×<input className="w-full" type="range" min="1" max="3" step="0.05" value={zoom} onChange={e=>{const z=Number(e.target.value);setPosition(clamp(position.x,position.y,z));setZoom(z);}}/></label>
+          <div className="flex gap-2"><Button loading={uploading} onClick={()=>void saveCrop()}>حفظ الصورة</Button><Button variant="secondary" disabled={uploading} onClick={()=>setCropUrl(null)}>إلغاء</Button></div>
+        </div>
+      </Modal>}
     </div>
   );
 }
@@ -345,8 +428,8 @@ function ProfileDetailsCard({
         email: form.email || '',
         phone: form.phone || '',
       }),
-    onSuccess: async () => {
-      toast.success('تم تحديث بياناتك');
+    onSuccess: async (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تحديث بياناتك');
       const fresh = await api.get('/auth/me');
       onUpdated(fresh.data);
     },

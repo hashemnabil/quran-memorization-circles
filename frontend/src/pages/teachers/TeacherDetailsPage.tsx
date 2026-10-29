@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -60,7 +61,8 @@ export default function TeacherDetailsPage() {
         subtitle={`${teacher.qualification ?? 'معلم'} • ${EMPLOYMENT_LABELS[teacher.employmentType]}`}
         action={
           <>
-            {canEdit && (
+            {isSelf && user.role === 'TEACHER' && <Link to="/verify-profile"><Button size="sm" variant="secondary">تحقق من بياناتي</Button></Link>}
+            {canEdit && user.role === 'ADMIN' && (
               <Button size="sm" variant="secondary" icon={<IconEdit size={15} />} onClick={() => setModal('edit')}>
                 تعديل
               </Button>
@@ -246,8 +248,8 @@ function EditTeacherModal({ teacher, onClose }: { teacher: TeacherProfile; onClo
           };
       return api.patch(`/teachers/${teacher.id}`, payload);
     },
-    onSuccess: () => {
-      toast.success('تم تحديث بيانات المعلم');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تحديث بيانات المعلم');
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
       onClose();
     },

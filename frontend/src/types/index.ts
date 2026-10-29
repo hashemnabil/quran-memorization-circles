@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'SUPERVISOR' | 'TEACHER' | 'EXAM_COMMITTEE' | 'PARENT' | 'STUDENT' | 'SUPPORT';
+export type Role = 'FOUNDER' | 'ADMIN' | 'SUPERVISOR' | 'TEACHER' | 'EXAM_COMMITTEE' | 'PARENT' | 'STUDENT' | 'SUPPORT';
 
 export type Evaluation = 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'ACCEPTABLE' | 'UNSATISFACTORY';
 /** ACTIVITY = مُحوَّل إلى برنامج النشاط (خارج الحلقات، وما زال في السجل) */
@@ -438,6 +438,7 @@ export interface ExamEligibility {
 }
 
 export interface ExamRequest {
+  combinedStage?: string | null;
   id: string;
   status: ExamRequestStatus;
   requestedHizb?: number | null;
@@ -463,6 +464,10 @@ export interface ExamRequest {
 }
 
 export interface Exam {
+  combinedStage?: string | null;
+  committeeId?: string | null;
+  committee?: {id:string;number:string;heldAt:string;location:string;members:{name:string;userId?:string|null}[]} | null;
+  grading?: {mistakes:number;alerts:number;mistakePenalty:number;alertPenalty:number;tajweed:number;recitation:number;score:number} | null;
   id: string;
   scheduledAt: string;
   location?: string | null;
@@ -491,8 +496,12 @@ export interface Exam {
 }
 
 export interface SupportTicket {
+  pendingUpdate?: boolean;
+  pendingStatus?: TicketStatus | null;
+  synced?: number;
+  syncError?: string;
   id: string;
-  number: number;
+  number: number | null;
   subject: string;
   description: string;
   category?: string | null;
@@ -512,6 +521,7 @@ export interface SupportTicket {
 }
 
 export interface TicketMessage {
+  synced?: number;
   id: string;
   body: string;
   isInternal: boolean;
@@ -537,6 +547,9 @@ export interface ChatMember {
 }
 
 export interface Conversation {
+  synced?: number;
+  syncError?: string;
+  contactRestricted?: boolean;
   id: string;
   type: 'DIRECT' | 'GROUP';
   title: string;
@@ -560,6 +573,9 @@ export interface Conversation {
 }
 
 export interface ChatMessage {
+  synced?: number;
+  syncError?: string;
+  rejectedChange?: boolean;
   id: string;
   conversationId: string;
   body: string;
@@ -586,6 +602,18 @@ export interface SchoolSettings {
   whatsapp?: string | null;
   website?: string | null;
   academicYear?: string | null;
+  donationsEnabled?: boolean;
+  donationTitle?: string | null;
+  donationDescription?: string | null;
+  donationGoalAmount?: number | null;
+  donationRaisedAmount?: number | null;
+  donationCurrency?: string | null;
+  donationMethod?: string | null;
+  donationLink?: string | null;
+    donationBankPalestine?: string | null;
+    donationIslamicBank?: string | null;
+    donationJawwal?: string | null;
+    donationPalPay?: string | null;
 }
 
 export interface ActivityEntry {
@@ -602,6 +630,8 @@ export interface ActivityEntry {
 // ---------------------------------------------------------------------------
 
 export interface Course {
+  synced?: number;
+  enrollmentPending?: boolean;
   id: string;
   name: string;
   code: string;
@@ -624,6 +654,7 @@ export interface Course {
 }
 
 export interface CourseStudent {
+  pending?: boolean;
   enrollmentId: string;
   id: string;
   code: string;

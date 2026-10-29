@@ -1,4 +1,7 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
+import PendingRequestReasonEditor from '@/components/PendingRequestReasonEditor';
+import NotificationRecord from '@/components/NotificationRecord';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -59,6 +62,7 @@ export default function SuspensionsPage() {
         }
       />
 
+      <NotificationRecord />
       <div className="mb-5 grid gap-4 sm:grid-cols-3">
         <StatCard
           label="موقوفون حالياً"
@@ -221,8 +225,8 @@ function RequestsTab() {
 
   const cancel = useMutation({
     mutationFn: (id: string) => api.patch(`/suspensions/${id}/cancel`),
-    onSuccess: () => {
-      toast.success('تم إلغاء الطلب');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إلغاء الطلب');
       queryClient.invalidateQueries({ queryKey: ['suspensions'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -348,6 +352,7 @@ function RequestsTab() {
                               </Button>
                             </>
                           )}
+                          {request.status === 'PENDING' && (isAdmin || request.requestedBy.id === user.id) && <PendingRequestReasonEditor domain="suspensions" id={request.id} reason={request.reason} />}
                           {request.status === 'PENDING' && !isAdmin && request.requestedBy.id === user.id && (
                             <Button size="sm" variant="secondary" onClick={() => cancel.mutate(request.id)}>
                               إلغاء
@@ -403,8 +408,8 @@ function DecisionModal({
             }
           : {}),
       }),
-    onSuccess: () => {
-      toast.success(
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult,
         approve
           ? action === 'ACTIVITY_PROGRAM'
             ? 'تم تحويل الطالب إلى برنامج النشاط'
@@ -600,8 +605,8 @@ function ReturnModal({ suspension, onClose }: { suspension: Suspension; onClose:
         note: note || undefined,
         ...(circleId ? { circleId } : {}),
       }),
-    onSuccess: () => {
-      toast.success('تم إرجاع الطالب إلى الحلقة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إرجاع الطالب إلى الحلقة');
       queryClient.invalidateQueries({ queryKey: ['suspensions'] });
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });

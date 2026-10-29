@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { canManageAccount } from '../auth/founder-policy';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -110,6 +111,7 @@ export class UsersService {
   }
 
   async create(actor: AuthUser, dto: CreateUserDto) {
+    this.assertOwnerProtected(undefined, dto.role);
     if (dto.role === Role.PARENT || dto.role === Role.STUDENT) {
       throw new BadRequestException('حسابات الطلاب تُنشأ تلقائياً من ملف الطالب، وحسابات ولي الأمر متوقفة');
     }
@@ -154,6 +156,7 @@ export class UsersService {
   async update(actor: AuthUser, id: string, dto: UpdateUserDto) {
     const current = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
     if (!current) throw new NotFoundException('المستخدم غير موجود');
+    this.assertOwnerProtected(current.role, dto.role);
 
     if (dto.username && dto.username !== current.username) {
       await this.assertUsernameFree(dto.username);
@@ -183,7 +186,8 @@ export class UsersService {
       }
     }
 
-    const user = await this.prisma.user.update({
+    const user = await this.prisma.$transaction(async tx => {
+      const updated = await tx.user.update({
       where: { id },
       data: {
         fullName: dto.fullName,
@@ -198,10 +202,13 @@ export class UsersService {
         ...(dto.password ? { passwordHash: await this.hash(dto.password) } : {}),
       },
       select: USER_SELECT,
+      });
+      if (dto.password || dto.isActive === false || dto.role && dto.role !== current.role) await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+      return updated;
     });
 
     if (dto.avatarUrl !== undefined) {
-      await this.uploads.removeIfReplaced(current.avatarUrl, user.avatarUrl);
+      await this.uploads.removeIfReplaced(current.avatarUrl, user.avatarUrl, '*');
     }
 
     await this.activity.log({
@@ -218,16 +225,11 @@ export class UsersService {
   async resetPassword(actor: AuthUser, id: string, dto: ResetPasswordDto) {
     const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
     if (!user) throw new NotFoundException('المستخدم غير موجود');
+    this.assertOwnerProtected(user.role);
 
-    await this.prisma.user.update({
-      where: { id },
-      data: { passwordHash: await this.hash(dto.newPassword) },
-    });
-
-    // Any session created with the old password is invalidated.
-    await this.prisma.refreshToken.updateMany({
-      where: { userId: id, revokedAt: null },
-      data: { revokedAt: new Date() },
+    await this.prisma.$transaction(async tx => {
+      await tx.user.update({ where: { id }, data: { passwordHash: await this.hash(dto.newPassword), mustChangePassword: true } });
+      await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
     });
 
     await this.activity.log({
@@ -244,6 +246,7 @@ export class UsersService {
   async setActive(actor: AuthUser, id: string, isActive: boolean) {
     const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
     if (!user) throw new NotFoundException('المستخدم غير موجود');
+    this.assertOwnerProtected(user.role);
     if (id === actor.id && !isActive) throw new BadRequestException('لا يمكنك إيقاف حسابك الشخصي');
     if (!isActive && user.role === Role.ADMIN) await this.assertNotLastAdmin(id);
 
@@ -274,6 +277,7 @@ export class UsersService {
   async remove(actor: AuthUser, id: string) {
     const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
     if (!user) throw new NotFoundException('المستخدم غير موجود');
+    this.assertOwnerProtected(user.role);
     if (id === actor.id) throw new BadRequestException('لا يمكنك حذف حسابك الشخصي');
     if (user.role === Role.ADMIN) await this.assertNotLastAdmin(id);
 
@@ -328,7 +332,7 @@ export class UsersService {
       },
       select: { id: true, fullName: true, role: true, avatarUrl: true, jobTitle: true },
       orderBy: { fullName: 'asc' },
-      take: 50,
+      ...(search ? { take: 50 } : {}),
     });
   }
 
@@ -427,6 +431,10 @@ export class UsersService {
     });
 
     for (const u of users) {
+      if (!canManageAccount(u.role)) {
+        skipped.push({ fullName: u.fullName, reason: 'حساب المؤسس محمي' });
+        continue;
+      }
       if (u.id === actor.id) {
         skipped.push({ fullName: u.fullName, reason: 'لا يمكنك حذف حسابك الشخصي' });
         continue;
@@ -517,8 +525,13 @@ export class UsersService {
     }
   }
 
+  private assertOwnerProtected(targetRole?: string, requestedRole?: string) {
+    if (!canManageAccount(targetRole, requestedRole)) throw new ForbiddenException('حساب المؤسس يُدار بإجراء خادمي مستقل');
+  }
+
   private roleLabel(role: Role) {
     const labels: Record<Role, string> = {
+      FOUNDER: 'مؤسس النظام',
       ADMIN: 'مدير عام',
       SUPERVISOR: 'مشرف',
       TEACHER: 'معلم',

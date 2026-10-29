@@ -1,3 +1,9 @@
+import { CommunityModule } from './community/community.module';
+import { FounderModule } from './founder/founder.module';
+import { PushModule } from './push/push.module';
+import { ProfileReviewsModule } from './profile-reviews/profile-reviews.module';
+import { HealthController } from './health.controller';
+import { validateEnvironment } from './production-config';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
@@ -28,10 +34,15 @@ import { RegistryModule } from './registry/registry.module';
 import { ReportsModule } from './reports/reports.module';
 import { CertificatesModule } from './certificates/certificates.module';
 import { MediaActivitiesModule } from './media-activities/media-activities.module';
+import { OfflineSyncModule } from './offline-sync/offline-sync.module';
+import { SchedulesModule } from './schedules/schedules.module';
+import { SchoolOperationsModule } from './school-operations/school-operations.module';
 
 @Module({
+  controllers: [HealthController],
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'] }),
+    FounderModule,
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'], validate: validateEnvironment }),
 
     // Infrastructure (all global).
     PrismaModule,
@@ -54,6 +65,7 @@ import { MediaActivitiesModule } from './media-activities/media-activities.modul
     ExamsModule,
     SupportModule,
     ChatModule,
+    CommunityModule,
     SettingsModule,
     DashboardModule,
     CoursesModule,
@@ -64,6 +76,11 @@ import { MediaActivitiesModule } from './media-activities/media-activities.modul
     ReportsModule,
     CertificatesModule,
     MediaActivitiesModule,
+    OfflineSyncModule,
+    SchedulesModule,
+    SchoolOperationsModule,
+    ProfileReviewsModule,
+    PushModule,
   ],
 })
 export class AppModule {}

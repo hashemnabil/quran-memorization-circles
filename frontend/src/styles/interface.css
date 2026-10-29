@@ -1,0 +1,156 @@
+/* Shared interface treatment. Surfaces inherit the existing light/dark tokens. */
+/* Login keeps its natural height: short viewports scroll instead of shrinking branding. */
+.login-screen {
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  align-content: center;
+  padding: max(28px, env(safe-area-inset-top, 0px)) 20px max(28px, env(safe-area-inset-bottom, 0px));
+}
+.chat-keyboard-open .chat-background-choice { display: none; }
+.login-panel {
+  --login-padding: 32px;
+  min-width: 0;
+  width: 100%;
+  max-width: 480px;
+  padding: var(--login-padding);
+  border: 1px solid var(--line, #dfe8e3);
+  border-radius: 28px;
+  box-shadow: 0 20px 64px #12372d12;
+}
+.login-panel > .login-brand {
+  margin: calc(-1 * var(--login-padding)) calc(-1 * var(--login-padding)) 24px;
+  padding: 30px 24px 26px;
+  border-radius: 27px 27px 0 0;
+  border-bottom: 3px solid #d6b76a;
+}
+.login-brand .login-brand-mark {
+  width: 144px;
+  height: 144px;
+  flex-shrink: 0;
+  padding: 8px;
+  background: #fffef9;
+  box-shadow: 0 0 0 1px #d6b76a, 0 0 0 8px #ffffff12, 0 12px 28px #001c1833;
+}
+.login-brand .login-school-name {
+  max-width: 370px;
+  margin: 22px 0 0;
+  font-size: 21px;
+  line-height: 1.75;
+  font-weight: 800;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  color: #fffef8;
+}
+.login-brand-caption { margin-top: 8px; font-size: 12px; line-height: 1.8; color: #e5d4a5; }
+.login-panel > .login-intro { margin: 0 0 20px; color: var(--muted, #64756c); font-size: 14px; line-height: 1.9; }
+.login-panel > h2 { font-size: 21px; line-height: 1.5; }
+.login-panel form { margin-top: 18px; }
+.login-panel form > :not([hidden]) ~ :not([hidden]) { margin-top: 16px; }
+.login-panel .input, .login-panel .btn-primary { min-height: 50px; font-size: 16px; }
+.login-panel .label { margin-bottom: 8px; }
+.login-secondary-actions { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+.login-secondary-actions > :first-child { grid-column: 1 / -1; }
+.login-secondary-actions > * { margin-top: 0; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+.login-panel .login-donation { margin-top: 20px; padding: 14px; gap: 10px; }
+@media (max-width: 639px) {
+  .login-screen { padding: max(20px, env(safe-area-inset-top, 0px)) 16px max(20px, env(safe-area-inset-bottom, 0px)); }
+  .login-panel { --login-padding: 24px; border-radius: 24px; }
+  .login-panel > .login-brand { padding: 26px 20px 22px; border-radius: 23px 23px 0 0; }
+  .login-brand .login-brand-mark { width: 120px; height: 120px; padding: 6px; }
+  .login-brand .login-school-name { margin-top: 18px; font-size: 18px; line-height: 1.8; }
+  .login-panel > h2 { font-size: 20px; }
+}
+@media (max-width: 359px) {
+  .login-screen { padding-inline: 12px; }
+  .login-panel { --login-padding: 20px; }
+}
+body {
+  font-family: 'Tajawal', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.app-shell {
+  --interface-radius: 16px;
+  --interface-shadow: 0 2px 8px rgb(18 55 45 / 3%);
+}
+.app-shell .app-workspace { background: none; }
+.app-shell .card {
+  border-radius: var(--interface-radius);
+  border-color: var(--line, #dfe8e3);
+  box-shadow: var(--interface-shadow);
+}
+.app-shell .card > header {
+  border-start-start-radius: var(--interface-radius);
+  border-start-end-radius: var(--interface-radius);
+}
+.page-heading { align-items: center; row-gap: 16px; }
+.page-heading h1 { line-height: 1.5; letter-spacing: -.025em; }
+.page-heading p { line-height: 1.9; }
+.page-heading-actions { align-items: center; }
+.app-icon { flex-shrink: 0; vertical-align: middle; }
+.app-shell .btn-primary,
+.app-shell .btn-secondary,
+.app-shell .btn-danger,
+.app-shell .btn-ghost {
+  min-height: 44px;
+  border-radius: 12px;
+  font-weight: 700;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.app-shell .app-icon-button { min-width: 44px; min-height: 44px; border-radius: 12px; }
+.app-shell .input {
+  min-height: 46px;
+  border-radius: 12px;
+  box-shadow: none;
+  transition: border-color .15s ease;
+}
+.app-shell textarea.input { min-height: 110px; line-height: 1.9; }
+.app-shell .label { font-weight: 700; margin-bottom: 8px; }
+.app-shell :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid #49a77b;
+  outline-offset: 3px;
+}
+.app-shell .table-wrap {
+  border-radius: 14px;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+.app-shell .table { font-variant-numeric: tabular-nums; }
+.app-shell .table th { font-size: 12px; white-space: nowrap; }
+.app-shell .table td { padding-block: 15px; vertical-align: middle; }
+.app-shell .table :is(button, a) { touch-action: manipulation; }
+.sidebar-shell .sidebar-search { min-height: 44px; border-radius: 12px; }
+.mobile-navigation { box-shadow: 0 -1px 12px rgb(18 55 45 / 4%); }
+.mobile-navigation-item { position: relative; gap: 4px; border-radius: 12px; }
+.mobile-navigation-item .app-icon { width: 22px; height: 22px; stroke-width: 1.7; }
+.mobile-navigation-active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 20px;
+  height: 3px;
+  border-radius: 0 0 4px 4px;
+  background: currentColor;
+}
+
+@media (max-width: 639px) {
+  .app-shell { --interface-radius: 14px; }
+  .app-shell .page-heading { margin-bottom: 20px; padding-bottom: 16px; }
+  .page-heading h1 { font-size: 22px; }
+  .page-heading p { font-size: 13px; margin-top: 6px; }
+  .page-heading-actions { gap: 8px; }
+  .app-shell .input { font-size: 16px; min-height: 48px; }
+  .app-shell .card > header { padding: 16px; }
+  /* Keep the chat composer compact when the keyboard opens. */
+  .app-shell .chat-composer textarea { min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell *, .app-shell *::before, .app-shell *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import PrayerCard from '@/components/PrayerCard';
 import { useQuery } from '@tanstack/react-query';
 import {
   Area,
@@ -16,6 +17,7 @@ import {
   YAxis,
 } from 'recharts';
 import { api } from '@/lib/api';
+import { localDashboard } from '@/lib/local-analytics';
 import { useAuthStore } from '@/store/auth';
 import {
   Badge,
@@ -29,6 +31,9 @@ import {
   cx,
 } from '@/components/ui';
 import {
+  IconBell,
+  IconChat,
+  IconUser,
   IconAward,
   IconBook,
   IconCalendar,
@@ -66,14 +71,20 @@ export default function DashboardPage() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['dashboard', 'overview'],
-    queryFn: async () => (await api.get('/dashboard/overview')).data,
-    refetchInterval: 120000,
+    queryFn: async () => {
+      try { return (await api.get('/dashboard/overview')).data; }
+      catch (error) {
+        if (navigator.onLine) return localDashboard(user.role);
+        return localDashboard(user.role);
+      }
+    },
   });
 
   if (isLoading) {
     return (
       <>
         <PageHeader title="الرئيسية" subtitle="جارٍ تجهيز ملخص اليوم..." />
+        <PrayerCard />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="card h-24 animate-pulse" />
@@ -83,8 +94,8 @@ export default function DashboardPage() {
     );
   }
 
-  if (isError || !data) {
-    return <ErrorState message="تعذر تحميل لوحة المعلومات" onRetry={() => refetch()} />;
+  if (!data) {
+    return <><PrayerCard /><ErrorState message="تعذر تحميل لوحة المعلومات" onRetry={() => refetch()} /></>;
   }
 
   const greeting = `${ROLE_LABELS[user.role]} — ${user.fullName}`;
@@ -101,21 +112,7 @@ export default function DashboardPage() {
         }
       />
 
-      <section className="relative mb-6 overflow-hidden rounded-[1.5rem] border border-primary-800/10 border-b-4 border-b-gold-400 bg-gradient-to-l from-primary-950 via-primary-900 to-primary-700 px-5 py-7 text-white shadow-card sm:px-8 sm:py-8">
-        <div className="pointer-events-none absolute -left-8 -top-10 h-40 w-40 rounded-full border-[24px] border-white/5" aria-hidden />
-        <div className="pointer-events-none absolute -bottom-16 right-[42%] h-40 w-40 rounded-full border border-gold-300/15" aria-hidden />
-        <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-          <div className="max-w-2xl">
-            <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-gold-200/25 bg-gold-200/10 px-3 py-1.5 text-xs font-bold tracking-wide text-gold-100"><span className="h-1.5 w-1.5 rounded-full bg-gold-300" /> نظام إدارة حلقات تحفيظ القرآن الكريم</p>
-            <h2 className="text-2xl font-extrabold leading-relaxed sm:text-3xl">أهلاً وسهلاً، {user.fullName}</h2>
-            <p className="mt-2 max-w-xl text-sm leading-7 text-primary-100/90">كل ما تحتاجه لمتابعة حلقات التحفيظ والمهام اليومية، مرتب أمامك في مكان واحد.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link to="/support" className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-bold transition hover:bg-white/20"><IconLifeBuoy size={17} /> الدعم الفني</Link>
-            <Link to="/notifications" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-bold text-primary-900 transition hover:bg-primary-50"><IconCalendar size={17} /> الإشعارات</Link>
-          </div>
-        </div>
-      </section>
+      <PrayerCard />
 
       <section className="mb-6">
         <div className="mb-3 flex items-end justify-between gap-3">
@@ -128,6 +125,7 @@ export default function DashboardPage() {
         <QuickAccess role={data.role} />
       </section>
 
+      {['ADMIN','SUPERVISOR','TEACHER','EXAM_COMMITTEE'].includes(data.role)&&<section aria-label="إحصائيات المدرسة" className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">{[{label:'الحلقات',value:data.counts?.circles,path:'/circles'},{label:'الطلاب',value:data.counts?.students,path:'/students'},{label:'الدورات',value:data.counts?.courses,path:'/courses'},{label:'الاختبارات',value:data.counts?.exams,path:'/exams'},{label:'طلاب طلبوا اختبارًا',value:data.counts?.examApplicants,path:'/exams'}].map(item=><StatCard key={item.label} label={item.label} value={item.value??0}/>)}</section>}
       {data.role === 'ADMIN' && <AdminDashboard data={data} />}
       {data.role === 'SUPERVISOR' && <SupervisorDashboard data={data} />}
       {data.role === 'TEACHER' && <TeacherDashboard data={data} />}
@@ -160,23 +158,23 @@ function QuickAccess({ role }: { role: string }) {
   ] : role === 'EXAM_COMMITTEE' ? [
     { to: '/exams', label: 'الاختبارات', detail: 'المواعيد والطلبات', icon: <IconAward size={21} />, tone: 'mint' },
     { to: '/students', label: 'الطلاب', detail: 'الوصول لملفات الطلاب', icon: <IconGraduation size={21} />, tone: 'blue' },
-    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'amber' },
-    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconUsers size={21} />, tone: 'violet' },
+    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconBell size={21} />, tone: 'amber' },
+    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconChat size={21} />, tone: 'violet' },
   ] : role === 'SUPPORT' ? [
     { to: '/support', label: 'طلبات الدعم', detail: 'متابعة التذاكر', icon: <IconLifeBuoy size={21} />, tone: 'mint' },
-    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'blue' },
-    { to: '/profile', label: 'الملف الشخصي', detail: 'بيانات حسابك', icon: <IconUsers size={21} />, tone: 'amber' },
-    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconUsers size={21} />, tone: 'violet' },
+    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconBell size={21} />, tone: 'blue' },
+    { to: '/profile', label: 'الملف الشخصي', detail: 'بيانات حسابك', icon: <IconUser size={21} />, tone: 'amber' },
+    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconChat size={21} />, tone: 'violet' },
   ] : role === 'PARENT' ? [
     { to: '/profile', label: 'الملف الشخصي', detail: 'بيانات حسابك', icon: <IconGraduation size={21} />, tone: 'mint' },
-    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'blue' },
-    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع المدرسة', icon: <IconUsers size={21} />, tone: 'amber' },
+    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconBell size={21} />, tone: 'blue' },
+    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع المدرسة', icon: <IconChat size={21} />, tone: 'amber' },
     { to: '/support', label: 'الدعم الفني', detail: 'مساعدة ومتابعة الطلبات', icon: <IconLifeBuoy size={21} />, tone: 'violet' },
   ] : [
     { to: '/student', label: 'ملفي الدراسي', detail: 'متابعة تقدمك', icon: <IconGraduation size={21} />, tone: 'mint' },
     { to: '/my-files', label: 'ملفاتي', detail: 'الملفات والشهادات', icon: <IconBook size={21} />, tone: 'blue' },
-    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'amber' },
-    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع المعلمين', icon: <IconUsers size={21} />, tone: 'violet' },
+    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconBell size={21} />, tone: 'amber' },
+    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع المعلمين', icon: <IconChat size={21} />, tone: 'violet' },
   ];
 
   const tones: Record<string, string> = {
@@ -193,7 +191,6 @@ function QuickAccess({ role }: { role: string }) {
           <span className={cx('grid h-12 w-12 shrink-0 place-items-center rounded-2xl ring-1 transition group-hover:scale-105', tones[item.tone])}>{item.icon}</span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-extrabold text-slate-800">{item.label}</span>
-            <span className="mt-1 block truncate text-xs text-slate-500">{item.detail}</span>
           </span>
           <span className="text-slate-300 transition group-hover:-translate-x-0.5 group-hover:text-primary-600" aria-hidden>←</span>
         </Link>
@@ -420,7 +417,7 @@ function AdminDashboard({ data }: { data: any }) {
           )}
         </Card>
 
-        <Card title="النشاط الأخير">
+        <Card title="النشاط الأخير" action={<Link to="/admin/activity" className="inline-flex min-h-11 items-center font-bold text-primary-700">عرض الكل</Link>}>
           {data.activity?.length ? (
             <ul className="space-y-3">
               {data.activity.slice(0, 8).map((entry: any) => (

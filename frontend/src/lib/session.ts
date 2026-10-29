@@ -1,28 +1,21 @@
-import { tokenStore } from '@/lib/api';
-import { Capacitor } from '@capacitor/core';
-
 /**
- * "Log the user out one minute after the browser is closed."
+ * Keep a lightweight heartbeat for lifecycle diagnostics, but do not treat a
+ * closed browser tab as an explicit logout. Offline-first use must survive an
+ * app restart; a network request is not available to validate a session while
+ * offline. When online, the API remains authoritative and expired/revoked
+ * tokens are handled by the normal authentication flow.
  *
- * There is no browser event for "closed" that can be trusted — `beforeunload`
- * fires on a refresh and on following a link, and does not fire at all when the
- * tab is killed or the machine sleeps. So instead of trying to catch the close,
- * an open tab writes a heartbeat every few seconds; on the next start-up, the
- * gap since the last beat says how long the app was not running.
- *
- * A gap longer than the grace period means the browser really was closed, and
- * the stored session is discarded before it is ever used. A refresh, or opening
- * a link in a new tab, produces a gap of milliseconds and is unaffected.
+ * Logout locks encrypted local data and removes the active session. Only the
+ * separate explicit device-removal action erases the offline account copy.
  */
 const HEARTBEAT_KEY = 'qc.lastSeen';
 const HEARTBEAT_INTERVAL_MS = 5_000;
-const GRACE_MS = 60_000;
 
 function writeHeartbeat() {
   try {
     localStorage.setItem(HEARTBEAT_KEY, String(Date.now()));
   } catch {
-    // Private mode or a full quota: the session simply stops expiring early.
+    // Diagnostics are optional if storage is unavailable.
   }
 }
 
@@ -35,38 +28,11 @@ export function clearHeartbeat() {
 }
 
 /**
- * Called once before the session is restored. Returns true when the stored
- * tokens were dropped because the browser had been closed for too long.
+ * Kept for compatibility with the session bootstrap. A browser/app restart is
+ * not proof that the user intended to log out, especially when offline.
+ * Explicit logout clears tokens but retains the encrypted offline account copy.
  */
 export function expireStaleSession(): boolean {
-  // Mobile apps are routinely suspended or closed while offline. Let the API's
-  // access/refresh-token validation govern mobile sessions instead of treating
-  // app suspension as a logout; keep the browser's existing short-gap policy.
-  if (Capacitor.isNativePlatform()) {
-    writeHeartbeat();
-    return false;
-  }
-  let lastSeen: number | null = null;
-  try {
-    const raw = localStorage.getItem(HEARTBEAT_KEY);
-    lastSeen = raw ? Number(raw) : null;
-  } catch {
-    return false;
-  }
-
-  // No heartbeat at all: either a first visit or a session from before this
-  // feature existed. Nothing to judge, so the session is left alone.
-  if (!lastSeen || Number.isNaN(lastSeen)) {
-    writeHeartbeat();
-    return false;
-  }
-
-  if (Date.now() - lastSeen > GRACE_MS) {
-    tokenStore.clear();
-    clearHeartbeat();
-    return true;
-  }
-
   writeHeartbeat();
   return false;
 }
@@ -76,8 +42,6 @@ export function startHeartbeat(): () => void {
   writeHeartbeat();
   const timer = window.setInterval(writeHeartbeat, HEARTBEAT_INTERVAL_MS);
 
-  // Coming back to a backgrounded tab should refresh the beat immediately
-  // rather than waiting for the next tick.
   const onVisible = () => {
     if (document.visibilityState === 'visible') writeHeartbeat();
   };

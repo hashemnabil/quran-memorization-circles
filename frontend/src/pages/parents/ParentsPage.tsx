@@ -1,3 +1,5 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
+import { passwordError } from '@/lib/validation';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -47,8 +49,8 @@ export default function ParentsPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/parents/${id}`),
-    onSuccess: () => {
-      toast.success('تم حذف ولي الأمر');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف ولي الأمر');
       queryClient.invalidateQueries({ queryKey: ['parents'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -189,8 +191,8 @@ function ParentFormModal({ onClose }: { onClose: () => void }) {
 
   const create = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.post('/parents', payload),
-    onSuccess: () => {
-      toast.success('تمت إضافة ولي الأمر وإنشاء حساب الدخول');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت إضافة ولي الأمر وإنشاء حساب الدخول');
       queryClient.invalidateQueries({ queryKey: ['parents'] });
       onClose();
     },
@@ -209,7 +211,7 @@ function ParentFormModal({ onClose }: { onClose: () => void }) {
     if (phoneErr) next.phone = phoneErr;
     const altPhoneErr = phoneError(form.altPhone);
     if (altPhoneErr) next.altPhone = altPhoneErr;
-    if (form.password.length < 6) next.password = 'كلمة المرور 6 أحرف على الأقل';
+    if (passwordError(form.password)) next.password = passwordError(form.password);
     setErrors(next);
     if (Object.keys(next).length) return;
     create.mutate(Object.fromEntries(Object.entries(form).filter(([, v]) => v !== '')));
@@ -269,8 +271,8 @@ function LinkStudentsModal({ parent, onClose }: { parent: ParentProfile; onClose
 
   const mutation = useMutation({
     mutationFn: () => api.patch(`/parents/${parent.id}/students`, { studentIds: selected }),
-    onSuccess: () => {
-      toast.success('تم تحديث ارتباط الأبناء');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تحديث ارتباط الأبناء');
       queryClient.invalidateQueries({ queryKey: ['parents'] });
       queryClient.invalidateQueries({ queryKey: ['students'] });
       onClose();

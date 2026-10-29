@@ -42,7 +42,6 @@ export default function SupportTicketPage() {
     queryKey: ['support', 'ticket', id],
     queryFn: async () => (await api.get<SupportTicket>(`/support/${id}`)).data,
     enabled: !!id,
-    refetchInterval: 30000,
   });
 
   const { data: staff } = useQuery({
@@ -53,7 +52,8 @@ export default function SupportTicketPage() {
 
   const reply = useMutation({
     mutationFn: () => api.post(`/support/${id}/reply`, { body, isInternal }),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      if (response.data?.synced === 0) toast('حُفظ الرد على الجهاز، بانتظار تأكيد الخادم');
       setBody('');
       setIsInternal(false);
       queryClient.invalidateQueries({ queryKey: ['support', 'ticket', id] });
@@ -64,8 +64,9 @@ export default function SupportTicketPage() {
 
   const update = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.patch(`/support/${id}`, payload),
-    onSuccess: () => {
-      toast.success('تم تحديث التذكرة');
+    onSuccess: (response) => {
+      if (response.data?.synced === 0) toast('حُفظ تعديل التذكرة على الجهاز، بانتظار تأكيد الخادم');
+      else toast.success('تم تحديث التذكرة');
       queryClient.invalidateQueries({ queryKey: ['support'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -95,7 +96,7 @@ export default function SupportTicketPage() {
             الدعم الفني
           </Link>
         }
-        subtitle={`تذكرة رقم #${ticket.number} — ${formatDateTime(ticket.createdAt)}`}
+        subtitle={`${ticket.number ? `تذكرة رقم #${ticket.number}` : 'طلب محلي بانتظار تأكيد الخادم'} — ${formatDateTime(ticket.createdAt)}`}
         action={
           <>
             <Badge className={TICKET_PRIORITY_COLORS[ticket.priority]}>{TICKET_PRIORITY_LABELS[ticket.priority]}</Badge>
@@ -104,6 +105,8 @@ export default function SupportTicketPage() {
         }
       />
 
+      {ticket.syncError && <p role="status" className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{ticket.syncError} — طلبك محفوظ على الجهاز.</p>}
+      {ticket.pendingUpdate && <p role="status" className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">تعديل التذكرة بانتظار تأكيد الخادم{ticket.pendingStatus ? ` — الحالة المطلوبة: ${TICKET_STATUS_LABELS[ticket.pendingStatus]}` : ''}. الحالة والإسناد الظاهران هما آخر نسخة معتمدة.</p>}
       <div className="grid gap-5 lg:grid-cols-[1fr_18rem]">
         <Card padded={false} className="flex flex-col overflow-hidden">
           <div
@@ -133,6 +136,7 @@ export default function SupportTicketPage() {
                         <p className="mb-1 text-[10px] font-bold uppercase tracking-wide">ملاحظة داخلية</p>
                       )}
                       <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                      {message.synced === 0 && ticket.synced === 0 && <p className="mt-1 text-[11px]">بانتظار تأكيد الخادم</p>}
                     </div>
                   </div>
                 </div>

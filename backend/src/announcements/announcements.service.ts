@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/services/activity.service';
@@ -29,6 +29,7 @@ export class AnnouncementsService {
     const now = new Date();
     return this.prisma.announcement.findMany({
       where: {
+        isPopup: false,
         isActive: true,
         publishedAt: { lte: now },
         OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
@@ -52,6 +53,7 @@ export class AnnouncementsService {
   /** Full list, for the administration's management screen. */
   async findAll(query: QueryAnnouncementsDto) {
     const where: Prisma.AnnouncementWhereInput = {
+      isPopup: false,
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
       ...(query.search
         ? {
@@ -114,6 +116,7 @@ export class AnnouncementsService {
   async update(actor: AuthUser, id: string, dto: UpdateAnnouncementDto) {
     const current = await this.prisma.announcement.findUnique({ where: { id } });
     if (!current) throw new NotFoundException('الإعلان غير موجود');
+    if (current.isPopup) throw new ForbiddenException('إعلانات المؤسس تُدار من لوحة المؤسس');
 
     const announcement = await this.prisma.announcement.update({
       where: { id },
@@ -144,6 +147,7 @@ export class AnnouncementsService {
   async remove(actor: AuthUser, id: string) {
     const announcement = await this.prisma.announcement.findUnique({ where: { id } });
     if (!announcement) throw new NotFoundException('الإعلان غير موجود');
+    if (announcement.isPopup) throw new ForbiddenException('إعلانات المؤسس تُدار من لوحة المؤسس');
 
     await this.prisma.announcement.delete({ where: { id } });
 

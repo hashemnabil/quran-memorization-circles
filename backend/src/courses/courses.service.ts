@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -61,7 +62,8 @@ export class CoursesService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  async findAll(query: QueryCoursesDto) {
+  async findAll(query: QueryCoursesDto, actor?: AuthUser) {
+    if (actor?.role === Role.TEACHER) query.instructorId = actor.id;
     const where: Prisma.CourseWhereInput = {
       deletedAt: null,
       ...(query.type ? { type: query.type } : {}),
@@ -105,7 +107,8 @@ export class CoursesService {
     );
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, actor?: AuthUser) {
+    if (actor) await this.assertCourseAccess(actor, id);
     const course = await this.prisma.course.findFirst({
       where: { id, deletedAt: null },
       select: {
@@ -301,14 +304,17 @@ export class CoursesService {
   // --- enrolment -----------------------------------------------------------
 
   async enroll(actor: AuthUser, courseId: string, dto: EnrollStudentsDto) {
-    const course = await this.prisma.course.findFirst({
+    const { course, students, fresh, existing } = await this.prisma.$transaction(async tx => {
+    // Serialize capacity checks for the same course, including offline replay.
+    await tx.$queryRaw`SELECT id FROM courses WHERE id = ${courseId} FOR UPDATE`;
+    const course = await tx.course.findFirst({
       where: { id: courseId, deletedAt: null },
       select: { id: true, name: true, capacity: true, _count: { select: { enrollments: true } } },
     });
     if (!course) throw new NotFoundException('الدورة غير موجودة');
 
     const ids = [...new Set(dto.studentIds)];
-    const students = await this.prisma.student.findMany({
+    const students = await tx.student.findMany({
       where: { id: { in: ids }, deletedAt: null },
       select: { id: true, fullName: true, parentProfile: { select: { userId: true } } },
     });
@@ -316,7 +322,7 @@ export class CoursesService {
       throw new BadRequestException('بعض الطلاب المحددين غير موجودين');
     }
 
-    const existing = await this.prisma.courseEnrollment.findMany({
+    const existing = await tx.courseEnrollment.findMany({
       where: { courseId, studentId: { in: ids } },
       select: { studentId: true, endedAt: true },
     });
@@ -329,21 +335,23 @@ export class CoursesService {
       );
     }
 
-    await this.prisma.$transaction([
+    await Promise.all([
       ...fresh.map((s) =>
-        this.prisma.courseEnrollment.create({ data: { courseId, studentId: s.id } }),
+        tx.courseEnrollment.create({ data: { courseId, studentId: s.id } }),
       ),
       // Someone who left and is coming back gets their existing row reopened
       // rather than a second one, so the history stays a single line per course.
       ...existing
         .filter((e) => e.endedAt !== null)
         .map((e) =>
-          this.prisma.courseEnrollment.updateMany({
+          tx.courseEnrollment.updateMany({
             where: { courseId, studentId: e.studentId },
             data: { endedAt: null },
           }),
         ),
     ]);
+    return { course, students, fresh, existing };
+    }, { timeout: 30000 });
 
     for (const student of students) {
       if (student.parentProfile?.userId) {
@@ -401,7 +409,8 @@ export class CoursesService {
 
   // --- attendance ----------------------------------------------------------
 
-  async attendanceSheet(courseId: string, query: CourseAttendanceQueryDto) {
+  async attendanceSheet(courseId: string, query: CourseAttendanceQueryDto, actor?: AuthUser) {
+    if (actor) await this.assertCourseAccess(actor, courseId);
     const course = await this.prisma.course.findFirst({
       where: { id: courseId, deletedAt: null },
       select: { id: true, name: true, code: true, type: true, scheduleDays: true, startTime: true },
@@ -448,6 +457,7 @@ export class CoursesService {
   }
 
   async recordAttendance(actor: AuthUser, courseId: string, dto: RecordCourseAttendanceDto) {
+    await this.assertCourseAccess(actor, courseId);
     const course = await this.prisma.course.findFirst({
       where: { id: courseId, deletedAt: null },
       select: { id: true, name: true },
@@ -517,7 +527,8 @@ export class CoursesService {
   }
 
   /** Course attendance history, grouped by day like the circles register. */
-  async attendanceHistory(courseId: string) {
+  async attendanceHistory(courseId: string, actor?: AuthUser) {
+    if (actor) await this.assertCourseAccess(actor, courseId);
     const grouped = await this.prisma.courseAttendance.groupBy({
       by: ['date', 'status'],
       where: { courseId },
@@ -547,7 +558,8 @@ export class CoursesService {
     });
   }
 
-  async attendanceDetail(courseId: string, date: string) {
+  async attendanceDetail(courseId: string, date: string, actor?: AuthUser) {
+    if (actor) await this.assertCourseAccess(actor, courseId);
     const records = await this.prisma.courseAttendance.findMany({
       where: { courseId, date: toDateOnly(date) },
       include: {
@@ -591,6 +603,12 @@ export class CoursesService {
     if (start && end && toDateOnly(start).getTime() > toDateOnly(end).getTime()) {
       throw new BadRequestException('تاريخ بداية الدورة يجب أن يسبق تاريخ نهايتها');
     }
+  }
+
+  async assertCourseAccess(actor: AuthUser, id: string) {
+    if ([Role.ADMIN, Role.SUPERVISOR].includes(actor.role as any)) return;
+    const course = await this.prisma.course.findFirst({ where: { id, deletedAt: null }, select: { instructorId: true } });
+    if (actor.role !== Role.TEACHER || course?.instructorId !== actor.id) throw new ForbiddenException('Course access denied');
   }
 
   private async assertInstructor(instructorId?: string) {

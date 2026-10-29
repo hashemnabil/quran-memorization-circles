@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, apiError } from '@/lib/api';
+import { localReport } from '@/lib/local-analytics';
+import { exportLocalWorkbook } from '@/lib/local-xlsx';
+import { exportLocalPdf } from '@/lib/local-pdf';
+import { saveDeviceFile } from '@/lib/save-device-file';
 import { useAuthStore } from '@/store/auth';
 import { Button, Card, PageHeader, Select, StatCard } from '@/components/ui';
 import { IconClipboard } from '@/components/ui/Icons';
@@ -51,6 +55,7 @@ export default function ReportsPage() {
  const [track,setTrack]=useState(documentPage?.track ?? searchParams.get('track') ?? '');
  const [evaluation,setEvaluation]=useState('');
  const [refresh,setRefresh]=useState(0);
+ const [exporting,setExporting]=useState(false);
  const {data:circles=[]}=useQuery({queryKey:['reports','circles-options'],queryFn:async()=> (await api.get<any[]>('/circles/options')).data});
  const {data:courseResponse,isLoading:coursesLoading,isError:coursesIsError,error:coursesQueryError,refetch:refetchCourses}=useQuery({queryKey:['reports','courses-options'],queryFn:async()=> (await api.get<any>('/courses',{params:{limit:200}})).data, retry:1});
  const courses=(courseResponse?.data??courseResponse??[]) as any[];
@@ -58,49 +63,17 @@ export default function ReportsPage() {
  const {data:students}=useQuery({queryKey:['reports','students'],queryFn:async()=> (await api.get<any>('/students',{params:{limit:100}})).data});
  const {data:teachers}=useQuery({queryKey:['reports','teachers'],queryFn:async()=> (await api.get<any>('/teachers',{params:{limit:100}})).data,enabled:user?.role==='ADMIN'||user?.role==='SUPERVISOR'});
  const params=useMemo(()=>({type,from:from||undefined,to:to||undefined,circleId:circleId||undefined,courseId:courseId||undefined,teacherId:teacherId||undefined,studentId:studentId||undefined,search:search||undefined,status:status||undefined,track:track||undefined,evaluation:evaluation||undefined,_refresh:refresh}),[type,from,to,circleId,courseId,teacherId,studentId,search,status,track,evaluation,refresh]);
- const {data,isLoading,isError,error}=useQuery({queryKey:['reports',params],queryFn:async()=> (await api.get<ReportData>('/reports',{params})).data, enabled:(type!=='student'||!!studentId)&&(!['courseStudents','courseAttendance'].includes(type)||!!courseId)});
+ const {data,isLoading,isError,error}=useQuery<ReportData>({queryKey:['reports',params],queryFn:async()=>{try{return (await api.get('/reports',{params})).data;}catch(error){return localReport(params);}}, enabled:(type!=='student'||!!studentId)&&(!['courseStudents','courseAttendance'].includes(type)||!!courseId)});
  const reportError=(()=>{const err=error as {response?:{status?:number;data?:{message?:string|string[]}};message?:string}|null; const message=err?.response?.data?.message; if(Array.isArray(message)) return message.join('، '); if(message) return message; if(err?.response?.status) return `فشل تحميل التقرير (HTTP ${err.response.status}).`; return 'تعذّر الاتصال بالخادم. تحقق من الاتصال وحاول مجددًا.';})();
  const statLabels: Record<string,string> = { total:'إجمالي السجلات', present:'الحضور', absent:'الغياب', excused:'الغياب بعذر', pages:'مجموع الصفحات', points:'مجموع النقاط', students:'عدد الطلاب', passed:'ناجح', failed:'راسب', average:'متوسط العلامات', circles:'عدد الحلقات', attendance:'سجلات الحضور', recitations:'سجلات التسميع', active:'منتظمون', suspended:'موقوفون', activity:'برنامج النشاط' };
  const statEntries=Object.entries(data?.stats??{}).map(([key,value])=>[statLabels[key]??key,value] as [string,number]);
  const rows: Record<string, unknown>[] = type==='student' ? (data?.attendance??[]).map(r=>({المجموعة:'الحضور',...r})).concat((data?.recitations??[]).map(r=>({المجموعة:'التسميع',...r})),(data?.exams??[]).map(r=>({المجموعة:'الاختبارات',...r}))) : (data?.rows??[]);
  const columns=rows.length?Object.keys(rows[0]):[];
  const exportReport=async()=>{
-  let url: string | undefined;
-  try {
-   const response=await api.get('/reports/export',{params:{...params,_refresh:undefined},responseType:'blob',timeout:120000});
-   if (!(response.data instanceof Blob) || response.data.size === 0) throw new Error('الملف المستلم فارغ أو غير صالح');
-   url=URL.createObjectURL(response.data);
-   const a=document.createElement('a');
-   a.href=url;
-   a.download=`${({attendance:'تقرير_الحضور_والغياب',recitations:'تقرير_التسميع_اليومي',exams:'تقرير_الاختبارات',student:'الملف_الشامل_للطالب',circles:'إحصائيات_الحلقات',students:'سجل_الطلاب',courses:'حلقات_الدورات',courseStudents:'طلاب_الدورات',courseAttendance:'حضور_وغياب_الدورات'} as Record<string,string>)[type]??'تقرير'}.xlsx`;
-   a.style.display='none';
-   document.body.appendChild(a);
-   a.click();
-   a.remove();
-   window.setTimeout(()=>{if(url) URL.revokeObjectURL(url);},1000);
-  } catch(error) {
-   if(url) URL.revokeObjectURL(url);
-   console.error('Excel export failed:',error);
-   let message='تعذّر تصدير ملف Excel. حاول مرة أخرى.';
-   const err=error as {response?:{status?:number;data?:unknown};code?:string;message?:string};
-   if(err.code==='ECONNABORTED') {
-    message='استغرق تجهيز ملف Excel وقتًا أطول من المتوقع. جرّب تقريرًا بفلاتر أضيق.';
-   } else if(err.response?.data instanceof Blob) {
-    try {
-     const body=await err.response.data.text();
-     const parsed=JSON.parse(body) as {message?:string|string[]};
-     if(parsed.message) message=Array.isArray(parsed.message)?parsed.message.join('، '):parsed.message;
-     else if(err.response.status===401) message='انتهت جلسة الدخول. سجّل الدخول مجددًا ثم حاول التصدير.';
-     else if(err.response.status===403) message='ليس لديك صلاحية لتصدير هذا التقرير.';
-     else message=`فشل التصدير (رمز الخطأ ${err.response.status??'غير معروف'}).`;
-    } catch {
-     message=`فشل التصدير من الخادم (رمز الخطأ ${err.response.status??'غير معروف'}).`;
-    }
-   } else if(!err.response) {
-    message='تعذّر الاتصال بالخادم. تحقق من الاتصال وحاول مرة أخرى.';
-   }
-   window.alert(message);
-  }
+  setExporting(true);
+  try { await saveDeviceFile(await exportLocalWorkbook(rows), (documentPage?.title || reports.find(r=>r.id===type)?.title || 'تقرير') + '.xlsx'); }
+  catch { window.alert('تعذر حفظ ملف Excel على الجهاز'); }
+  finally { setExporting(false); }
  };
  return <div dir="rtl" className="space-y-6">
   <PageHeader title={documentPage?.title ?? (status==='SUSPENDED'?'سجل طلاب المفصولين':status==='ACTIVITY'?'سجل طلاب النشاط':track==='CIRCLE'?'سجل طلاب التحفيظ':status==='ACTIVE'?'سجل طلاب التحفيظ':'التقارير والمستندات')} subtitle="حدد الفترة من وإلى، ثم صدّر المستند المطلوب إلى Excel." />
@@ -115,7 +88,7 @@ export default function ReportsPage() {
    {type==='students'&&<label className="text-sm font-semibold text-slate-700">التقييم<Select value={evaluation} onChange={e=>setEvaluation(e.target.value)}><option value="">كل التقييمات</option><option value="EXCELLENT">ممتاز</option><option value="VERY_GOOD">جيد جداً</option><option value="GOOD">جيد</option><option value="ACCEPTABLE">مقبول</option><option value="UNSATISFACTORY">غير مرضٍ</option></Select></label>}
    {type==='recitations'&&<label className="text-sm font-semibold text-slate-700">المعلم<Select value={teacherId} onChange={e=>setTeacherId(e.target.value)}><option value="">كل المعلمين</option>{((teachers?.data??teachers??[]) as any[]).map((t:any)=><option key={t.id} value={t.id}>{t.user?.fullName??t.fullName}</option>)}</Select></label>}
    {type==='student'&&<label className="text-sm font-semibold text-slate-700">الطالب<Select value={studentId} onChange={e=>setStudentId(e.target.value)}><option value="">اختر الطالب</option>{((students?.data??[]) as any[]).map((s:any)=><option key={s.id} value={s.id}>{s.fullName}</option>)}</Select></label>}
-   <div className="flex items-end gap-2"><Button onClick={()=>setRefresh(v=>v+1)}>تحديث التقرير</Button><Button variant="secondary" onClick={exportReport} disabled={(type==='student'&&!studentId)||(['courseStudents','courseAttendance'].includes(type)&&!courseId)}>تصدير Excel</Button></div>
+   <div className="flex flex-wrap items-end gap-2"><Button onClick={()=>setRefresh(v=>v+1)}>تحديث التقرير</Button><Button variant="secondary" onClick={exportReport} disabled={isLoading||isError||(type==='student'&&!studentId)||(['courseStudents','courseAttendance'].includes(type)&&!courseId)}>تصدير Excel</Button><Button variant="secondary" loading={exporting} disabled={isLoading||isError||(type==='student'&&!studentId)||(['courseStudents','courseAttendance'].includes(type)&&!courseId)} onClick={async()=>{setExporting(true);try{await saveDeviceFile(await exportLocalPdf(documentPage?.title||reports.find(r=>r.id===type)?.title||'تقرير',rows),`${documentPage?.title||'تقرير'}.pdf`);}catch{window.alert('تعذر إنشاء PDF على الجهاز');}finally{setExporting(false);}}}>تصدير PDF</Button></div>
   </div></Card>
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{statEntries.map(([key,value])=><StatCard key={key} label={key} value={value}/>)}</div>
   <Card><div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-bold text-slate-900">{documentPage?.title ?? (status==='SUSPENDED'?'سجل طلاب المفصولين':status==='ACTIVITY'?'سجل طلاب النشاط':track==='CIRCLE'?'سجل طلاب التحفيظ':status==='ACTIVE'?'سجل طلاب التحفيظ':reports.find(r=>r.id===type)?.title)}</h2><span className="text-sm text-slate-500">{rows.length} سجل</span></div>

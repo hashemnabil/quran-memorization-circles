@@ -1,23 +1,32 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { useCachedImage } from '@/hooks/useCachedImage';
 import { api } from '@/lib/api';
 import type { SchoolSettings } from '@/types';
+import { DEFAULT_SCHOOL_LOGO, DEFAULT_SCHOOL_NAME, schoolName } from '@/config/branding';
 
 const BRAND_CACHE_KEY = 'qc.schoolBranding';
-const APP_NAME = 'حلقات تحفيظ السوسي';
 
 type Branding = { name?: string; logoUrl?: string | null; mosqueName?: string | null };
 
 function readCachedBranding(): Branding {
-  try { return JSON.parse(localStorage.getItem(BRAND_CACHE_KEY) || '{}') as Branding; }
+  try { const cached = JSON.parse(localStorage.getItem(BRAND_CACHE_KEY) || '{}') as Branding; return { ...cached, name: schoolName(cached.name) }; }
   catch { return {}; }
 }
 
 export default function AppLaunchGate({ children }: { children: ReactNode }) {
+  return <NativeLaunchGate>{children}</NativeLaunchGate>;
+}
+
+function NativeLaunchGate({ children }: { children: ReactNode }) {
   const [onboardingDone, setOnboardingDone] = useState(() => {
     try { return localStorage.getItem('qc.onboarding.completed') === '1'; } catch { return false; }
   });
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [leaving, setLeaving] = useState(false);
   const [branding, setBranding] = useState<Branding>(readCachedBranding);
+  const logo = useCachedImage(branding.logoUrl);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -31,31 +40,29 @@ export default function AppLaunchGate({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!onboardingDone) return;
-    const timer = window.setTimeout(() => setShowSplash(false), 1700);
-    return () => window.clearTimeout(timer);
-  }, [onboardingDone]);
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) { setShowSplash(false); return; }
+    const duration = Capacitor.isNativePlatform() ? 900 : 560;
+    const fade = window.setTimeout(() => setLeaving(true), duration - 120);
+    const finish = window.setTimeout(() => setShowSplash(false), duration);
+    return () => { window.clearTimeout(fade); window.clearTimeout(finish); };
+  }, []);
 
-  if (!onboardingDone) {
-    return <FirstUseOnboarding onComplete={() => { setOnboardingDone(true); setShowSplash(true); }} />;
+  if (!onboardingDone && !showSplash) {
+    return <FirstUseOnboarding onComplete={() => setOnboardingDone(true)} />;
   }
 
   return (
     <>
-      {children}
+      {onboardingDone && children}
       {showSplash && (
-        <div dir="rtl" role="status" aria-label="بدء التطبيق" className="fixed inset-0 z-[190] flex items-center justify-center bg-gradient-to-b from-emerald-950 via-emerald-900 to-emerald-800 px-6 text-center text-white">
-          <div className="flex max-w-sm flex-col items-center">
-            {branding.logoUrl ? (
-              <img src={branding.logoUrl} alt={branding.name || 'شعار المدرسة'} className="mb-6 h-28 w-28 rounded-3xl bg-white p-3 object-contain shadow-2xl" />
-            ) : (
-              <div className="mb-6 grid h-28 w-28 place-items-center rounded-3xl border border-amber-200/40 bg-white/10 text-5xl shadow-2xl">🕌</div>
-            )}
-            <h1 className="text-xl font-extrabold leading-relaxed">{branding.name || branding.mosqueName || 'عبدالله بن عمر'}</h1>
-            <div className="my-5 h-px w-20 bg-amber-300/80" />
-            <p className="text-lg font-bold text-amber-200">{APP_NAME}</p>
-            <p className="mt-5 text-xs tracking-widest text-emerald-100/70">جاري تجهيز التطبيق</p>
+        <div dir="rtl" role="status" aria-label="بدء التطبيق" className={`app-launch ${leaving ? 'is-leaving' : ''}`}>
+          <div className="app-launch__emblem" aria-hidden="true">
+            <span className="app-launch__ring" /><span className="app-launch__ring app-launch__ring--outer" />
+            <div className="app-launch__logo">{logo && !logoFailed ? <img src={logo} alt="" onError={() => setLogoFailed(true)} /> : <img src={DEFAULT_SCHOOL_LOGO} alt="" />}</div>
           </div>
+          <span className="app-launch__rule" aria-hidden="true" />
+          <p className="app-launch__name">{branding.name || DEFAULT_SCHOOL_NAME}</p>
         </div>
       )}
     </>

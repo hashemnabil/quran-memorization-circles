@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -76,8 +77,8 @@ export default function CircleDetailsPage() {
 
   const removeTeacher = useMutation({
     mutationFn: (teacherId: string) => api.delete(`/circles/${id}/teachers/${teacherId}`),
-    onSuccess: () => {
-      toast.success('تم إنهاء إسناد المعلم');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إنهاء إسناد المعلم');
       queryClient.invalidateQueries({ queryKey: ['circles', id] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -455,8 +456,8 @@ function AssignTeacherModal({
       mode === 'primary'
         ? api.patch(`/circles/${circleId}/primary-teacher`, { teacherId, note: note || undefined })
         : api.post(`/circles/${circleId}/assistants`, { teacherId, note: note || undefined }),
-    onSuccess: () => {
-      toast.success(mode === 'primary' ? 'تم تعيين المعلم الأساسي' : 'تمت إضافة المعلم المساعد');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, mode === 'primary' ? 'تم تعيين المعلم الأساسي' : 'تمت إضافة المعلم المساعد');
       queryClient.invalidateQueries({ queryKey: ['circles', circleId] });
       onClose();
     },
@@ -543,8 +544,8 @@ function EditCircleModal({ circle, onClose }: { circle: Circle; onClose: () => v
       if (isAdmin) payload.supervisorId = form.supervisorId || null;
       return api.patch(`/circles/${circle.id}`, payload);
     },
-    onSuccess: () => {
-      toast.success('تم تحديث بيانات الحلقة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تحديث بيانات الحلقة');
       queryClient.invalidateQueries({ queryKey: ['circles'] });
       onClose();
     },

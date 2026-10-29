@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">مدرسة عبدالله بن عمر لتعليم القران الكريم والسنة النبوية</string>
+    <string name="title_activity_main">مدرسة عبدالله بن عمر لتعليم القران الكريم والسنة النبوية</string>
+    <string name="package_name">org.qurancircles.app</string>
+    <string name="custom_url_scheme">org.qurancircles.app</string>
+</resources>

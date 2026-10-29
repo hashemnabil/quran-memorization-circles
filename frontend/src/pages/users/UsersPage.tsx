@@ -1,3 +1,5 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
+import { passwordError } from '@/lib/validation';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -77,8 +79,8 @@ export default function UsersPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/users/${id}`),
-    onSuccess: () => {
-      toast.success('تم حذف المستخدم');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف المستخدم');
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -266,7 +268,7 @@ export default function UsersPage() {
                       </td>
                       <td>
                         <Badge className={account.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}>
-                          {account.isActive ? 'نشط' : 'موقوف'}
+                          {(account as any).synced === 0 ? 'بانتظار المزامنة' : account.isActive ? 'نشط' : 'موقوف'}
                         </Badge>
                       </td>
                       <td>
@@ -376,8 +378,8 @@ function UserFormModal({ user, onClose }: { user?: UserRecord; onClose: () => vo
       }
       return isEdit ? api.patch(`/users/${user!.id}`, payload) : api.post('/users', payload);
     },
-    onSuccess: () => {
-      toast.success(isEdit ? 'تم تحديث المستخدم' : 'تم إنشاء المستخدم');
+    onSuccess: (response) => {
+      toast.success(response.data?.synced === 0 ? 'حُفظ الطلب على الجهاز؛ الحساب أو التعديل ينتظر تأكيد الخادم عند عودة النت' : isEdit ? 'تم تحديث المستخدم' : 'تم إنشاء المستخدم');
       queryClient.invalidateQueries({ queryKey: ['users'] });
       onClose();
     },
@@ -394,7 +396,7 @@ function UserFormModal({ user, onClose }: { user?: UserRecord; onClose: () => vo
     if (mailErr) next.email = mailErr;
     const phoneErr = phoneError(form.phone);
     if (phoneErr) next.phone = phoneErr;
-    if (!isEdit && form.password.length < 6) next.password = 'كلمة المرور 6 أحرف على الأقل';
+    if (!isEdit && form.password.length < 1) next.password = 'كلمة المرور أي طول تختاره';
     setErrors(next);
     if (Object.keys(next).length) return;
     mutation.mutate();
@@ -430,7 +432,7 @@ function UserFormModal({ user, onClose }: { user?: UserRecord; onClose: () => vo
           <Input label="كلمة المرور" required type="text" value={form.password} onChange={(e) => set('password', e.target.value)} error={errors.password} dir="ltr" />
         )}
         <Select label="الدور" required value={form.role} onChange={(e) => set('role', e.target.value)}>
-          {Object.entries(ROLE_LABELS).map(([key, label]) => (
+          {Object.entries(ROLE_LABELS).filter(([key]) => key !== 'FOUNDER' && (isEdit || !['STUDENT', 'PARENT'].includes(key))).map(([key, label]) => (
             <option key={key} value={key}>
               {label}
             </option>
@@ -474,8 +476,8 @@ function ResetPasswordModal({ user, onClose }: { user: UserRecord; onClose: () =
 
   const mutation = useMutation({
     mutationFn: () => api.patch(`/users/${user.id}/reset-password`, { newPassword }),
-    onSuccess: () => {
-      toast.success('تم إعادة تعيين كلمة المرور');
+    onSuccess: (response) => {
+      toast.success(response.data?.synced === 0 ? 'حُفظ طلب كلمة المرور؛ يسري على الخادم بعد المزامنة' : 'تم إعادة تعيين كلمة المرور');
       onClose();
     },
     onError: (error) => toast.error(apiError(error)),
@@ -492,7 +494,7 @@ function ResetPasswordModal({ user, onClose }: { user: UserRecord; onClose: () =
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
-          <Button onClick={() => mutation.mutate()} loading={mutation.isPending} disabled={newPassword.length < 6}>
+          <Button onClick={() => mutation.mutate()} loading={mutation.isPending} disabled={Boolean(passwordError(newPassword))}>
             إعادة التعيين
           </Button>
         </>
@@ -507,7 +509,7 @@ function ResetPasswordModal({ user, onClose }: { user: UserRecord; onClose: () =
         type="text"
         value={newPassword}
         onChange={(e) => setNewPassword(e.target.value)}
-        hint="6 أحرف على الأقل"
+        hint="أي طول تختاره"
         dir="ltr"
       />
     </Modal>

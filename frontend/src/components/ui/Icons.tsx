@@ -6,7 +6,7 @@ import type { SVGProps } from 'react';
  */
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
-function Base({ size = 20, children, ...props }: IconProps) {
+function Base({ size = 20, children, className, ...props }: IconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -18,6 +18,8 @@ function Base({ size = 20, children, ...props }: IconProps) {
       strokeWidth={1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
+      className={['app-icon', className].filter(Boolean).join(' ')}
+      focusable="false"
       aria-hidden="true"
       {...props}
     >
@@ -32,6 +34,12 @@ export const IconDashboard = (p: IconProps) => (
     <rect x="14" y="3" width="7" height="5" rx="1.5" />
     <rect x="14" y="12" width="7" height="9" rx="1.5" />
     <rect x="3" y="16" width="7" height="5" rx="1.5" />
+  </Base>
+);
+
+export const IconHeart = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />
   </Base>
 );
 
@@ -305,3 +313,7 @@ export const IconExternal = (p: IconProps) => (
     <path d="M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10" />
   </Base>
 );
+
+export const IconPost = (p: IconProps) => <Base {...p}><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></Base>;
+export const IconStory = (p: IconProps) => <Base {...p}><circle cx="12" cy="12" r="9" strokeDasharray="3 3"/><path d="m10 8 6 4-6 4z"/></Base>;
+export const IconSchool = (p: IconProps) => <Base {...p}><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-7h6v7M8 10h1M15 10h1"/></Base>;

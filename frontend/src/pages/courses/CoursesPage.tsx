@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -69,8 +70,8 @@ export default function CoursesPage() {
 
   const remove = useMutation({
     mutationFn: async (id: string) => (await api.delete(`/courses/${id}`)).data,
-    onSuccess: () => {
-      toast.success('تم حذف الدورة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف الدورة');
       void qc.invalidateQueries({ queryKey: ['courses'] });
     },
     onError: (err) => toast.error(apiError(err, 'تعذر حذف الدورة')),
@@ -181,7 +182,7 @@ export default function CoursesPage() {
 
       {isLoading ? (
         <LoadingState />
-      ) : error ? (
+      ) : error && !data ? (
         <ErrorState message={apiError(error, 'تعذر تحميل الدورات')} onRetry={refetch} />
       ) : courses.length === 0 ? (
         <EmptyState
@@ -400,8 +401,8 @@ function CourseForm({
       course
         ? (await api.patch(`/courses/${course.id}`, payload)).data
         : (await api.post('/courses', payload)).data,
-    onSuccess: () => {
-      toast.success(course ? 'تم تحديث الدورة' : 'تمت إضافة الدورة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, course ? 'تم تحديث الدورة' : 'تمت إضافة الدورة');
       void qc.invalidateQueries({ queryKey: ['courses'] });
       onClose();
     },

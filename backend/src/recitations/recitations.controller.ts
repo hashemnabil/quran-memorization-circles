@@ -12,6 +12,7 @@ import { RecitationsService } from './recitations.service';
 @ApiTags('التسميع اليومي')
 @ApiBearerAuth()
 @Controller('recitations')
+@Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT, Role.PARENT)
 export class RecitationsController {
   constructor(private readonly service: RecitationsService) {}
 

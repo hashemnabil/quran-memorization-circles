@@ -169,8 +169,10 @@ api.defaults.adapter = async (config) => {
     let data = result.data;
     if (typeof data === 'string') { try { data = JSON.parse(data); } catch { /* Non-JSON responses are preserved verbatim. */ } }
     stillCurrent();
-    // Replica persistence is best-effort background work, never an interactive read barrier.
-    void rememberRead(path, config.params, data).catch(()=>undefined);
+    // Do not expose a fresh online result before its offline replica is durable.
+    // Otherwise an immediate airplane-mode reload can restore an older snapshot.
+    await rememberRead(path, config.params, data).catch(() => undefined);
+    stillCurrent();
     result.data = data;
     return result;
   }

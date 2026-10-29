@@ -64,6 +64,8 @@ jobs:
       - run: npm --prefix backend run test:sync-protocol
       - run: npm --prefix backend run test:attendance-replay
       - run: npm --prefix backend run prisma:deploy
+      - run: node --test -r ts-node/register src/founder/founder.integration.test.ts
+        working-directory: backend
       - run: node scripts/recovery.integration.mjs
         working-directory: backend
       - run: npm --prefix backend run test:api-integration

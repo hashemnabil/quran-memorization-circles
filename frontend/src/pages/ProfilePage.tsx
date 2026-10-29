@@ -1,4 +1,5 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
+import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import ThemeSelect from '@/components/ThemeSelect';
 import LocalSecuritySettings from '@/components/LocalSecuritySettings';
 import FirstUseOnboarding from '@/components/FirstUseOnboarding';
@@ -28,6 +29,7 @@ import { formatDate, formatDateTime, formatParts } from '@/lib/format';
 import { rememberOfflineLogin } from '@/lib/offline-login';
 
 export default function ProfilePage({ settings = false }: { settings?: boolean }) {
+  const cover = useCuratedBackground('PROFILE_COVER');
   const [replayIntro, setReplayIntro] = useState(false);
   const [nickname, setNickname] = useState('');
   const [savingNickname, setSavingNickname] = useState(false);
@@ -83,7 +85,8 @@ export default function ProfilePage({ settings = false }: { settings?: boolean }
   return (
     <>
       {replayIntro && <div className="fixed inset-0 z-[200] overflow-y-auto"><FirstUseOnboarding onComplete={() => setReplayIntro(false)} /></div>}
-      <PageHeader title={settings ? "إعدادات الحساب" : "الملف الشخصي"} subtitle="رحلتك مع القرآن في مكان واحد" action={<Link className="app-icon-button" aria-label={settings ? "الملف الشخصي" : "إعدادات الحساب"} to={settings ? "/profile" : "/profile/settings"}><IconSettings size={21} /></Link>} />{!settings && <div className="profile-cover"><span>رحلة نور مع القرآن</span><p>كل آية تحفظها، أثر يبقى معك</p></div>}
+      <PageHeader title={settings ? "إعدادات الحساب" : "الملف الشخصي"} subtitle="رحلتك مع القرآن في مكان واحد" action={<Link className="app-icon-button" aria-label={settings ? "الملف الشخصي" : "إعدادات الحساب"} to={settings ? "/profile" : "/profile/settings"}><IconSettings size={21} /></Link>} />
+      {!settings && <><div className="profile-cover" style={cover.url ? { backgroundImage: `linear-gradient(#12372d66,#12372d99),url("${cover.url}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}><span>رحلة نور مع القرآن</span><p>كل آية تحفظها، أثر يبقى معك</p></div><BackgroundChoice value={cover} label="غلاف الملف الشخصي" /></>}
       <Link to="/community/users/me" className="inline-flex rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white">👤 افتح ملفي الشخصي العام ومنشوراتي</Link>
 
 

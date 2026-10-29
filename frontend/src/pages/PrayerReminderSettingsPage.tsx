@@ -1,4 +1,5 @@
 import { notificationPreview } from '@/lib/notification-preview';
+import { CuratedSoundChoice, WebAudioPermission } from '@/components/CuratedWebAudio';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { Button, Card, PageHeader } from '@/components/ui';
@@ -22,6 +23,7 @@ export default function PrayerReminderSettingsPage() {
     return () => { unsubscribe(); document.removeEventListener('visibilitychange', hidden); void notificationPreview.stop('prayer-adhan'); };
   }, []);
   return <div className="prayer-page"><PageHeader title="إعدادات تذكيرات الصلاة" subtitle="إعدادات شخصية — غزة، فلسطين" action={<PrayerBackButton />} />
+    <WebAudioPermission /><CuratedSoundChoice kind="ADHAN_SOUND" />
     <div className="prayer-settings-grid"><Card title="تذكيرات الصلاة"><label className="prayer-check mb-5"><input type="checkbox" checked={value.enabled} onChange={e => setValue({ ...value, enabled: e.target.checked })} />تفعيل تذكيرات الصلاة</label>
       <div className="prayer-table">{obligatoryPrayers.map(p => { const id = p.id as ObligatoryPrayer; return <div className="prayer-row" key={id}><label className="prayer-check"><input type="checkbox" checked={value.prayers[id].enabled} onChange={e => setValue({ ...value, prayers: { ...value.prayers, [id]: { ...value.prayers[id], enabled: e.target.checked } } })} />{p.label}</label><select className="input max-w-52" aria-label={`موعد تذكير ${p.label}`} value={value.prayers[id].before} onChange={e => setValue({ ...value, prayers: { ...value.prayers, [id]: { ...value.prayers[id], before: Number(e.target.value) } } })}>{[0, 5, 10, 15].map(n => <option key={n} value={n}>{n === 0 ? 'عند دخول الوقت' : `قبل الصلاة بـ ${n} دقائق`}</option>)}</select></div>; })}</div>
       <p className="prayer-help">الشروق ليس صلاة مفروضة، ولا تُجدول له تذكيرات. التذكيرات معطّلة افتراضيًا حتى تختار تفعيلها.</p>

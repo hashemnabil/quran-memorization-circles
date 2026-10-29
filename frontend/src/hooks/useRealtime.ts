@@ -34,6 +34,7 @@ export function useRealtime() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
 
       if (document.querySelector('[data-security-blocked]')) return;
+      window.dispatchEvent(new CustomEvent('qc:web-notification', { detail: payload.notification.id }));
       toast(payload.notification.title, {
         icon: '🔔',
         duration: 5000,

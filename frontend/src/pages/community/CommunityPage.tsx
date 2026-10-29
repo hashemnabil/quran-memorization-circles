@@ -8,7 +8,7 @@ import { useAuthStore } from '@/store/auth';
 import { Avatar, Button, Card, LoadingState, Modal, PageHeader } from '@/components/ui';
 
 type School={name:string;logoUrl:string|null;about:string|null;address:string|null};
-type Person={id:string;fullName:string;nickname?:string|null;avatarUrl?:string|null;role:string};
+type Person={coverAssetId?:string|null;id:string;fullName:string;nickname?:string|null;avatarUrl?:string|null;role:string};
 type Comment={synced?:number;id:string;body:string;parentId?:string|null;user:Person;_count?:{likes:number}};
 type Story={id:string;schoolStory:boolean;body:string;authorId:string;author:Person;views:{liked:boolean;user:Person}[]};
 type Post={synced?:number;id:string;body:string;schoolPost:boolean;createdAt:string;author:Person;_count:{likes:number;comments:number};comments:Comment[];likes:{user:Person}[]};
@@ -70,7 +70,7 @@ export default function CommunityPage(){
     <Link className="rounded-xl bg-slate-100 px-4 py-3 font-bold hover:bg-slate-200" to="/community/users/me">👤 ملفي الشخصي</Link>
     <Link className="rounded-xl bg-slate-100 px-4 py-3 font-bold hover:bg-slate-200" to="/notifications">🔔 الإشعارات</Link>
   </nav>
-  {userId&&profile.data&&<Card><div className="profile-cover"><span>رحلتي مع القرآن</span></div>{userId===user.id&&<Link to="/profile/settings" className="profile-settings-link" aria-label="إعدادات الحساب">⚙</Link>}<div className="-mt-7 flex items-center gap-3 px-3"><Avatar name={profile.data.fullName} src={profile.data.avatarUrl} size={72}/><div><h2 className="font-bold">{profile.data.fullName}</h2><p className="text-sm text-slate-500">{profile.data.nickname||'بدون كنية'} · {profile.data.role}</p></div></div>{userId===user.id&&<div className="mt-3 flex gap-2"><input className="input" maxLength={60} value={nickname} onChange={e=>setNickname(e.target.value)} placeholder="أضف كنيتك"/><Button onClick={()=>action.mutate({path:'/community/nickname',data:{nickname},method:'patch'})}>حفظ الكنية</Button></div>}</Card>}
+  {userId&&profile.data&&<Card><div className="profile-cover" style={profile.data.coverAssetId ? {backgroundImage: `linear-gradient(#12372d66,#12372d99),url("${String(api.defaults.baseURL).replace(/\/$/, "")}/founder-assets/${encodeURIComponent(profile.data.coverAssetId)}/content")`,backgroundSize:"cover",backgroundPosition:"center"}:undefined}><span>رحلتي مع القرآن</span></div>{userId===user.id&&<Link to="/profile/settings" className="profile-settings-link" aria-label="إعدادات الحساب">⚙</Link>}<div className="-mt-7 flex items-center gap-3 px-3"><Avatar name={profile.data.fullName} src={profile.data.avatarUrl} size={72}/><div><h2 className="font-bold">{profile.data.fullName}</h2><p className="text-sm text-slate-500">{profile.data.nickname||'بدون كنية'} · {profile.data.role}</p></div></div>{userId===user.id&&<div className="mt-3 flex gap-2"><input className="input" maxLength={60} value={nickname} onChange={e=>setNickname(e.target.value)} placeholder="أضف كنيتك"/><Button onClick={()=>action.mutate({path:'/community/nickname',data:{nickname},method:'patch'})}>حفظ الكنية</Button></div>}</Card>}
 
   {!userId&&<Card><div className="mb-4 flex gap-4 overflow-x-auto pb-2" dir="rtl">
     <button type="button" className="flex shrink-0 flex-col items-center gap-1" onClick={()=>setSelectedStory('new')}><span className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-dashed border-indigo-400 text-3xl">＋</span><span className="text-xs">قصتك</span></button>

@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "test:e2e:founder": "playwright test --config playwright.founder.config.ts",
     "test:prayer": "node --import tsx --test src/lib/prayer-times.test.ts src/lib/notification-audio.test.mjs",
     "test:adhan": "node --import ./scripts/register-test-loader.mjs --test src/lib/prayer-times.test.ts src/lib/service-worker.test.mjs && node scripts/test-adhan-native.mjs",
     "test:e2e:prayer": "playwright test --config playwright.prayer.config.ts",

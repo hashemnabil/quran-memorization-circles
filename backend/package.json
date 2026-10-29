@@ -4,6 +4,9 @@
   "description": "Backend for the Quran Memorization Circles Management System",
   "private": true,
   "scripts": {
+    "db:audit:founder": "node scripts/audit-founder-schema.mjs",
+    "test:founder-audit": "node --test scripts/audit-founder-schema.test.mjs",
+    "test:founder": "node --test -r ts-node/register src/auth/founder-policy.test.ts src/founder/asset-policy.test.ts src/founder/assets.controller.test.ts src/founder/popup-policy.test.ts src/founder/popups.controller.test.ts",
     "test:realtime-sync": "node --test -r ts-node/register src/realtime/data-change.interceptor.test.ts",
     "test:full-offline": "node --test -r ts-node/register src/offline-sync/sync-all.service.test.ts src/schedules/schedules.service.test.ts src/certificates/certificates.service.test.ts src/exams/exam-reminders.service.test.ts src/attendance/absence-alerts.test.ts src/notifications/notification-flows.test.ts src/push/push.test.ts",
     "build": "prisma generate && nest build",

@@ -1,5 +1,6 @@
 /* Shared interface treatment. Surfaces inherit the existing light/dark tokens. */
 .login-screen { min-width: 0; }
+.chat-keyboard-open .chat-background-choice { display: none; }
 .login-panel { min-width: 0; }
 
 @media (max-width: 639px) {

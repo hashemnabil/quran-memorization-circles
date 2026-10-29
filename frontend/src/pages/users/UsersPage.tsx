@@ -1,4 +1,5 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
+import CreateFounderAccount from '@/components/CreateFounderAccount';
 import { passwordError } from '@/lib/validation';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -109,6 +110,7 @@ export default function UsersPage() {
 
   return (
     <>
+      {currentUser.role === 'FOUNDER' && <div className="mb-4"><CreateFounderAccount /></div>}
       <PageHeader
         title="المستخدمون"
         subtitle="إدارة حسابات النظام والأدوار والصلاحيات"
@@ -275,6 +277,7 @@ export default function UsersPage() {
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => setEditing(account)}
+                            disabled={account.role === 'FOUNDER'}
                             className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-primary-700"
                             title="تعديل"
                           >
@@ -282,6 +285,7 @@ export default function UsersPage() {
                           </button>
                           <button
                             onClick={() => setResetting(account)}
+                            disabled={account.role === 'FOUNDER'}
                             className="rounded-lg p-2 text-slate-400 transition hover:bg-amber-50 hover:text-amber-600"
                             title="إعادة تعيين كلمة المرور"
                           >

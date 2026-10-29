@@ -102,3 +102,21 @@ test('founder audio selection plays the cached recording from the web sound libr
   await expect.poll(() => page.evaluate(() => (window as any).__playedCuratedAudio)).toBe(true);
   await page.getByRole('button', { name: 'إيقاف', exact: true }).click();
 });
+
+test('only founder sees additional-founder creation and confirms their identity separately', async ({ page }) => {
+  await setup(page, [], 'FOUNDER');
+  const requests: any[] = [];
+  await page.route('**/api/founder/accounts', route => { requests.push(route.request().postDataJSON()); return route.fulfill({ json: { id: 'new-owner', username: 'second.owner', role: 'FOUNDER', mustChangePassword: true } }); });
+  await gotoWithLocalUnlock(page, '/founder/users');
+  await page.getByRole('button', { name: 'إضافة مؤسس آخر', exact: true }).click();
+  await page.getByLabel('اسم مستخدم المؤسس الجديد', { exact: true }).fill('second.owner');
+  await page.getByLabel('اسم المؤسس الجديد', { exact: true }).fill('مؤسس ثانٍ');
+  await page.getByLabel('كلمة المرور المؤقتة للمؤسس الجديد', { exact: true }).fill('Temporary-password123');
+  await page.getByLabel('كلمة مرور حسابك لتأكيد الإضافة', { exact: true }).fill('Current-owner-password');
+  await page.getByRole('button', { name: 'إنشاء حساب المؤسس', exact: true }).click();
+  await expect.poll(() => requests.length).toBe(1);
+  expect(requests[0].username).toBe('second.owner');
+  expect(requests[0].currentPassword).toBe('Current-owner-password');
+  expect(requests[0]).not.toHaveProperty('role');
+  await expect(page.getByRole('dialog', { name: 'إضافة حساب مؤسس جديد' })).not.toBeVisible();
+});

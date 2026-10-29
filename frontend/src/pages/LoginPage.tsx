@@ -45,10 +45,11 @@ export default function LoginPage() {
     <div className="login-screen" dir="rtl">
       <div className="login-panel">
         <header className="login-brand flex flex-col items-center text-center">
-          <span className="login-brand-mark"><img src={settings?.logoUrl || cachedBranding.logoUrl || DEFAULT_SCHOOL_LOGO} alt="" onError={event => { if (!event.currentTarget.src.endsWith(DEFAULT_SCHOOL_LOGO)) event.currentTarget.src = DEFAULT_SCHOOL_LOGO; }} className="h-full w-full object-contain" /></span>
-          <h1 className="mt-5 text-lg font-extrabold leading-8 text-white sm:text-xl">{settings?.name?.trim() || cachedBranding.name || DEFAULT_SCHOOL_NAME}</h1>
+          <span className="login-brand-mark"><img src={settings?.logoUrl || cachedBranding.logoUrl || DEFAULT_SCHOOL_LOGO} alt="شعار المدرسة" width={144} height={144} onError={event => { if (!event.currentTarget.src.endsWith(DEFAULT_SCHOOL_LOGO)) event.currentTarget.src = DEFAULT_SCHOOL_LOGO; }} className="h-full w-full object-contain" /></span>
+          <h1 className="login-school-name">{settings?.name?.trim() || cachedBranding.name || DEFAULT_SCHOOL_NAME}</h1>
+          <p className="login-brand-caption">رحلتك مع القرآن، خطوة كل يوم</p>
         </header>
-        <div className="login-greeting"><span>أهلًا بعودتك</span><h2>خطوتك اليوم، نورٌ للغد</h2><p>سجّل دخولك وتابع رحلتك مع القرآن الكريم</p></div>
+        <p className="login-intro">أهلًا بعودتك، سجّل دخولك لمتابعة رحلتك مع القرآن الكريم.</p>
         <CredentialsStep onAuthenticated={onAuthenticated} />
         <div className="login-secondary-actions">
         <button type="button" onClick={() => setPasswordRequestOpen(true)} className="mt-3 min-h-11 w-full rounded-xl text-sm font-bold text-primary-700 hover:bg-primary-50">طلب تغيير كلمة المرور</button>

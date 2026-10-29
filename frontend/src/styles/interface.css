@@ -1,46 +1,70 @@
 /* Shared interface treatment. Surfaces inherit the existing light/dark tokens. */
-.login-screen { min-width: 0; }
+/* Login keeps its natural height: short viewports scroll instead of shrinking branding. */
+.login-screen {
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  align-content: center;
+  padding: max(28px, env(safe-area-inset-top, 0px)) 20px max(28px, env(safe-area-inset-bottom, 0px));
+}
 .chat-keyboard-open .chat-background-choice { display: none; }
-.login-panel { min-width: 0; }
-
+.login-panel {
+  --login-padding: 32px;
+  min-width: 0;
+  width: 100%;
+  max-width: 480px;
+  padding: var(--login-padding);
+  border: 1px solid var(--line, #dfe8e3);
+  border-radius: 28px;
+  box-shadow: 0 20px 64px #12372d12;
+}
+.login-panel > .login-brand {
+  margin: calc(-1 * var(--login-padding)) calc(-1 * var(--login-padding)) 24px;
+  padding: 30px 24px 26px;
+  border-radius: 27px 27px 0 0;
+  border-bottom: 3px solid #d6b76a;
+}
+.login-brand .login-brand-mark {
+  width: 144px;
+  height: 144px;
+  flex-shrink: 0;
+  padding: 8px;
+  background: #fffef9;
+  box-shadow: 0 0 0 1px #d6b76a, 0 0 0 8px #ffffff12, 0 12px 28px #001c1833;
+}
+.login-brand .login-school-name {
+  max-width: 370px;
+  margin: 22px 0 0;
+  font-size: 21px;
+  line-height: 1.75;
+  font-weight: 800;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  color: #fffef8;
+}
+.login-brand-caption { margin-top: 8px; font-size: 12px; line-height: 1.8; color: #e5d4a5; }
+.login-panel > .login-intro { margin: 0 0 20px; color: var(--muted, #64756c); font-size: 14px; line-height: 1.9; }
+.login-panel > h2 { font-size: 21px; line-height: 1.5; }
+.login-panel form { margin-top: 18px; }
+.login-panel form > :not([hidden]) ~ :not([hidden]) { margin-top: 16px; }
+.login-panel .input, .login-panel .btn-primary { min-height: 50px; font-size: 16px; }
+.login-panel .label { margin-bottom: 8px; }
+.login-secondary-actions { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+.login-secondary-actions > :first-child { grid-column: 1 / -1; }
+.login-secondary-actions > * { margin-top: 0; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+.login-panel .login-donation { margin-top: 20px; padding: 14px; gap: 10px; }
 @media (max-width: 639px) {
-  .login-screen {
-    padding: max(8px, env(safe-area-inset-top, 0px)) 12px max(8px, env(safe-area-inset-bottom, 0px));
-    align-content: center;
-  }
-  .login-panel { padding: 16px; border-radius: 18px; }
-  .login-brand {
-    margin: -16px -16px 12px;
-    padding: 12px 16px;
-    border-radius: 17px 17px 0 0;
-  }
-  .login-brand-mark { width: 54px; height: 54px; padding: 3px; }
-  .login-brand h1 { margin-top: 8px; font-size: 15px; line-height: 1.65; overflow-wrap: anywhere; }
-  .login-greeting { display: none; }
-  .login-panel > h2 { font-size: 17px; }
-  .login-panel form { margin-top: 10px; }
-  .login-panel form > :not([hidden]) ~ :not([hidden]) { margin-top: 10px; }
-  .login-panel .input, .login-panel .btn-primary { min-height: 46px; font-size: 16px; }
-  .login-secondary-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; margin-top: 6px; }
-  .login-secondary-actions > :first-child { grid-column: 1 / -1; }
-  .login-secondary-actions > * { margin-top: 0; min-height: 44px; display: flex; align-items: center; justify-content: center; }
-  .login-donation { margin-top: 8px; padding: 8px 10px; gap: 8px; border-radius: 12px; }
-  .login-donation-icon { width: 32px; height: 32px; }
-  .login-donation strong { font-size: 12px; }
-  .login-donation small { margin-top: 0; }
+  .login-screen { padding: max(20px, env(safe-area-inset-top, 0px)) 16px max(20px, env(safe-area-inset-bottom, 0px)); }
+  .login-panel { --login-padding: 24px; border-radius: 24px; }
+  .login-panel > .login-brand { padding: 26px 20px 22px; border-radius: 23px 23px 0 0; }
+  .login-brand .login-brand-mark { width: 120px; height: 120px; padding: 6px; }
+  .login-brand .login-school-name { margin-top: 18px; font-size: 18px; line-height: 1.8; }
+  .login-panel > h2 { font-size: 20px; }
 }
-
-@media (max-width: 639px) and (max-height: 700px) {
-  .login-panel { padding: 10px 16px; }
-  .login-brand { margin-top: -10px; margin-bottom: 8px; padding-block: 8px; }
-  .login-brand-mark { width: 40px; height: 40px; }
-  .login-brand h1 { margin-top: 6px; font-size: 14px; line-height: 1.5; }
-  .login-panel .label { margin-bottom: 4px; }
-  .login-panel form { margin-top: 6px; }
-  .login-panel form > :not([hidden]) ~ :not([hidden]) { margin-top: 8px; }
-  .login-secondary-actions { margin-top: 0; }
+@media (max-width: 359px) {
+  .login-screen { padding-inline: 12px; }
+  .login-panel { --login-padding: 20px; }
 }
-
 body {
   font-family: 'Tajawal', 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;

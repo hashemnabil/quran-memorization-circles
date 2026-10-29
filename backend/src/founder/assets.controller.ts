@@ -22,7 +22,7 @@ export class FounderAssetsController {
   async choose(@CurrentUser() user: AuthUser, @Param('kind') kind: string, @Body() body: { assetId?: string | null }) {
     if (!ASSET_KINDS.includes(kind as any) || body.assetId != null && typeof body.assetId !== 'string') throw new BadRequestException('اختيار غير صالح');
     const assetId = body.assetId || null;
-    if (assetId && !await this.prisma.founderAsset.findFirst({ where: { id: assetId, kind, isActive: true }, select: { id: true } })) throw new BadRequestException('اختر مورداً متاحاً من مكتبة المؤسس');
+    if (assetId && !await this.prisma.founderAsset.findFirst({ where: { id: assetId, kind, isActive: true }, select: { id: true } })) throw new BadRequestException('اختر ملفًا متاحًا من المكتبة');
     return this.prisma.presentationChoice.upsert({ where: { userId_kind: { userId: user.id, kind } }, create: { userId: user.id, kind, assetId }, update: { assetId }, select: { kind: true, assetId: true, updatedAt: true } });
   }
 

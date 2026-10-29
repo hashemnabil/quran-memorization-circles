@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
+import { Modal } from '@/components/ui';
 
-type Asset = { id: string; title: string; kind: string };
+export type Asset = { id: string; title: string; kind: string; mime?: string };
 type Kind = 'CHAT_BACKGROUND' | 'PROFILE_COVER' | 'NOTIFICATION_SOUND' | 'ADHAN_SOUND';
 function catalog(value: unknown): Asset[] {
   return Array.isArray(value) ? value.filter((item): item is Asset => !!item && typeof item.id === 'string' && typeof item.title === 'string' && typeof item.kind === 'string') : [];
@@ -27,6 +28,7 @@ export function useCuratedBackground(kind: Kind) {
       try {
         const pending = localStorage.getItem(`${key}.pending`);
         if (pending !== null) {
+          setSelected(pending);
           await api.put(`/founder-assets/choices/${kind}`, { assetId: pending || null });
           if (active && localStorage.getItem(`${key}.pending`) === pending) localStorage.removeItem(`${key}.pending`);
         } else {
@@ -64,6 +66,31 @@ export function useCuratedBackground(kind: Kind) {
   } };
 }
 
+export const assetContentUrl=(id:string)=>`${String(api.defaults.baseURL).replace(/\/$/,'')}/founder-assets/${encodeURIComponent(id)}/content`;
+export async function libraryAssetBlob(id:string):Promise<Blob>{
+  const address=assetContentUrl(id);
+  const cache=typeof caches==='undefined'?undefined:await caches.open('qc-curated-assets-v1').catch(()=>undefined);
+  let response:Response;
+  try{response=await fetch(address);}
+  catch(error){const saved=await cache?.match(address);if(saved)return saved.blob();throw error;}
+  if(!response.ok)throw new Error('تعذر تحميل الملف؛ حاول مرة أخرى');
+  if(cache)void cache.put(address,response.clone()).catch(()=>undefined);
+  return response.blob();
+}
 export function BackgroundChoice({ value, label }: { value: ReturnType<typeof useCuratedBackground>; label: string }) {
-  return <label className="flex items-center gap-2 text-xs text-slate-500">{label}<select aria-label={label} className="input max-w-48" value={value.selected} onChange={event => value.choose(event.target.value)}><option value="">الافتراضي</option>{value.assets.map(asset => <option key={asset.id} value={asset.id}>{asset.title}</option>)}</select></label>;
+  const [open,setOpen]=useState(false);
+  const selected=value.assets.find(asset=>asset.id===value.selected);
+  return <>
+    <button type="button" aria-label={`تغيير ${label}`} aria-haspopup="dialog" onClick={()=>setOpen(true)} className="inline-flex min-h-12 max-w-full items-center gap-3 rounded-xl border border-slate-200 bg-white/95 p-2 text-start text-slate-800 shadow-sm transition hover:border-emerald-400">
+      <span className="block h-10 w-14 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-emerald-100 to-amber-50">{value.url&&<img src={value.url} alt="" className="h-full w-full object-cover"/>}</span>
+      <span className="min-w-0"><span className="block text-xs font-bold">{label}</span><span className="block truncate text-[11px] text-slate-500">{selected?.title||'الخلفية الافتراضية'}</span></span><span className="px-1 text-xs font-bold text-emerald-700">تغيير</span>
+    </button>
+    <Modal open={open} onClose={()=>setOpen(false)} title={`اختيار ${label}`} size="lg">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <button type="button" aria-pressed={!value.selected} onClick={()=>{value.choose('');setOpen(false);}} className={`overflow-hidden rounded-xl border-2 text-start ${!value.selected?'border-emerald-600':'border-slate-200'}`}><span className="block h-28 bg-gradient-to-br from-emerald-100 to-amber-50"/><span className="block p-3 text-sm font-bold">الافتراضية</span></button>
+        {value.assets.map(asset=><button type="button" key={asset.id} aria-pressed={value.selected===asset.id} onClick={()=>{value.choose(asset.id);setOpen(false);}} className={`overflow-hidden rounded-xl border-2 text-start ${value.selected===asset.id?'border-emerald-600':'border-slate-200 hover:border-emerald-300'}`}><img src={asset.id===value.selected&&value.url?value.url:assetContentUrl(asset.id)} alt={asset.title} loading="lazy" className="h-28 w-full bg-slate-50 object-cover"/><span className="block p-3 text-sm font-bold">{asset.title}{value.selected===asset.id&&<span className="ms-2 text-xs text-emerald-700">محددة</span>}</span></button>)}
+      </div>
+      {!value.assets.length&&<p className="mt-4 text-sm text-slate-500">لا توجد صور إضافية متاحة حاليًا.</p>}
+    </Modal>
+  </>;
 }

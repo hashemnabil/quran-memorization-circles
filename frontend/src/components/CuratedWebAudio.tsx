@@ -2,20 +2,10 @@ import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useAuthStore } from '@/store/auth';
 import { calculateGazaTimes, readPrayerPreferences } from '@/lib/prayer-times';
-import { BackgroundChoice, useCuratedBackground } from './CuratedBackground';
-import { Button, Card } from './ui';
-import { notificationPreview } from '@/lib/notification-preview';
-const savedAudio = (account: string) => { try { return localStorage.getItem(`qc.web-audio.${account}`) === '1'; } catch { return false; } };
+import { useCuratedBackground } from './CuratedBackground';
+import { Card } from './ui';
 
-export function CuratedSoundChoice({ kind }: { kind: 'NOTIFICATION_SOUND' | 'ADHAN_SOUND' }) {
-  const selection = useCuratedBackground(kind), [message, setMessage] = useState('');
-  return <Card title={kind === 'ADHAN_SOUND' ? 'أصوات الأذان من مكتبة المؤسس' : 'أصوات الإشعارات من مكتبة المؤسس'}>
-    <BackgroundChoice value={selection} label="اختر صوتاً من المكتبة" />
-    <div className="mt-3 flex gap-2"><Button variant="secondary" disabled={!selection.url} onClick={() => { void notificationPreview.play('curated-sound', selection.selected, selection.url).catch(() => setMessage('تعذر تشغيل الملف؛ تحقق من صيغة الصوت أو إذن المتصفح')); }}>معاينة الصوت</Button><Button variant="ghost" onClick={() => void notificationPreview.stop('curated-sound')}>إيقاف</Button></div>
-    <p className="mt-3 text-xs text-slate-500">يحفظ الاختيار على هذا الجهاز ويزامنه مع حسابك عند الاتصال. تُستخدم أصوات المكتبة داخل الموقع المفتوح بعد تفعيل أصوات الموقع.</p>
-    {message && <p role="status">{message}</p>}
-  </Card>;
-}
+const savedAudio = (account: string) => { try { return localStorage.getItem(`qc.web-audio.${account}`) === '1'; } catch { return false; } };
 
 export function WebAudioPermission() {
   const account = useAuthStore(state => state.user?.id || '');

@@ -678,6 +678,11 @@ test('student save explains missing fields, confirms online creation and works o
     const url = new URL(route.request().url());
     if (url.pathname === '/api/auth/me') return route.fulfill({ json: user });
     if (url.pathname === '/api/circles/options') return route.fulfill({ json: fixtures.circles });
+    if (url.pathname === '/api/students' && route.request().method() === 'POST') {
+      const row = { ...fixtures.students[0], ...route.request().postDataJSON(), id: '00000000-0000-4000-8000-000000000099', code: '120261234' };
+      students.push(row);
+      return route.fulfill({ status: 201, json: row });
+    }
     if (url.pathname === '/api/students') return route.fulfill({ json: { data: students, meta: { total: students.length, page: 1, totalPages: 1, hasNextPage: false } } });
     if (url.pathname === '/api/courses') return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
     if (url.pathname === '/api/sync-all' && route.request().method() === 'POST') {

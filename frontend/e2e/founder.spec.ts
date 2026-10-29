@@ -103,9 +103,11 @@ test('background picker contains only founder catalog choices without an image u
   await setup(page, [], 'TEACHER');
   await page.route('**/api/founder-assets', route => route.fulfill({ json: [{ id: 'asset-one', title: 'المسجد الأخضر', kind: 'PROFILE_COVER', mime: 'image/png' }] }));
   await gotoWithLocalUnlock(page, '/profile');
-  const picker = page.getByLabel('غلاف الملف الشخصي', { exact: true });
-  await expect(picker.getByRole('option', { name: 'المسجد الأخضر', exact: true })).toHaveCount(1);
-  await picker.selectOption('asset-one');
+  // The background picker is now a compact plus button opening a gallery dialog.
+  await page.getByRole('button', { name: 'غلاف الملف الشخصي', exact: true }).click();
+  const gallery = page.getByRole('dialog', { name: 'اختيار غلاف الملف الشخصي' });
+  await expect(gallery.getByRole('button', { name: 'المسجد الأخضر' })).toBeVisible();
+  await gallery.getByRole('button', { name: 'المسجد الأخضر' }).click();
   expect(await page.evaluate(() => Object.keys(localStorage).some(key => key.includes('PROFILE_COVER') && localStorage.getItem(key) === 'asset-one'))).toBe(true);
 });
 

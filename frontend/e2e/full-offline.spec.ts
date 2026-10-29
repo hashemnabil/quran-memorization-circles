@@ -697,12 +697,12 @@ test('student save explains missing fields, confirms online creation and works o
   await page.getByRole('button', { name: 'حفظ', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('اختر حلقة التحفيظ');
   await page.getByLabel(/^حلقة التحفيظ/).selectOption(circleId);
-  const sending = page.waitForRequest(request => request.url().endsWith('/api/sync-all') && request.method() === 'POST');
+  // Saving is durable and non-blocking: the form must not wait for a network ACK.
   await page.getByRole('button', { name: 'حفظ', exact: true }).click();
-  await sending;
-  try { await expect(page.getByRole('heading', { name: 'تسجيل طالب جديد' })).toBeVisible(); }
-  finally { release(); }
   await expect(page.getByRole('heading', { name: 'تسجيل طالب جديد' })).not.toBeVisible();
+  // Releasing the mocked server allows the background outbox to settle.
+  release();
+  await expect.poll(() => students.length).toBe(1);
   await expect(page.getByText('طالب متصل جديد', { exact: true }).filter({ visible: true })).toBeVisible();
   await page.reload(); await unlockLocalGate(page);
   await expect(page.getByText('طالب متصل جديد', { exact: true }).filter({ visible: true })).toBeVisible();

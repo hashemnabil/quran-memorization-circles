@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { StudentPhoto } from '@/components/StudentPhoto';
+import { RecitationFormModal } from '@/pages/recitations/RecitationsPage';
+import { StudentAttendanceEditor } from './StudentAttendanceEditor';
 import { ExamProgressionTable } from '@/pages/exams/ExamProgressionTable';
 import {
   Badge,
@@ -360,8 +362,8 @@ export default function StudentDetailsPage() {
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
 
       {tab === 'overview' && <OverviewTab student={student} progress={progress} />}
-      {tab === 'attendance' && <AttendanceTab records={attendance?.data ?? []} summary={student.attendanceSummary} />}
-      {tab === 'recitations' && <RecitationsTabComponent records={recitations?.data ?? []} progress={progress} />}
+      {tab === 'attendance' && <AttendanceTab records={attendance?.data ?? []} summary={student.attendanceSummary} student={student} canManage={canManage} />}
+      {tab === 'recitations' && <RecitationsTabComponent records={recitations?.data ?? []} progress={progress} student={student} canManage={canManage} />}
       {tab === 'exams' && (
         <ExamsTabComponent 
           studentId={id}
@@ -551,7 +553,7 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
   );
 }
 
-function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summary?: Student['attendanceSummary'] }) {
+function AttendanceTab({ records, summary, student, canManage }: { records: AttendanceRecord[]; summary?: Student['attendanceSummary']; student: Student; canManage: boolean }) {
   return (
     <div className="space-y-5">
       {summary && (
@@ -563,6 +565,7 @@ function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summ
         </div>
       )}
 
+      {canManage&&<StudentAttendanceEditor key={student.id} student={student}/>}
       <Card title="سجل الحضور" padded={false}>
         {records.length ? (
           <div className="table-wrap border-0 shadow-none">
@@ -597,7 +600,8 @@ function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summ
   );
 }
 
-function RecitationsTabComponent({ records, progress }: { records: Recitation[]; progress: any }) {
+function RecitationsTabComponent({ records, progress, student, canManage }: { records: Recitation[]; progress: any; student: Student; canManage: boolean }) {
+  const [adding,setAdding]=useState(false);
   return (
     <div className="space-y-5">
       {progress && (
@@ -609,7 +613,8 @@ function RecitationsTabComponent({ records, progress }: { records: Recitation[];
         </div>
       )}
 
-      <Card title="سجل التسميع" padded={false}>
+      {adding&&<RecitationFormModal student={student} onClose={()=>setAdding(false)}/>}
+      <Card title="سجل التسميع" action={canManage&&<Button size="sm" icon={<IconPlus size={15}/>} onClick={()=>setAdding(true)}>إضافة تسميع</Button>} padded={false}>
         {records.length ? (
           <div className="table-wrap border-0 shadow-none">
             <table className="table">

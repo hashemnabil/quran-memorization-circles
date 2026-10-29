@@ -8,6 +8,7 @@ import { Badge, Button, Card, EmptyState, ErrorState, Input, LoadingState, Modal
 import { formatDateShort } from '@/lib/format';
 import type { Exam, ExamEligibility } from '@/types';
 import { combinedPlan, type CombinedStage } from '@/lib/combined-plan';
+import { calculateExamGrade } from '@/lib/exam-scoring';
 
 type ExamRow = Exam & { updatedAt?:string; createdAt?:string; scheduledAt: string; examiner?: { fullName: string } | null; gradedBy?: { fullName: string } | null };
 type MilestoneRecord = { id: string; sectionId: string; status: 'NOT_REQUESTED' | 'REQUESTED' | 'SCHEDULED' | 'COMPLETED'; score: number | null; requestedAt: string | null; examDate: string | null; examinerName: string | null; section: { id: string; code: string; name: string; order: number } };
@@ -43,6 +44,8 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
   const [search,setSearch]=useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ status: string; score: string; requestedAt: string; examDate: string; examinerName: string }>({ status: 'NOT_REQUESTED', score: '', requestedAt: '', examDate: '', examinerName: '' });
+  const [useBreakdown,setUseBreakdown]=useState(false);
+  const [gradingDraft,setGradingDraft]=useState({mistakes:0,alerts:0,tajweed:10});
   const recordsQuery = useQuery({
     queryKey: ['exams', 'milestones', studentId],
     enabled: !!studentId,
@@ -70,7 +73,8 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
   const saveRecord = useMutation({
     mutationFn: async (sectionId: string) => (await api.patch(examMilestonePath(studentId, sectionId), {
       status: draft.status,
-      score: draft.score === '' ? null : Number(draft.score),
+      score: useBreakdown&&draft.status==='COMPLETED'?calculated?.score:draft.score === '' ? null : Number(draft.score),
+      ...(useBreakdown&&draft.status==='COMPLETED'?gradingDraft:{}),
       requestedAt: draft.requestedAt || null,
       examDate: draft.examDate || null,
       examinerName: draft.examinerName || null,
@@ -139,7 +143,12 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
   const completedCount=programmeRows.filter(row=>row.passed||row.related?.status==='COMPLETED'||row.record?.status==='COMPLETED').length;
   const visibleRows=programmeRows.filter(row=>(!search.trim()||row.label.includes(search.trim()))&&(filter==='all'||filter==='available'&&canSubmit(row)||filter==='active'&&(row.pending||row.requested)||filter==='completed'&&(row.passed||row.related?.status==='COMPLETED'||row.record?.status==='COMPLETED')));
   const editingRow=rows.find(row=>row.key===editing);
-  const validScore=draft.score===''||(Number.isInteger(Number(draft.score))&&Number(draft.score)>=0&&Number(draft.score)<=100);
+  const savedGrading=editingRow?.related?.grading;
+  const gradingSettings=useQuery({queryKey:['exam-grading-settings',editingRow?.related?.committeeId],enabled:!!editing&&draft.status==='COMPLETED'&&useBreakdown,queryFn:async()=>(await api.get<{mistakePenalty:number;alertPenalty:number}>(editingRow?.related?.committeeId?`/exams/committees/${editingRow.related.committeeId}/grading-settings`:'/exams/grading-settings')).data});
+  const penalties=savedGrading?.mistakePenalty!=null&&savedGrading?.alertPenalty!=null?savedGrading:gradingSettings.data;
+  let calculated:ReturnType<typeof calculateExamGrade>|undefined;
+  try{if(penalties)calculated=calculateExamGrade({...gradingDraft,mistakePenalty:penalties.mistakePenalty,alertPenalty:penalties.alertPenalty});}catch{/* Invalid numeric inputs cannot be saved. */}
+  const validScore=useBreakdown&&draft.status==='COMPLETED'?!!calculated:draft.score===''||(Number.isFinite(Number(draft.score))&&Number(draft.score)>=0&&Number(draft.score)<=100);
   if (loading || recordsQuery.isPending || requestsQuery.isPending) return <LoadingState rows={5} />;
   if(recordsQuery.isError||requestsQuery.isError)return <ErrorState message="تعذر تحميل سجل الاختبارات والطلبات" onRetry={()=>{void recordsQuery.refetch();void requestsQuery.refetch();}}/>;
   return <>
@@ -168,7 +177,7 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
                 <td className="text-xs text-slate-500">{record?.examinerName||row.related?.examiner?.fullName||row.related?.gradedBy?.fullName||'—'}</td>
                 {(canRequest||canEditMilestones)&&<td><div className="flex flex-wrap justify-end gap-2">
                   {canSubmit(row)&&<Button size="sm" loading={submitSectionRequest.isPending} onClick={()=>submitSectionRequest.mutate(row.stage?.code||row.section!.id)}>طلب اختبار</Button>}
-                  {canEditMilestones&&<Button size="sm" variant="secondary" onClick={()=>{setEditing(row.key);setDraft({status:record?.status??(row.pending?'SCHEDULED':completed?'COMPLETED':row.requested?'REQUESTED':'NOT_REQUESTED'),score:score==null?'':String(score),requestedAt:(record?.requestedAt??'').slice(0,10),examDate:(record?.examDate??row.related?.scheduledAt??'').slice(0,10),examinerName:record?.examinerName??row.related?.examiner?.fullName??''});}}>تعديل</Button>}
+                  {canEditMilestones&&<Button size="sm" variant="secondary" onClick={()=>{setEditing(row.key);setUseBreakdown(row.related?.grading?.tajweed!=null);setGradingDraft({mistakes:row.related?.grading?.mistakes??row.related?.mistakes??0,alerts:row.related?.grading?.alerts??0,tajweed:row.related?.grading?.tajweed??10});setDraft({status:record?.status??(row.pending?'SCHEDULED':completed?'COMPLETED':row.requested?'REQUESTED':'NOT_REQUESTED'),score:score==null?'':String(score),requestedAt:(record?.requestedAt??'').slice(0,10),examDate:(record?.examDate??row.related?.scheduledAt??'').slice(0,10),examinerName:record?.examinerName??row.related?.examiner?.fullName??''});}}>تعديل</Button>}
                 </div></td>}
               </tr>;
             })}
@@ -180,8 +189,13 @@ export function ExamProgressionTable({ eligibility, exams, loading, studentId, c
     {editingRow&&<Modal open title={`تعديل سجل ${editingRow.label}`} onClose={()=>{if(!saveRecord.isPending)setEditing(null);}} size="md">
       <form className="space-y-4" onSubmit={event=>{event.preventDefault();if(validScore)saveRecord.mutate(editingRow.stage?.code||editingRow.section?.id||editingRow.record?.sectionId||editingRow.key);}}>
         <Select label="حالة الاختبار" value={draft.status} onChange={event=>setDraft({...draft,status:event.target.value})}><option value="NOT_REQUESTED">لم يُطلب اختبار</option><option value="REQUESTED">طُلب اختبار</option><option value="SCHEDULED">مجدول / قيد الاختبار</option><option value="COMPLETED">تم الاختبار</option></Select>
+        {draft.status==='COMPLETED'&&<div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <Select label="طريقة حساب العلامة" value={useBreakdown?'calculated':'manual'} onChange={event=>setUseBreakdown(event.target.value==='calculated')}><option value="calculated">الأخطاء والتنبيهات والأحكام</option><option value="manual">علامة سابقة بدون تفاصيل</option></Select>
+          <div className="grid gap-3 sm:grid-cols-3">{([{key:'mistakes',label:'عدد الأخطاء',max:500,step:1},{key:'alerts',label:'عدد التنبيهات',max:500,step:1},{key:'tajweed',label:'الأحكام من 10',max:10,step:0.25}] as const).map(field=><Input key={field.key} label={field.label} type="number" min={0} max={field.max} step={field.step} required={useBreakdown} value={useBreakdown?gradingDraft[field.key]:''} placeholder="غير مسجّل" onChange={event=>{setUseBreakdown(true);setGradingDraft({...gradingDraft,[field.key]:event.target.value===''?NaN:Number(event.target.value)});}}/>)}</div>
+          {useBreakdown&&<p className="text-sm font-bold text-primary-800">{calculated?`العلامة: ${calculated.score} / 100 · التسميع: ${calculated.recitation} / 90 · الأحكام: ${calculated.tajweed} / 10`:gradingSettings.isError?'تعذر تحميل معدّل الخصم؛ أعد فتح التعديل وحاول مجددًا.':'جارٍ تحميل معدّل الخصم، أو أكمل قيم الرصد.'}</p>}
+        </div>}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="العلامة من 100" type="number" min={0} max={100} step={1} value={draft.score} onChange={event=>setDraft({...draft,score:event.target.value})}/>
+          <Input label="العلامة من 100" type="number" min={0} max={100} step="0.01" readOnly={useBreakdown&&draft.status==='COMPLETED'} value={useBreakdown&&draft.status==='COMPLETED'?calculated?.score??'':draft.score} onChange={event=>setDraft({...draft,score:event.target.value})}/>
           <Input label="اسم الممتحن" maxLength={120} value={draft.examinerName} onChange={event=>setDraft({...draft,examinerName:event.target.value})}/>
           <Input label="تاريخ الطلب" type="date" value={draft.requestedAt} onChange={event=>setDraft({...draft,requestedAt:event.target.value})}/>
           <Input label="تاريخ الاختبار" type="date" value={draft.examDate} onChange={event=>setDraft({...draft,examDate:event.target.value})}/>

@@ -147,4 +147,18 @@ test('manual result correction clears an obsolete calculated breakdown and updat
 test('a cancelled exam cannot be graded even by the administrator',async()=>{
   const f=resultFixture('CANCELLED');await assert.rejects(f.service.recordResult(actor,'published-exam',{score:90}));assert.equal(f.calls.updates.length,0);
 });
+test('combined table edits save mistakes, alerts and tajweed as an official calculated grade',async()=>{
+  const f=fixture({id:'exam',requestId:null,scheduledAt:new Date(),grading:{mistakePenalty:1,alertPenalty:0.5}});
+  const saved=await f.service.updateCombinedMilestone(actor,'student',stage,{status:'COMPLETED',score:1,mistakes:2,alerts:3,tajweed:8});
+  assert.equal(saved.score,94.5);assert.equal(saved.grading.alerts,3);assert.equal(saved.grading.tajweed,8);assert.equal(saved.mistakes,2);assert.equal(saved.grading.adminCombinedMilestone.status,'COMPLETED');
+});
+test('individual table edits update the official exam, milestone and linked request together',async()=>{
+  const f=fixture();let examData;let milestoneData;let requestState;
+  const previous={id:'official-exam',requestId:'linked-request',sections:[{sectionId:'section'}],grading:{mistakePenalty:2,alertPenalty:0.5},score:80};
+  f.prisma.student={findFirst:async()=>({id:'student'})};f.prisma.examSection.findFirst=async()=>({id:'section',name:'Juz',minScore:80});
+  f.prisma.$transaction=async work=>work({exam:{findFirst:async()=>previous,update:async({data})=>{examData=data;return {...previous,...data};}},examRequest:{update:async({data})=>{requestState=data.status;}},examMilestoneRecord:{upsert:async args=>{milestoneData=args;return {id:'milestone',section:{name:'Juz'}};}}});
+  f.service.updateStudentMemorization=async()=>{};
+  await f.service.updateMilestoneRecord(actor,'student','section',{status:'COMPLETED',score:1,mistakes:3,alerts:4,tajweed:7});
+  assert.equal(examData.score,89);assert.equal(examData.grading.mistakes,3);assert.equal(examData.grading.alerts,4);assert.equal(examData.grading.tajweed,7);assert.equal(milestoneData.update.score,89);assert.equal(requestState,'COMPLETED');
+});
 (async()=>{for(const {name,run} of tests){await run();console.log('PASS '+name);}console.log(tests.length+' checks passed');})().catch(error=>{console.error(error);process.exitCode=1;});

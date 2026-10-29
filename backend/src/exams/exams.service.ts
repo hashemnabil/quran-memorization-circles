@@ -467,6 +467,16 @@ export class ExamsService {
     return [...records,...combined];
   }
 
+  private async milestoneGrade(dto:UpdateExamMilestoneDto, previous?:any) {
+    if(dto.status!=='COMPLETED'||dto.tajweed===undefined)return undefined;
+    const stored=previous?.grading;
+    const penalties=typeof stored?.mistakePenalty==='number'&&typeof stored?.alertPenalty==='number'
+      ?{mistakePenalty:stored.mistakePenalty,alertPenalty:stored.alertPenalty}
+      :previous?.committeeId?await this.committeeGradingSettings(previous.committeeId):await this.gradingSettings();
+    try{return calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,tajweed:dto.tajweed,...penalties});}
+    catch{throw new BadRequestException('قيم الأخطاء أو التنبيهات أو الأحكام غير صالحة');}
+  }
+
   async updateCombinedMilestone(actor:AuthUser,studentId:string,stageCode:string,dto:UpdateExamMilestoneDto){
     if(actor.role!==Role.ADMIN)throw new ForbiddenException('تعديل سجل المجتمعة متاح للإدارة فقط');
     const stage=combinedPlan().find(row=>row.code===stageCode);
@@ -475,14 +485,15 @@ export class ExamsService {
     await this.getCachedSections();
     const section=await this.prisma.examSection.findFirst({where:{code:`JUZ-${String(stage.fromJuz).padStart(2,'0')}`,isActive:true}});
     if(!section)throw new NotFoundException('مقرر الجزء غير موجود');
-    const score=dto.status==='COMPLETED'?(dto.score??80):null;
     const saved=await this.prisma.$transaction(async tx=>{
       // Serialize administrative edits of the same student's combined stage.
       await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${`combined-milestone:${studentId}:${stageCode}`}))) AS locked`;
       const previous=await tx.exam.findFirst({where:{studentId,combinedStage:stageCode},orderBy:[{updatedAt:'desc'},{createdAt:'desc'}]});
+      const calculated=await this.milestoneGrade(dto,previous);
+      const score=dto.status==='COMPLETED'?(calculated?.score??dto.score??80):null;
       const active=await tx.examRequest.findMany({where:{studentId,combinedStage:stageCode,status:{in:['PENDING','SCHEDULED']}}});
       const requestIds=[...new Set([...active.map(row=>row.id),...(previous?.requestId?[previous.requestId]:[])])];
-      const grading=previous?.grading&&typeof previous.grading==='object'&&!Array.isArray(previous.grading)?previous.grading:{};
+      const grading=!calculated&&dto.score!=null&&dto.score!==previous?.score?{}:previous?.grading&&typeof previous.grading==='object'&&!Array.isArray(previous.grading)?previous.grading:{};
       const data={
         requestId:dto.status==='REQUESTED'||dto.status==='NOT_REQUESTED'?null:previous?.requestId??active[0]?.id??null,
         status:dto.status==='COMPLETED'?ExamStatus.COMPLETED:dto.status==='SCHEDULED'?ExamStatus.SCHEDULED:ExamStatus.CANCELLED,
@@ -490,7 +501,8 @@ export class ExamsService {
         evaluation:score===null?null:evaluationFromScore(score),
         scheduledAt:dto.examDate?this.parseDate(dto.examDate):previous?.scheduledAt??new Date(),
         gradedById:score===null?null:actor.id,gradedAt:score===null?null:new Date(),notes:dto.note??null,
-        grading:{...grading,adminCombinedMilestone:{status:dto.status,requestedAt:dto.requestedAt??null,examDate:dto.examDate??null,examinerName:dto.examinerName??null,updatedById:actor.id}},
+        mistakes:calculated?.mistakes??previous?.mistakes??null,
+        grading:{...grading,...calculated,adminCombinedMilestone:{status:dto.status,requestedAt:dto.requestedAt??null,examDate:dto.examDate??null,examinerName:dto.examinerName??null,updatedById:actor.id}},
       };
       const exam=previous?await tx.exam.update({where:{id:previous.id},data}):await tx.exam.create({data:{studentId,sectionId:section.id,combinedStage:stageCode,...data}});
       await tx.examRequest.updateMany({where:{id:{in:requestIds}},data:{status:dto.status==='COMPLETED'?'COMPLETED':dto.status==='SCHEDULED'?'SCHEDULED':dto.status==='REQUESTED'?'PENDING':'CANCELLED'}});
@@ -514,13 +526,13 @@ export class ExamsService {
 
     // A manual "completed" milestone must be reflected in the official exam
     // history as well as the progression/profile aggregates.
-    const completedScore = dto.status === 'COMPLETED' ? (dto.score ?? section.minScore) : null;
-    const completedResult = completedScore === null
-      ? null
-      : completedScore >= 80 ? ExamResult.PASSED : ExamResult.FAILED;
     const examDate = dto.examDate ? this.parseDate(dto.examDate) : new Date();
 
     const saved = await this.prisma.$transaction(async (tx) => {
+      const previous = dto.status === 'COMPLETED' ? await tx.exam.findFirst({where:{studentId,sectionId,combinedStage:null},orderBy:{scheduledAt:'desc'},include:{sections:true}}) : null;
+      const calculated = await this.milestoneGrade(dto,previous);
+      const completedScore = dto.status === 'COMPLETED' ? (calculated?.score ?? dto.score ?? section.minScore) : null;
+      const completedResult = completedScore === null ? null : completedScore >= 80 ? ExamResult.PASSED : ExamResult.FAILED;
       const milestone = await tx.examMilestoneRecord.upsert({
         where: { studentId_sectionId: { studentId, sectionId } },
         create: {
@@ -539,14 +551,12 @@ export class ExamsService {
       });
 
       if (dto.status === 'COMPLETED' && completedScore !== null && completedResult !== null) {
-        const existingManualExam = await tx.exam.findFirst({
-          where: { studentId, sectionId, requestId: null, combinedStage:null },
-          orderBy: { scheduledAt: 'desc' },
-        });
+        const existingManualExam = previous && (previous.sections?.length??0)<=1 ? previous : null;
         const examData = {
           scheduledAt: examDate,
           status: ExamStatus.COMPLETED,
           score: completedScore,
+          ...(calculated?{grading:calculated,mistakes:calculated.mistakes}:previous&&dto.score!=null&&dto.score!==previous.score?{grading:Prisma.DbNull,mistakes:null}:{}),
           evaluation: evaluationFromScore(completedScore),
           result: completedResult,
           notes: dto.note ?? null,
@@ -555,6 +565,7 @@ export class ExamsService {
         };
         if (existingManualExam) {
           await tx.exam.update({ where: { id: existingManualExam.id }, data: examData });
+          if(existingManualExam.requestId)await tx.examRequest.update({where:{id:existingManualExam.requestId},data:{status:ExamRequestStatus.COMPLETED}});
         } else {
           await tx.exam.create({
             data: { studentId, sectionId, ...examData },

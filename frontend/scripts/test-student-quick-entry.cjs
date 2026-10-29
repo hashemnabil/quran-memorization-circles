@@ -14,8 +14,8 @@ function fixture(file,{state=[],day={data:{data:[]},isPending:false,isError:fals
     if(id==='react')return {useState:initial=>[index<state.length?state[index++]:((index++,typeof initial==='function')?initial():initial),()=>{}],useEffect:()=>{},useMemo:compute=>compute()};
     if(id==='react/jsx-runtime')return {jsx,jsxs:jsx};
     if(id==='@tanstack/react-query')return {useQuery:options=>queries[options.queryKey[1]]??day,useMutation:options=>{mutations.push(options);return {isPending:false,mutate:payload=>{void options.mutationFn(payload);}};},useQueryClient:()=>({invalidateQueries:async()=>{}})};
-    if(id==='@/lib/exam-scoring'||id==='@/lib/combined-plan'){
-      const scoring={exports:{}};const source=fs.readFileSync(path.resolve(__dirname,id==='@/lib/exam-scoring'?'../src/lib/exam-scoring.ts':'../src/lib/combined-plan.ts'),'utf8');
+    if(id==='@/lib/exam-scoring'||id==='@/lib/combined-plan'||id==='@/lib/exam-milestone-path'){
+      const scoring={exports:{}};const source=fs.readFileSync(path.resolve(__dirname,'../src/lib',id.slice('@/lib/'.length)+'.ts'),'utf8');
       const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2021}}).outputText;
       vm.runInThisContext('(function(module,exports){'+js+'\n})')(scoring,scoring.exports);return scoring.exports;
     }
@@ -63,5 +63,11 @@ function fixture(file,{state=[],day={data:{data:[]},isPending:false,isError:fals
     const buttons=walk(view).filter(node=>node.type==='Button'&&node.props.children==='طلب اختبار');assert.equal(buttons.length,count,`request visibility: ${eligible}/${passed}/${requestStatus}`);
     assert.equal(walk(view).filter(node=>node.type==='input').length,0,'editing fields must not expand inside table rows');
   }
+  const tableEdit=fixture('pages/exams/ExamProgressionTable.tsx',{state:['all','','HIZB-60',{status:'COMPLETED',score:'80',requestedAt:'',examDate:'2026-10-29',examinerName:'Examiner'},true,{mistakes:2,alerts:3,tajweed:8}],queries:{milestones:{data:[],isPending:false},'milestones-requests':{data:{data:[]},isPending:false}}});
+  const editView=tableEdit.exports.ExamProgressionTable({studentId:student.id,canRequest:true,canEditMilestones:true,eligibility:{progression:[{id:'h60',code:'HIZB-60',eligible:false,isPassed:true}]},exams:[{id:'exam',status:'COMPLETED',score:80,result:'PASSED',scheduledAt:'2026-10-29',section:{id:'h60',code:'HIZB-60'},grading:{mistakePenalty:1,alertPenalty:0.5}}]});
+  const editNodes=walk(editView);
+  for(const [label,value] of [['عدد الأخطاء',2],['عدد التنبيهات',3],['الأحكام من 10',8],['العلامة من 100',94.5]])assert.equal(editNodes.find(node=>node.props?.label===label).props.value,value);
+  editNodes.find(node=>node.type==='form').props.onSubmit({preventDefault:()=>{}});
+  assert.equal(tableEdit.calls[0][1],'/exams/milestones/'+student.id+'/h60');assert.equal(tableEdit.calls[0][2].alerts,3);assert.equal(tableEdit.calls[0][2].tajweed,8);assert.equal(tableEdit.calls[0][2].score,94.5);
   console.log('PASS: three attendance states, isolated correction, pending/error guards, missing circle, and fixed-student recitation');
 })().catch(error=>{console.error(error);process.exitCode=1;});

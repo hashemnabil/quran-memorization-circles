@@ -136,27 +136,9 @@ export async function save(table: EntityTable, data: Record<string, any>, action
   return { ...row, _writeOpId: opId, _writeTable: table };
 }
 export async function settleLocalWrite(local: any) {
-  if (['chatMessages','chatConversations','communityPosts','communityComments','accountPreferences','supportTickets'].includes(local?._writeTable)) {
-    void syncAll().catch(() => undefined);
-    return local;
-  }
-  if (!navigator.onLine || !local?._writeOpId) return local;
-  const account = accountId();
-  for (let attempt = 0; attempt < 2; attempt++) {
-    let failed = false;
-    try { await syncAll(); } catch { failed = true; }
-    if (currentAccount() !== account) return local;
-    const queued = await db.queue.where('opId').equals(local._writeOpId).first();
-    if (queued?.error) throw Object.assign(new Error(queued.error), { localWriteRejected: true });
-    if (!queued) {
-      const id = (await db.meta.get(`${account}:id:${local.id}`))?.value || local.id;
-      const row = await db.table(local._writeTable).get([account, id]) || { ...local, synced: 1 };
-      if (local.accountCredentials) return { ...row, accountCredentials: { ...local.accountCredentials, username: row.code?.startsWith('LOCAL-') ? local.accountCredentials.username : row.code } };
-      return local.temporaryPassword ? { ...row, temporaryPassword: local.temporaryPassword } : row;
-    }
-    if (failed) return local;
-    if (!navigator.onLine) break;
-  }
+  // A queued write is a durable local receipt. Its delivery runs independently
+  // and must never hold the form open while older operations are being retried.
+  if(navigator.onLine)void syncAll().catch(()=>undefined);
   return local;
 }
 export function update(table: EntityTable, id: string, data: Record<string, any>) { return save(table, { ...data, id }, 'update'); }
@@ -168,6 +150,9 @@ export async function mergeRows(table: EntityTable, rows: Record<string, any>[],
       const existing = await db.table(table).get([account, row.id]);
       // A pull must never overwrite a local edit or resurrect a local deletion.
       if (existing?.synced === 0) continue;
+      // Interactive primary reads often repeat identical rows. Only changed
+      // server fields need a new replica write; keep the existing local timestamp.
+      if(existing?.synced===1&&Object.entries(row).every(([key,value])=>JSON.stringify(existing[key])===JSON.stringify(value)))continue;
       await db.table(table).put({ ...existing, ...row, accountId: account, synced: 1, updatedAt: row.updatedAt || new Date().toISOString() });
     }
   });

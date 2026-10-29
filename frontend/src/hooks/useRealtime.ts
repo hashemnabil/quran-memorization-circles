@@ -22,8 +22,11 @@ export function useRealtime() {
 
     const socket = getSocket();
     if (!socket) return;
+    let liveRefresh: ReturnType<typeof setTimeout> | undefined;
     const onDataChanged = (payload: { revision?: unknown }) => {
       if (typeof payload?.revision === 'string') void noteRemoteRevision(payload.revision).catch(() => undefined);
+      // Interactive reads refresh from the primary API independently of replica download.
+      if(navigator.onLine){clearTimeout(liveRefresh);liveRefresh=setTimeout(()=>{void queryClient.invalidateQueries({refetchType:'active'});},250);}
     };
 
     const onNotification = async (payload: { notification: AppNotification }) => {
@@ -83,6 +86,7 @@ export function useRealtime() {
     socket.on('support:message', onSupportMessage);
 
     return () => {
+      clearTimeout(liveRefresh);
       socket.off('notification:new', onNotification);
       socket.off('data:changed', onDataChanged);
       socket.off('chat:message', onChatMessage);

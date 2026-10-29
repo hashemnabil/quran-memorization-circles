@@ -14,7 +14,7 @@ export default function FounderAssetLibrary() {
       event.preventDefault(); if (!file) return;
       setBusy(true); setMessage('');
       try { const body = new FormData(); body.set('title', title); body.set('kind', kind); body.set('password', password); body.set('file', file);
-        await api.post('/founder-assets', body); setPassword(''); setMessage('أُضيف المورد'); await cache.invalidateQueries({ queryKey: ['founder-assets'] });
+        await api.post('/founder-assets', body, { headers: { 'Content-Type': 'multipart/form-data' } }); setPassword(''); setMessage('أُضيف المورد'); await cache.invalidateQueries({ queryKey: ['founder-assets'] });
       } catch (error) { setMessage(apiError(error)); } finally { setBusy(false); }
     }}>
       <Input label="عنوان المورد" value={title} maxLength={100} onChange={event => setTitle(event.target.value)} />

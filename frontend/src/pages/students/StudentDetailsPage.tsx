@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/auth';
 import { StudentPhoto } from '@/components/StudentPhoto';
 import { RecitationFormModal } from '@/pages/recitations/RecitationsPage';
 import { StudentAttendanceEditor } from './StudentAttendanceEditor';
+import { ExamResultDialog } from '@/components/ExamResultDialog';
 import { ExamProgressionTable } from '@/pages/exams/ExamProgressionTable';
 import {
   Badge,
@@ -60,6 +61,7 @@ import type {
   AttendanceRecord,
   Circle,
   Evaluation,
+  Exam,
   ExamEligibility,
   PaginatedResponse,
   PreparationAssignment,
@@ -677,6 +679,7 @@ function ExamsTabComponent({
 }) {
   const confirm = useConfirm();
   const [rejectModal, setRejectModal] = useState<{ id: string; reason: string } | null>(null);
+  const [correctingResult, setCorrectingResult] = useState<Exam | null>(null);
 
   const { data: requestsData, refetch: refetchRequests } = useQuery({
     queryKey: ['exams', 'requests', studentId],
@@ -718,6 +721,7 @@ function ExamsTabComponent({
       <ExamProgressionTable studentId={studentId} canEditMilestones={canEditMilestones} canRequest={['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(useAuthStore.getState().user?.role ?? '')} eligibility={eligibility} exams={exams as any[]} loading={!eligibility} />
 
       <Tabs tabs={examTabs} active={examSubTab} onChange={setExamSubTab} />
+      {correctingResult && <ExamResultDialog exam={correctingResult} onClose={() => setCorrectingResult(null)} />}
 
       {examSubTab === 'history' && (
         <Card title="سجل الاختبارات" padded={false}>
@@ -730,6 +734,8 @@ function ExamsTabComponent({
                     <th>المدى</th>
                     <th>الحالة</th>
                     <th>النتيجة</th>
+                    <th>العلامة / 100</th><th>الأخطاء</th><th>التنبيهات</th><th>الأحكام / 10</th>
+                    {canEditMilestones && <th>تعديل النتيجة</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -751,6 +757,11 @@ function ExamsTabComponent({
                           '—'
                         )}
                       </td>
+                      <td className="numeric">{exam.score ?? '—'}</td>
+                      <td className="numeric">{exam.grading?.mistakes ?? exam.mistakes ?? '—'}</td>
+                      <td className="numeric">{exam.grading?.alerts ?? '—'}</td>
+                      <td className="numeric">{exam.grading?.tajweed ?? '—'}</td>
+                      {canEditMilestones && <td>{exam.status === 'COMPLETED' && <Button size="sm" variant="secondary" onClick={() => setCorrectingResult({...exam,student:exam.student??student})}>تعديل العلامة</Button>}</td>}
                     </tr>
                   ))}
                 </tbody>

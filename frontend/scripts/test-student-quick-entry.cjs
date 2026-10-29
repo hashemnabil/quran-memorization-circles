@@ -14,6 +14,11 @@ function fixture(file,{state=[],day={data:{data:[]},isPending:false,isError:fals
     if(id==='react')return {useState:initial=>[index<state.length?state[index++]:((index++,typeof initial==='function')?initial():initial),()=>{}],useEffect:()=>{}};
     if(id==='react/jsx-runtime')return {jsx,jsxs:jsx};
     if(id==='@tanstack/react-query')return {useQuery:()=>day,useMutation:options=>{mutations.push(options);return {isPending:false,mutate:payload=>{void options.mutationFn(payload);}};},useQueryClient:()=>({invalidateQueries:async()=>{}})};
+    if(id==='@/lib/exam-scoring'){
+      const scoring={exports:{}};const source=fs.readFileSync(path.resolve(__dirname,'../src/lib/exam-scoring.ts'),'utf8');
+      const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2021}}).outputText;
+      vm.runInThisContext('(function(module,exports){'+js+'\n})')(scoring,scoring.exports);return scoring.exports;
+    }
     if(id==='@/lib/api')return {api,apiError:String};
     if(id==='@/lib/format')return {todayInput:()=> '2026-10-29'};
     if(id==='@/components/ui')return ui;
@@ -45,5 +50,12 @@ function fixture(file,{state=[],day={data:{data:[]},isPending:false,isError:fals
   const walk=node=>Array.isArray(node)?node.flatMap(walk):node&&typeof node==='object'?[node,...walk(node.props?.children)]:[];
   const nodes=walk(modal);assert.ok(modal.props.title.includes(student.fullName));assert.ok(!nodes.some(node=>node.props?.label==='الطالب'));assert.ok(!nodes.some(node=>node.props?.label==='الحلقة'));
   const save=walk(modal.props.footer).find(node=>node.props?.children==='حفظ');save.props.onClick();assert.equal(recitation.calls[0][1],'/recitations');assert.equal(recitation.calls[0][2].studentId,student.id);
+  const result=fixture('components/ExamResultDialog.tsx',{day:{data:{mistakePenalty:9,alertPenalty:9},isSuccess:true}});
+  const published={id:'exam',status:'COMPLETED',score:94.5,notes:'Original notes',student,section:{id:'section',name:'Juz'},grading:{mistakes:2,alerts:3,tajweed:8,mistakePenalty:1,alertPenalty:0.5}};
+  const dialog=result.exports.ExamResultDialog({exam:published,onClose:()=>{}});
+  const fields=walk(dialog);assert.ok(dialog.props.title.includes('تعديل'));
+  for(const [label,value] of [['عدد الأخطاء',2],['عدد التنبيهات',3],['علامة الأحكام من 10',8],['ملاحظات','Original notes']])assert.equal(fields.find(node=>node.props?.label===label).props.value,value);
+  fields.find(node=>node.type==='form').props.onSubmit({preventDefault:()=>{}});
+  assert.equal(result.calls[0][1],'/exams/exam/result');assert.equal(result.calls[0][2].score,94.5);assert.equal(result.calls[0][2].mistakePenalty,1);assert.equal(result.calls[0][2].notes,'Original notes');
   console.log('PASS: three attendance states, isolated correction, pending/error guards, missing circle, and fixed-student recitation');
 })().catch(error=>{console.error(error);process.exitCode=1;});

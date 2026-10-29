@@ -341,6 +341,7 @@ function RequestsTab({ canManage }: { canManage: boolean }) {
 // ============================================================================
 
 function ExamsTab({ mode, canManage }: { mode: 'scheduled' | 'history'; canManage: boolean }) {
+  const canCorrect = useAuthStore(state => state.user?.role === 'ADMIN');
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [historyStatus, setHistoryStatus] = useState('COMPLETED');
@@ -433,6 +434,7 @@ function ExamsTab({ mode, canManage }: { mode: 'scheduled' | 'history'; canManag
                     <th>الممتحن</th>
                     <th>{mode === 'scheduled' ? 'المكان' : 'النتيجة'}</th>
                     <th>الحالة</th>
+                    {mode === 'history' && <><th>الأخطاء</th><th>التنبيهات</th><th>الأحكام / 10</th>{canCorrect && <th>تعديل النتيجة</th>}</>}
                     {mode === 'scheduled' && canManage && <th className="text-center">إجراءات</th>}
                   </tr>
                 </thead>
@@ -471,6 +473,12 @@ function ExamsTab({ mode, canManage }: { mode: 'scheduled' | 'history'; canManag
                           </span>
                         )}
                       </td>
+                      {mode === 'history' && <>
+                        <td className="numeric">{exam.grading?.mistakes ?? exam.mistakes ?? '—'}</td>
+                        <td className="numeric">{exam.grading?.alerts ?? '—'}</td>
+                        <td className="numeric">{exam.grading?.tajweed ?? '—'}</td>
+                        {canCorrect && <td>{exam.status === 'COMPLETED' && <Button size="sm" variant="secondary" onClick={() => setGrading(exam)}>تعديل العلامة</Button>}</td>}
+                      </>}
                       {mode === 'scheduled' && canManage && (
                         <td>
                           <div className="flex justify-center gap-1.5">

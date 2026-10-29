@@ -6,6 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
 const enums = Object.fromEntries(['Role','ExamStatus','ExamRequestStatus','ExamResult','Evaluation','NotificationType'].map(name=>[name,new Proxy({}, {get:(_,key)=>key})]));
+enums.Prisma={DbNull:'DB_NULL'};
 class HttpError extends Error {}
 const nest = new Proxy({Logger:class {}, Injectable:()=>target=>target}, {get:(obj,key)=>obj[key]||HttpError});
 const cache = new Map();
@@ -16,7 +17,7 @@ function load(file) {
   const localRequire=id=>{
     if(id==='@nestjs/common')return nest;
     if(id==='@prisma/client')return enums;
-    if(id==='./combined-plan'||id==='../common/grading'||id==='./ensure-exam-programme')return load(path.resolve(path.dirname(file),id+'.ts'));
+    if(id==='./combined-plan'||id==='../common/grading'||id==='./ensure-exam-programme'||id==='./exam-scoring'||id==='../common/quran')return load(path.resolve(path.dirname(file),id+'.ts'));
     return {};
   };
   vm.runInThisContext('(function(require,module,exports){'+js+'\n})',{filename:file})(localRequire,mod,mod.exports);
@@ -123,5 +124,27 @@ test('legacy programme repair adds missing juz, reactivates retired rows and pre
   assert.equal(rows.find(row=>row.code==='JUZ-26').id,'retired-juz-26');assert.equal(rows.find(row=>row.id==='retired-juz-26').gradeSentinel,88);
   assert.equal(rows.find(row=>row.id==='hizb-60').gradeSentinel,97);assert.equal(rows.find(row=>row.id==='custom').gradeSentinel,77);
   const before=writes;assert.equal(await ensureExamProgramme(prisma),false);assert.equal(writes,before,'retry must not rewrite records');
+});
+function resultFixture(status='COMPLETED'){
+  const previous={id:'published-exam',status,studentId:'student',student:{fullName:'Student'},section:{id:'section',name:'Juz',order:1},sections:[],combinedStage:stage,score:85,grading:{mistakes:3,alerts:2,tajweed:8,mistakePenalty:2,alertPenalty:1},scheduledAt:new Date(),notes:'Original note'};
+  const f=fixture(previous);f.prisma.exam.findUnique=async()=>previous;
+  f.service.updateStudentMemorization=async()=>{};f.service.sendResultNotifications=async()=>{};
+  return f;
+}
+test('admin corrects a published result using original penalties and persists its breakdown',async()=>{
+  const f=resultFixture();const saved=await f.service.recordResult(actor,'published-exam',{score:0,mistakes:2,alerts:2,tajweed:8,mistakePenalty:90,alertPenalty:90,notes:'Corrected'});
+  assert.equal(saved.score,92);assert.equal(saved.grading.mistakes,2);assert.equal(saved.grading.alerts,2);assert.equal(saved.grading.tajweed,8);assert.equal(saved.grading.mistakePenalty,2);assert.equal(saved.result,'PASSED');assert.equal(f.calls.logs[0].action,'EXAM_RESULT_CORRECTION');assert.ok(f.calls.logs[0].summary.includes('85'));
+});
+test('committee may grade a scheduled exam but cannot change a published result',async()=>{
+  const committee={id:'committee-user',role:'EXAM_COMMITTEE'};const published=resultFixture();
+  await assert.rejects(published.service.recordResult(committee,'published-exam',{score:90}));assert.equal(published.calls.updates.length,0);
+  const initial=resultFixture('SCHEDULED');await initial.service.recordResult(committee,'published-exam',{score:90});assert.equal(initial.calls.updates[0].score,90);
+});
+test('manual result correction clears an obsolete calculated breakdown and updates pass/fail',async()=>{
+  const f=resultFixture();const saved=await f.service.recordResult(actor,'published-exam',{score:70});
+  assert.equal(saved.score,70);assert.equal(saved.result,'FAILED');assert.equal(saved.grading,'DB_NULL');
+});
+test('a cancelled exam cannot be graded even by the administrator',async()=>{
+  const f=resultFixture('CANCELLED');await assert.rejects(f.service.recordResult(actor,'published-exam',{score:90}));assert.equal(f.calls.updates.length,0);
 });
 (async()=>{for(const {name,run} of tests){await run();console.log('PASS '+name);}console.log(tests.length+' checks passed');})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -1372,7 +1372,7 @@ export class ExamsService {
       throw new NotFoundException('الاختبار غير موجود');
     }
 
-    if (exam.status === ExamStatus.COMPLETED) {
+    if (exam.status === ExamStatus.COMPLETED && actor.role !== Role.ADMIN) {
       throw new BadRequestException('لا يمكن تعديل اختبار مكتمل');
     }
 
@@ -1423,9 +1423,9 @@ export class ExamsService {
   // رصد النتائج
   // ==========================================================================
 
-  private validateExamForResult(exam: any) {
-    if (exam.status === ExamStatus.COMPLETED) {
-      throw new BadRequestException('تم رصد نتيجة هذا الاختبار مسبقاً');
+  private validateExamForResult(exam: any, actor: AuthUser) {
+    if (exam.status === ExamStatus.COMPLETED && actor.role !== Role.ADMIN) {
+      throw new ForbiddenException('تصحيح النتيجة المنشورة متاح للإدارة فقط');
     }
     if (exam.status === ExamStatus.CANCELLED) {
       throw new BadRequestException('هذا الاختبار ملغى');
@@ -1439,14 +1439,18 @@ export class ExamsService {
     passed: boolean,
     evaluation: string,
     actor: AuthUser,
+    previousGrading?: Prisma.JsonValue,
   ) {
+    const metadata=(previousGrading as any)?.adminCombinedMilestone;
+    const grading=dto.tajweed!==undefined?calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,mistakePenalty:dto.mistakePenalty??1,alertPenalty:dto.alertPenalty??0.5,tajweed:dto.tajweed}):null;
+    const savedGrading=metadata?{...grading,adminCombinedMilestone:{...metadata,status:'COMPLETED'}}:grading??Prisma.DbNull;
     return tx.exam.update({
       where: { id: examId },
       data: {
         score: dto.score,
         evaluation,
         mistakes: dto.mistakes ?? null,
-        grading: dto.tajweed !== undefined ? calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,mistakePenalty:dto.mistakePenalty??1,alertPenalty:dto.alertPenalty??0.5,tajweed:dto.tajweed}) : undefined,
+        grading: savedGrading,
         result: passed ? ExamResult.PASSED : ExamResult.FAILED,
         status: ExamStatus.COMPLETED,
         notes: dto.notes,
@@ -1578,15 +1582,7 @@ export class ExamsService {
   }
 
   async recordResult(actor: AuthUser, id: string, dto: RecordResultDto) {
-    if (dto.tajweed !== undefined) {
-      const target=await this.prisma.exam.findUnique({where:{id},select:{committeeId:true}});
-      if(!target)throw new NotFoundException('الاختبار غير موجود');
-      const penalties=target.committeeId?await this.committeeGradingSettings(target.committeeId):await this.gradingSettings();
-      dto.mistakePenalty=penalties.mistakePenalty;
-      dto.alertPenalty=penalties.alertPenalty;
-      try { dto.score = calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,...penalties,tajweed:dto.tajweed}).score; }
-      catch { throw new BadRequestException('قيمة رصد العلامات غير صالحة'); }
-    }
+    if (![Role.ADMIN, Role.EXAM_COMMITTEE].includes(actor.role as any)) throw new ForbiddenException('غير مصرح برصد النتائج');
     const exam = await this.prisma.exam.findUnique({
       where: { id },
       include: EXAM_INCLUDE,
@@ -1596,7 +1592,16 @@ export class ExamsService {
       throw new NotFoundException('الاختبار غير موجود');
     }
 
-    this.validateExamForResult(exam);
+    this.validateExamForResult(exam, actor);
+    if(dto.tajweed!==undefined){
+      const savedGrading=exam.grading as any;
+      const penalties=exam.status===ExamStatus.COMPLETED&&typeof savedGrading?.mistakePenalty==='number'&&typeof savedGrading?.alertPenalty==='number'
+        ?{mistakePenalty:savedGrading.mistakePenalty,alertPenalty:savedGrading.alertPenalty}
+        :exam.committeeId?await this.committeeGradingSettings(exam.committeeId):await this.gradingSettings();
+      dto.mistakePenalty=penalties.mistakePenalty;dto.alertPenalty=penalties.alertPenalty;
+      try{dto.score=calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,...penalties,tajweed:dto.tajweed}).score;}
+      catch{throw new BadRequestException('قيمة رصد العلامات غير صالحة');}
+    }
 
     const examSections = exam.sections.length
       ? exam.sections.map((entry) => entry.section)
@@ -1631,6 +1636,7 @@ export class ExamsService {
         passed,
         evaluation,
         actor,
+        exam.grading,
       );
 
       for (const entry of exam.combinedStage ? [] : sectionScores) {
@@ -1671,8 +1677,8 @@ export class ExamsService {
 
     await this.activity.log({
       userId: actor.id,
-      action: 'EXAM_RESULT',
-      summary: `رصد نتيجة اختبار ${exam.student.fullName} في ${this.examLabel(exam)}: ${overallScore} (${EVALUATION_LABELS[evaluation]})`,
+      action: exam.status===ExamStatus.COMPLETED?'EXAM_RESULT_CORRECTION':'EXAM_RESULT',
+      summary: `${exam.status===ExamStatus.COMPLETED?`تصحيح النتيجة السابقة ${exam.score} — `:``}رصد نتيجة اختبار ${exam.student.fullName} في ${this.examLabel(exam)}: ${overallScore} (${EVALUATION_LABELS[evaluation]})`,
       entityType: 'Exam',
       entityId: id,
     });

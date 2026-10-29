@@ -65,7 +65,7 @@ test('offline reading confirmation survives reload and is synchronized after rec
   await expect(page.getByRole('dialog', { name: row.title })).toBeVisible();
   await page.evaluate(() => navigator.serviceWorker.ready);
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
-  await expect.poll(() => page.evaluate(async () => !!await caches.match('/index.html'))).toBe(true);
+  await expect.poll(() => page.evaluate(async () => !!await caches.match('/'))).toBe(true);
   await context.setOffline(true);
   await page.getByRole('button', { name: 'اطلعت', exact: true }).click();
   await expect(page.getByRole('dialog', { name: row.title })).not.toBeVisible();

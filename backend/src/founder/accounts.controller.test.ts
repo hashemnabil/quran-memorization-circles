@@ -13,6 +13,6 @@ test('additional founder creation is founder-only and validates identity/passwor
 test('an administrator or invalid password cannot create a founder', async () => {
   let writes = 0;
   const controller = new FounderAccountsController({ user: { findFirst: async () => null }, $transaction: async () => { writes++; } } as any);
-  await assert.rejects(controller.create({ id: 'admin', role: 'ADMIN' } as any, { username: 'new.owner', fullName: 'New owner', password: 'Temporary-password123', currentPassword: 'wrong' }));
+  await assert.rejects(controller.create({ id: 'admin', role: 'ADMIN' } as any, { username: 'new.owner', fullName: 'New owner', password: 'Temporary-password123', currentPassword: 'wrong' }), (error: any) => error.getStatus() === 403);
   assert.equal(writes, 0);
 });

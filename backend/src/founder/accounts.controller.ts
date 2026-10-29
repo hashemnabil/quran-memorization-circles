@@ -24,7 +24,7 @@ export class FounderAccountsController {
   @Post()
   async create(@CurrentUser() actor: AuthUser, @Body() dto: CreateFounderDto) {
     const current = await this.prisma.user.findFirst({ where: { id: actor.id, role: Role.FOUNDER, isActive: true, deletedAt: null }, select: { passwordHash: true, mustChangePassword: true } });
-    if (!current || !await bcrypt.compare(dto.currentPassword, current.passwordHash)) throw new UnauthorizedException('تعذر تأكيد هوية المؤسس');
+    if (!current || !await bcrypt.compare(dto.currentPassword, current.passwordHash)) throw new ForbiddenException('تعذر تأكيد هوية المؤسس؛ تحقق من كلمة مرور حسابك');
     if (current.mustChangePassword) throw new ForbiddenException('غيّر كلمة المرور المؤقتة لحسابك أولاً');
     if (isReservedUsername(dto.username)) throw new ConflictException('اسم المستخدم محجوز');
     const passwordHash = await bcrypt.hash(dto.password, 12);

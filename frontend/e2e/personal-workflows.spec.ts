@@ -162,8 +162,8 @@ test('bundled adhan preview plays and stops from the prayer settings', async ({ 
   await setup(page);
   await gotoWithLocalUnlock(page, '/prayer-times/reminders');
   await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
-  await page.getByRole('button', { name: 'معاينة الأذان المضمّن', exact: true }).click();
+  await page.getByRole('button', { name: 'معاينة الأذان', exact: true }).click();
   await expect(page.getByRole('button', { name: 'إيقاف المعاينة', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'إيقاف المعاينة', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'معاينة الأذان المضمّن', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'معاينة الأذان', exact: true })).toBeVisible();
 });

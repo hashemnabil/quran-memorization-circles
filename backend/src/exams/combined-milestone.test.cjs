@@ -161,4 +161,24 @@ test('individual table edits update the official exam, milestone and linked requ
   await f.service.updateMilestoneRecord(actor,'student','section',{status:'COMPLETED',score:1,mistakes:3,alerts:4,tajweed:7});
   assert.equal(examData.score,89);assert.equal(examData.grading.mistakes,3);assert.equal(examData.grading.alerts,4);assert.equal(examData.grading.tajweed,7);assert.equal(milestoneData.update.score,89);assert.equal(requestState,'COMPLETED');
 });
+test('request validation uses the exact eligibility state supplied to the table',async()=>{
+  const f=fixture();let calls=0;
+  f.service.eligibility=async user=>{assert.equal(user,actor);calls++;return {progression:[{id:'juz',name:'Juz',isPassed:false,hasOpenRequest:false,eligible:true}]};};
+  await f.service.validateAllSectionsEligibility('student',[{id:'juz',order:3}],actor);assert.equal(calls,1);
+});
+test('expected eligibility rejections report their real reason as a warning',async()=>{
+  const f=fixture();const warnings=[];const errors=[];f.service.logger={warn:message=>warnings.push(message),error:message=>errors.push(message)};
+  f.service.eligibility=async()=>({progression:[{id:'juz',name:'Juz',isPassed:false,hasOpenRequest:false,eligible:false,reason:'Previous hizb must pass'}]});
+  await assert.rejects(f.service.validateAllSectionsEligibility('student',[{id:'juz',order:3}],actor),/Previous hizb/);
+  assert.equal(warnings.length,1);assert.ok(warnings[0].includes('Previous hizb'));assert.equal(errors.length,0);
+});
+test('consecutive group requests still reject passed or already requested later sections',async()=>{
+  const f=fixture();f.service.logger={warn:()=>{},error:()=>{}};
+  for(const flags of [{isPassed:true,hasOpenRequest:false},{isPassed:false,hasOpenRequest:true}]){
+    f.service.eligibility=async()=>({progression:[{id:'first',name:'First',eligible:true,isPassed:false,hasOpenRequest:false},{id:'second',name:'Second',eligible:false,...flags}]});
+    await assert.rejects(f.service.validateAllSectionsEligibility('student',[{id:'first',order:1},{id:'second',order:2}],actor));
+  }
+  f.service.eligibility=async()=>({progression:[{id:'first',name:'First',eligible:true,isPassed:false,hasOpenRequest:false},{id:'second',name:'Second',eligible:false,isPassed:false,hasOpenRequest:false}]});
+  await f.service.validateAllSectionsEligibility('student',[{id:'first',order:1},{id:'second',order:2}],actor);
+});
 (async()=>{for(const {name,run} of tests){await run();console.log('PASS '+name);}console.log(tests.length+' checks passed');})().catch(error=>{console.error(error);process.exitCode=1;});

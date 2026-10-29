@@ -54,7 +54,7 @@ test('founder uploads the original file as multipart data', async ({ page }) => 
   await page.locator('input[type="file"]').setInputFiles({ name: 'background.jpeg', mimeType: 'image/jpeg', buffer: bytes });
   await page.getByLabel('كلمة المرور لتأكيد العملية').fill('test-only-password');
   await page.getByRole('button', { name: 'إضافة للمكتبة', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('أُضيف المورد');
+  await expect(page.getByRole('status').filter({ hasText: 'أُضيف المورد' })).toBeVisible();
   expect(upload?.contentType).toMatch(/^multipart\/form-data;.*boundary=/);
   expect(upload?.body?.includes(bytes)).toBe(true);
   expect(upload?.body?.toString()).toContain('filename="background.jpeg"');

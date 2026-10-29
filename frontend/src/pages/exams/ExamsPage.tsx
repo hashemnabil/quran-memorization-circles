@@ -126,13 +126,6 @@ export default function ExamsPage() {
       <PageHeader
         title="الاختبارات"
         subtitle={canManage ? 'جدولة الاختبارات ورصد نتائج الطلاب' : 'متابعة طلبات اختبار الطلاب ونتائجهم'}
-        action={
-          canRequest && (
-            <Button icon={<IconPlus size={16} />} onClick={() => setCreating(true)}>
-              طلب اختبار
-            </Button>
-          )
-        }
       />
 
       <NotificationRecord />
@@ -150,7 +143,7 @@ export default function ExamsPage() {
           { key: 'scheduled', label: 'الاختبارات المجدولة', badge: stats.data?.scheduled },
           { key: 'history', label: 'سجل الاختبارات' },
           { key: 'combined', label: 'مجتمعة' },
-          { key: 'requests', label: 'طلب اختبار أو تعديل', badge: stats.data?.pendingRequests },
+          { key: 'requests', label: 'طلبات الاختبار', badge: stats.data?.pendingRequests },
           { key: 'committees', label: 'اللجان' },
           { key: 'progression', label: 'تسلسل الأحزاب والأجزاء' },
         ]}

@@ -268,7 +268,7 @@ export default function StudentDetailsPage() {
                 طلب إيقاف
               </Button>
               <Button size="sm" icon={<IconAward size={15} />} onClick={() => setTab('exams')}>
-                طلب اختبار
+                الاختبارات
               </Button>
             </>
           )

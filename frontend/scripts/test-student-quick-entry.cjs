@@ -5,22 +5,22 @@ const path=require('node:path');
 const vm=require('node:vm');
 const ts=require('typescript');
 const student={id:'student-1',fullName:'Student One',circleId:'circle-1'};
-function fixture(file,{state=[],day={data:{data:[]},isPending:false,isError:false}}={}){
+function fixture(file,{state=[],day={data:{data:[]},isPending:false,isError:false},queries={}}={}){
   const calls=[];const mutations=[];let index=0;
   const api={get:async()=>({data:[]}),post:async(...args)=>{calls.push(['post',...args]);return {data:{}};},patch:async(...args)=>{calls.push(['patch',...args]);return {data:{}};}};
   const ui=new Proxy({},{get:(_,name)=>name==='cx'?(...values)=>values.filter(Boolean).join(' '):String(name)});
   const jsx=(type,props)=>({type,props:props||{}});
   const requireStub=id=>{
-    if(id==='react')return {useState:initial=>[index<state.length?state[index++]:((index++,typeof initial==='function')?initial():initial),()=>{}],useEffect:()=>{}};
+    if(id==='react')return {useState:initial=>[index<state.length?state[index++]:((index++,typeof initial==='function')?initial():initial),()=>{}],useEffect:()=>{},useMemo:compute=>compute()};
     if(id==='react/jsx-runtime')return {jsx,jsxs:jsx};
-    if(id==='@tanstack/react-query')return {useQuery:()=>day,useMutation:options=>{mutations.push(options);return {isPending:false,mutate:payload=>{void options.mutationFn(payload);}};},useQueryClient:()=>({invalidateQueries:async()=>{}})};
-    if(id==='@/lib/exam-scoring'){
-      const scoring={exports:{}};const source=fs.readFileSync(path.resolve(__dirname,'../src/lib/exam-scoring.ts'),'utf8');
+    if(id==='@tanstack/react-query')return {useQuery:options=>queries[options.queryKey[1]]??day,useMutation:options=>{mutations.push(options);return {isPending:false,mutate:payload=>{void options.mutationFn(payload);}};},useQueryClient:()=>({invalidateQueries:async()=>{}})};
+    if(id==='@/lib/exam-scoring'||id==='@/lib/combined-plan'){
+      const scoring={exports:{}};const source=fs.readFileSync(path.resolve(__dirname,id==='@/lib/exam-scoring'?'../src/lib/exam-scoring.ts':'../src/lib/combined-plan.ts'),'utf8');
       const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2021}}).outputText;
       vm.runInThisContext('(function(module,exports){'+js+'\n})')(scoring,scoring.exports);return scoring.exports;
     }
     if(id==='@/lib/api')return {api,apiError:String};
-    if(id==='@/lib/format')return {todayInput:()=> '2026-10-29'};
+    if(id==='@/lib/format')return {todayInput:()=> '2026-10-29',formatDateShort:value=>value};
     if(id==='@/components/ui')return ui;
     if(id==='@/lib/labels')return {ATTENDANCE_LABELS:{PRESENT:'Present',EXCUSED:'Excused',ABSENT:'Absent'},RECITATION_TYPE_LABELS:{},EVALUATION_LABELS:{}};
     return {};
@@ -57,5 +57,11 @@ function fixture(file,{state=[],day={data:{data:[]},isPending:false,isError:fals
   for(const [label,value] of [['عدد الأخطاء',2],['عدد التنبيهات',3],['علامة الأحكام من 10',8],['ملاحظات','Original notes']])assert.equal(fields.find(node=>node.props?.label===label).props.value,value);
   fields.find(node=>node.type==='form').props.onSubmit({preventDefault:()=>{}});
   assert.equal(result.calls[0][1],'/exams/exam/result');assert.equal(result.calls[0][2].score,94.5);assert.equal(result.calls[0][2].mistakePenalty,1);assert.equal(result.calls[0][2].notes,'Original notes');
+  for(const [eligible,passed,requestStatus,count] of [[true,false,null,1],[false,false,null,0],[true,true,null,0],[true,false,'PENDING',0],[true,false,'SCHEDULED',0]]){
+    const progression=fixture('pages/exams/ExamProgressionTable.tsx',{queries:{milestones:{data:[],isPending:false},'milestones-requests':{data:{data:requestStatus?[{id:'request',createdAt:'2026-10-29',status:requestStatus,section:{id:'h60',code:'HIZB-60'}}]:[]},isPending:false}}});
+    const view=progression.exports.ExamProgressionTable({studentId:student.id,canRequest:true,canEditMilestones:true,exams:[],eligibility:{progression:[{id:'h60',code:'HIZB-60',eligible,isPassed:passed}]}});
+    const buttons=walk(view).filter(node=>node.type==='Button'&&node.props.children==='طلب اختبار');assert.equal(buttons.length,count,`request visibility: ${eligible}/${passed}/${requestStatus}`);
+    assert.equal(walk(view).filter(node=>node.type==='input').length,0,'editing fields must not expand inside table rows');
+  }
   console.log('PASS: three attendance states, isolated correction, pending/error guards, missing circle, and fixed-student recitation');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -27,6 +27,10 @@ test('founder uploads, private publication, acknowledgement replay and choices u
     const added = await accounts.create(owner, { username: `owner.${randomBytes(5).toString('hex')}`, fullName: 'Additional founder', password: 'Temporary-password123', currentPassword: password });
     additionalFounderId = added.id;
     assert.equal(added.role, Role.FOUNDER); assert.equal(added.mustChangePassword, true);
+    const renamed = await accounts.updateSelf(owner, { username: `renamed.${randomBytes(5).toString('hex')}`, fullName: 'Updated founder', currentPassword: password });
+    assert.equal(renamed.id, ownerId); assert.equal(renamed.role, Role.FOUNDER);
+    assert.equal(renamed.fullName, 'Updated founder');
+    assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: additionalFounderId } })).username, added.username);
     const content = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=', 'base64');
     const image = await assets.upload(owner, { buffer: content } as any, { title: 'Private image', kind: 'ANNOUNCEMENT_IMAGE', password });
     const cover = await assets.upload(owner, { buffer: content } as any, { title: 'Cover', kind: 'PROFILE_COVER', password });

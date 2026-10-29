@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { CreateFounderDto, FounderAccountsController } from './accounts.controller';
+import { CreateFounderDto, FounderAccountsController, UpdateOwnFounderDto } from './accounts.controller';
 import { EventEmitter } from 'node:events';
 import { loginLimiter } from '../auth/login-limiter';
 
@@ -29,4 +29,11 @@ test('changing the proposed new username cannot bypass identity-confirmation att
     if (attempt < 8) { assert.equal(next, true); response.emit('finish'); }
     else { assert.equal(next, false); assert.equal(response.statusCode, 429); }
   }
+});
+
+test('self update accepts no target account or role fields', async () => {
+  const dto = plainToInstance(UpdateOwnFounderDto, { username: 'my.owner', fullName: 'Owner', currentPassword: 'confirmed', id: 'someone-else', role: 'ADMIN' });
+  const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+  assert.ok(errors.some(error => error.property === 'id'));
+  assert.ok(errors.some(error => error.property === 'role'));
 });

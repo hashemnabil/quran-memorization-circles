@@ -1,4 +1,4 @@
-import { Body, ConflictException, Controller, ForbiddenException, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, ConflictException, Controller, ForbiddenException, Patch, Post, UnauthorizedException } from '@nestjs/common';
 import { PickType } from '@nestjs/swagger';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 import { Prisma, Role } from '@prisma/client';
@@ -16,10 +16,36 @@ export class CreateFounderDto extends PickType(CreateUserDto, ['username', 'full
   currentPassword: string;
 }
 
+export class UpdateOwnFounderDto extends PickType(CreateUserDto, ['username', 'fullName'] as const) {
+  @IsString() @MinLength(1) @MaxLength(128)
+  currentPassword: string;
+}
+
 @Controller('founder/accounts')
 @Roles(Role.FOUNDER)
 export class FounderAccountsController {
   constructor(private readonly prisma: PrismaService) {}
+
+  @Patch('me')
+  async updateSelf(@CurrentUser() actor: AuthUser, @Body() dto: UpdateOwnFounderDto) {
+    const current = await this.prisma.user.findFirst({ where: { id: actor.id, role: Role.FOUNDER, isActive: true, deletedAt: null }, select: { passwordHash: true, username: true, mustChangePassword: true } });
+    if (!current || !await bcrypt.compare(dto.currentPassword, current.passwordHash)) throw new ForbiddenException('تحقق من كلمة مرور حسابك');
+    if (current.mustChangePassword) throw new ForbiddenException('غيّر كلمة المرور المؤقتة أولاً');
+    if (isReservedUsername(dto.username) && dto.username !== current.username) throw new ConflictException('اسم المستخدم محجوز');
+    try {
+      return await this.prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${actor.id} FOR UPDATE`;
+        const verified = await tx.user.findFirst({ where: { id: actor.id, role: Role.FOUNDER, passwordHash: current.passwordHash, isActive: true, deletedAt: null, mustChangePassword: false }, select: { id: true } });
+        if (!verified) throw new UnauthorizedException('تغيرت الجلسة؛ أعد تسجيل الدخول');
+        const account = await tx.user.update({ where: { id: actor.id }, data: { username: dto.username, fullName: dto.fullName.trim() }, select: { id: true, username: true, fullName: true, role: true, isActive: true, mustChangePassword: true } });
+        await tx.activityLog.create({ data: { userId: actor.id, action: 'FOUNDER_SELF_UPDATE', summary: 'تعديل المؤسس لبيانات حسابه بعد تأكيد الهوية', entityType: 'User', entityId: actor.id } });
+        return account;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('اسم المستخدم مستخدم لحساب آخر');
+      throw error;
+    }
+  }
 
   @Post()
   async create(@CurrentUser() actor: AuthUser, @Body() dto: CreateFounderDto) {

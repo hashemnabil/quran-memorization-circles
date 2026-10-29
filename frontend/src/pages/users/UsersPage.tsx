@@ -1,5 +1,6 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import CreateFounderAccount from '@/components/CreateFounderAccount';
+import EditOwnFounderAccount from '@/components/EditOwnFounderAccount';
 import { passwordError } from '@/lib/validation';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -110,7 +111,7 @@ export default function UsersPage() {
 
   return (
     <>
-      {currentUser.role === 'FOUNDER' && <div className="mb-4"><CreateFounderAccount /></div>}
+      {currentUser.role === 'FOUNDER' && <div className="mb-4 flex flex-wrap gap-2"><EditOwnFounderAccount /><CreateFounderAccount /></div>}
       <PageHeader
         title="المستخدمون"
         subtitle="إدارة حسابات النظام والأدوار والصلاحيات"

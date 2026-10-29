@@ -120,3 +120,18 @@ test('only founder sees additional-founder creation and confirms their identity 
   expect(requests[0]).not.toHaveProperty('role');
   await expect(page.getByRole('dialog', { name: 'إضافة حساب مؤسس جديد' })).not.toBeVisible();
 });
+
+test('founder can update their own name through identity-confirmed account settings', async ({ page }) => {
+  const { user } = await setup(page, [], 'FOUNDER');
+  const requests: any[] = [];
+  await page.route('**/api/founder/accounts/me', route => { const body = route.request().postDataJSON(); requests.push(body); return route.fulfill({ json: { ...user, fullName: body.fullName } }); });
+  await gotoWithLocalUnlock(page, '/founder/users');
+  await page.getByRole('button', { name: 'تعديل حسابي كمؤسس', exact: true }).click();
+  await page.getByLabel('اسمي في حساب المؤسس', { exact: true }).fill('اسم المؤسس المحدّث');
+  await page.getByLabel('كلمة مروري لتأكيد تعديل حسابي', { exact: true }).fill('Confirmed-owner-password');
+  await page.getByRole('button', { name: 'حفظ بيانات حسابي', exact: true }).click();
+  await expect.poll(() => requests.length).toBe(1);
+  expect(requests[0].fullName).toBe('اسم المؤسس المحدّث');
+  expect(requests[0]).not.toHaveProperty('id'); expect(requests[0]).not.toHaveProperty('role');
+  await expect(page.getByRole('dialog', { name: 'تعديل بيانات حساب المؤسس' })).not.toBeVisible();
+});

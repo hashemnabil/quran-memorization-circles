@@ -122,7 +122,7 @@ test('founder audio selection plays the cached recording from the web sound libr
   await gotoWithLocalUnlock(page, '/prayer-times/reminders');
   // The adhan library is integrated into the recording selector.
   const recording = page.getByRole('combobox', { name: 'تسجيل الأذان' });
-  await expect(recording.getByRole('option', { name: 'أذان المكتبة' })).toBeVisible();
+  await expect(recording.getByRole('option', { name: 'أذان المكتبة' })).toHaveCount(1);
   await recording.selectOption('library:adhan-sample');
   await expect(recording).toHaveValue('library:adhan-sample');
   const preview = page.getByRole('button', { name: 'معاينة الأذان', exact: true });

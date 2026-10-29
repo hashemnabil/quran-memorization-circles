@@ -18,6 +18,9 @@ import AppLayout from '@/components/layout/AppLayout';
 import { RedirectIfAuthenticated, RequireAuth, RequireRole } from '@/components/RouteGuards';
 
 import LoginPage from '@/pages/LoginPage';
+import FounderPage from '@/pages/FounderPage';
+import PopupAnnouncements from '@/components/PopupAnnouncements';
+import CuratedWebAudio from '@/components/CuratedWebAudio';
 import PrivacyPage from '@/pages/PrivacyPage';
 import AboutPage from '@/pages/AboutPage';
 import AccountDeletionPage from '@/pages/AccountDeletionPage';
@@ -114,7 +117,7 @@ export default function App() {
   return (
     <AppLaunchGate><ThemeProvider />
       <NativeBackNavigation />
-      <AppSecurityGate><Suspense fallback={<LoadingState />}>
+      <AppSecurityGate><PopupAnnouncements /><CuratedWebAudio /><Suspense fallback={<LoadingState />}>
       <Routes>
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/about" element={<AboutPage />} />
@@ -138,6 +141,10 @@ export default function App() {
           </RequireAuth>
         }
       >
+        <Route path="founder" element={<RequireRole roles={['FOUNDER']}><FounderPage /></RequireRole>} />
+        <Route path="founder/users" element={<RequireRole roles={['FOUNDER']}><UsersPage /></RequireRole>} />
+        <Route path="founder/settings" element={<RequireRole roles={['FOUNDER']}><SettingsPage /></RequireRole>} />
+        <Route path="founder/school-announcements" element={<RequireRole roles={['FOUNDER']}><AnnouncementsPage /></RequireRole>} />
         <Route path="verify-profile" element={<RequireRole roles={['STUDENT', 'TEACHER']}><ProfileVerificationPage /></RequireRole>} />
         <Route path="profile-reviews/students" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="STUDENT" /></RequireRole>} />
         <Route path="profile-reviews/teachers" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="TEACHER" /></RequireRole>} />
@@ -150,7 +157,7 @@ export default function App() {
         <Route path="meetings" element={<RequireRole roles={['ADMIN']}><MeetingsPage /></RequireRole>} />
         <Route path="admin/activity" element={<RequireRole roles={['ADMIN']}><ActivityPage /></RequireRole>} />
         <Route path="admin/password-requests" element={<RequireRole roles={['ADMIN']}><PasswordRequestsPage /></RequireRole>} />
-        <Route index element={currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
+        <Route index element={currentUser?.role === 'FOUNDER' ? <FounderPage /> : currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
         <Route path="documents/:report" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />

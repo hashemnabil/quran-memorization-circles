@@ -23,21 +23,21 @@ export class AnnouncementsController {
   }
 
   @Get()
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'إدارة الإعلانات' })
   findAll(@Query() query: QueryAnnouncementsDto) {
     return this.service.findAll(query);
   }
 
   @Post()
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'نشر إعلان جديد' })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateAnnouncementDto) {
     return this.service.create(user, dto);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'تعديل إعلان' })
   update(
     @CurrentUser() user: AuthUser,
@@ -48,7 +48,7 @@ export class AnnouncementsController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'حذف إعلان' })
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.remove(user, id);

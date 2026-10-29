@@ -22,6 +22,7 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 enum Role {
+  FOUNDER
   ADMIN
   SUPERVISOR
   TEACHER
@@ -1285,7 +1286,33 @@ model SurahCompletion {
 
 /// Published by the administration only. `audience` empty means "everyone";
 /// otherwise the announcement is shown to the listed roles.
+model FounderAsset {
+  id        String @id @default(uuid())
+  title     String @db.VarChar(100)
+  kind      String @db.VarChar(30)
+  mime      String @db.VarChar(40)
+  content   Bytes
+  size      Int
+  isActive  Boolean @default(true)
+  createdById String
+  createdAt DateTime @default(now())
+  @@index([kind, isActive])
+  @@map("founder_assets")
+}
+
+model PresentationChoice {
+  id String @id @default(uuid())
+  userId String
+  kind String
+  assetId String?
+  updatedAt DateTime @updatedAt
+  @@unique([userId, kind])
+  @@map("presentation_choices")
+}
+
 model Announcement {
+  isPopup     Boolean @default(false)
+  popup       Json?
   id          String    @id @default(uuid())
   title       String
   body        String?
@@ -1303,6 +1330,18 @@ model Announcement {
 
   @@index([isActive, publishedAt])
   @@map("announcements")
+}
+
+model AnnouncementReceipt {
+  id String @id @default(uuid())
+  announcementId String
+  subject String
+  kind String
+  eventKey String
+  createdAt DateTime @default(now())
+  @@unique([announcementId, subject, kind, eventKey])
+  @@index([announcementId, kind])
+  @@map("announcement_receipts")
 }
 
 

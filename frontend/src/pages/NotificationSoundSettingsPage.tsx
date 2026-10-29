@@ -6,6 +6,7 @@ import SoundPicker from '@/components/SoundPicker';
 import { NativePushSettings } from '@/components/NativePush';
 import { androidNotifications, configureSound, readGeneralPreferences, saveGeneralSound, SchoolNotifications, type ImportedAudio } from '@/lib/notification-sounds';
 import { notificationPreview } from '@/lib/notification-preview';
+import { CuratedSoundChoice, WebAudioPermission } from '@/components/CuratedWebAudio';
 import { PrayerBackButton } from './PrayerTimesPage';
 import { IconBell } from '@/components/ui/Icons';
 import '@/components/prayer.css';
@@ -34,6 +35,7 @@ export default function NotificationSoundSettingsPage() {
     finally { setBusy(false); }
   };
   return <div className="prayer-page notification-sound-page"><PageHeader title="صوت الإشعارات" subtitle="الملف الشخصي ← الإعدادات ← الإشعارات" action={<PrayerBackButton />} />
+    <WebAudioPermission /><CuratedSoundChoice kind="NOTIFICATION_SOUND" />
     <div className="sound-library-intro"><span aria-hidden="true"><IconBell size={25} /></span><div><h2>نغمة تناسبك</h2><p>استمع، اختر، ثم احفظ. المعاينة تعمل بزر التشغيل فقط.</p></div></div>
     <Card><fieldset disabled={busy}><SoundPicker account={account} scope="general" value={sound} savedToken={savedToken} onChange={selected => { soundRef.current = selected; setSound(selected); setStatus(''); }} onImport={setImported} />
       <section className="sound-vibration"><label><input type="checkbox" checked={vibrate} onChange={event => setVibrate(event.target.checked)} /><span><strong>الاهتزاز</strong><small>إعداد مستقل؛ يمكنك استخدام الاهتزاز مع الوضع الصامت.</small></span></label></section>

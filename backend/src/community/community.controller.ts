@@ -24,7 +24,9 @@ export class CommunityController {
   async profile(@Param('id') id:string){
     const user=await this.prisma.user.findFirst({where:{id,isActive:true,deletedAt:null},select:{id:true,fullName:true,nickname:true,avatarUrl:true,role:true,createdAt:true}});
     if(!user)throw new BadRequestException('المستخدم غير موجود');
-    return user;
+    const cover = await this.prisma.presentationChoice.findUnique({ where: { userId_kind: { userId: id, kind: 'PROFILE_COVER' } } });
+    const asset = cover?.assetId ? await this.prisma.founderAsset.findFirst({ where: { id: cover.assetId, kind: 'PROFILE_COVER', isActive: true }, select: { id: true } }) : null;
+    return { ...user, coverAssetId: asset?.id || null };
   }
   @Patch('nickname')
   nickname(@CurrentUser() user:AuthUser,@Body('nickname') nickname:string){

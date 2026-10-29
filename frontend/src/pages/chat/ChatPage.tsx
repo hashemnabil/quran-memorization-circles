@@ -1,4 +1,5 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
+import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -42,6 +43,7 @@ import { timeAgo } from '@/lib/format';
 import type { ChatMessage, Conversation, PaginatedResponse, Role } from '@/types';
 
 export default function ChatPage() {
+  const background = useCuratedBackground('CHAT_BACKGROUND');
   const { id } = useParams();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user)!;
@@ -424,11 +426,12 @@ export default function ChatPage() {
                   </>
                 )}
               </header>
+              <div className="chat-background-choice px-4 py-1"><BackgroundChoice value={background} label="خلفية المحادثة" /></div>
 
               <div
                 ref={messagesRef}
                 className="chat-messages flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5"
-                style={{ minHeight: 0 }}
+                style={{ minHeight: 0, ...(background.url ? { backgroundImage: `linear-gradient(#ffffffb8,#ffffffb8),url("${background.url}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}) }}
               >
                 {loadingMessages ? (
                   <div className="grid h-40 place-items-center">

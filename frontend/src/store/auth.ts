@@ -19,7 +19,7 @@ import { forgetEncryptionMarker } from '@/lib/local-encryption';
 import { cacheReconnectCredentials, restoreReconnectCredentials, clearReconnectCredentials, type ReconnectCredentials } from '@/lib/reconnect-credentials';
 
 const OFFLINE_USER_KEY = 'qc.offlineUser';
-const allowedRoles: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'STUDENT', 'PARENT', 'SUPPORT'];
+const allowedRoles: Role[] = ['FOUNDER', 'ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'STUDENT', 'PARENT', 'SUPPORT'];
 // Supplied password stays in RAM plus encrypted tab storage until verification;
 // it is never included in tokens, IndexedDB, localStorage, exports or logs.
 let reconnectCredentials: ReconnectCredentials | undefined;

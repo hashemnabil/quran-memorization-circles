@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'SUPERVISOR' | 'TEACHER' | 'EXAM_COMMITTEE' | 'PARENT' | 'STUDENT' | 'SUPPORT';
+export type Role = 'FOUNDER' | 'ADMIN' | 'SUPERVISOR' | 'TEACHER' | 'EXAM_COMMITTEE' | 'PARENT' | 'STUDENT' | 'SUPPORT';
 
 export type Evaluation = 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'ACCEPTABLE' | 'UNSATISFACTORY';
 /** ACTIVITY = مُحوَّل إلى برنامج النشاط (خارج الحلقات، وما زال في السجل) */

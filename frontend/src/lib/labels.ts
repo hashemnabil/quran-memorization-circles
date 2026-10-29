@@ -20,6 +20,7 @@ import type {
 /** Every enum the API returns, paired with its Arabic label and badge colours. */
 
 export const ROLE_LABELS: Record<Role, string> = {
+  FOUNDER: 'مؤسس النظام',
   ADMIN: 'مدير عام',
   SUPERVISOR: 'مشرف',
   TEACHER: 'معلم',
@@ -30,6 +31,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 };
 
 export const ROLE_COLORS: Record<Role, string> = {
+  FOUNDER: 'bg-primary-100 text-primary-800',
   ADMIN: 'bg-primary-100 text-primary-800',
   SUPERVISOR: 'bg-indigo-100 text-indigo-800',
   TEACHER: 'bg-sky-100 text-sky-800',

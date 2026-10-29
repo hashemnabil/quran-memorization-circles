@@ -1,4 +1,5 @@
 import { CommunityModule } from './community/community.module';
+import { FounderModule } from './founder/founder.module';
 import { PushModule } from './push/push.module';
 import { ProfileReviewsModule } from './profile-reviews/profile-reviews.module';
 import { HealthController } from './health.controller';
@@ -40,6 +41,7 @@ import { SchoolOperationsModule } from './school-operations/school-operations.mo
 @Module({
   controllers: [HealthController],
   imports: [
+    FounderModule,
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'], validate: validateEnvironment }),
 
     // Infrastructure (all global).

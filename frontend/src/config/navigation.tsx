@@ -156,6 +156,7 @@ const SECTION_PATHS = [
 ] as const;
 
 export function navigationFor(role: Role): NavGroup[] {
+  if (role === 'FOUNDER') return [{ title: 'إدارة النظام', items: [{ to: '/founder', label: 'لوحة المؤسس', icon: <IconDashboard size={19} />, roles: ['FOUNDER'] }] }];
   const items = new Map(NAV_GROUPS.flatMap(group => group.items).map(item => [item.to, item]));
   return SECTION_PATHS.map(([title, paths]) => ({ title, items: paths.flatMap(path => {
     const item = items.get(path);

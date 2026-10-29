@@ -39,6 +39,28 @@ test('expired and role-private announcements cannot render on login even in a ma
   await expect(page.getByText('رسالة المحفظين الخاصة')).not.toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
+test('founder uploads the original file as multipart data', async ({ page }) => {
+  await setup(page, [], 'FOUNDER');
+  let upload: { contentType: string; body: Buffer | null } | undefined;
+  await page.route('**/api/founder-assets', route => {
+    if (route.request().method() !== 'POST') return route.fulfill({ json: [] });
+    upload = { contentType: route.request().headers()['content-type'], body: route.request().postDataBuffer() };
+    return route.fulfill({ json: { id: 'uploaded', title: 'Test background', kind: 'CHAT_BACKGROUND' } });
+  });
+  await gotoWithLocalUnlock(page, '/founder');
+  await page.getByRole('button', { name: 'مكتبة الموارد', exact: true }).click();
+  await page.getByLabel('عنوان المورد').fill('Test background');
+  const bytes = Buffer.from([255, 216, 255, 224, 0, 16, 74, 70, 73, 70]);
+  await page.locator('input[type="file"]').setInputFiles({ name: 'background.jpeg', mimeType: 'image/jpeg', buffer: bytes });
+  await page.getByLabel('كلمة المرور لتأكيد العملية').fill('test-only-password');
+  await page.getByRole('button', { name: 'إضافة للمكتبة', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('أُضيف المورد');
+  expect(upload?.contentType).toMatch(/^multipart\/form-data;.*boundary=/);
+  expect(upload?.body?.includes(bytes)).toBe(true);
+  expect(upload?.body?.toString()).toContain('filename="background.jpeg"');
+  expect(upload?.body?.toString()).toContain('name="title"');
+});
+
 test('administrator cannot open founder interface', async ({ page }) => {
   await setup(page, [], 'ADMIN');
   await gotoWithLocalUnlock(page, '/founder');

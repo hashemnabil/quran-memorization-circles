@@ -79,11 +79,10 @@ export async function libraryAssetBlob(id:string):Promise<Blob>{
 }
 export function BackgroundChoice({ value, label }: { value: ReturnType<typeof useCuratedBackground>; label: string }) {
   const [open,setOpen]=useState(false);
-  const selected=value.assets.find(asset=>asset.id===value.selected);
   return <>
-    <button type="button" aria-label={`تغيير ${label}`} aria-haspopup="dialog" onClick={()=>setOpen(true)} className="inline-flex min-h-12 max-w-full items-center gap-3 rounded-xl border border-slate-200 bg-white/95 p-2 text-start text-slate-800 shadow-sm transition hover:border-emerald-400">
-      <span className="block h-10 w-14 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-emerald-100 to-amber-50">{value.url&&<img src={value.url} alt="" className="h-full w-full object-cover"/>}</span>
-      <span className="min-w-0"><span className="block text-xs font-bold">{label}</span><span className="block truncate text-[11px] text-slate-500">{selected?.title||'الخلفية الافتراضية'}</span></span><span className="px-1 text-xs font-bold text-emerald-700">تغيير</span>
+    <button type="button" aria-label={label} aria-haspopup="dialog" onClick={()=>setOpen(true)} className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg border border-white/70 bg-white/95 text-emerald-800 shadow-sm transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500">
+      {value.url&&<img src={value.url} alt="" className="absolute inset-0 h-full w-full object-cover"/>}
+      <span aria-hidden="true" className="relative grid h-6 w-6 place-items-center rounded-md bg-white/90 text-xl leading-none">+</span>
     </button>
     <Modal open={open} onClose={()=>setOpen(false)} title={`اختيار ${label}`} size="lg">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

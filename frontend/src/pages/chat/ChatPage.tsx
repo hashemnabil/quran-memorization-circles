@@ -362,7 +362,7 @@ export default function ChatPage() {
             />
           ) : (
             <>
-              <header className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5">
+              <header className="relative flex items-center gap-3 border-b border-slate-100 px-4 py-3.5 pe-16 sm:px-5 sm:pe-16">
                 <button
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 lg:hidden"
                   onClick={() => navigate('/chat')}
@@ -425,8 +425,8 @@ export default function ChatPage() {
                     )}
                   </>
                 )}
+                <div className="chat-background-choice absolute bottom-2 end-3"><BackgroundChoice value={background} label="خلفية المحادثة" /></div>
               </header>
-              <div className="chat-background-choice px-4 py-1"><BackgroundChoice value={background} label="خلفية المحادثة" /></div>
 
               <div
                 ref={messagesRef}

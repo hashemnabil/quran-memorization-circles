@@ -12,7 +12,17 @@ const statusLabels: Record<string, string> = { PENDING: 'بانتظار مراج
 
 export function ProfileVerification() {
   const client = useQueryClient();
-  const query = useQuery({ queryKey: ['profile-reviews', 'me'], queryFn: async () => (await api.get('/profile-reviews/me')).data });
+  const query = useQuery({ queryKey: ['profile-reviews', 'me'], queryFn: async () => {
+    const remote = (await api.get('/profile-reviews/me')).data;
+    // A recently acknowledged review can be absent from an older server read.
+    // Preserve locally confirmed pending requests until the server catches up.
+    const { get, accountId } = await import('@/lib/offline-engine');
+    const account = accountId();
+    const local = (await get('profileReviews')).filter(row => row.requesterId === account && row.status === 'PENDING');
+    const requests = [...(remote.requests || [])];
+    for (const review of local) if (!requests.some((row: any) => row.id === review.id)) requests.unshift(review);
+    return { ...remote, requests };
+  } });
   const [draft, setDraft] = useState<Record<string, string> | null>(null);
   const save = useMutation({ mutationFn: (patch: Record<string, string>) => api.post('/profile-reviews', { patch }),
     onSuccess: async ({ data }) => { setDraft(null); await client.invalidateQueries({ queryKey: ['profile-reviews'] }); toast.success(data.synced === 0 ? 'حُفظ الطلب على الجهاز وسيُرسل عند الاتصال' : 'أُرسل الطلب لمراجعة الإدارة'); }, onError: error => toast.error(apiError(error)) });

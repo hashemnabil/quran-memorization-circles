@@ -678,6 +678,11 @@ test('student save explains missing fields, confirms online creation and works o
     const url = new URL(route.request().url());
     if (url.pathname === '/api/auth/me') return route.fulfill({ json: user });
     if (url.pathname === '/api/circles/options') return route.fulfill({ json: fixtures.circles });
+    if (url.pathname === '/api/students' && route.request().method() === 'POST') {
+      const row = { ...fixtures.students[0], ...route.request().postDataJSON(), id: '00000000-0000-4000-8000-000000000099', code: '120261234' };
+      students.push(row);
+      return route.fulfill({ status: 201, json: row });
+    }
     if (url.pathname === '/api/students') return route.fulfill({ json: { data: students, meta: { total: students.length, page: 1, totalPages: 1, hasNextPage: false } } });
     if (url.pathname === '/api/courses') return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
     if (url.pathname === '/api/sync-all' && route.request().method() === 'POST') {
@@ -697,12 +702,12 @@ test('student save explains missing fields, confirms online creation and works o
   await page.getByRole('button', { name: 'حفظ', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('اختر حلقة التحفيظ');
   await page.getByLabel(/^حلقة التحفيظ/).selectOption(circleId);
-  const sending = page.waitForRequest(request => request.url().endsWith('/api/sync-all') && request.method() === 'POST');
+  // Saving is durable and non-blocking: the form must not wait for a network ACK.
   await page.getByRole('button', { name: 'حفظ', exact: true }).click();
-  await sending;
-  try { await expect(page.getByRole('heading', { name: 'تسجيل طالب جديد' })).toBeVisible(); }
-  finally { release(); }
   await expect(page.getByRole('heading', { name: 'تسجيل طالب جديد' })).not.toBeVisible();
+  // Releasing the mocked server allows the background outbox to settle.
+  release();
+  await expect.poll(() => students.length).toBe(1);
   await expect(page.getByText('طالب متصل جديد', { exact: true }).filter({ visible: true })).toBeVisible();
   await page.reload(); await unlockLocalGate(page);
   await expect(page.getByText('طالب متصل جديد', { exact: true }).filter({ visible: true })).toBeVisible();

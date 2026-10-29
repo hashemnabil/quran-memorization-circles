@@ -103,9 +103,11 @@ test('background picker contains only founder catalog choices without an image u
   await setup(page, [], 'TEACHER');
   await page.route('**/api/founder-assets', route => route.fulfill({ json: [{ id: 'asset-one', title: 'المسجد الأخضر', kind: 'PROFILE_COVER', mime: 'image/png' }] }));
   await gotoWithLocalUnlock(page, '/profile');
-  const picker = page.getByLabel('غلاف الملف الشخصي', { exact: true });
-  await expect(picker.getByRole('option', { name: 'المسجد الأخضر', exact: true })).toHaveCount(1);
-  await picker.selectOption('asset-one');
+  // The background picker is now a compact plus button opening a gallery dialog.
+  await page.getByRole('button', { name: 'خلفية الصفحة', exact: true }).click();
+  const gallery = page.getByRole('dialog', { name: 'اختيار خلفية الصفحة' });
+  await expect(gallery.getByRole('button', { name: 'المسجد الأخضر' })).toBeVisible();
+  await gallery.getByRole('button', { name: 'المسجد الأخضر' }).click();
   expect(await page.evaluate(() => Object.keys(localStorage).some(key => key.includes('PROFILE_COVER') && localStorage.getItem(key) === 'asset-one'))).toBe(true);
 });
 
@@ -118,9 +120,13 @@ test('founder audio selection plays the cached recording from the web sound libr
   await page.route('**/api/founder-assets', route => route.fulfill({ json: [{ id: 'adhan-sample', title: 'أذان المكتبة', kind: 'ADHAN_SOUND', mime: 'audio/ogg' }] }));
   await page.route('**/api/founder-assets/adhan-sample/content', route => route.fulfill({ path: 'public/sounds/adhan.ogg', contentType: 'audio/ogg' }));
   await gotoWithLocalUnlock(page, '/prayer-times/reminders');
-  await page.getByLabel('اختر صوتاً من المكتبة', { exact: true }).selectOption('adhan-sample');
-  const preview = page.getByRole('button', { name: 'معاينة الصوت', exact: true });
+  // The adhan library is integrated into the recording selector.
+  const recording = page.getByRole('combobox', { name: 'تسجيل الأذان' });
+  await expect(recording.getByRole('option', { name: 'أذان المكتبة' })).toHaveCount(1);
+  await recording.selectOption('library:adhan-sample');
+  await expect(recording).toHaveValue('library:adhan-sample');
+  const preview = page.getByRole('button', { name: 'معاينة الأذان', exact: true });
   await expect(preview).toBeEnabled(); await preview.click();
-  await expect.poll(() => page.evaluate(() => (window as any).__playedCuratedAudio)).toBe(true);
-  await page.getByRole('button', { name: 'إيقاف', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'إيقاف المعاينة', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'إيقاف المعاينة', exact: true }).click();
 });

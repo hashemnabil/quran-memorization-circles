@@ -40,3 +40,12 @@
 @keyframes video-pill-expand{0%{width:60px;opacity:.75}100%{width:min(100%,330px);opacity:1}}
 @keyframes video-entry-reveal{0%{opacity:0;transform:translateX(-8px)}100%{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.video-login-screen .video-pill-sequential,.video-login-screen .video-pill-sequential .video-pill-entry{animation:none!important}}
+
+/* Brand header stays visible above the animation on all screen sizes. */
+.video-login-screen .login-brand{display:flex!important;visibility:visible!important;opacity:1!important;position:relative;z-index:2}
+.video-login-screen .login-school-name{display:block!important;visibility:visible!important;opacity:1!important;font-weight:800;line-height:1.55;text-align:center;max-width:100%;overflow-wrap:anywhere}
+/* Animate the shell once, then smoothly crossfade fields without collapsing width. */
+.video-login-screen .video-pill-sequential{width:min(100%,330px);animation:video-pill-expand .55s cubic-bezier(.22,1,.36,1) both;will-change:width,opacity}
+.video-login-screen .video-pill-sequential .video-pill-entry{animation:video-entry-reveal .32s .14s both}
+.video-login-screen .video-pill-next{transition:background .2s ease,transform .25s cubic-bezier(.22,1,.36,1)}
+@media(prefers-reduced-motion:reduce){.video-login-screen .video-pill-sequential,.video-login-screen .video-pill-sequential .video-pill-entry{animation:none!important}}

@@ -141,3 +141,20 @@ test('certificate approval, rejection and ready states notify student and guardi
     assert.equal(notices[0].link, '/my-files'); assert.equal(notices[1].link, '/parent/children/student');
   }
 });
+
+test('student alerts target the student account, never a parent', async () => {
+  const notices: any[] = [];
+  const prisma: any = { student: { findFirst: async ({ where, select }: any) => {
+    assert.deepEqual(where, { id: 'student-id', deletedAt: null });
+    assert.deepEqual(select, { userId: true });
+    return { userId: 'student-user' };
+  } } };
+  const service = new NotificationsService(prisma, {} as any);
+  service.notify = async (notice: any) => { notices.push(notice); return notice; };
+  await service.notifyStudent('student-id', { type: 'SYSTEM' as any, title: 'Absence' });
+  assert.equal(notices[0].userId, 'student-user');
+  assert.equal(notices[0].link, '/student');
+  prisma.student.findFirst = async () => ({ userId: null });
+  await service.notifyStudent('student-id', { type: 'SYSTEM' as any, title: 'Absence' });
+  assert.equal(notices.length, 1);
+});

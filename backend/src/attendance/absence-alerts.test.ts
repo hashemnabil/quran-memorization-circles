@@ -27,19 +27,19 @@ function fixture(weekly: number, monthly: number) {
   return { tx, rows, journal };
 }
 
-test('daily warning reaches student and guardian and replays never duplicate it', async () => {
+test('daily warning reaches student only and replays never duplicate it', async () => {
   const { tx, rows, journal } = fixture(1, 1);
   await createAbsenceAlerts(tx, 's', new Date('2026-10-13'));
   await createAbsenceAlerts(tx, 's', new Date('2026-10-13'));
-  assert.equal(rows.length, 2); assert.equal(journal.length, 2);
+  assert.equal(rows.length, 1); assert.equal(journal.length, 1);
   assert.equal(rows.find(n => n.userId === 'student').link, '/student');
-  assert.equal(rows.find(n => n.userId === 'parent').link, '/parent/children/s');
+  assert.equal(rows.some(n => n.userId === 'parent'), false);
 });
 
 test('two weekly and four monthly absences warn, without requesting dismissal', async () => {
   const { tx, rows } = fixture(2, 4);
   await createAbsenceAlerts(tx, 's', new Date('2026-10-13'));
-  assert.equal(rows.length, 6);
+  assert.equal(rows.length, 3);
   assert.equal(rows.some(n => n.data.requiresDecision), false);
 });
 
@@ -50,5 +50,5 @@ test('three weekly and five monthly absences request two administrative decision
   const decisions = rows.filter(n => n.data.requiresDecision);
   assert.equal(decisions.length, 2);
   assert(decisions.every(n => n.userId === 'admin' && n.link === '/students/s'));
-  assert.equal(rows.filter(n => n.data.alertKey.endsWith(':warning')).length, 4);
+  assert.equal(rows.filter(n => n.data.alertKey.endsWith(':warning')).length, 2);
 });

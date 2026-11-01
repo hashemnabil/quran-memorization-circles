@@ -18,3 +18,9 @@
 .prayer-page .prayer-row.is-next { border-color:#bda264; box-shadow:0 4px 16px #ab8e4412; }
 .prayer-page .prayer-row>a { text-underline-offset:5px; line-height:1.8; }
 @media(max-width:480px) { .prayer-page .prayer-row>a { width:100%; padding-inline-start:54px; } }
+
+/* Keep the mosque photo above the card background, with a readable overlay. */
+.prayer-card>.prayer-mosque{z-index:0;pointer-events:none}
+.prayer-card::before{z-index:1;pointer-events:none;background:linear-gradient(90deg,#062c3170,#062c31c0 55%,#062c31e8)}
+.prayer-card>:not(.prayer-mosque){position:relative;z-index:2}
+@media(max-width:639px){.prayer-card::before{background:linear-gradient(90deg,#062c3180,#062c31d6)}}

@@ -32,3 +32,11 @@
 .video-login-screen .video-pill-entry input{color:#1e4937!important}
 .video-login-screen .video-pill:focus-within{border-color:#b49a5a;box-shadow:0 0 0 3px #b49a5a30}
 .video-login-screen .login-school-name,.video-login-screen .video-login-title{color:#1e4937}
+
+/* Reference video: a single capsule expands from icon to active field. */
+.video-login-screen .video-pill-stage{width:100%;display:grid;justify-items:center;gap:12px}
+.video-login-screen .video-pill-sequential{animation:video-pill-expand .55s cubic-bezier(.2,.8,.2,1) both;overflow:hidden;transform-origin:center}
+.video-login-screen .video-pill-sequential .video-pill-entry{animation:video-entry-reveal .35s .2s both}
+@keyframes video-pill-expand{0%{width:60px;opacity:.75}100%{width:min(100%,330px);opacity:1}}
+@keyframes video-entry-reveal{0%{opacity:0;transform:translateX(-8px)}100%{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.video-login-screen .video-pill-sequential,.video-login-screen .video-pill-sequential .video-pill-entry{animation:none!important}}

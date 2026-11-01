@@ -1,0 +1,17 @@
+/* Animated capsule login: presentation only; authentication logic remains untouched. */
+.login-panel .login-capsule{position:relative;isolation:isolate;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.login-panel .login-capsule::before{content:"";position:absolute;inset:0;border-radius:999px;border:1px solid #b49a5a;opacity:0;transform:scale(.97);pointer-events:none;transition:opacity .25s,transform .3s}
+.login-panel .login-capsule:focus-within{transform:translateY(-2px)}
+.login-panel .login-capsule:focus-within::before{opacity:1;transform:scale(1)}
+.login-panel .login-capsule input:not([type=checkbox]){border-radius:999px!important;min-height:54px;padding-inline:22px;background:var(--surface,#fff);transition:box-shadow .25s,border-color .25s,background .25s}
+.login-panel .login-capsule:focus-within input{box-shadow:0 8px 24px #174c3918}
+.login-panel .login-capsule .login-capsule-icon{position:absolute;inset-inline-end:16px;bottom:16px;display:grid;place-items:center;color:#286348;pointer-events:none;transition:transform .3s,color .3s}
+.login-panel .login-capsule:focus-within .login-capsule-icon{transform:translateY(-3px) scale(1.12);color:#a48340}
+.login-panel .login-capsule input{padding-inline-end:48px!important}
+.login-panel .login-capsule-password input{padding-inline-start:52px!important}
+.login-panel .login-capsule-password>button{border-radius:999px}
+.login-panel .login-submit{border-radius:999px!important;min-height:52px;transition:transform .2s,box-shadow .2s}
+.login-panel .login-submit:not(:disabled):hover{transform:translateY(-2px);box-shadow:0 9px 22px #174c3929}
+.login-panel .login-submit:focus-visible,.login-panel .login-capsule button:focus-visible{outline:3px solid #b99b55;outline-offset:3px}
+@media(prefers-reduced-motion:no-preference){.login-panel .login-capsule{animation:login-capsule-enter .45s both}.login-panel .login-capsule-password{animation-delay:.09s}.login-panel .login-submit{animation:login-capsule-enter .45s .16s both}@keyframes login-capsule-enter{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}}
+@media(prefers-reduced-motion:reduce){.login-panel .login-capsule,.login-panel .login-capsule::before,.login-panel .login-capsule-icon,.login-panel .login-submit,.login-panel .login-capsule input{animation:none!important;transition:none!important;transform:none!important}}

@@ -12,7 +12,7 @@ import { IconAlert, IconEye, IconLifeBuoy, IconUser, IconLock } from '@/componen
 import { phoneError, PHONE_HINT, USERNAME_HINT } from '@/lib/validation';
 import type { AuthUser, SchoolSettings } from '@/types';
 import { savePendingSupport } from '@/lib/offline/pendingSupport';
-import { BRANDING_CACHE_KEY, DEFAULT_SCHOOL_NAME, DEFAULT_SCHOOL_LOGO, cachedSchoolBranding } from '@/config/branding';
+import { BRANDING_CACHE_KEY, DEFAULT_SCHOOL_NAME, DEFAULT_SCHOOL_LOGO, cachedSchoolBranding, schoolName } from '@/config/branding';
 
 const DONATION_CACHE_KEY = 'qc.publicDonationInfo';
 
@@ -47,7 +47,7 @@ export default function LoginPage() {
       <div className="login-panel">
         <header className="login-brand flex flex-col items-center text-center">
           <span className="login-brand-mark"><img src={settings?.logoUrl || cachedBranding.logoUrl || DEFAULT_SCHOOL_LOGO} alt="شعار المدرسة" width={144} height={144} onError={event => { if (!event.currentTarget.src.endsWith(DEFAULT_SCHOOL_LOGO)) event.currentTarget.src = DEFAULT_SCHOOL_LOGO; }} className="h-full w-full object-contain" /></span>
-          <h1 className="login-school-name">{settings?.name?.trim() || cachedBranding.name || DEFAULT_SCHOOL_NAME}</h1>
+          <h1 className="login-school-name" style={{ display: 'block', color: '#1e4937', fontSize: 'clamp(20px, 4.5vw, 28px)', fontWeight: 900, lineHeight: 1.6, opacity: 1, visibility: 'visible' }}>{schoolName(settings?.name || cachedBranding.name || DEFAULT_SCHOOL_NAME)}</h1>
           <p className="login-brand-caption">رحلتك مع القرآن، خطوة كل يوم</p>
         </header>
         <p className="login-intro">أهلًا بعودتك، سجّل دخولك لمتابعة رحلتك مع القرآن الكريم.</p>

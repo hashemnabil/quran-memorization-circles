@@ -1,3 +1,4 @@
+import '@/styles/animated-login.css';
 import axios from 'axios';
 import PasswordRequestModal from '@/components/PasswordRequestModal';
 import React, { FormEvent, useEffect, useState } from 'react';
@@ -111,11 +112,13 @@ function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser
       <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
         {error && <Alert>{error}</Alert>}
 
-        <div className="relative">
+        <div className="relative login-capsule">
+          <span className="login-capsule-icon" aria-hidden="true">♙</span>
           <Input label="اسم المستخدم" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="اسم المستخدم أو رقم الطالب" autoComplete="username" dir="ltr" />
         </div>
 
-        <div className="relative">
+        <div className="relative login-capsule login-capsule-password">
+          <span className="login-capsule-icon" aria-hidden="true">◆</span>
           <Input label="كلمة المرور" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" dir="ltr" className="[&_input]:pl-12" />
           <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} aria-pressed={showPassword} className="absolute bottom-1 left-1 grid h-11 w-11 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-primary-800"><IconEye size={19} /></button>
         </div>
@@ -125,7 +128,7 @@ function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser
           تذكّر اسم المستخدم على هذا الجهاز
         </label>
 
-        <Button type="submit" loading={loading} className="w-full">دخول</Button>
+        <Button type="submit" loading={loading} className="w-full login-submit">دخول</Button>
       </form>
     </>
   );

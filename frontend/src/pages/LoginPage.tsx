@@ -1,4 +1,4 @@
-import '@/styles/animated-login.css';
+import '@/styles/video-login.css';
 import axios from 'axios';
 import PasswordRequestModal from '@/components/PasswordRequestModal';
 import React, { FormEvent, useEffect, useState } from 'react';
@@ -43,7 +43,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="login-screen" dir="rtl">
+    <div className="login-screen video-login-screen" dir="rtl">
       <div className="login-panel">
         <header className="login-brand flex flex-col items-center text-center">
           <span className="login-brand-mark"><img src={settings?.logoUrl || cachedBranding.logoUrl || DEFAULT_SCHOOL_LOGO} alt="شعار المدرسة" width={144} height={144} onError={event => { if (!event.currentTarget.src.endsWith(DEFAULT_SCHOOL_LOGO)) event.currentTarget.src = DEFAULT_SCHOOL_LOGO; }} className="h-full w-full object-contain" /></span>
@@ -67,7 +67,6 @@ export default function LoginPage() {
 
 function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser) => void }) {
   const login = useAuthStore((s) => s.login);
-
   const [rememberUsername, setRememberUsername] = useState(() => {
     try { return localStorage.getItem('qc.rememberUsername') !== '0'; } catch { return true; }
   });
@@ -82,12 +81,10 @@ function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-
     if (!username.trim() || !password) {
       setError('يرجى إدخال اسم المستخدم وكلمة المرور');
       return;
     }
-
     setLoading(true);
     try {
       const normalizedUsername = username.trim().toLowerCase();
@@ -107,28 +104,30 @@ function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser
 
   return (
     <>
-      <h2 className="text-lg font-extrabold text-slate-800">تسجيل الدخول</h2>
-
-      <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
+      <h2 className="video-login-title text-center text-lg font-extrabold">تسجيل الدخول</h2>
+      <form onSubmit={submit} className="video-login-form" noValidate>
         {error && <Alert>{error}</Alert>}
-
-        <div className="relative login-capsule">
-          <span className="login-capsule-icon" aria-hidden="true"><IconUser size={19} /></span>
-          <Input label="اسم المستخدم" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="اسم المستخدم أو رقم الطالب" autoComplete="username" dir="ltr" />
+        <div className="video-pill" key="username">
+          <span className="video-pill-icon" aria-hidden="true"><IconUser size={20} /></span>
+          <div className="video-pill-entry">
+            <label htmlFor="video-login-username">اسم المستخدم</label>
+            <input id="video-login-username" type="text" autoComplete="username" dir="ltr" value={username} onChange={e => { setUsername(e.target.value); setError(''); }} placeholder="اسم المستخدم أو رقم الطالب" />
+          </div>
+          <button className="video-pill-next" type="button" aria-label="التالي: كلمة المرور" onClick={() => document.getElementById('video-login-password')?.focus()}><span aria-hidden="true">❯</span></button>
         </div>
-
-        <div className="relative login-capsule login-capsule-password">
-          <span className="login-capsule-icon" aria-hidden="true"><IconLock size={19} /></span>
-          <Input label="كلمة المرور" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" dir="ltr" className="[&_input]:pl-12" />
-          <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} aria-pressed={showPassword} className="absolute bottom-1 left-1 grid h-11 w-11 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-primary-800"><IconEye size={19} /></button>
+        <div className="video-pill" key="password">
+          <span className="video-pill-icon" aria-hidden="true"><IconLock size={20} /></span>
+          <div className="video-pill-entry">
+            <label htmlFor="video-login-password">كلمة المرور</label>
+            <input id="video-login-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" dir="ltr" value={password} onChange={e => { setPassword(e.target.value); setError(''); }} placeholder="••••••••" />
+          </div>
+          <button className="video-pill-eye" type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} aria-pressed={showPassword}><IconEye size={17} /></button>
+          <button className="video-pill-next" type="submit" disabled={loading} aria-label="دخول" title="دخول"><span aria-hidden="true">{loading ? '…' : '❯'}</span></button>
         </div>
-
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
-          <input type="checkbox" checked={rememberUsername} onChange={(e) => setRememberUsername(e.target.checked)} className="h-4 w-4 rounded border-slate-300 accent-emerald-700" />
+        <label className="video-remember flex cursor-pointer items-center gap-2">
+          <input type="checkbox" checked={rememberUsername} onChange={e => setRememberUsername(e.target.checked)} className="h-4 w-4 accent-emerald-700" />
           تذكّر اسم المستخدم على هذا الجهاز
         </label>
-
-        <Button type="submit" loading={loading} className="w-full login-submit">دخول</Button>
       </form>
     </>
   );

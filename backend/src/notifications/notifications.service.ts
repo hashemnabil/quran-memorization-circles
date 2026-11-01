@@ -118,14 +118,20 @@ export class NotificationsService {
     return this.notifyMany(users.map((u) => u.id), input);
   }
 
-  /** Student and guardian get their own permitted destination, never staff-only links. */
+  /** Student-facing notifications are delivered only to the student's own account.
+   * Historical parent relationships remain stored for a verified migration.
+   * Never fall back to a guardian's account if the student has no login.
+   */
   async notifyStudent(studentId: string, input: Omit<CreateNotificationInput, 'userId' | 'link'>) {
-    const student = await this.prisma.student.findUnique({ where: { id: studentId },
-      select: { userId: true, parentProfile: { select: { userId: true } } } });
-    const recipients = new Map<string, string>();
-    if (student?.parentProfile?.userId) recipients.set(student.parentProfile.userId, `/parent/children/${studentId}`);
-    if (student?.userId) recipients.set(student.userId, '/student');
-    for (const [userId, link] of recipients) await this.notify({ ...input, userId, link });
+    const student = await this.prisma.student.findFirst({
+      where: { id: studentId, deletedAt: null },
+      select: { userId: true },
+    });
+    if (!student?.userId) {
+      this.logger.warn(`Student notification not delivered: student ${studentId} has no linked account`);
+      return;
+    }
+    await this.notify({ ...input, userId: student.userId, link: '/student' });
   }
 
   async list(user: AuthUser, query: PaginationDto & { unreadOnly?: boolean }) {

@@ -6,6 +6,7 @@ import { PrismaClient, Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { FounderAssetsController } from './assets.controller';
 import { PopupsController } from './popups.controller';
+import { FounderAccountsController } from './accounts.controller';
 
 test('founder uploads, private publication, acknowledgement replay and choices use real PostgreSQL transactions', async () => {
   const url = new URL(process.env.DATABASE_URL || 'postgresql://invalid/invalid');
@@ -16,10 +17,20 @@ test('founder uploads, private publication, acknowledgement replay and choices u
   const ownerId = randomUUID(), teacherId = randomUUID(), studentId = randomUUID();
   const password = randomBytes(24).toString('base64url');
   let noticeId: string | undefined;
+  let additionalFounderId: string | undefined;
   const assets = new FounderAssetsController(prisma as any), popups = new PopupsController(prisma as any);
   const owner: any = { id: ownerId, role: Role.FOUNDER };
   try {
     await prisma.user.create({ data: { id: ownerId, username: `test.owner.${ownerId}`, fullName: 'Integration Owner', role: Role.FOUNDER, passwordHash: await bcrypt.hash(password, 10) } });
+    const accounts = new FounderAccountsController(prisma as any);
+    await assert.rejects(accounts.create(owner, { username: `owner.${randomBytes(5).toString('hex')}`, fullName: 'Rejected owner', password: 'Temporary-password123', currentPassword: 'wrong' }));
+    const added = await accounts.create(owner, { username: `owner.${randomBytes(5).toString('hex')}`, fullName: 'Additional founder', password: 'Temporary-password123', currentPassword: password });
+    additionalFounderId = added.id;
+    assert.equal(added.role, Role.FOUNDER); assert.equal(added.mustChangePassword, true);
+    const renamed = await accounts.updateSelf(owner, { username: `renamed.${randomBytes(5).toString('hex')}`, fullName: 'Updated founder', currentPassword: password });
+    assert.equal(renamed.id, ownerId); assert.equal(renamed.role, Role.FOUNDER);
+    assert.equal(renamed.fullName, 'Updated founder');
+    assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: additionalFounderId } })).username, added.username);
     const content = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=', 'base64');
     const image = await assets.upload(owner, { buffer: content } as any, { title: 'Private image', kind: 'ANNOUNCEMENT_IMAGE', password });
     const cover = await assets.upload(owner, { buffer: content } as any, { title: 'Cover', kind: 'PROFILE_COVER', password });
@@ -42,6 +53,7 @@ test('founder uploads, private publication, acknowledgement replay and choices u
     await prisma.founderAsset.deleteMany({ where: { createdById: ownerId } });
     await prisma.activityLog.deleteMany({ where: { userId: ownerId } });
     await prisma.user.deleteMany({ where: { id: ownerId } });
+    if (additionalFounderId) await prisma.user.deleteMany({ where: { id: additionalFounderId } });
     await prisma.$disconnect();
   }
 });

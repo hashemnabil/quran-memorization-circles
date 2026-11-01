@@ -3,6 +3,10 @@ export function canManageAccount(targetRole?: string, requestedRole?: string): b
   return targetRole !== 'FOUNDER' && requestedRole !== 'FOUNDER';
 }
 
+export function canManageSchoolUsers(role?: string): boolean {
+  return role === 'ADMIN' || role === 'FOUNDER';
+}
+
 /** Founder-only routes must not inherit the legacy administrator bypass. */
 export function rolePermitted(actor: string, required: readonly string[]): boolean {
   if (!required.length) return true;

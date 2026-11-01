@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canManageAccount, rolePermitted } from './founder-policy';
+import { canManageAccount, canManageSchoolUsers, rolePermitted } from './founder-policy';
 
 test('administrator bypass cannot grant access to founder-only endpoints', () => {
   for (const role of ['ADMIN', 'SUPERVISOR', 'TEACHER', 'STUDENT', 'PARENT', 'SUPPORT', 'EXAM_COMMITTEE']) {
@@ -17,4 +17,10 @@ test('normal account APIs cannot create, promote, demote or modify founders', ()
   assert.equal(canManageAccount('FOUNDER', 'ADMIN'), false);
   assert.equal(canManageAccount('FOUNDER'), false);
   assert.equal(canManageAccount('TEACHER', 'SUPERVISOR'), true);
+});
+
+test('school-user management includes founder without granting other school roles access', () => {
+  assert.equal(canManageSchoolUsers('FOUNDER'), true);
+  assert.equal(canManageSchoolUsers('ADMIN'), true);
+  for (const role of ['TEACHER', 'STUDENT', 'PARENT', 'SUPERVISOR', 'SUPPORT']) assert.equal(canManageSchoolUsers(role), false);
 });

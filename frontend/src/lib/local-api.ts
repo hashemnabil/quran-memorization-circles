@@ -551,7 +551,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (parts[0] === 'users' && (method === 'post' && parts.length === 1 || method === 'patch' && parts.length <= 3 && (!parts[2] || parts[2] === 'reset-password'))) {
     const user = readActiveIdentity();
-    if (user?.role !== 'ADMIN') throw Object.assign(new Error('إدارة الحسابات متاحة للإدارة فقط'), { localWriteRejected: true });
+    if (!['ADMIN', 'FOUNDER'].includes(user?.role || '')) throw Object.assign(new Error('إدارة الحسابات متاحة للإدارة والمؤسس فقط'), { localWriteRejected: true });
     return save('users', { ...data, ...(parts[1] ? { id: parts[1] } : {}), credentialPending: true, ...(method === 'post' ? { activationPending: true } : {}) },
       method === 'post' ? 'create' : parts[2] === 'reset-password' ? 'reset-password' : 'update');
   }

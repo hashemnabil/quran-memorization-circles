@@ -19,6 +19,16 @@ beforeEach(async () => {
 });
 after(() => db.close());
 
+test('founder can durably queue ordinary user edits while lower roles cannot', async () => {
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ id: 'account', role: 'FOUNDER', fullName: 'Founder' }) } });
+  await localWrite('patch', `/users/${student}`, { fullName: 'Updated user' });
+  const queued = await db.queue.where('accountId').equals('account').first();
+  assert.equal(queued?.table, 'users'); assert.equal(queued?.action, 'update');
+  assert.equal(queued?.data.fullName, 'Updated user');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ id: 'account', role: 'TEACHER', fullName: 'Teacher' }) } });
+  await assert.rejects(localWrite('patch', `/users/${student}`, { fullName: 'Rejected' }));
+});
+
 test('a late image response cannot repopulate a signed-out account', async () => {
   const originalFetch = globalThis.fetch;
   let release!: (response: Response) => void;

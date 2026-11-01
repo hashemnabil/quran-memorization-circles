@@ -38,6 +38,23 @@ function fixture() {
 }
 const operation = () => ({ opId: randomUUID(), entityId: randomUUID(), table: 'students', action: 'create', data: { fullName: 'طالب' } });
 
+test('founder user edits replay once and founder can download users without widening other roles', async () => {
+  const { service } = fixture(); let updates = 0;
+  (service as any).apply = (FullSyncService.prototype as any).apply.bind(service);
+  (service as any).services = () => ({ users: {
+    update: async () => { updates++; return { id: 'saved' }; },
+    findAll: async () => ({ data: [{ id: 'saved' }], meta: { hasNextPage: false } }),
+  } });
+  const founder = { ...user, role: Role.FOUNDER };
+  const op = { ...operation(), table: 'users', action: 'update', data: { fullName: 'Updated teacher' } };
+  assert.equal((await service.push(founder, { operations: [op] })).outcomes[0].status, 'applied');
+  assert.equal((await service.push(founder, { operations: [op] })).outcomes[0].status, 'applied');
+  assert.equal(updates, 1);
+  assert.equal((await service.pull(founder, 'users', 1)).data.length, 1);
+  assert.equal((await service.push({ ...user, role: Role.TEACHER }, { operations: [{ ...op, opId: randomUUID() }] })).outcomes[0].status, 'rejected');
+  assert.equal((await service.pull({ ...user, role: Role.STUDENT }, 'users', 1)).data.length, 0);
+});
+
 test('credential replay is idempotent and receipts never contain passwords', async () => {
   const { service, receipts } = fixture(); let calls = 0;
   (service as any).apply = async () => { calls++; return { id: 'saved', temporaryPassword: 'secret-password', passwordHash: 'private-hash' }; };

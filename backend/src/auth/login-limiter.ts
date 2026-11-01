@@ -4,9 +4,9 @@ import type { Request, Response, NextFunction } from 'express';
 export function loginLimiter(now = () => Date.now()) {
   const entries = new Map<string, { failures: number; inflight: number; expires: number }>();
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!['POST', 'PATCH'].includes(req.method) || !/\/(auth\/login|auth\/change-password|registry\/access|support\/account-deletion)\/?$/.test(req.path)) return next();
+    if (!['POST', 'PATCH'].includes(req.method) || !/\/(auth\/login|auth\/change-password|registry\/access|support\/account-deletion|founder\/accounts(?:\/me)?)\/?$/.test(req.path)) return next();
     for (const [key, row] of entries) if (row.expires <= now() && row.inflight === 0) entries.delete(key);
-    const identity = String(req.body?.username || req.body?.nationalId || '').trim().toLowerCase();
+    const identity = /\/founder\/accounts(?:\/me)?\/?$/.test(req.path) ? 'founder-account-management' : String(req.body?.username || req.body?.nationalId || '').trim().toLowerCase();
     const keys = [`ip:${req.ip}`, `identity:${req.ip}:${identity}`].map(value => createHash('sha256').update(value).digest('hex'));
     const rows = keys.map(key => entries.get(key) || { failures: 0, inflight: 0, expires: now() + 15 * 60 * 1000 });
     if (entries.size >= 10000 || rows.some((row, i) => row.failures + row.inflight >= (i === 0 ? 100 : 8))) {

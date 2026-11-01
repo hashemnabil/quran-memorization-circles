@@ -38,6 +38,7 @@ import { CoursesService } from '../courses/courses.service';
 import { QueryCoursesDto, CreateCourseDto, UpdateCourseDto, RecordCourseAttendanceDto, EnrollStudentsDto } from '../courses/dto/course.dto';
 import { SchedulesService } from '../schedules/schedules.service';
 import { UsersService } from '../users/users.service';
+import { canManageSchoolUsers } from '../auth/founder-policy';
 import { CreateUserDto, UpdateUserDto, QueryUsersDto, ResetPasswordDto } from '../users/dto/user.dto';
 import { PreparationsService } from '../preparations/preparations.service';
 import { CreatePreparationDto, UpdatePreparationDto, QueryPreparationsDto } from '../preparations/dto/preparation.dto';
@@ -137,7 +138,7 @@ export class FullSyncService {
         const reviews = new ProfileReviewsService(this.prisma);
         return { ...await reviews.list(user, undefined, page), ...(page === 1 && user.role !== Role.ADMIN ? { references: { '/profile-reviews/me': await reviews.mine(user) } } : {}) };
       }
-      case 'users': return user.role === Role.ADMIN ? s.users.findAll(plainToInstance(QueryUsersDto, query)) : empty;
+      case 'users': return canManageSchoolUsers(user.role) ? s.users.findAll(plainToInstance(QueryUsersDto, query)) : empty;
       case 'studentAccounts': {
         if (user.role !== Role.ADMIN || page !== 1) return empty;
         const data = await s.students.listAccounts();
@@ -398,7 +399,7 @@ export class FullSyncService {
         if (op.action === 'cancel') return s.suspensions.cancel(user, id);
       }
     }
-    if (admin && op.table === 'users') {
+    if (canManageSchoolUsers(user.role) && op.table === 'users') {
       if (op.action === 'create') return s.users.create(user, await this.dto(CreateUserDto, op.data));
       if (op.action === 'update') return s.users.update(user, id, await this.dto(UpdateUserDto, op.data));
       if (op.action === 'reset-password') {

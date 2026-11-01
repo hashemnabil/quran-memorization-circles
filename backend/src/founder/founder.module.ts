@@ -4,6 +4,7 @@ import { Roles } from '../common/decorators';
 import { PrismaService } from '../prisma/prisma.service';
 import { FounderAssetsController } from './assets.controller';
 import { PopupsController } from './popups.controller';
+import { FounderAccountsController } from './accounts.controller';
 
 @Controller('founder')
 @Roles(Role.FOUNDER)
@@ -53,5 +54,5 @@ export class FounderController {
   }
 }
 
-@Module({ controllers: [FounderController, FounderAssetsController, PopupsController] })
+@Module({ controllers: [FounderController, FounderAssetsController, PopupsController, FounderAccountsController] })
 export class FounderModule {}

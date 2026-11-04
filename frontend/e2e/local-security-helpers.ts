@@ -1,5 +1,10 @@
 ﻿import { expect, type Page } from '@playwright/test';
 export const TEST_LOCAL_PIN = '936285';
+export async function fillLoginCredentials(page: Page, username: string, password: string) {
+  await page.getByLabel('اسم المستخدم', { exact: true }).fill(username);
+  await page.getByRole('button', { name: 'التالي: كلمة المرور', exact: true }).click();
+  await page.getByLabel('كلمة المرور', { exact: true }).fill(password);
+}
 export async function unlockLocalGate(page: Page) {
   await page.waitForFunction(() => {
     if (document.querySelector('.login-screen button[type="submit"]:disabled')) return false;

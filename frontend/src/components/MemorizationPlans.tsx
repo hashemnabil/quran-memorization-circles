@@ -23,7 +23,11 @@ export default function MemorizationPlans({studentId}: {studentId: string}) {
   const [note, setNote] = useState('');
   const [requestId, setRequestId] = useState('');
   const [history, setHistory] = useState(false);
-  const plans = useQuery({queryKey: ['students', studentId, 'plans'], queryFn: async () => (await api.get<Plan[]>(`/students/${studentId}/plans`)).data});
+  const plans = useQuery({queryKey: ['students', studentId, 'plans'], queryFn: async () => {
+    const {data} = await api.get<Plan[]>(`/students/${studentId}/plans`);
+    if (!Array.isArray(data)) throw new Error('استجابة خطط الحفظ غير صالحة');
+    return data;
+  }});
   const refresh = () => { void queryClient.invalidateQueries({queryKey: ['students', studentId, 'plans']}); };
   const save = useMutation({
     mutationFn: async () => {

@@ -1,4 +1,4 @@
-import { gotoWithLocalUnlock, unlockLocalGate } from './local-security-helpers';
+import { gotoWithLocalUnlock, unlockLocalGate, fillLoginCredentials } from './local-security-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 const fixtures = JSON.parse(readFileSync('e2e/.accounts.json', 'utf8'));
@@ -6,8 +6,7 @@ async function login(page: Page, role: string) {
   await page.addInitScript(() => localStorage.setItem('qc.onboarding.completed', '1'));
   await gotoWithLocalUnlock(page,'/login');
   await expect(page.getByRole('status', { name: 'بدء التطبيق' })).not.toBeVisible();
-  await page.getByLabel('اسم المستخدم', { exact: true }).fill(fixtures.accounts[role].username);
-  await page.getByLabel('كلمة المرور', { exact: true }).fill(fixtures.accounts[role].password);
+  await fillLoginCredentials(page, fixtures.accounts[role].username, fixtures.accounts[role].password);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
     await unlockLocalGate(page);
   if (role !== 'PARENT') await expect(page).not.toHaveURL(/\/login$/);

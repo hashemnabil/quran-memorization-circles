@@ -1,4 +1,4 @@
-import { gotoWithLocalUnlock, unlockLocalGate } from './local-security-helpers';
+import { gotoWithLocalUnlock, unlockLocalGate, fillLoginCredentials } from './local-security-helpers';
 import { test, expect } from '@playwright/test';
 
 // PARENT login is explicitly disabled by the existing server. Do not enable it here.
@@ -23,8 +23,7 @@ for (const role of ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'SUPPORT
       return route.fulfill({ json: { data: [], meta: { hasNextPage: false, total: 0 } } });
     });
     await gotoWithLocalUnlock(page,'/login');
-    await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
-    await page.getByLabel('كلمة المرور', { exact: true }).fill('test-password-2026');
+    await fillLoginCredentials(page, user.username, 'test-password-2026');
     await page.getByRole('button', { name: 'دخول', exact: true }).click();
     await unlockLocalGate(page);
     const card = page.getByRole('region', { name: 'مواقيت الصلاة — غزة' });

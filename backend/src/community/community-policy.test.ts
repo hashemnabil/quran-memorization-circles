@@ -6,8 +6,18 @@ import { MemorizationPlansController } from '../students/memorization-plans.cont
 import { ActivityService } from '../realtime/activity.service';
 import { publicActivity } from '../realtime/activity-policy';
 import { AccessControlService } from '../common/services/access-control.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 const actor = {id: 'owner', role: Role.TEACHER} as any;
+
+test('socket events require a verified unexpired gateway session rather than HTTP headers', () => {
+  const guard = new JwtAuthGuard({} as any);
+  const context = (data: unknown) => ({getType: () => 'ws', switchToWs: () => ({getClient: () => ({data})})}) as any;
+  assert.equal(guard.canActivate(context(undefined)), false);
+  assert.equal(guard.canActivate(context({user: {id: 'student'}, sessionId: 'session', tokenExpiresAt: Date.now() - 1000})), false);
+  assert.equal(guard.canActivate(context({user: {id: 'student'}, tokenExpiresAt: Date.now() + 60_000})), false);
+  assert.equal(guard.canActivate(context({user: {id: 'student'}, sessionId: 'session', tokenExpiresAt: Date.now() + 60_000})), true);
+});
 
 test('student chat contacts stay limited to administration and current-circle teaching staff', async () => {
   const access = new AccessControlService({

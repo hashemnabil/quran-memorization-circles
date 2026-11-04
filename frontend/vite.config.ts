@@ -37,6 +37,7 @@ export default defineConfig({
     name: 'production-content-security-policy',
     apply: 'build',
     transformIndexHtml(html) {
+      if (!/^\s*<!doctype html>/i.test(html)) throw new Error('index.html must start with the HTML doctype so the browser applies the head content security policy');
       const env = { ...loadEnv('production', process.cwd(), 'VITE_'), ...process.env };
       const siteUrl = (env.VITE_SITE_URL || 'https://quran-frontend-sknr.onrender.com').replace(/\/$/, '');
       return {

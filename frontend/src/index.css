@@ -584,10 +584,6 @@ body:has([data-security-blocked]) [data-rht-toaster]{visibility:hidden!important
 .security-pin-verified{min-height:126px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:#20724e}
 .security-pin-orbit{position:relative;display:grid;place-items:center;width:92px;height:92px;animation:security-orbit-spin .8s cubic-bezier(.25,.65,.2,1) both}
 .security-pin-orbit-box{position:absolute;width:31px;height:31px;border:2px solid #37ad78;border-radius:10px;background:#37ad7817;box-shadow:0 0 16px #37ad7830}
-.security-pin-orbit-box:nth-child(1){transform:translateY(-29px)}
-.security-pin-orbit-box:nth-child(2){transform:translateX(29px)}
-.security-pin-orbit-box:nth-child(3){transform:translateY(29px)}
-.security-pin-orbit-box:nth-child(4){transform:translateX(-29px)}
 .security-pin-check{position:relative;z-index:1;width:45px;height:45px;color:#17734d;stroke-dasharray:65;stroke-dashoffset:65;animation:security-check-draw .35s .7s ease-out forwards}
 .security-pin-verified-text{font-weight:800;font-size:14px;animation:security-verified-text .25s .85s both}
 @keyframes security-pin-pop{0%{transform:scale(.8);opacity:.4}65%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}

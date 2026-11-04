@@ -240,7 +240,7 @@ export class AccessControlService {
           this.teacherUserIdsOfCircles(circleIds), this.supervisorUserIdsOfCircles(circleIds),
         ]);
         return { OR: [
-          { role: { in: [Role.ADMIN, Role.SUPPORT] } },
+          { role: Role.ADMIN },
           { role: Role.TEACHER, id: { in: teacherIds } },
           { role: Role.SUPERVISOR, id: { in: supervisorIds } },
         ] };

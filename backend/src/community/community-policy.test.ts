@@ -5,8 +5,22 @@ import { CommunityController } from './community.controller';
 import { MemorizationPlansController } from '../students/memorization-plans.controller';
 import { ActivityService } from '../realtime/activity.service';
 import { publicActivity } from '../realtime/activity-policy';
+import { AccessControlService } from '../common/services/access-control.service';
 
 const actor = {id: 'owner', role: Role.TEACHER} as any;
+
+test('student chat contacts stay limited to administration and current-circle teaching staff', async () => {
+  const access = new AccessControlService({
+    student: {findFirst: async () => ({circleId: 'own-circle'})},
+    circleTeacher: {findMany: async () => [{teacher: {userId: 'own-teacher'}}]},
+    circle: {findMany: async () => [{supervisorId: 'own-supervisor'}]},
+  } as any);
+  assert.deepEqual(await access.contactableUserFilter({id: 'student', role: Role.STUDENT} as any), {OR: [
+    {role: Role.ADMIN},
+    {role: Role.TEACHER, id: {in: ['own-teacher']}},
+    {role: Role.SUPERVISOR, id: {in: ['own-supervisor']}},
+  ]});
+});
 
 test('hidden or unknown activity never exposes online status or last seen', () => {
   assert.deepEqual(publicActivity({hidden: true, lastActiveAt: new Date()}, true), {isOnline: false, lastActiveAt: null});

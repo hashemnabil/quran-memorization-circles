@@ -35,3 +35,19 @@ test('failed attempts and cooldown persist across restarts; correct PIN cannot b
   time += 30000; await restarted.verify('a', '936285');
   assert.equal((await restarted.read('a'))!.failures, 0);
 });
+
+test('new PIN setup accepts lengths 4 through 8, rejects others, and keeps legacy 12-digit unlocks valid', async () => {
+  for (let length = 4; length <= 8; length++) {
+    const values = new Map<string, string>();
+    const storage = { get: async (key: string) => values.get(key) ?? null, set: async (key: string, value: string) => { values.set(key, value); }, remove: async (key: string) => { values.delete(key); } };
+    const lock = createAppLock(storage);
+    const pin = '73928461'.slice(0, length);
+    await lock.setup('student', pin);
+    await lock.verify('student', pin);
+    assert(!JSON.stringify([...values]).includes(pin));
+  }
+  for (const invalid of ['123', '123456789', 'abcd', '1111']) {
+    const storage = { get: async () => null, set: async () => undefined, remove: async () => undefined };
+    await assert.rejects(createAppLock(storage).setup('student', invalid));
+  }
+});

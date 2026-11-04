@@ -184,7 +184,30 @@ export default function ProfilePage({ settings = false }: { settings?: boolean }
           {['STUDENT', 'TEACHER'].includes(user.role) ? <Card title="بياناتي الشخصية"><Button onClick={() => navigate('/verify-profile')}>تحقق من بياناتي</Button></Card> : <ProfileDetailsCard profile={profile} onUpdated={setUser} />}
 
           {settings && <>
-          <LocalSecuritySettings />
+          <Card title="إعدادات الحساب والتطبيق" className="overflow-hidden">
+            <nav aria-label="أقسام إعدادات الحساب" className="grid gap-2 text-sm sm:grid-cols-2">
+              {[
+                { label: 'الملف الشخصي', to: '/profile' },
+                { label: 'رمز الأمان', to: '/profile/settings#local-security' },
+                { label: 'صوت الإشعارات', to: '/profile/settings/notifications/sound' },
+                { label: 'تحديد الإشعارات', to: '/profile/settings/notifications/sound' },
+                { label: 'صوت الأذان', to: '/prayer-times/reminders' },
+                { label: 'تذكير الأذان', to: '/prayer-times/reminders' },
+                { label: 'المساعدة والدعم', to: '/support' },
+                { label: 'سياسة الخصوصية', to: '/privacy' },
+                { label: 'حذف الحساب', to: '/account-deletion' },
+              ].map(item => (
+                <Link key={item.label} to={item.to} className="flex min-h-12 items-center justify-between rounded-xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 transition hover:border-primary-300 hover:bg-primary-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-600">
+                  <span>{item.label}</span><span aria-hidden="true">‹</span>
+                </Link>
+              ))}
+            </nav>
+            <div className="mt-4 rounded-xl bg-primary-50 px-4 py-3 text-sm text-primary-800">
+              <p className="font-bold">حول التطبيق</p>
+              <p>إصدار التطبيق: 1.0.0</p>
+            </div>
+          </Card>
+          <div id="local-security"><LocalSecuritySettings /></div>
           <ActivityPrivacySettings />
           <Card title="دليل التطبيق"><p className="mb-3 text-sm text-slate-500">تعرّف على الحلقات والمتابعة والتواصل.</p><Button variant="secondary" onClick={() => setReplayIntro(true)}>إعادة مشاهدة شرح التطبيق</Button></Card>
           <Card title="المظهر"><div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"><span className="text-sm text-slate-500">اختر مظهر التطبيق</span><ThemeSelect /></div></Card>

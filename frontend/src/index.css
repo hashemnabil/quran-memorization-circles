@@ -591,3 +591,8 @@ body:has([data-security-blocked]) [data-rht-toaster]{visibility:hidden!important
 @keyframes security-check-draw{to{stroke-dashoffset:0}}
 @keyframes security-verified-text{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.security-pin-dot,.security-pin-orbit,.security-pin-check,.security-pin-verified-text{animation:none!important}.security-pin-check{stroke-dashoffset:0}}
+
+/* Failed PIN uses the same orbit, then a red X before resetting the input. */
+.security-pin-failed{color:#c13b45}
+.security-pin-failed .security-pin-orbit-box{border-color:#dc505a;background:#dc505a17;box-shadow:0 0 16px #dc505a30}
+.security-pin-failed .security-pin-check{color:#c13b45}

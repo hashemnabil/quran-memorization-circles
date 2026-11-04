@@ -22,10 +22,12 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 enum Role {
+  FOUNDER
   ADMIN
   SUPERVISOR
   TEACHER
   EXAM_COMMITTEE
+  /// Reserved for archived accounts only; rejected by authentication and account creation.
   PARENT
   STUDENT
   SUPPORT
@@ -216,6 +218,9 @@ model User {
   teacher  TeacherProfile?
   parent   ParentProfile?
   studentProfile Student?
+  activityPrivacy UserActivity?
+  createdMemorizationPlans MemorizationPlan[]
+  recordedMemorizationProgress MemorizationProgress[]
 
   refreshTokens        RefreshToken[]
   supervisedCircles    Circle[]              @relation("CircleSupervisor")
@@ -264,6 +269,15 @@ model User {
   @@index([isActive])
   @@index([fullName])
   @@map("users")
+}
+
+model UserActivity {
+  userId       String    @id
+  hidden       Boolean   @default(false)
+  lastActiveAt DateTime?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_activity")
 }
 
 model RefreshToken {
@@ -395,6 +409,7 @@ model CircleTeacher {
 // ---------------------------------------------------------------------------
 
 model Student {
+  memorizationPlans MemorizationPlan[]
   id               String        @id @default(uuid())
   code             String        @unique
   fullName         String
@@ -1238,7 +1253,7 @@ model StaffAttendance {
 // ---------------------------------------------------------------------------
 
 /// "Prepare Al-Baqarah 1-20 for the next session." Visible to the student's
-/// guardian, who is notified when it is created.
+/// account, which is notified when it is created.
 model PreparationAssignment {
   id        String    @id @default(uuid())
   studentId String
@@ -1285,7 +1300,33 @@ model SurahCompletion {
 
 /// Published by the administration only. `audience` empty means "everyone";
 /// otherwise the announcement is shown to the listed roles.
+model FounderAsset {
+  id        String @id @default(uuid())
+  title     String @db.VarChar(100)
+  kind      String @db.VarChar(30)
+  mime      String @db.VarChar(40)
+  content   Bytes
+  size      Int
+  isActive  Boolean @default(true)
+  createdById String
+  createdAt DateTime @default(now())
+  @@index([kind, isActive])
+  @@map("founder_assets")
+}
+
+model PresentationChoice {
+  id String @id @default(uuid())
+  userId String
+  kind String
+  assetId String?
+  updatedAt DateTime @updatedAt
+  @@unique([userId, kind])
+  @@map("presentation_choices")
+}
+
 model Announcement {
+  isPopup     Boolean @default(false)
+  popup       Json?
   id          String    @id @default(uuid())
   title       String
   body        String?
@@ -1303,6 +1344,18 @@ model Announcement {
 
   @@index([isActive, publishedAt])
   @@map("announcements")
+}
+
+model AnnouncementReceipt {
+  id String @id @default(uuid())
+  announcementId String
+  subject String
+  kind String
+  eventKey String
+  createdAt DateTime @default(now())
+  @@unique([announcementId, subject, kind, eventKey])
+  @@index([announcementId, kind])
+  @@map("announcement_receipts")
 }
 
 
@@ -1607,4 +1660,35 @@ model CommunityStoryReply {
   story CommunityStory @relation(fields:[storyId],references:[id],onDelete:Cascade)
   user User @relation(fields:[userId],references:[id],onDelete:Cascade)
   @@index([storyId,createdAt])
+}
+
+model MemorizationPlan {
+  id String @id @default(uuid())
+  studentId String
+  createdById String
+  title String
+  unit String
+  period String
+  target Float
+  completed Float @default(0)
+  archived Boolean @default(false)
+  dueAt DateTime?
+  createdAt DateTime @default(now())
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  progress MemorizationProgress[]
+  @@index([studentId])
+  @@map("memorization_plans")
+}
+model MemorizationProgress {
+  id String @id @default(uuid())
+  planId String
+  recordedById String
+  amount Float
+  note String @default("")
+  createdAt DateTime @default(now())
+  plan MemorizationPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  recordedBy User @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+  @@index([planId])
+  @@map("memorization_progress")
 }

@@ -94,10 +94,6 @@ export class CreateStudentDto {
   @PhoneField('جوال الطالب')
   phone?: string;
 
-  @ApiPropertyOptional({ description: 'ربط الطالب بحساب ولي أمر موجود' })
-  @IsOptional()
-  @IsUUID('4', { message: 'معرّف ولي الأمر غير صالح' })
-  parentId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -214,10 +210,6 @@ export class QueryStudentsDto extends PaginationDto {
   @IsUUID('4')
   circleId?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsUUID('4')
-  parentId?: string;
 
   @ApiPropertyOptional({ description: 'الطلاب غير المسجلين في أي حلقة' })
   @IsOptional()

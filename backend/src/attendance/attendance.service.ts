@@ -65,7 +65,7 @@ export class AttendanceService {
 
   async decideAbsencePermission(actor: AuthUser, id: string, approve: boolean, decisionNote?: string) {
     if (actor.role !== 'ADMIN') throw new BadRequestException('اعتماد الإذن متاح للإدارة فقط');
-    const request = await this.prisma.absencePermissionRequest.findUnique({ where: { id }, include: { student: { select: { id: true, fullName: true, circleId: true, userId: true, parentProfile: { select: { userId: true } } } } } });
+    const request = await this.prisma.absencePermissionRequest.findUnique({ where: { id }, include: { student: { select: { id: true, fullName: true, circleId: true, userId: true } } } });
     if (!request) throw new NotFoundException('طلب الإذن غير موجود');
     if (request.status !== 'PENDING') throw new ConflictException('تم اتخاذ قرار بهذا الطلب مسبقًا');
     if (approve && request.student && !request.student.circleId) throw new BadRequestException('الطالب لم يعد مرتبطًا بحلقة');
@@ -89,7 +89,7 @@ export class AttendanceService {
     });
     const resultTitle = approve ? 'تمت الموافقة على إذن الغياب' : 'تم رفض إذن الغياب';
     const resultBody = decisionNote?.trim() || (approve ? 'سُجّل الغياب بعذر في الحضور.' : 'راجع الإدارة لمعرفة التفاصيل.');
-    await this.notifications.notify({ userId: request.requesterId, type: NotificationType.ATTENDANCE, title: resultTitle, body: resultBody, link: '/absence-permissions', data: { absencePermissionId: id } });
+    if (!request.studentId) await this.notifications.notify({ userId: request.requesterId, type: NotificationType.ATTENDANCE, title: resultTitle, body: resultBody, link: '/absence-permissions', data: { absencePermissionId: id } });
     if (request.studentId) await this.notifications.notifyStudent(request.studentId, { type: NotificationType.ATTENDANCE, title: resultTitle, body: resultBody, data: { absencePermissionId: id } });
     await this.activity.log({ userId: actor.id, action: approve ? 'ABSENCE_PERMISSION_APPROVE' : 'ABSENCE_PERMISSION_REJECT', summary: `${resultTitle}: ${request.requesterId}`, entityType: 'AbsencePermissionRequest', entityId: id });
     return saved;
@@ -101,12 +101,11 @@ export class AttendanceService {
 
   async createSummons(actor: AuthUser, input: { studentId: string; title: string; body: string }) {
     if (!input?.studentId || !input.title?.trim() || !input.body?.trim()) throw new BadRequestException('الطالب والعنوان ونص الاستدعاء مطلوبة');
-    const student = await this.prisma.student.findUnique({ where: { id: input.studentId }, select: { id: true, fullName: true, parentProfile: { select: { userId: true } } } });
+    const student = await this.prisma.student.findUnique({ where: { id: input.studentId }, select: { id: true, fullName: true, userId: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
-    if (!student.parentProfile?.userId) throw new BadRequestException('لا يوجد حساب ولي أمر مرتبط بالطالب لإرسال الإشعار إليه');
     const row = await this.prisma.guardianSummons.create({ data: { studentId: student.id, issuedById: actor.id, title: input.title.trim(), body: input.body.trim() } });
-    await this.notifications.notify({ userId: student.parentProfile.userId, type: NotificationType.ATTENDANCE, title: row.title, body: row.body, link: `/parent/children/${student.id}`, data: { guardianSummonsId: row.id, warning: true } });
-    await this.activity.log({ userId: actor.id, action: 'GUARDIAN_SUMMON_ISSUED', summary: `إرسال استدعاء لولي أمر ${student.fullName}`, entityType: 'GuardianSummon', entityId: row.id });
+    await this.notifications.notifyStudent(student.id, { type: NotificationType.ATTENDANCE, title: row.title, body: row.body, data: { studentId: student.id, guardianSummonsId: row.id, warning: true } });
+    await this.activity.log({ userId: actor.id, action: 'GUARDIAN_SUMMON_ISSUED', summary: `إرسال استدعاء للطالب ${student.fullName}`, entityType: 'GuardianSummon', entityId: row.id });
     return row;
   }
 
@@ -226,7 +225,7 @@ export class AttendanceService {
     }
     const students = await this.prisma.student.findMany({
       where: { id: { in: studentIds }, circleId: dto.circleId, deletedAt: null },
-      select: { id: true, fullName: true, parentId: true, parentProfile: { select: { userId: true } } },
+        select: { id: true, fullName: true, userId: true },
     });
     if (students.length !== studentIds.length) {
       throw new BadRequestException('بعض الطلاب المحددين لا ينتمون إلى هذه الحلقة');
@@ -286,7 +285,7 @@ export class AttendanceService {
       where: { id },
       include: {
         student: {
-          select: { id: true, fullName: true, parentProfile: { select: { userId: true } } },
+          select: { id: true, fullName: true, userId: true },
         },
       },
     });

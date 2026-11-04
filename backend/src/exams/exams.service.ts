@@ -22,6 +22,7 @@ import { AuthUser } from '../common/decorators';
 import { EVALUATION_LABELS, evaluationFromScore } from '../common/grading';
 import { calculateExamGrade } from './exam-scoring';
 import { combinedPlan } from './combined-plan';
+import { ensureExamProgramme } from './ensure-exam-programme';
 import { HistoricalExamDto } from './dto/exam.dto';
 import {
   HIZB_PER_JUZ,
@@ -107,11 +108,6 @@ const REQUEST_INCLUDE = {
           code: true,
         },
       },
-      parentProfile: {
-        select: {
-          userId: true,
-        },
-      },
     },
   },
   section: {
@@ -185,11 +181,6 @@ const EXAM_INCLUDE = {
           id: true,
           name: true,
           code: true,
-        },
-      },
-      parentProfile: {
-        select: {
-          userId: true,
         },
       },
     },
@@ -371,6 +362,7 @@ export class ExamsService {
       return this.sectionsCache;
     }
 
+    await ensureExamProgramme(this.prisma);
     this.sectionsCache = await this.prisma.examSection.findMany({
       where: { isActive: true },
       orderBy: { order: 'asc' },
@@ -445,31 +437,92 @@ export class ExamsService {
    */
   async milestoneRecords(user: AuthUser, studentId: string) {
     await this.acl.assertStudentAccess(user, studentId);
-    return this.prisma.examMilestoneRecord.findMany({
-      where: { studentId },
-      include: { section: { select: { id: true, name: true, code: true, order: true, kind: true, minScore: true } } },
-      orderBy: { section: { order: 'asc' } },
+    const [records,exams]=await Promise.all([
+      this.prisma.examMilestoneRecord.findMany({
+        where:{studentId},include:{section:{select:{id:true,name:true,code:true,order:true,kind:true,minScore:true}}},orderBy:{section:{order:'asc'}},
+      }),
+      this.prisma.exam.findMany({where:{studentId,combinedStage:{not:null}},orderBy:[{updatedAt:'desc'},{createdAt:'desc'}]}),
+    ]);
+    const seen=new Set<string>();
+    const combined=exams.flatMap(exam=>{
+      if(seen.has(exam.combinedStage!))return [];
+      seen.add(exam.combinedStage!);
+      const meta=(exam.grading as any)?.adminCombinedMilestone;
+      const stage=combinedPlan().find(row=>row.code===exam.combinedStage);
+      if(!meta||!stage)return [];
+      return [{id:exam.id,studentId,sectionId:exam.sectionId,status:meta.status,result:exam.result,score:exam.score,
+        requestedAt:meta.requestedAt,examDate:meta.examDate,examinerName:meta.examinerName,note:exam.notes,
+        section:{id:stage.code,code:stage.code,name:stage.label,order:stage.at,kind:'COMBINED',minScore:80}}];
     });
+    return [...records,...combined];
   }
 
+  private async milestoneGrade(dto:UpdateExamMilestoneDto, previous?:any) {
+    if(dto.status!=='COMPLETED'||dto.tajweed===undefined)return undefined;
+    const stored=previous?.grading;
+    const penalties=typeof stored?.mistakePenalty==='number'&&typeof stored?.alertPenalty==='number'
+      ?{mistakePenalty:stored.mistakePenalty,alertPenalty:stored.alertPenalty}
+      :previous?.committeeId?await this.committeeGradingSettings(previous.committeeId):await this.gradingSettings();
+    try{return calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,tajweed:dto.tajweed,...penalties});}
+    catch{throw new BadRequestException('قيم الأخطاء أو التنبيهات أو الأحكام غير صالحة');}
+  }
+
+  async updateCombinedMilestone(actor:AuthUser,studentId:string,stageCode:string,dto:UpdateExamMilestoneDto){
+    if(actor.role!==Role.ADMIN)throw new ForbiddenException('تعديل سجل المجتمعة متاح للإدارة فقط');
+    const stage=combinedPlan().find(row=>row.code===stageCode);
+    if(!stage)throw new BadRequestException('مرحلة المجتمعة غير صالحة');
+    const student=await this.acl.assertStudentWriteAccess(actor,studentId);
+    await this.getCachedSections();
+    const section=await this.prisma.examSection.findFirst({where:{code:`JUZ-${String(stage.fromJuz).padStart(2,'0')}`,isActive:true}});
+    if(!section)throw new NotFoundException('مقرر الجزء غير موجود');
+    const saved=await this.prisma.$transaction(async tx=>{
+      // Serialize administrative edits of the same student's combined stage.
+      await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${`combined-milestone:${studentId}:${stageCode}`}))) AS locked`;
+      const previous=await tx.exam.findFirst({where:{studentId,combinedStage:stageCode},orderBy:[{updatedAt:'desc'},{createdAt:'desc'}]});
+      const calculated=await this.milestoneGrade(dto,previous);
+      const score=dto.status==='COMPLETED'?(calculated?.score??dto.score??80):null;
+      const active=await tx.examRequest.findMany({where:{studentId,combinedStage:stageCode,status:{in:['PENDING','SCHEDULED']}}});
+      const requestIds=[...new Set([...active.map(row=>row.id),...(previous?.requestId?[previous.requestId]:[])])];
+      const grading=!calculated&&dto.score!=null&&dto.score!==previous?.score?{}:previous?.grading&&typeof previous.grading==='object'&&!Array.isArray(previous.grading)?previous.grading:{};
+      const data={
+        requestId:dto.status==='REQUESTED'||dto.status==='NOT_REQUESTED'?null:previous?.requestId??active[0]?.id??null,
+        status:dto.status==='COMPLETED'?ExamStatus.COMPLETED:dto.status==='SCHEDULED'?ExamStatus.SCHEDULED:ExamStatus.CANCELLED,
+        score,result:score===null?null:score>=80?ExamResult.PASSED:ExamResult.FAILED,
+        evaluation:score===null?null:evaluationFromScore(score),
+        scheduledAt:dto.examDate?this.parseDate(dto.examDate):previous?.scheduledAt??new Date(),
+        gradedById:score===null?null:actor.id,gradedAt:score===null?null:new Date(),notes:dto.note??null,
+        mistakes:calculated?.mistakes??previous?.mistakes??null,
+        grading:{...grading,...calculated,adminCombinedMilestone:{status:dto.status,requestedAt:dto.requestedAt??null,examDate:dto.examDate??null,examinerName:dto.examinerName??null,updatedById:actor.id}},
+      };
+      const exam=previous?await tx.exam.update({where:{id:previous.id},data}):await tx.exam.create({data:{studentId,sectionId:section.id,combinedStage:stageCode,...data}});
+      await tx.examRequest.updateMany({where:{id:{in:requestIds}},data:{status:dto.status==='COMPLETED'?'COMPLETED':dto.status==='SCHEDULED'?'SCHEDULED':dto.status==='REQUESTED'?'PENDING':'CANCELLED'}});
+      if(dto.status==='REQUESTED'&&!requestIds.length)await tx.examRequest.create({data:{studentId,sectionId:section.id,teacherId:await this.resolveTeacherId(actor,student.circleId),combinedStage:stageCode,note:dto.note??null,...(dto.requestedAt?{createdAt:this.parseDate(dto.requestedAt)}:{})}});
+      return exam;
+    });
+    await this.activity.log({userId:actor.id,action:'EXAM_COMBINED_MILESTONE_OVERRIDE',summary:`تعديل سجل ${stage.label} للطالب ${studentId}: ${dto.status}`,entityType:'Exam',entityId:saved.id});
+    return saved;
+  }
   async updateMilestoneRecord(actor: AuthUser, studentId: string, sectionId: string, dto: UpdateExamMilestoneDto) {
     if (actor.role !== Role.ADMIN) {
       throw new ForbiddenException('تعديل السجل اليدوي للمقررات متاح للإدارة فقط');
     }
     const student = await this.prisma.student.findFirst({ where: { id: studentId, deletedAt: null }, select: { id: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
-    const section = await this.prisma.examSection.findFirst({ where: { id: sectionId, isActive: true } });
+    await this.getCachedSections();
+    const section = await this.prisma.examSection.findFirst({ where: { OR: [{ id: sectionId }, { code: sectionId }], isActive: true } });
     if (!section) throw new NotFoundException('مقرر الاختبار غير موجود');
+    // Progression may omit locked sections; accept the stable row code and persist its real ID.
+    sectionId = section.id;
 
     // A manual "completed" milestone must be reflected in the official exam
     // history as well as the progression/profile aggregates.
-    const completedScore = dto.status === 'COMPLETED' ? (dto.score ?? section.minScore) : null;
-    const completedResult = completedScore === null
-      ? null
-      : completedScore >= 80 ? ExamResult.PASSED : ExamResult.FAILED;
     const examDate = dto.examDate ? this.parseDate(dto.examDate) : new Date();
 
     const saved = await this.prisma.$transaction(async (tx) => {
+      const previous = dto.status === 'COMPLETED' ? await tx.exam.findFirst({where:{studentId,sectionId,combinedStage:null},orderBy:{scheduledAt:'desc'},include:{sections:true}}) : null;
+      const calculated = await this.milestoneGrade(dto,previous);
+      const completedScore = dto.status === 'COMPLETED' ? (calculated?.score ?? dto.score ?? section.minScore) : null;
+      const completedResult = completedScore === null ? null : completedScore >= 80 ? ExamResult.PASSED : ExamResult.FAILED;
       const milestone = await tx.examMilestoneRecord.upsert({
         where: { studentId_sectionId: { studentId, sectionId } },
         create: {
@@ -488,14 +541,12 @@ export class ExamsService {
       });
 
       if (dto.status === 'COMPLETED' && completedScore !== null && completedResult !== null) {
-        const existingManualExam = await tx.exam.findFirst({
-          where: { studentId, sectionId, requestId: null },
-          orderBy: { scheduledAt: 'desc' },
-        });
+        const existingManualExam = previous && (previous.sections?.length??0)<=1 ? previous : null;
         const examData = {
           scheduledAt: examDate,
           status: ExamStatus.COMPLETED,
           score: completedScore,
+          ...(calculated?{grading:calculated,mistakes:calculated.mistakes}:previous&&dto.score!=null&&dto.score!==previous.score?{grading:Prisma.DbNull,mistakes:null}:{}),
           evaluation: evaluationFromScore(completedScore),
           result: completedResult,
           notes: dto.note ?? null,
@@ -504,6 +555,7 @@ export class ExamsService {
         };
         if (existingManualExam) {
           await tx.exam.update({ where: { id: existingManualExam.id }, data: examData });
+          if(existingManualExam.requestId)await tx.examRequest.update({where:{id:existingManualExam.requestId},data:{status:ExamRequestStatus.COMPLETED}});
         } else {
           await tx.exam.create({
             data: { studentId, sectionId, ...examData },
@@ -526,6 +578,7 @@ export class ExamsService {
 
   async eligibility(user: AuthUser, studentId: string): Promise<EligibilityResult> {
     await this.acl.assertStudentAccess(user, studentId);
+    await this.getCachedSections();
 
     // ✅ تشخيص المشكلة - سجل البيانات
 
@@ -547,10 +600,10 @@ export class ExamsService {
         },
       }),
       
-      // ✅ تأكد من أن الطالب قد اجتاز الاختبار بالفعل (مكتمل وناجح)
+      // Individual section eligibility excludes combined exam grades.
       this.prisma.exam.findMany({
         where: {
-          studentId,
+          studentId, combinedStage:null,
           status: ExamStatus.COMPLETED,
           result: ExamResult.PASSED,
           // ✅ تأكد من وجود درجة
@@ -737,129 +790,6 @@ export class ExamsService {
    * - مقرر اجتازه الطالب.
    * - مقرر عليه طلب اختبار قائم.
    */
-  private async assertEligible(studentId: string, sectionId: string, enforceSequence = true) {
-    const section = await this.prisma.examSection.findFirst({
-      where: {
-        id: sectionId,
-        isActive: true,
-      },
-    });
-
-    if (!section) {
-      throw new BadRequestException('المقرر المحدد غير موجود');
-    }
-
-    // ✅ تأكد من أن الطالب اجتاز الاختبار بنجاح مع درجة
-    const alreadyPassed = await this.prisma.exam.findFirst({
-      where: {
-        studentId,
-        status: ExamStatus.COMPLETED,
-        result: ExamResult.PASSED,
-        // ✅ تأكد من وجود درجة وأنها أعلى من الحد الأدنى
-        score: {
-          gte: 80,
-          not: null,
-        },
-        OR: [
-          { sectionId },
-          {
-            sections: {
-              some: {
-                sectionId,
-              },
-            },
-          },
-        ],
-      },
-    });
-
-    const manualRecord = await this.prisma.examMilestoneRecord.findUnique({
-      where: { studentId_sectionId: { studentId, sectionId } },
-      select: { status: true, result: true },
-    });
-    // A stale REQUESTED/SCHEDULED/NOT_REQUESTED manual row must not erase a
-    // real passing exam. Only an explicit manual completion overrides it.
-    const effectivelyPassed = manualRecord?.status === 'COMPLETED'
-      ? manualRecord.result !== ExamResult.FAILED
-      : Boolean(alreadyPassed);
-    if (effectivelyPassed) {
-      throw new ConflictException(`الطالب اجتاز "${section.name}" مسبقاً`);
-    }
-
-    // Enforce the required order on the server, not just in the UI.
-    const earlierRequired = enforceSequence ? await this.prisma.examSection.findMany({
-      where: { isActive: true, isRequired: true, order: { lt: section.order } },
-      select: { id: true, name: true },
-    }) : [];
-    if (earlierRequired.length) {
-      const passedEarlier = await this.prisma.exam.findMany({
-        where: {
-          studentId,
-          status: ExamStatus.COMPLETED,
-          result: ExamResult.PASSED,
-          score: { not: null },
-          OR: [
-            { sectionId: { in: earlierRequired.map((item) => item.id) } },
-            { sections: { some: { sectionId: { in: earlierRequired.map((item) => item.id) } } } },
-          ],
-        },
-        select: { sectionId: true, sections: { select: { sectionId: true } } },
-      });
-      const passedEarlierIds = new Set(passedEarlier.flatMap((exam) =>
-        [exam.sectionId, ...exam.sections.map((entry) => entry.sectionId)].filter(Boolean) as string[],
-      ));
-      const manualEarlier = await this.prisma.examMilestoneRecord.findMany({
-        where: { studentId, sectionId: { in: earlierRequired.map((item) => item.id) } },
-        select: { sectionId: true, status: true, result: true },
-      });
-      manualEarlier.forEach((record) => {
-        if (record.status === 'COMPLETED' && record.result !== ExamResult.FAILED) {
-          passedEarlierIds.add(record.sectionId);
-        } else if (record.status === 'COMPLETED' && record.result === ExamResult.FAILED) {
-          // Do not let a non-completed manual row erase a pass from an exam.
-          passedEarlierIds.delete(record.sectionId);
-        }
-      });
-      const missing = earlierRequired.find((item) => !passedEarlierIds.has(item.id));
-      if (missing) {
-        throw new ConflictException(`لا يمكن طلب اختبار هذا المقرر قبل اجتياز ${missing.name}`);
-      }
-    }
-
-    const manualOpen = await this.prisma.examMilestoneRecord.findFirst({
-      where: { studentId, sectionId, status: { in: ['REQUESTED', 'SCHEDULED'] } },
-      select: { id: true },
-    });
-    if (manualOpen) {
-      throw new ConflictException('يوجد طلب اختبار قائم لهذا المقرر');
-    }
-
-    const open = await this.prisma.examRequest.findFirst({
-      where: {
-        studentId,
-        status: {
-          in: [ExamRequestStatus.PENDING, ExamRequestStatus.SCHEDULED],
-        },
-        OR: [
-          { sectionId },
-          {
-            sections: {
-              some: {
-                sectionId,
-              },
-            },
-          },
-        ],
-      },
-    });
-
-    if (open) {
-      throw new ConflictException('يوجد طلب اختبار قائم لهذا المقرر');
-    }
-
-    return section;
-  }
-
   private async fetchActiveSections(sectionIds: string[]) {
     const sections = await this.prisma.examSection.findMany({
       where: {
@@ -875,25 +805,32 @@ export class ExamsService {
     return sections;
   }
 
-  private async validateAllSectionsEligibility(studentId: string, sections: any[]) {
+  private async validateAllSectionsEligibility(studentId: string, sections: any[], actor: AuthUser) {
     try {
-      // Combined requests represent one consecutive block in the progression.
-      for (let index = 1; index < sections.length; index++) {
-        if (sections[index].order !== sections[index - 1].order + 1) {
-          throw new BadRequestException('التسميع المجتمعة يجب أن تتبع التسلسل دون تخطي مقررات');
-        }
+      for(let index=1;index<sections.length;index++){
+        if(sections[index].order!==sections[index-1].order+1)throw new BadRequestException('المقررات المطلوبة يجب أن تكون متتابعة دون تخطي');
       }
-      // Enforce progression on the first section, while still checking
-      // duplicates/open requests for every selected section.
-      await Promise.all(sections.map((section, index) =>
-        this.assertEligible(studentId, section.id, index === 0),
-      ));
-    } catch (error) {
-      this.logger.error('Exam eligibility validation failed');
+      // Use the same authoritative state returned to the table. In particular,
+      // combined exam grades must not count as independent passes for their anchor juz.
+      const state=await this.eligibility(actor,studentId);
+      for(let index=0;index<sections.length;index++){
+        const section=state.progression.find(row=>row.id===sections[index].id);
+        if(!section)throw new BadRequestException('المقرر المحدد غير موجود أو غير مفعّل');
+        if(section.isPassed)throw new ConflictException(`الطالب اجتاز ${section.name} مسبقًا`);
+        if(section.hasOpenRequest)throw new ConflictException('يوجد طلب اختبار قائم لهذا المقرر');
+        // Later selected sections belong to the same consecutive request; the
+        // first section still requires every earlier mandatory section to be passed.
+        if(index===0&&!section.eligible)throw new ConflictException(section.reason||'يجب اجتياز المقررات السابقة أولًا');
+      }
+    } catch(error) {
+      if(error instanceof BadRequestException||error instanceof ConflictException||error instanceof ForbiddenException){
+        this.logger.warn(`رفض طلب الاختبار: ${error.message}`);
+      }else{
+        this.logger.error('تعذر التحقق من أهلية طلب الاختبار',error instanceof Error?error.stack:String(error));
+      }
       throw error;
     }
   }
-
   private validateStudentStatus(student: any) {
     if (!student.circleId) {
       throw new BadRequestException('الطالب غير مسجل في حلقة');
@@ -921,7 +858,7 @@ export class ExamsService {
     }
 
     const sections = await this.fetchActiveSections(sectionIds);
-    if (!dto.combinedStage) await this.validateAllSectionsEligibility(dto.studentId, sections);
+    if (!dto.combinedStage) await this.validateAllSectionsEligibility(dto.studentId, sections, actor);
     const label = this.sectionsLabel(sections);
 
     const primary = sections[0];
@@ -972,7 +909,12 @@ export class ExamsService {
   private async combinedSections(studentId: string, code: string) {
     const stage = combinedPlan().find(row => row.code === code);
     if (!stage) throw new BadRequestException('مرحلة المجتمعة غير صالحة');
-    const completed = await this.prisma.exam.findMany({where:{studentId,status:'COMPLETED',result:'PASSED'},include:{section:true}});
+    await this.getCachedSections();
+    const allExams=await this.prisma.exam.findMany({where:{studentId},include:{section:true},orderBy:[{updatedAt:'desc'},{createdAt:'desc'}]});
+    const latestCombined=new Map<string,(typeof allExams)[number]>();
+    for(const exam of allExams)if(exam.combinedStage&&!latestCombined.has(exam.combinedStage))latestCombined.set(exam.combinedStage,exam);
+    const completed=allExams.filter(exam=>exam.status==='COMPLETED'&&exam.result==='PASSED'&&(!exam.combinedStage||latestCombined.get(exam.combinedStage)?.id===exam.id));
+    if(latestCombined.get(code)?.status==='SCHEDULED')throw new ConflictException('يوجد اختبار مجدول لهذه المجتمعة');
     const records = await this.prisma.examMilestoneRecord.findMany({where:{studentId,status:'COMPLETED',result:'PASSED'},include:{section:true}});
     const passed = new Set([...records.map(row=>row.section.code), ...completed.filter(row=>!row.combinedStage).map(row=>row.section.code)]);
     for (let juz=stage.fromJuz;juz<=stage.toJuz;juz++) if (!passed.has(`JUZ-${String(juz).padStart(2,'0')}`)) throw new BadRequestException('يجب اجتياز اختبارات الأجزاء المطلوبة قبل المجتمعة');
@@ -1065,6 +1007,7 @@ export class ExamsService {
     const request = await this.prisma.examRequest.findUnique({where:{id}});
     if (!request) throw new NotFoundException('طلب الاختبار غير موجود');
     if (request.status !== ExamRequestStatus.PENDING) throw new BadRequestException('لا يمكن تعديل طلب بعد جدولته');
+    if(request.combinedStage&&actor.role!==Role.ADMIN)throw new ForbiddenException('تعديل طلب المجتمعة متاح للإدارة فقط');
     if (actor.role !== Role.ADMIN && actor.teacherId !== request.teacherId) throw new ForbiddenException('لا يمكنك تعديل هذا الطلب');
     return this.prisma.examRequest.update({where:{id},data:{note:dto.note.trim()||null},include:REQUEST_INCLUDE});
   }
@@ -1198,17 +1141,6 @@ export class ExamsService {
       );
     }
 
-    if (request.student.parentProfile?.userId) {
-      notificationPromises.push(
-        this.notifications.notify({
-          userId: request.student.parentProfile.userId,
-          type: NotificationType.EXAM_SCHEDULED,
-          title: 'موعد اختبار قادم',
-          body: `اختبار ${request.student.fullName} في "${this.requestLabel(request)}" بتاريخ ${when}`,
-          link: `/parent/children/${request.studentId}`,
-        }),
-      );
-    }
 
     if (examinerId) {
       notificationPromises.push(
@@ -1314,7 +1246,7 @@ export class ExamsService {
       throw new NotFoundException('الاختبار غير موجود');
     }
 
-    if (exam.status === ExamStatus.COMPLETED) {
+    if (exam.status === ExamStatus.COMPLETED && actor.role !== Role.ADMIN) {
       throw new BadRequestException('لا يمكن تعديل اختبار مكتمل');
     }
 
@@ -1365,9 +1297,9 @@ export class ExamsService {
   // رصد النتائج
   // ==========================================================================
 
-  private validateExamForResult(exam: any) {
-    if (exam.status === ExamStatus.COMPLETED) {
-      throw new BadRequestException('تم رصد نتيجة هذا الاختبار مسبقاً');
+  private validateExamForResult(exam: any, actor: AuthUser) {
+    if (exam.status === ExamStatus.COMPLETED && actor.role !== Role.ADMIN) {
+      throw new ForbiddenException('تصحيح النتيجة المنشورة متاح للإدارة فقط');
     }
     if (exam.status === ExamStatus.CANCELLED) {
       throw new BadRequestException('هذا الاختبار ملغى');
@@ -1381,14 +1313,18 @@ export class ExamsService {
     passed: boolean,
     evaluation: string,
     actor: AuthUser,
+    previousGrading?: Prisma.JsonValue,
   ) {
+    const metadata=(previousGrading as any)?.adminCombinedMilestone;
+    const grading=dto.tajweed!==undefined?calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,mistakePenalty:dto.mistakePenalty??1,alertPenalty:dto.alertPenalty??0.5,tajweed:dto.tajweed}):null;
+    const savedGrading=metadata?{...grading,adminCombinedMilestone:{...metadata,status:'COMPLETED'}}:grading??Prisma.DbNull;
     return tx.exam.update({
       where: { id: examId },
       data: {
         score: dto.score,
         evaluation,
         mistakes: dto.mistakes ?? null,
-        grading: dto.tajweed !== undefined ? calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,mistakePenalty:dto.mistakePenalty??1,alertPenalty:dto.alertPenalty??0.5,tajweed:dto.tajweed}) : undefined,
+        grading: savedGrading,
         result: passed ? ExamResult.PASSED : ExamResult.FAILED,
         status: ExamStatus.COMPLETED,
         notes: dto.notes,
@@ -1411,7 +1347,7 @@ export class ExamsService {
   private async updateStudentMemorization(tx: any, studentId: string) {
     const passedExams = await tx.exam.findMany({
       where: {
-        studentId,
+        studentId, combinedStage:null,
         status: ExamStatus.COMPLETED,
         result: ExamResult.PASSED,
       },
@@ -1484,12 +1420,6 @@ export class ExamsService {
       });
     }
 
-    if (exam.student.parentProfile?.userId) {
-      recipients.push({
-        userId: exam.student.parentProfile.userId,
-        link: `/parent/children/${exam.studentId}`,
-      });
-    }
 
     const studentAccount = await this.prisma.student.findUnique({ where: { id: exam.studentId }, select: { userId: true } });
     if (studentAccount?.userId) recipients.push({ userId: studentAccount.userId, link: '/student' });
@@ -1520,15 +1450,7 @@ export class ExamsService {
   }
 
   async recordResult(actor: AuthUser, id: string, dto: RecordResultDto) {
-    if (dto.tajweed !== undefined) {
-      const target=await this.prisma.exam.findUnique({where:{id},select:{committeeId:true}});
-      if(!target)throw new NotFoundException('الاختبار غير موجود');
-      const penalties=target.committeeId?await this.committeeGradingSettings(target.committeeId):await this.gradingSettings();
-      dto.mistakePenalty=penalties.mistakePenalty;
-      dto.alertPenalty=penalties.alertPenalty;
-      try { dto.score = calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,...penalties,tajweed:dto.tajweed}).score; }
-      catch { throw new BadRequestException('قيمة رصد العلامات غير صالحة'); }
-    }
+    if (![Role.ADMIN, Role.EXAM_COMMITTEE].includes(actor.role as any)) throw new ForbiddenException('غير مصرح برصد النتائج');
     const exam = await this.prisma.exam.findUnique({
       where: { id },
       include: EXAM_INCLUDE,
@@ -1538,7 +1460,16 @@ export class ExamsService {
       throw new NotFoundException('الاختبار غير موجود');
     }
 
-    this.validateExamForResult(exam);
+    this.validateExamForResult(exam, actor);
+    if(dto.tajweed!==undefined){
+      const savedGrading=exam.grading as any;
+      const penalties=exam.status===ExamStatus.COMPLETED&&typeof savedGrading?.mistakePenalty==='number'&&typeof savedGrading?.alertPenalty==='number'
+        ?{mistakePenalty:savedGrading.mistakePenalty,alertPenalty:savedGrading.alertPenalty}
+        :exam.committeeId?await this.committeeGradingSettings(exam.committeeId):await this.gradingSettings();
+      dto.mistakePenalty=penalties.mistakePenalty;dto.alertPenalty=penalties.alertPenalty;
+      try{dto.score=calculateExamGrade({mistakes:dto.mistakes??0,alerts:dto.alerts??0,...penalties,tajweed:dto.tajweed}).score;}
+      catch{throw new BadRequestException('قيمة رصد العلامات غير صالحة');}
+    }
 
     const examSections = exam.sections.length
       ? exam.sections.map((entry) => entry.section)
@@ -1573,6 +1504,7 @@ export class ExamsService {
         passed,
         evaluation,
         actor,
+        exam.grading,
       );
 
       for (const entry of exam.combinedStage ? [] : sectionScores) {
@@ -1613,8 +1545,8 @@ export class ExamsService {
 
     await this.activity.log({
       userId: actor.id,
-      action: 'EXAM_RESULT',
-      summary: `رصد نتيجة اختبار ${exam.student.fullName} في ${this.examLabel(exam)}: ${overallScore} (${EVALUATION_LABELS[evaluation]})`,
+      action: exam.status===ExamStatus.COMPLETED?'EXAM_RESULT_CORRECTION':'EXAM_RESULT',
+      summary: `${exam.status===ExamStatus.COMPLETED?`تصحيح النتيجة السابقة ${exam.score} — `:``}رصد نتيجة اختبار ${exam.student.fullName} في ${this.examLabel(exam)}: ${overallScore} (${EVALUATION_LABELS[evaluation]})`,
       entityType: 'Exam',
       entityId: id,
     });

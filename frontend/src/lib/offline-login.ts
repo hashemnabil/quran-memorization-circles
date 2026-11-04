@@ -65,7 +65,7 @@ export async function unlockOfflineLogin(username: string, password: string) {
     const key = await derive(password, decode(record.salt));
     const bytes = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: decode(record.iv) }, key, decode(record.data));
     const session = JSON.parse(new TextDecoder().decode(bytes));
-    if (!session.user?.isActive || typeof session.user.id !== 'string') throw new Error();
+    if (!session.user?.isActive || typeof session.user.id !== 'string' || session.user.role === 'PARENT') throw new Error();
     if (session.dataKey) activateDataKey(session.user.id, decodeBytes(session.dataKey));
     else await rememberOfflineLogin(username, password, session.user);
     // Legacy encrypted envelopes may contain tokens; never restore or expose them.

@@ -2,10 +2,11 @@ import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get,
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser, CurrentUser } from '../common/decorators';
 import { Role, NotificationType } from '@prisma/client';
+import { ChatService } from '../chat/chat.service';
 
 @Controller('community')
 export class CommunityController {
-  constructor(private readonly prisma:PrismaService){}
+  constructor(private readonly prisma:PrismaService, private readonly chat?:ChatService){}
   private async notifyInteraction(actorId:string, recipientId:string, title:string, link:string){
     if(actorId===recipientId)return;
     const actor=await this.prisma.user.findUnique({where:{id:actorId},select:{fullName:true}});
@@ -14,7 +15,12 @@ export class CommunityController {
   @Get('school')
   async school(){
     const settings=await this.prisma.schoolSettings.findUnique({where:{id:'default'},select:{name:true,logoUrl:true,about:true,address:true,phone:true}});
-    return settings??{name:'صفحة المدرسة',logoUrl:null,about:null,address:null,phone:null};
+    const [circles,students,teachers]=await Promise.all([
+      this.prisma.circle.count({where:{isActive:true,deletedAt:null}}),
+      this.prisma.student.count({where:{status:'ACTIVE',deletedAt:null}}),
+      this.prisma.teacherProfile.count({where:{isActive:true,deletedAt:null,user:{isActive:true,deletedAt:null}}}),
+    ]);
+    return {...(settings??{name:'صفحة المدرسة',logoUrl:null,about:null,address:null,phone:null}),stats:{circles,students,teachers}};
   }
   @Get('feed')
   feed(@Query('userId') userId?:string,@Query('school') school?:string){
@@ -24,7 +30,9 @@ export class CommunityController {
   async profile(@Param('id') id:string){
     const user=await this.prisma.user.findFirst({where:{id,isActive:true,deletedAt:null},select:{id:true,fullName:true,nickname:true,avatarUrl:true,role:true,createdAt:true}});
     if(!user)throw new BadRequestException('المستخدم غير موجود');
-    return user;
+    const cover = await this.prisma.presentationChoice.findUnique({ where: { userId_kind: { userId: id, kind: 'PROFILE_COVER' } } });
+    const asset = cover?.assetId ? await this.prisma.founderAsset.findFirst({ where: { id: cover.assetId, kind: 'PROFILE_COVER', isActive: true }, select: { id: true } }) : null;
+    return { ...user, coverAssetId: asset?.id || null };
   }
   @Patch('nickname')
   nickname(@CurrentUser() user:AuthUser,@Body('nickname') nickname:string){
@@ -41,9 +49,25 @@ export class CommunityController {
   async remove(@CurrentUser() user:AuthUser,@Param('id') id:string){
     const post=await this.prisma.communityPost.findUnique({where:{id}});
     if(!post)throw new BadRequestException('المنشور غير موجود');
-    if(post.authorId!==user.id&&user.role!==Role.ADMIN)throw new ForbiddenException();
+    if(post.authorId!==user.id)throw new ForbiddenException('حذف المنشور لصاحبه فقط');
     await this.prisma.communityPost.delete({where:{id}});
     return {deleted:true};
+  }
+  @Patch('posts/:id')
+  async editPost(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
+    if(typeof body!=='string'||!body.trim()||body.length>2000)throw new BadRequestException('المنشور يجب أن يكون نصاً لا يتجاوز 2000 حرف');
+    const post=await this.prisma.communityPost.findUnique({where:{id}});
+    if(!post)throw new BadRequestException('المنشور غير موجود');
+    if(post.authorId!==user.id)throw new ForbiddenException('تعديل المنشور لصاحبه فقط');
+    return this.prisma.communityPost.update({where:{id},data:{body:body.trim()}});
+  }
+  @Patch('comments/:id')
+  async editComment(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
+    if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('التعليق غير صالح');
+    const comment=await this.prisma.communityComment.findUnique({where:{id}});
+    if(!comment)throw new BadRequestException('التعليق غير موجود');
+    if(comment.userId!==user.id)throw new ForbiddenException('تعديل التعليق لصاحبه فقط');
+    return this.prisma.communityComment.update({where:{id},data:{body:body.trim()}});
   }
   @Post('posts/:id/like')
   async like(@CurrentUser() user:AuthUser,@Param('id') id:string){
@@ -105,6 +129,17 @@ export class CommunityController {
     await Promise.all(admins.map(a=>this.notifyInteraction(user.id,a.id,'رد على ستوري المدرسة','/community/school')));
     return reply;
   }
+  @Post('stories/:id/direct-reply')
+  async directReply(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
+    if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('الرد غير صالح');
+    const story=await this.prisma.communityStory.findUnique({where:{id}});
+    if(!story||story.expiresAt<=new Date())throw new BadRequestException('القصة انتهت');
+    if(story.authorId===user.id)throw new BadRequestException('هذه قصتك');
+    if(!this.chat)throw new BadRequestException('المحادثات غير متاحة');
+    const conversation=await this.chat.createDirect(user,{userId:story.authorId});
+    await this.chat.send(user,conversation.id,{body:`رد على الستوري: «${story.body}»\n\n${body.trim()}`});
+    return {conversationId:conversation.id};
+  }
   @Get('stories/:id/replies')
   async storyReplies(@CurrentUser() user:AuthUser,@Param('id') id:string){
     const story=await this.prisma.communityStory.findUnique({where:{id}});
@@ -131,9 +166,20 @@ export class CommunityController {
     if(existing){await this.prisma.schoolFollow.delete({where:{userId:user.id}});return {following:false};}
     await this.prisma.schoolFollow.create({data:{userId:user.id}});const admins=await this.prisma.user.findMany({where:{role:Role.ADMIN,isActive:true,deletedAt:null},select:{id:true}});await Promise.all(admins.map(a=>this.notifyInteraction(user.id,a.id,'تابع صفحة المدرسة','/community/school')));return {following:true};
   }
+  @Get('school/followers')
+  async followers(@Query('page') rawPage?:string){
+    const page=Number(rawPage??1);
+    if(!Number.isSafeInteger(page)||page<1||page>1000000)throw new BadRequestException('رقم الصفحة غير صالح');
+    const rows=await this.prisma.schoolFollow.findMany({
+      where:{user:{isActive:true,deletedAt:null}},
+      orderBy:[{createdAt:'desc'},{userId:'asc'}],skip:(page-1)*50,take:51,
+      select:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}}},
+    });
+    return {data:rows.slice(0,50).map(row=>row.user),hasMore:rows.length>50};
+  }
   @Get('school/follow')
   async following(@CurrentUser() user:AuthUser){
-    const [follow,count]=await Promise.all([this.prisma.schoolFollow.findUnique({where:{userId:user.id}}),this.prisma.schoolFollow.count()]);
+    const [follow,count]=await Promise.all([this.prisma.schoolFollow.findUnique({where:{userId:user.id}}),this.prisma.schoolFollow.count({where:{user:{isActive:true,deletedAt:null}}})]);
     return {following:!!follow,count};
   }
 }

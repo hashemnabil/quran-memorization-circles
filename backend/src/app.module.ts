@@ -1,4 +1,5 @@
 import { CommunityModule } from './community/community.module';
+import { FounderModule } from './founder/founder.module';
 import { PushModule } from './push/push.module';
 import { ProfileReviewsModule } from './profile-reviews/profile-reviews.module';
 import { HealthController } from './health.controller';
@@ -12,7 +13,6 @@ import { AuthModule } from './auth/auth.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { UsersModule } from './users/users.module';
 import { TeachersModule } from './teachers/teachers.module';
-import { ParentsModule } from './parents/parents.module';
 import { CirclesModule } from './circles/circles.module';
 import { StudentsModule } from './students/students.module';
 import { AttendanceModule } from './attendance/attendance.module';
@@ -40,6 +40,7 @@ import { SchoolOperationsModule } from './school-operations/school-operations.mo
 @Module({
   controllers: [HealthController],
   imports: [
+    FounderModule,
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'], validate: validateEnvironment }),
 
     // Infrastructure (all global).
@@ -53,7 +54,6 @@ import { SchoolOperationsModule } from './school-operations/school-operations.mo
     // Domain.
     UsersModule,
     TeachersModule,
-    ParentsModule,
     CirclesModule,
     StudentsModule,
     AttendanceModule,

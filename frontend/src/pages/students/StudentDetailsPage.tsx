@@ -1,4 +1,5 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
+import MemorizationPlans from '@/components/MemorizationPlans';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -6,6 +7,9 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { StudentPhoto } from '@/components/StudentPhoto';
+import { RecitationFormModal } from '@/pages/recitations/RecitationsPage';
+import { StudentAttendanceEditor } from './StudentAttendanceEditor';
+import { ExamResultDialog } from '@/components/ExamResultDialog';
 import { ExamProgressionTable } from '@/pages/exams/ExamProgressionTable';
 import {
   Badge,
@@ -58,6 +62,7 @@ import type {
   AttendanceRecord,
   Circle,
   Evaluation,
+  Exam,
   ExamEligibility,
   PaginatedResponse,
   PreparationAssignment,
@@ -264,12 +269,13 @@ export default function StudentDetailsPage() {
                 طلب إيقاف
               </Button>
               <Button size="sm" icon={<IconAward size={15} />} onClick={() => setTab('exams')}>
-                طلب اختبار
+                الاختبارات
               </Button>
             </>
           )
         }
       />
+      <MemorizationPlans studentId={student.id}/>
 
       {student.status === 'ACTIVITY' && (
         <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
@@ -360,8 +366,8 @@ export default function StudentDetailsPage() {
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
 
       {tab === 'overview' && <OverviewTab student={student} progress={progress} />}
-      {tab === 'attendance' && <AttendanceTab records={attendance?.data ?? []} summary={student.attendanceSummary} />}
-      {tab === 'recitations' && <RecitationsTabComponent records={recitations?.data ?? []} progress={progress} />}
+      {tab === 'attendance' && <AttendanceTab records={attendance?.data ?? []} summary={student.attendanceSummary} student={student} canManage={canManage} />}
+      {tab === 'recitations' && <RecitationsTabComponent records={recitations?.data ?? []} progress={progress} student={student} canManage={canManage} />}
       {tab === 'exams' && (
         <ExamsTabComponent 
           studentId={id}
@@ -458,8 +464,8 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
       <Card title="البيانات الشخصية" className="lg:col-span-1">
         <InfoRow label="رقم الطالب" value={<span className="numeric">{student.code.replace(/^ST-/i, '')}</span>} />
         <InfoRow label="تاريخ الميلاد" value={formatDate(student.birthDate)} />
-        <InfoRow label="البريد الإلكتروني" value={student.parentProfile?.user.email} />
-        <InfoRow label="اسم المستخدم" value={student.parentProfile?.user.username} />
+        <InfoRow label="البريد الإلكتروني" value={student.user?.email} />
+        <InfoRow label="اسم المستخدم" value={student.user?.username} />
         <InfoRow label="العمر" value={calcAge(student.birthDate)} />
         <InfoRow label="رقم الهوية" value={<span className="numeric" dir="ltr">{student.nationalId}</span>} />
         <InfoRow label="العنوان" value={student.address} />
@@ -489,23 +495,20 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
         <InfoRow label="المشرف" value={student.supervisorName} />
       </Card>
 
-      <Card title="بيانات ولي الأمر" className="lg:col-span-1">
+      <Card title="جهة اتصال الطوارئ" className="lg:col-span-1">
         <InfoRow
-          label="اسم ولي الأمر"
-          value={student.guardianName ?? student.parentName ?? student.parentProfile?.user.fullName}
+          label="اسم جهة الاتصال"
+          value={student.guardianName}
         />
         <InfoRow
           label="رقم الهوية"
-          value={<span className="numeric" dir="ltr">{student.fatherNationalId ?? student.parentProfile?.nationalId}</span>}
+          value={<span className="numeric" dir="ltr">{student.fatherNationalId}</span>}
         />
         <InfoRow
           label="رقم الجوال"
-          value={<span dir="ltr">{student.guardianPhone ?? student.parentPhone ?? student.parentProfile?.phone ?? student.parentProfile?.user.phone}</span>}
+          value={<span dir="ltr">{student.guardianPhone}</span>}
         />
-        <InfoRow label="جوال إضافي" value={<span dir="ltr">{student.parentProfile?.altPhone}</span>} />
         <InfoRow label="صلة القرابة" value={student.guardianRelation} />
-        <InfoRow label="المهنة" value={student.parentProfile?.occupation} />
-        <InfoRow label="العنوان" value={student.parentProfile?.address} />
       </Card>
 
       <Card title="المستوى والتقييم" className="lg:col-span-1">
@@ -551,7 +554,7 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
   );
 }
 
-function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summary?: Student['attendanceSummary'] }) {
+function AttendanceTab({ records, summary, student, canManage }: { records: AttendanceRecord[]; summary?: Student['attendanceSummary']; student: Student; canManage: boolean }) {
   return (
     <div className="space-y-5">
       {summary && (
@@ -563,6 +566,7 @@ function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summ
         </div>
       )}
 
+      {canManage&&<StudentAttendanceEditor key={student.id} student={student}/>}
       <Card title="سجل الحضور" padded={false}>
         {records.length ? (
           <div className="table-wrap border-0 shadow-none">
@@ -597,7 +601,8 @@ function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summ
   );
 }
 
-function RecitationsTabComponent({ records, progress }: { records: Recitation[]; progress: any }) {
+function RecitationsTabComponent({ records, progress, student, canManage }: { records: Recitation[]; progress: any; student: Student; canManage: boolean }) {
+  const [adding,setAdding]=useState(false);
   return (
     <div className="space-y-5">
       {progress && (
@@ -609,7 +614,8 @@ function RecitationsTabComponent({ records, progress }: { records: Recitation[];
         </div>
       )}
 
-      <Card title="سجل التسميع" padded={false}>
+      {adding&&<RecitationFormModal student={student} onClose={()=>setAdding(false)}/>}
+      <Card title="سجل التسميع" action={canManage&&<Button size="sm" icon={<IconPlus size={15}/>} onClick={()=>setAdding(true)}>إضافة تسميع</Button>} padded={false}>
         {records.length ? (
           <div className="table-wrap border-0 shadow-none">
             <table className="table">
@@ -672,6 +678,7 @@ function ExamsTabComponent({
 }) {
   const confirm = useConfirm();
   const [rejectModal, setRejectModal] = useState<{ id: string; reason: string } | null>(null);
+  const [correctingResult, setCorrectingResult] = useState<Exam | null>(null);
 
   const { data: requestsData, refetch: refetchRequests } = useQuery({
     queryKey: ['exams', 'requests', studentId],
@@ -713,6 +720,7 @@ function ExamsTabComponent({
       <ExamProgressionTable studentId={studentId} canEditMilestones={canEditMilestones} canRequest={['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(useAuthStore.getState().user?.role ?? '')} eligibility={eligibility} exams={exams as any[]} loading={!eligibility} />
 
       <Tabs tabs={examTabs} active={examSubTab} onChange={setExamSubTab} />
+      {correctingResult && <ExamResultDialog exam={correctingResult} onClose={() => setCorrectingResult(null)} />}
 
       {examSubTab === 'history' && (
         <Card title="سجل الاختبارات" padded={false}>
@@ -725,6 +733,8 @@ function ExamsTabComponent({
                     <th>المدى</th>
                     <th>الحالة</th>
                     <th>النتيجة</th>
+                    <th>العلامة / 100</th><th>الأخطاء</th><th>التنبيهات</th><th>الأحكام / 10</th>
+                    {canEditMilestones && <th>تعديل النتيجة</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -746,6 +756,11 @@ function ExamsTabComponent({
                           '—'
                         )}
                       </td>
+                      <td className="numeric">{exam.score ?? '—'}</td>
+                      <td className="numeric">{exam.grading?.mistakes ?? exam.mistakes ?? '—'}</td>
+                      <td className="numeric">{exam.grading?.alerts ?? '—'}</td>
+                      <td className="numeric">{exam.grading?.tajweed ?? '—'}</td>
+                      {canEditMilestones && <td>{exam.status === 'COMPLETED' && <Button size="sm" variant="secondary" onClick={() => setCorrectingResult({...exam,student:exam.student??student})}>تعديل العلامة</Button>}</td>}
                     </tr>
                   ))}
                 </tbody>
@@ -1256,8 +1271,8 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
     nationalId: student.nationalId ?? '',
     fatherNationalId: student.fatherNationalId ?? '',
     address: student.address ?? '',
-    guardianName: student.guardianName ?? student.parentName ?? student.parentProfile?.user.fullName ?? '',
-    guardianPhone: student.guardianPhone ?? student.parentPhone ?? student.parentProfile?.phone ?? '',
+    guardianName: student.guardianName ?? '',
+    guardianPhone: student.guardianPhone ?? '',
     guardianRelation: student.guardianRelation ?? '',
     memorizedParts: student.memorizedParts,
     currentSurah: student.currentSurah ?? '',

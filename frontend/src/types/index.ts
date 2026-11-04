@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'SUPERVISOR' | 'TEACHER' | 'EXAM_COMMITTEE' | 'PARENT' | 'STUDENT' | 'SUPPORT';
+export type Role = 'FOUNDER' | 'ADMIN' | 'SUPERVISOR' | 'TEACHER' | 'EXAM_COMMITTEE' | 'STUDENT' | 'SUPPORT';
 
 export type Evaluation = 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'ACCEPTABLE' | 'UNSATISFACTORY';
 /** ACTIVITY = مُحوَّل إلى برنامج النشاط (خارج الحلقات، وما زال في السجل) */
@@ -197,6 +197,7 @@ export interface StudentSummary {
 }
 
 export interface Student {
+  user?: { username: string; email?: string | null } | null;
   id: string;
   code: string;
   fullName: string;
@@ -557,6 +558,7 @@ export interface Conversation {
   avatarUrl?: string | null;
   otherUser?: { id: string; fullName: string; role: Role; avatarUrl?: string | null } | null;
   isOnline: boolean;
+  lastActiveAt?: string | null;
   members: ChatMember[];
   memberCount: number;
   lastMessage?: ChatMessage | null;

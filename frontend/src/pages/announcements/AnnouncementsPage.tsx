@@ -29,7 +29,6 @@ const AUDIENCE_ROLES: Role[] = [
   'SUPERVISOR',
   'TEACHER',
   'EXAM_COMMITTEE',
-  'PARENT',
   'SUPPORT',
 ];
 
@@ -40,7 +39,6 @@ const LINK_OPTIONS = [
   { value: '/circles', label: 'الحلقات' },
   { value: '/exams', label: 'الاختبارات' },
   { value: '/students', label: 'الطلاب' },
-  { value: '/parent/children', label: 'متابعة الأبناء (لأولياء الأمور)' },
   { value: '/support', label: 'الدعم الفني' },
 ];
 

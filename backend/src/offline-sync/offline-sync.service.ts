@@ -8,7 +8,7 @@ import { AuthUser } from '../common/decorators';
 
 const CIRCLE_ROLES = new Set<Role>([Role.ADMIN, Role.SUPERVISOR, Role.TEACHER]);
 const STUDENT_ROLES = new Set<Role>([
-  Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.PARENT, Role.STUDENT,
+  Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT,
 ]);
 
 @Injectable()

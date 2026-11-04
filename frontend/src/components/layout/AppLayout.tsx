@@ -425,7 +425,7 @@ export default function AppLayout() {
         <main id="app-content" tabIndex={-1} className="app-workspace min-w-0 flex-1 p-4 sm:p-7 lg:p-8">
           <OfflineSystem />
           <DutyReminder />
-          <Suspense fallback={<LoadingState />}><Outlet /></Suspense>
+          <div key={location.pathname} className="page-transition"><Suspense fallback={<LoadingState />}><Outlet /></Suspense></div>
         </main>
 
         <footer className="border-t border-slate-200 px-6 py-4 text-center text-[11px] text-slate-400">
@@ -434,7 +434,7 @@ export default function AppLayout() {
           <Link to="/about" className="ms-3 inline-block py-2 hover:text-primary-700">معلومات عن البرنامج</Link>
         </footer>
       </div>
-      <MobileNavigation role={user.role} onMenu={() => setDrawerOpen(true)} />
+      <MobileNavigation />
     </div>
   );
 }

@@ -57,7 +57,6 @@ export class AuthService {
       where: { username: dto.username.toLowerCase().trim(), deletedAt: null },
       include: {
         teacher: { select: { id: true, isActive: true, deletedAt: true } },
-        parent: { select: { id: true } },
       },
     });
 
@@ -96,7 +95,7 @@ export class AuthService {
     return this.prisma.$transaction(async (tx) => {
       const stored = await tx.refreshToken.findFirst({
         where: { tokenHash: this.hashToken(refreshToken), revokedAt: null, expiresAt: { gt: new Date() } },
-        include: { user: { include: { teacher: { select: { id: true, isActive: true, deletedAt: true } }, parent: { select: { id: true } } } } },
+        include: { user: { include: { teacher: { select: { id: true, isActive: true, deletedAt: true } } } } },
       });
       if (!stored || !stored.user || stored.user.deletedAt || !stored.user.isActive || stored.user.role === 'PARENT' || stored.user.role === Role.TEACHER && (!stored.user.teacher?.isActive || stored.user.teacher.deletedAt)) {
         throw new UnauthorizedException('الجلسة منتهية أو الحساب غير متاح؛ يرجى تسجيل الدخول مجدداً');
@@ -133,7 +132,6 @@ export class AuthService {
       where: { id: user.id },
       include: {
         teacher: true,
-        parent: true,
       },
     });
     if (!found) throw new UnauthorizedException();
@@ -151,7 +149,6 @@ export class AuthService {
       specialization: found.specialization,
       lastLoginAt: found.lastLoginAt,
       teacherProfile: found.teacher,
-      parentProfile: found.parent,
       supervisedCircles,
     };
   }
@@ -247,7 +244,7 @@ export class AuthService {
       isActive: user.isActive,
       mustChangePassword: user.mustChangePassword ?? false,
       teacherId: user.teacher?.id ?? null,
-      parentId: user.parent?.id ?? null,
+      parentId: null,
     };
   }
 }

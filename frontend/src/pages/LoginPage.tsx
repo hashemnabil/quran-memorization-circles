@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { Button, Input, Modal, Textarea } from '@/components/ui';
-import { IconAlert, IconEye, IconLifeBuoy } from '@/components/ui/Icons';
+import { IconAlert, IconEye, IconLifeBuoy, IconUser, IconLock } from '@/components/ui/Icons';
 import { phoneError, PHONE_HINT, USERNAME_HINT } from '@/lib/validation';
 import type { AuthUser, SchoolSettings } from '@/types';
 import { savePendingSupport } from '@/lib/offline/pendingSupport';
@@ -45,10 +45,11 @@ export default function LoginPage() {
     <div className="login-screen" dir="rtl">
       <div className="login-panel">
         <header className="login-brand flex flex-col items-center text-center">
-          <span className="login-brand-mark"><img src={settings?.logoUrl || cachedBranding.logoUrl || DEFAULT_SCHOOL_LOGO} alt="" onError={event => { if (!event.currentTarget.src.endsWith(DEFAULT_SCHOOL_LOGO)) event.currentTarget.src = DEFAULT_SCHOOL_LOGO; }} className="h-full w-full object-contain" /></span>
-          <h1 className="mt-5 text-lg font-extrabold leading-8 text-white sm:text-xl">{settings?.name?.trim() || cachedBranding.name || DEFAULT_SCHOOL_NAME}</h1>
+          <span className="login-brand-mark"><img src={settings?.logoUrl || cachedBranding.logoUrl || DEFAULT_SCHOOL_LOGO} alt="شعار المدرسة" width={144} height={144} onError={event => { if (!event.currentTarget.src.endsWith(DEFAULT_SCHOOL_LOGO)) event.currentTarget.src = DEFAULT_SCHOOL_LOGO; }} className="h-full w-full object-contain" /></span>
+          <h1 className="login-school-name">{settings?.name?.trim() || cachedBranding.name || DEFAULT_SCHOOL_NAME}</h1>
+          <p className="login-brand-caption">رحلتك مع القرآن، خطوة كل يوم</p>
         </header>
-        <div className="login-greeting"><span>أهلًا بعودتك</span><h2>خطوتك اليوم، نورٌ للغد</h2><p>سجّل دخولك وتابع رحلتك مع القرآن الكريم</p></div>
+        <p className="login-intro">أهلًا بعودتك، سجّل دخولك لمتابعة رحلتك مع القرآن الكريم.</p>
         <CredentialsStep onAuthenticated={onAuthenticated} />
         <div className="login-secondary-actions">
         <button type="button" onClick={() => setPasswordRequestOpen(true)} className="mt-3 min-h-11 w-full rounded-xl text-sm font-bold text-primary-700 hover:bg-primary-50">طلب تغيير كلمة المرور</button>
@@ -110,11 +111,13 @@ function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser
       <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
         {error && <Alert>{error}</Alert>}
 
-        <div className="relative">
+        <div className="relative login-field">
+          <span className="login-field-icon" aria-hidden="true"><IconUser size={20} /></span>
           <Input label="اسم المستخدم" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="اسم المستخدم أو رقم الطالب" autoComplete="username" dir="ltr" />
         </div>
 
-        <div className="relative">
+        <div className="relative login-field">
+          <span className="login-field-icon" aria-hidden="true"><IconLock size={20} /></span>
           <Input label="كلمة المرور" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" dir="ltr" className="[&_input]:pl-12" />
           <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} aria-pressed={showPassword} className="absolute bottom-1 left-1 grid h-11 w-11 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-primary-800"><IconEye size={19} /></button>
         </div>

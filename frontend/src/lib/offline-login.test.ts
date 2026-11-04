@@ -30,3 +30,15 @@ test('offline unlock survives a local lock, restores no tokens and explicit devi
   await pendingEncryption;
   await assert.rejects(unlockOfflineLogin('teacher', 'correct-password'));
 });
+
+test('an encrypted legacy parent login cannot unlock the retired portal offline', async () => {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+    removeItem: (key: string) => storage.delete(key),
+  } });
+  await rememberOfflineLogin('legacy-parent', 'password', { id: 'legacy-parent', username: 'legacy-parent', fullName: 'Legacy', role: 'PARENT', isActive: true } as any);
+  await assert.rejects(unlockOfflineLogin('legacy-parent', 'password'));
+  assert.ok(storage.has('qc.offlineLogin.v1:legacy-parent'));
+});

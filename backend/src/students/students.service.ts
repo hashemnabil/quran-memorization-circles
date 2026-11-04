@@ -94,7 +94,11 @@ export class StudentsService {
     // The student can review their own questionnaire contact fields, never the linked parent's account.
     const { parentProfile: _parentProfile, parentName: _parentName, parentPhone: _parentPhone,
       parentId: _parentId, ...safeProfile } = profile as any;
-    return { ...safeProfile, selfAccountId: user.id };
+    const [evaluations, summons] = await Promise.all([
+      this.evaluationHistory(user, student.id),
+      this.prisma.guardianSummons.findMany({ where: { studentId: student.id }, orderBy: { createdAt: 'desc' } }),
+    ]);
+    return { ...safeProfile, evaluations, summons, selfAccountId: user.id };
   }
 
   async updateMyQuestionnaire(user: AuthUser, dto: StudentQuestionnaireDto, expectedId?: string) {
@@ -128,7 +132,6 @@ export class StudentsService {
         query.status ? { status: query.status } : {},
         query.evaluation ? { evaluation: query.evaluation } : {},
         query.circleId ? { circleId: query.circleId } : {},
-        query.parentId ? { parentId: query.parentId } : {},
         query.unassigned ? { circleId: null } : {},
         query.courseId
           ? { courseEnrollments: { some: { courseId: query.courseId, endedAt: null } } }
@@ -191,18 +194,7 @@ export class StudentsService {
         guardianName: true,
         guardianPhone: true,
         guardianRelation: true,
-        parentId: true,
-        parentProfile: {
-          select: {
-            id: true,
-            nationalId: true,
-            phone: true,
-            altPhone: true,
-            address: true,
-            occupation: true,
-            user: { select: { fullName: true, phone: true, email: true, username: true } },
-          },
-        },
+        user: { select: { username: true, email: true } },
         notes: true,
         evaluationNote: true,
         evaluatedAt: true,
@@ -212,7 +204,7 @@ export class StudentsService {
     });
     if (!student) throw new NotFoundException('الطالب غير موجود');
 
-    const isParent = user.role === Role.PARENT;
+    const isStudent = user.role === Role.STUDENT;
 
     const [
       attendanceSummary,
@@ -256,7 +248,7 @@ export class StudentsService {
         orderBy: { section: { order: 'asc' } },
       }),
       this.prisma.studentNote.findMany({
-        where: { studentId: id, deletedAt: null, ...(isParent ? { isPrivate: false } : {}) },
+        where: { studentId: id, deletedAt: null, ...(isStudent ? { isPrivate: false } : {}) },
         include: { author: { select: { id: true, fullName: true, role: true } } },
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -808,7 +800,6 @@ export class StudentsService {
           notes: dto.notes,
           status: dto.status,
           enrollmentDate: dto.enrollmentDate ? new Date(dto.enrollmentDate) : undefined,
-          ...(dto.parentId !== undefined ? { parentId: dto.parentId || null } : {}),
           ...(movingCircle ? { circleId: leavingCircle ? null : dto.circleId || null } : {}),
         },
       });
@@ -903,7 +894,7 @@ export class StudentsService {
       where: {
         studentId: id,
         deletedAt: null,
-        ...(user.role === Role.PARENT ? { isPrivate: false } : {}),
+        ...(user.role === Role.STUDENT ? { isPrivate: false } : {}),
       },
       include: { author: { select: { id: true, fullName: true, role: true } } },
       orderBy: { createdAt: 'desc' },

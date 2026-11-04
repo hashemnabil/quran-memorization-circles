@@ -73,6 +73,12 @@ export class CreateExamRequestDto {
 }
 
 export class UpdateExamMilestoneDto {
+  @IsOptional() @IsInt() @Min(0) @Max(500)
+  mistakes?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(500)
+  alerts?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(10)
+  tajweed?: number;
   @ApiProperty({ enum: ExamMilestoneStatus })
   @IsEnum(ExamMilestoneStatus)
   status: ExamMilestoneStatus;
@@ -80,7 +86,7 @@ export class UpdateExamMilestoneDto {
   @ApiPropertyOptional({ minimum: 0, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
+  @IsNumber()
   @Min(0)
   @Max(100)
   score?: number | null;

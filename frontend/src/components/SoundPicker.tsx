@@ -2,9 +2,10 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { importAudio, readImportedAudio, SOUNDS, type SoundScope, type ImportedAudio } from '@/lib/notification-sounds';
 import { notificationPreview } from '@/lib/notification-preview';
 import type { PreviewState } from '@/lib/exclusive-audio-preview';
+import type { ReactNode } from 'react';
 
 type SoundOption = { id: string; name: string; description: string; url?: string };
-export default function SoundPicker({ account, scope, value, onChange, onImport, savedToken = 0 }: { account: string; scope: SoundScope; value: string; onChange: (id: string) => void; onImport: (audio: ImportedAudio) => void; savedToken?: number }) {
+export default function SoundPicker({ account, scope, value, onChange, onImport, savedToken = 0, additionalOptions }: { account: string; scope: SoundScope; value: string; onChange: (id: string) => void; onImport: (audio: ImportedAudio) => void; savedToken?: number; additionalOptions?:(name:string)=>ReactNode }) {
   const owner = useId(); const fileInput = useId();
   const [customName, setCustomName] = useState('');
   const [preview, setPreview] = useState<PreviewState>(null);
@@ -41,7 +42,7 @@ export default function SoundPicker({ account, scope, value, onChange, onImport,
   const library = SOUNDS.filter(sound => sound.group === 'library' && (scope === 'general' || ['calm', 'electronic', 'clear'].includes(sound.id)));
   return <div className="notification-sound-library">
     {scope === 'general' && <section aria-label="صوت المدرسة"><h3 className="sound-section-title">بصمة المدرسة</h3>{SOUNDS.filter(sound => sound.id === 'school').map(sound => option(sound))}</section>}
-    <section aria-label="مكتبة أصوات التطبيق"><h3 className="sound-section-title">مكتبة أصوات التطبيق</h3><div className="notification-sounds-grid">{library.map(sound => option(sound))}</div></section>
+    <section aria-label="مكتبة أصوات التطبيق"><h3 className="sound-section-title">مكتبة الأصوات</h3><div className="notification-sounds-grid">{library.map(sound => option(sound))}{additionalOptions?.(`sound-${scope}-${owner}`)}</div></section>
     <section aria-label="خيارات الصوت الشخصية"><h3 className="sound-section-title">على ذوقك</h3>{SOUNDS.filter(sound => sound.id === 'default').map(sound => option(sound))}
       {option({ id: 'custom', name: customName || 'صوت من ملفاتك', description: customName ? 'نسخة محفوظة لهذا الحساب على هذا الجهاز' : 'اختر تسجيلًا صوتيًا من الهاتف' }, !customName)}
       <label htmlFor={fileInput} className="sound-import-button">{busy ? 'جارٍ فحص الملف…' : 'اختيار من الجهاز'}</label>

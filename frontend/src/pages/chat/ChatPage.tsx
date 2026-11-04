@@ -1,4 +1,5 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
+import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -42,6 +43,7 @@ import { timeAgo } from '@/lib/format';
 import type { ChatMessage, Conversation, PaginatedResponse, Role } from '@/types';
 
 export default function ChatPage() {
+  const background = useCuratedBackground('CHAT_BACKGROUND');
   const { id } = useParams();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user)!;
@@ -93,12 +95,14 @@ export default function ChatPage() {
 
   const { data: conversations, isLoading: loadingList } = useQuery({
     queryKey: ['chat', 'conversations'],
+    refetchInterval: 30_000,
     queryFn: async () => (await api.get<Conversation[]>('/chat/conversations')).data,
   });
 
   // The detail endpoint carries the member list and the moderation flags.
   const { data: active } = useQuery({
     queryKey: ['chat', 'conversation', id],
+    refetchInterval: 30_000,
     queryFn: async () => (await api.get<Conversation>(`/chat/conversations/${id}`)).data,
     enabled: !!id,
   });
@@ -360,7 +364,7 @@ export default function ChatPage() {
             />
           ) : (
             <>
-              <header className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5">
+              <header className="relative flex items-center gap-3 border-b border-slate-100 px-4 py-3.5 pe-16 sm:px-5 sm:pe-16">
                 <button
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 lg:hidden"
                   onClick={() => navigate('/chat')}
@@ -384,8 +388,8 @@ export default function ChatPage() {
                       : isGroup
                         ? `${active?.memberCount ?? 0} أعضاء`
                         : active?.isOnline
-                          ? 'متصل الآن'
-                          : 'غير متصل'}
+                          ? 'نشط الآن'
+                          : active?.lastActiveAt ? `آخر ظهور ${timeAgo(active.lastActiveAt)}` : 'حالة النشاط غير متاحة'}
                   </p>
                 </div>
 
@@ -423,12 +427,13 @@ export default function ChatPage() {
                     )}
                   </>
                 )}
+                <div className="chat-background-choice absolute bottom-2 end-3"><BackgroundChoice value={background} label="خلفية المحادثة" /></div>
               </header>
 
               <div
                 ref={messagesRef}
                 className="chat-messages flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5"
-                style={{ minHeight: 0 }}
+                style={{ minHeight: 0, ...(background.url ? { backgroundImage: `linear-gradient(#ffffffb8,#ffffffb8),url("${background.url}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}) }}
               >
                 {loadingMessages ? (
                   <div className="grid h-40 place-items-center">

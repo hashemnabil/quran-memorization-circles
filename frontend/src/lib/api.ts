@@ -11,9 +11,9 @@ import { createSessionStore } from './session-store';
 import { assertNoPendingWrites } from './account-cleanup';
 import { readActiveIdentity } from './active-identity';
 import { syncPendingAvatar } from './pending-avatar';
-import { createReadRefresh } from './read-refresh';
 import { syncStudentPhotos } from './pending-student-photos';
 import { localConversation } from './local-conversations';
+import { dependsOnPendingWrite, remapWriteReferences, writeReferenceIds } from './primary-write-policy';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
 const CONFIGURED_API_URL = import.meta.env?.VITE_API_URL?.trim();
@@ -35,7 +35,6 @@ export const api = axios.create({
 });
 
 const networkAdapter = axios.getAdapter(api.defaults.adapter!);
-const refreshRead = createReadRefresh();
 export async function syncQueuedStudentPhotos() {
   const account = accountId();
   if (!navigator.onLine || tokenStore.isLocal()) return;
@@ -77,28 +76,22 @@ configureOffline(async (method, path, data) => {
 api.defaults.adapter = async (config) => {
   const path = config.url || ''; const method = (config.method || 'get').toLowerCase();
   if (path === '/settings/public' && method === 'get') {
-    // This endpoint is intentionally public: its cache contains school details,
-    // never an account snapshot or locally unapproved settings edits.
-    const key = `public:school-settings:${BASE_URL}`;
-    const cached = await db.meta.get(key).catch(() => undefined);
-    const fetchPublic = async () => {
-      const result = await networkAdapter(config);
-      let data = result.data;
-      if (typeof data === 'string') { try { data = JSON.parse(data); } catch { return result; } }
-      if (data && typeof data === 'object' && !Array.isArray(data)) {
-        data.name = schoolName(data.name);
-        result.data = data;
-        await db.meta.put({ key, value: data }).catch(() => undefined);
-        if (cached && JSON.stringify(data) !== JSON.stringify(cached.value)) window.dispatchEvent(new Event('halaqat:changed'));
-      }
-      return result;
-    };
-    if (cached) {
-      if (navigator.onLine) refreshRead(key, async () => { await fetchPublic(); });
-      return { data: { ...cached.value, name: schoolName(cached.value?.name) }, status: 200, statusText: 'Local', headers: {}, config };
+    const key=`public:school-settings:${BASE_URL}`;
+    if(navigator.onLine){
+      try{
+        const result=await networkAdapter(config);
+        let data=result.data;
+        if(typeof data==='string'){try{data=JSON.parse(data);}catch{return result;}}
+        if(data&&typeof data==='object'&&!Array.isArray(data)){
+          result.data={...data,name:schoolName(data.name)};
+          void db.meta.put({key,value:result.data}).catch(()=>undefined);
+        }
+        return result;
+      }catch(error){if(!axios.isAxiosError(error)||error.response)throw error;}
     }
-    if (!navigator.onLine) throw new Error('لا توجد بيانات مدرسة محفوظة بعد؛ يلزم الاتصال لتنزيلها أول مرة');
-    return fetchPublic();
+    const cached=await db.meta.get(key).catch(()=>undefined);
+    if(cached)return {data:{...cached.value,name:schoolName(cached.value?.name)},status:200,statusText:'Local',headers:{},config};
+    throw new Error('لا توجد بيانات مدرسة محفوظة بعد؛ يلزم الاتصال لتنزيلها أول مرة');
   }
   if (path === '/auth/change-password') await assertNoPendingWrites(accountId());
   // Authentication and sync are network boundaries, never optimistic local successes.
@@ -116,55 +109,24 @@ api.defaults.adapter = async (config) => {
   const response = (data: any) => { stillCurrent(); return { data, status: 200, statusText: 'Local', headers: {}, config }; };
   if (method !== 'get' && !(config.data instanceof FormData) && config.responseType !== 'blob') {
     const payload = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
-    const local = await localWrite(method, path, payload);
+    // Online writes use the primary API. Existing queued operations retain their
+    // original order, so an edit cannot overtake an offline-created dependency.
+    let hasPending=true;
+    if(navigator.onLine&&!tokenStore.isLocal()){
+      const pending=await db.queue.where('accountId').equals(account).toArray().catch(()=>[]);
+      const references=[...new Set([...writeReferenceIds(payload),...pending.map(operation=>operation.entityId)])];
+      const mappings=references.length?await db.meta.bulkGet(references.map(id=>`${account}:id:${id}`)).catch(()=>[]):[];
+      stillCurrent();
+      const aliases=new Map<string,string>();
+      mappings.forEach((row,index)=>{if(typeof row?.value==='string')aliases.set(references[index],row.value);});
+      const canonical=remapWriteReferences(payload,aliases);
+      hasPending=dependsOnPendingWrite(path,payload,pending)||dependsOnPendingWrite(path,canonical,pending.map(operation=>({...operation,entityId:aliases.get(operation.entityId)??operation.entityId})));
+      if(!hasPending)config.data=typeof config.data==='string'?JSON.stringify(canonical):canonical;
+    }
+    const local = hasPending ? await localWrite(method, path, payload) : undefined;
     if (local !== undefined) return response(await settleLocalWrite(local));
   }
   if (method === 'get' && config.responseType !== 'blob') {
-    if (/^\/(?:students|courses|circles|teachers|exams|recitations|transfers|suspensions|preparations)\/[0-9a-f-]{36}(?:\?|$)/i.test(path)) {
-      const draft = await localRead(path, { ...config.params });
-      if (draft?.synced === 0) return response(draft);
-    }
-    if (/^\/chat\/conversations\/[^/]+$/.test(path)) {
-      const draft = await localConversation(path);
-      if (draft?.synced === 0) return response(draft);
-    }
-    if (/^\/support\/[^/]+$/.test(path) && !['/support/staff', '/support/stats'].includes(path)) {
-      const pendingTicket = await localRead(path, { ...config.params });
-      if (pendingTicket?.synced === 0) return response(pendingTicket);
-    }
-    // Only serve a response actually downloaded for this exact account/path/
-    // parameter set. An unbootstrapped local table can look like an empty list.
-    // Pending writes keep the existing reconciliation path authoritative.
-    const scopedConversation = path.match(/^\/chat\/conversations\/([0-9a-f-]{36})(?:\/messages)?$/i)?.[1];
-    const conversationCacheAllowed = !scopedConversation || !(await db.meta.get(`${account}:conversationListKnown`))?.value || !!(await localConversation(`/chat/conversations/${scopedConversation}`));
-    if (navigator.onLine && !tokenStore.isLocal() && !(config as any)._backgroundRead
-      && conversationCacheAllowed && !(await db.queue.where('accountId').equals(account).count())) {
-      const key = responseKey(account, path, config.params);
-      const cached = await db.responses.get(key);
-      const cachedData = ['/profile-reviews/me', '/attendance/absence-permissions'].includes(path) || path.startsWith('/support') || /^\/chat\/conversations(?:\/[^/]+)?$/.test(path) ? await localRead(path, { ...config.params }) : cached?.data;
-      stillCurrent();
-      if (cached && cachedData !== undefined && !(cached as any).__lockedLocal) {
-        refreshRead(key, async () => {
-          stillCurrent();
-          try {
-            // Use the full client so token refresh and server rejections retain
-            // their normal handling. Do not inherit a completed view's signal.
-            const fresh = await api.request({ ...config, signal: undefined, adapter: api.defaults.adapter, _backgroundRead: true, _expectedAccount: account } as any);
-            stillCurrent();
-            if (JSON.stringify(fresh.data) !== JSON.stringify(cachedData)) window.dispatchEvent(new Event('halaqat:changed'));
-          } catch (error) {
-            stillCurrent();
-            if (axios.isAxiosError(error) && [403, 404].includes(error.response?.status || 0)) {
-              await db.responses.delete(key);
-              window.dispatchEvent(new Event('halaqat:changed'));
-            }
-            throw error;
-          }
-        });
-        return response(cachedData);
-      }
-    }
-    const localTable = path.split('?')[0] === '/support' ? 'supportTickets' : path.startsWith('/exams/requests') ? 'examRequests' : path === '/attendance/absence-permissions' ? 'absencePermissions' : path === '/attendance/summons' ? 'guardianSummons' : path.split('/').filter(Boolean)[0];
     if (!navigator.onLine || tokenStore.isLocal()) {
       const conversationId = path.match(/^\/chat\/conversations\/([0-9a-f-]{36})(?:\/messages)?$/i)?.[1];
       if (conversationId && (await db.meta.get(`${account}:conversationListKnown`))?.value && !(await localConversation(`/chat/conversations/${conversationId}`))) throw new Error('لم تعد المحادثة ضمن القائمة المسموح بها لهذا الحساب');
@@ -180,9 +142,16 @@ api.defaults.adapter = async (config) => {
         if (prefetched !== undefined) return response(prefetched);
       }
     }
+    if(!navigator.onLine||tokenStore.isLocal())throw new Error('هذه البيانات غير محفوظة على الجهاز بعد؛ اتصل بالخادم لتنزيلها.');
     let result;
     try { result = await networkAdapter(config); }
     catch (error) {
+      stillCurrent();
+      if(axios.isAxiosError(error)&&error.response?.status===404){
+        const ids=new Set(path.split('?')[0].split('/').filter(Boolean));
+        const draftCreate=await db.queue.where('accountId').equals(account).filter(op=>op.action==='create'&&!op.error&&ids.has(op.entityId)).first();
+        if(draftCreate){const draft=await localRead(path,{...config.params});if(draft?.synced===0)return response(draft);}
+      }
       if (axios.isAxiosError(error) && !error.response) {
         const conversationId = path.match(/^\/chat\/conversations\/([0-9a-f-]{36})(?:\/messages)?$/i)?.[1];
         if (conversationId && (await db.meta.get(`${account}:conversationListKnown`))?.value && !(await localConversation(`/chat/conversations/${conversationId}`))) throw error;
@@ -200,44 +169,14 @@ api.defaults.adapter = async (config) => {
     let data = result.data;
     if (typeof data === 'string') { try { data = JSON.parse(data); } catch { /* Non-JSON responses are preserved verbatim. */ } }
     stillCurrent();
-    await rememberRead(path, config.params, data);
-    // A read started before submission can finish after the outbox commits.
-    // Reconcile requests from the durable replica so that stale responses cannot
-    // hide a queued or acknowledged request while its profile awaits approval.
-    if (['/profile-reviews/me', '/attendance/absence-permissions'].includes(path)) data = await localRead(path, { ...config.params }) ?? data;
-    if (path.split('?')[0] === '/media-activities' && Array.isArray(data)) {
-      const dirty = await db.table('mediaActivities').where('accountId').equals(account).filter(row => row.synced === 0).toArray();
-      if (dirty.length) {
-        const local = await localRead(path, { ...config.params }) || [];
-        const changedIds = new Set(dirty.map(row => row.id));
-        data = [...data.filter((row: any) => !changedIds.has(row.id)), ...local.filter((row: any) => changedIds.has(row.id))]
-          .sort((a: any, b: any) => String(b.activityDate).localeCompare(String(a.activityDate)) || String(b.createdAt).localeCompare(String(a.createdAt)));
-      }
-    }
-    if (path === '/chat/conversations' && Array.isArray(data)) data = await localConversation(path) ?? data;
-    if (path === '/community/feed' || /^\/chat\/conversations\/[^/]+\/messages$/.test(path)) data = await localRead(path, { ...config.params }) ?? data;
-    if (path.startsWith('/community/users/') && path.endsWith('/' + account)) data = { ...data, ...(await localRead(path, { ...config.params })) };
-    // Keep pending offline-created rows visible in server-backed collection views.
-    // The remote response remains authoritative for every row already on the server.
-    if (Array.isArray(data?.data) && db.tables.some(table => table.name === localTable)) {
-      const pending = await db.table(localTable).where('accountId').equals(account)
-        .filter((row: any) => row.synced === 0 && !row.pendingDelete).toArray();
-      const rows = [...data.data]; const seen = new Set(rows.map((row: any) => row.id));
-      for (const row of pending) if (!seen.has(row.id)) rows.push(row);
-      if (rows.length !== data.data.length) data = { ...data, data: rows, meta: data.meta ? { ...data.meta, total: Math.max(data.meta.total || 0, rows.length) } : data.meta };
-    }
-    if (path === '/attendance/sheet' && data?.students) {
-      const pending = await db.students.where('accountId').equals(account)
-        .filter((row: any) => row.synced === 0 && !row.pendingDelete && (row.circleId || row.circle?.id) === config.params?.circleId).toArray();
-      const roster = [...data.students]; const seen = new Set(roster.map((row: any) => row.id));
-      for (const student of pending) if (!seen.has(student.id)) roster.push({ ...student, attendance: null });
-      if (roster.length !== data.students.length) data = { ...data, students: roster };
-    }
+    // Replica persistence is best-effort background work, never an interactive read barrier.
+    void rememberRead(path, config.params, data).catch(()=>undefined);
     result.data = data;
     return result;
   }
   const result = await networkAdapter(config);
   if (['post', 'patch', 'put', 'delete'].includes(method)) {
+    stillCurrent();
     void reconcileAfterNetworkWrite().catch(() => undefined);
   }
   return result;

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import PrayerCard from '@/components/PrayerCard';
+import DailyOverview from '@/components/DailyOverview';
 import { useQuery } from '@tanstack/react-query';
 import {
   Area,
@@ -98,7 +99,7 @@ export default function DashboardPage() {
     return <><PrayerCard /><ErrorState message="تعذر تحميل لوحة المعلومات" onRetry={() => refetch()} /></>;
   }
 
-  const greeting = `${ROLE_LABELS[user.role]} — ${user.fullName}`;
+  const greeting = `أهلًا بك، ${user.fullName} · ${ROLE_LABELS[user.role]}`;
 
   return (
     <>
@@ -113,6 +114,7 @@ export default function DashboardPage() {
       />
 
       <PrayerCard />
+      <DailyOverview/>
 
       <section className="mb-6">
         <div className="mb-3 flex items-end justify-between gap-3">
@@ -131,7 +133,6 @@ export default function DashboardPage() {
       {data.role === 'TEACHER' && <TeacherDashboard data={data} />}
       {data.role === 'EXAM_COMMITTEE' && <CommitteeDashboard data={data} />}
       {data.role === 'SUPPORT' && <SupportDashboard data={data} />}
-      {data.role === 'PARENT' && <ParentDashboard data={data} />}
     </>
   );
 }
@@ -165,11 +166,6 @@ function QuickAccess({ role }: { role: string }) {
     { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconBell size={21} />, tone: 'blue' },
     { to: '/profile', label: 'الملف الشخصي', detail: 'بيانات حسابك', icon: <IconUser size={21} />, tone: 'amber' },
     { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconChat size={21} />, tone: 'violet' },
-  ] : role === 'PARENT' ? [
-    { to: '/profile', label: 'الملف الشخصي', detail: 'بيانات حسابك', icon: <IconGraduation size={21} />, tone: 'mint' },
-    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconBell size={21} />, tone: 'blue' },
-    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع المدرسة', icon: <IconChat size={21} />, tone: 'amber' },
-    { to: '/support', label: 'الدعم الفني', detail: 'مساعدة ومتابعة الطلبات', icon: <IconLifeBuoy size={21} />, tone: 'violet' },
   ] : [
     { to: '/student', label: 'ملفي الدراسي', detail: 'متابعة تقدمك', icon: <IconGraduation size={21} />, tone: 'mint' },
     { to: '/my-files', label: 'ملفاتي', detail: 'الملفات والشهادات', icon: <IconBook size={21} />, tone: 'blue' },
@@ -719,90 +715,6 @@ function SupportDashboard({ data }: { data: any }) {
           <EmptyState title="لا توجد تذاكر مفتوحة" icon={<IconLifeBuoy size={24} />} />
         )}
       </Card>
-    </div>
-  );
-}
-
-// --- parent -----------------------------------------------------------------
-
-function ParentDashboard({ data }: { data: any }) {
-  return (
-    <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="عدد الأبناء" value={data.counts.children} icon={<IconGraduation size={22} />} />
-        <StatCard label="غياب هذا الشهر" value={data.counts.absencesThisMonth} icon={<IconClipboard size={22} />} tone="amber" />
-        <StatCard label="موقوفون" value={data.counts.suspended} icon={<IconPause size={22} />} tone="red" />
-      </div>
-
-      <Card title="أبنائي" action={<Link to="/parent/children" className="text-xs font-bold text-primary-700 hover:underline">المتابعة التفصيلية</Link>} padded={false}>
-        {data.children?.length ? (
-          <ul className="divide-y divide-slate-100">
-            {data.children.map((child: any) => (
-              <li key={child.id}>
-                <Link to={`/parent/children/${child.id}`} className="flex flex-wrap items-center gap-3 px-5 py-4 transition hover:bg-slate-50">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold text-slate-800">{child.fullName}</p>
-                    <p className="numeric text-xs text-slate-400">{formatParts(child.memorizedParts)} جزء محفوظ</p>
-                  </div>
-                  {child.evaluation && (
-                    <Badge className={EVALUATION_COLORS[child.evaluation as Evaluation]}>
-                      {EVALUATION_LABELS[child.evaluation as Evaluation]}
-                    </Badge>
-                  )}
-                  <Badge className={STUDENT_STATUS_COLORS[child.status as keyof typeof STUDENT_STATUS_COLORS]}>
-                    {STUDENT_STATUS_LABELS[child.status as keyof typeof STUDENT_STATUS_LABELS]}
-                  </Badge>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState title="لا يوجد أبناء مرتبطون بحسابك" message="يرجى مراجعة الإدارة لربط أبنائك بالحساب." icon={<IconGraduation size={24} />} />
-        )}
-      </Card>
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="الاختبارات القادمة">
-          {data.upcomingExams?.length ? (
-            <ul className="divide-y divide-slate-100">
-              {data.upcomingExams.map((exam: any) => (
-                <li key={exam.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-700">{exam.student.fullName}</p>
-                    <p className="text-xs text-slate-400">{describeExamSections(exam.section, exam.sections)}</p>
-                  </div>
-                  <p className="text-xs font-bold text-slate-600">{formatDateTime(exam.scheduledAt)}</p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState title="لا توجد اختبارات مجدولة" icon={<IconAward size={24} />} />
-          )}
-        </Card>
-
-        <Card title="آخر التسميع">
-          {data.recentRecitations?.length ? (
-            <ul className="divide-y divide-slate-100">
-              {data.recentRecitations.map((r: any) => (
-                <li key={r.id} className="py-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-700">{r.student.fullName}</p>
-                    {r.score != null && (
-                      <Badge className="bg-primary-50 text-primary-700 numeric">{r.score}/100</Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    {r.fromSurah} <span className="numeric">{r.fromAyah}</span> — {r.toSurah}{' '}
-                    <span className="numeric">{r.toAyah}</span> • {formatDateShort(r.date)}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState title="لا توجد سجلات تسميع" icon={<IconBook size={24} />} />
-          )}
-        </Card>
-      </div>
     </div>
   );
 }

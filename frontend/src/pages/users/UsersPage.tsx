@@ -432,7 +432,7 @@ function UserFormModal({ user, onClose }: { user?: UserRecord; onClose: () => vo
           <Input label="كلمة المرور" required type="text" value={form.password} onChange={(e) => set('password', e.target.value)} error={errors.password} dir="ltr" />
         )}
         <Select label="الدور" required value={form.role} onChange={(e) => set('role', e.target.value)}>
-          {Object.entries(ROLE_LABELS).filter(([key]) => isEdit || !['STUDENT', 'PARENT'].includes(key)).map(([key, label]) => (
+          {Object.entries(ROLE_LABELS).filter(([key]) => key !== 'FOUNDER' && (isEdit || !['STUDENT', 'PARENT'].includes(key))).map(([key, label]) => (
             <option key={key} value={key}>
               {label}
             </option>

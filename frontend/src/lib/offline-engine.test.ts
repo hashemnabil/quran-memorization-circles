@@ -214,16 +214,21 @@ test('writes are durable before network and account-scoped', async () => {
   account = 'account-b'; assert.deepEqual(await get('students'), []);
 });
 
-test('online student create and update wait for their own acknowledgement and return canonical data', async () => {
+test('queued student receipts return immediately and canonical data arrives through background acknowledgement', async () => {
   configureOffline(async (_method, _path, body) => ({ outcomes: body.operations.map((op: any) => ({ opId: op.opId, status: 'applied', data: { ...op.data, id: 'server-student', code: '123' } })) }), () => account);
   online = true;
-  const created = await settleLocalWrite(await save('students', { fullName: 'new student', circleId: 'circle' }));
+  const receipt = await settleLocalWrite(await save('students', { fullName: 'new student', circleId: 'circle' }));
+  assert.equal(receipt.synced, 0);
+  await syncAll();
+  const created = (await get('students'))[0];
   assert.equal(created.id, 'server-student');
   assert.equal(created.synced, 1);
   assert.equal(created.code, '123');
   const edited = await settleLocalWrite(await update('students', created.id, { fullName: 'edited student' }));
   assert.equal(edited.fullName, 'edited student');
-  assert.equal(edited.synced, 1);
+  assert.equal(edited.synced, 0);
+  await syncAll();
+  assert.equal((await get('students'))[0].synced, 1);
   assert.equal(await db.queue.count(), 0);
 });
 
@@ -244,6 +249,7 @@ test('online edits survive disconnect and offline edits survive reconnect and a 
 
   online = true;
   await settleLocalWrite(await update('students', primary.id, { fullName: ' online edit ', phone: '222' }));
+  await syncAll();
   assert.equal(primary.fullName, 'online edit');
   online = false;
   assert.equal((await get('students'))[0].fullName, 'online edit');
@@ -290,17 +296,21 @@ test('a rejected old write preserves its dependents but does not block a new unr
   }, () => account);
   online = true;
   const result = await settleLocalWrite(good);
-  assert.equal(result.synced, 1);
+  assert.equal(result.synced, 0);
+  await syncAll().catch(()=>undefined);
+  assert.equal((await get('students')).find(row=>row.id==='good')?.synced, 1);
   assert.deepEqual(sent, ['bad', 'good']);
   assert.deepEqual((await db.queue.toArray()).map(op => op.entityId), ['bad', 'dependent']);
 });
 
-test('an explicit server rejection reaches the form; offline writes still succeed locally', async () => {
+test('background rejection remains durable without blocking the queued receipt', async () => {
   const local = await settleLocalWrite(await save('students', { id: 'bad', fullName: 'invalid' }));
   assert.equal(local.synced, 0);
   configureOffline(async (_method, _path, body) => ({ outcomes: [{ opId: body.operations[0].opId, status: 'rejected', message: 'رقم الطالب مستخدم مسبقاً' }] }), () => account);
   online = true;
-  await assert.rejects(settleLocalWrite(local), /رقم الطالب مستخدم/);
+  assert.equal(await settleLocalWrite(local),local);
+  await assert.rejects(syncAll(), /رقم الطالب مستخدم/);
+  assert.match((await db.queue.toArray())[0].error!, /رقم الطالب مستخدم/);
   assert.equal(await db.queue.count(), 1);
 });
 
@@ -325,6 +335,7 @@ test('correcting a rejected registration replaces it in order and unblocks its d
   }) }), () => account);
   online = true;
   await settleLocalWrite(corrected);
+  await syncAll();
   assert.deepEqual(actions, ['create', 'create']);
   assert.equal(await db.queue.count(), 0);
   assert.equal((await get('students'))[0].code, '123');

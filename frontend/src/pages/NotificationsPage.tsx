@@ -14,6 +14,7 @@ import {
   PageHeader,
   Pagination,
   Tabs,
+  Select,
   cx,
 } from '@/components/ui';
 import { IconBell, IconCheck, IconTrash } from '@/components/ui/Icons';
@@ -30,13 +31,14 @@ export default function NotificationsPage() {
 
   const [tab, setTab] = useState('all');
   const [page, setPage] = useState(1);
+  const [type, setType] = useState('');
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['notifications', { tab, page }],
+    queryKey: ['notifications', { tab, page, type }],
     queryFn: async () =>
       (
         await api.get<PaginatedResponse<AppNotification> & { unreadCount: number }>('/notifications', {
-          params: { page, limit: 25, unreadOnly: tab === 'unread' ? true : undefined },
+          params: { page, limit: 25, unreadOnly: tab === 'unread' ? true : undefined, type: type || undefined },
         })
       ).data,
   });
@@ -117,6 +119,7 @@ export default function NotificationsPage() {
         }}
       />
 
+      <div className="mb-5 max-w-sm"><Select label="تصنيف الإشعارات" value={type} onChange={event=>{setType(event.target.value);setPage(1);}}><option value="">جميع الأنواع</option>{Object.entries({ATTENDANCE:'الحضور والغياب',EXAM_REQUEST:'طلبات الاختبار',EXAM_SCHEDULED:'مواعيد الاختبارات',EXAM_RESULT:'نتائج الاختبارات',CHAT_MESSAGE:'الرسائل',ANNOUNCEMENT:'الإعلانات',PREPARATION:'التحضير',COURSE:'الدورات',TRANSFER_REQUEST:'طلبات النقل',TRANSFER_DECISION:'قرارات النقل',SUSPENSION_REQUEST:'طلبات الإيقاف',SUSPENSION_DECISION:'قرارات الإيقاف',SUPPORT_TICKET:'طلبات الدعم',SUPPORT_REPLY:'ردود الدعم',SYSTEM:'النظام'}).map(([key,label])=><option key={key} value={key}>{label}</option>)}</Select></div>
       <Card padded={false}>
         {isLoading ? (
           <LoadingState />

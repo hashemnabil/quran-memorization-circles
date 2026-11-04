@@ -476,7 +476,7 @@ export function EmptyState({
 
 export function LoadingState({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="space-y-3 p-5">
+    <div className="space-y-3 p-5" role="status" aria-label="جارٍ تحميل المحتوى">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="flex items-center gap-3">
           <div className="skeleton h-10 w-10 rounded-full" />

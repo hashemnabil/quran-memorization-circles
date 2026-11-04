@@ -126,7 +126,7 @@ test('reading a conversation clears only that account and conversation notificat
   assert.equal(events[0][0], 'reader');
 });
 
-test('certificate approval, rejection and ready states notify student and guardian in the same transaction', async () => {
+test('certificate approval, rejection and ready states notify only the student in the same transaction', async () => {
   for (const status of [StudentFileRequestStatus.APPROVED, StudentFileRequestStatus.REJECTED, StudentFileRequestStatus.READY]) {
     const notices: any[] = []; let committed = false;
     const tx: any = { $queryRaw: async () => [], syncChange: { create: async () => ({}) },
@@ -137,7 +137,7 @@ test('certificate approval, rejection and ready states notify student and guardi
       $transaction: async (run: any) => { const result = await run(tx); committed = true; return result; }, notification: { count: async () => 1 } };
     const service = new CertificatesService(prisma, { emitToUser() { assert(committed); } } as any);
     const result = await service.decideRequest({ id: 'admin' } as any, 'request', { status, decisionNote: 'Decision', fileUrl: status === 'READY' ? 'https://example.com/file.pdf' : undefined });
-    assert.equal(result.status, status); assert.equal(notices.length, 2);
-    assert.equal(notices[0].link, '/my-files'); assert.equal(notices[1].link, '/parent/children/student');
+    assert.equal(result.status, status); assert.equal(notices.length, 1);
+    assert.equal(notices[0].link, '/my-files'); assert.equal(notices[0].userId, 'student-user');
   }
 });

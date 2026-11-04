@@ -1,6 +1,8 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { FormEvent, useEffect, useState } from 'react';
 import PrayerCard from '@/components/PrayerCard';
+import MemorizationPlans from '@/components/MemorizationPlans';
+import DailyOverview from '@/components/DailyOverview';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api, apiError } from '@/lib/api';
@@ -10,6 +12,9 @@ import { Button, Card, ErrorState, Input, LoadingState, PageHeader, ProgressBar,
 import { IconAward, IconBook, IconClipboard } from '@/components/ui/Icons';
 import { formatDateShort, formatParts } from '@/lib/format';
 import StudentQuestionnaire from '@/components/StudentQuestionnaire';
+import { StudentPhoto } from '@/components/StudentPhoto';
+import { EVALUATION_LABELS } from '@/lib/labels';
+import type { Evaluation } from '@/types';
 import { passwordError as newPasswordError } from '@/lib/validation';
 import { rememberOfflineLogin } from '@/lib/offline-login';
 
@@ -80,7 +85,15 @@ export default function StudentPortalPage() {
     <>
       <PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
       <PrayerCard />
+      <div className="mb-5"><StudentPhoto studentId={data.id} fullName={data.fullName} photoUrl={data.photoUrl} size={80} editable onChanged={() => { void refetch(); }} /></div>
       <StudentQuestionnaire key={data.id} profile={data} />
+      <DailyOverview/>
+      <MemorizationPlans studentId={data.id}/>
+      {data.activeSuspension && <Card title="قرار الإيقاف أو التحويل" className="mb-5">
+        <p className="whitespace-pre-wrap">{data.activeSuspension.reason}</p>
+        <p className="mt-2 text-sm">من {formatDateShort(data.activeSuspension.startDate)}{data.activeSuspension.endDate ? ` إلى ${formatDateShort(data.activeSuspension.endDate)}` : ' — إلى حين قرار الإدارة'}</p>
+        {data.activeSuspension.remainingDays != null && <p>الأيام المتبقية: {data.activeSuspension.remainingDays}</p>}
+      </Card>}
       <Card title="مواعيد اختباراتي" className="mb-5">
         {history.isLoading ? <LoadingState rows={2} /> : history.isError ? <ErrorState message="تعذر تحميل مواعيد الاختبارات" onRetry={() => history.refetch()} /> :
           history.data?.exams?.some((exam: any) => exam.status === 'SCHEDULED') ?
@@ -98,6 +111,36 @@ export default function StudentPortalPage() {
               </article>)}</div> : <p className="text-sm text-slate-500">لا يوجد موعد اختبار محدد حاليًا.</p>}
       </Card>
       <StudentPreparations />
+      <Card title="نتائج اختباراتي" className="mb-5">
+        {history.isLoading ? <LoadingState rows={2} /> : history.isError ? <ErrorState message="تعذر تحميل النتائج" onRetry={() => history.refetch()} /> :
+          history.data?.exams?.some((exam: any) => exam.result) ? history.data.exams.filter((exam: any) => exam.result).map((exam: any) =>
+            <article key={exam.id} className="border-b py-3">
+              <strong>{exam.sections?.map((entry: any) => entry.section?.name).filter(Boolean).join('، ') || exam.section?.name}</strong>
+              <p>{exam.result === 'PASSED' ? 'ناجح' : 'لم يجتز'} — {exam.score ?? '—'} / 100{exam.evaluation ? ` — ${EVALUATION_LABELS[exam.evaluation as Evaluation] || exam.evaluation}` : ''}</p>
+              {exam.notes && <p className="whitespace-pre-wrap text-sm">{exam.notes}</p>}
+              <small>{formatDateShort(exam.gradedAt || exam.scheduledAt)}</small>
+            </article>) : <p>لا توجد نتائج اختبارات مسجلة.</p>}
+      </Card>
+      <div className="mb-5 flex flex-wrap gap-3">
+        <Button variant="secondary" onClick={() => navigate('/notifications')}>الإشعارات والإنذارات</Button>
+        <Button variant="secondary" onClick={() => navigate('/chat')}>الرسائل</Button>
+        <Button variant="secondary" onClick={() => navigate('/my-files')}>التقارير والشهادات</Button>
+        <Button variant="secondary" onClick={() => navigate('/absence-permissions')}>أذونات الغياب</Button>
+      </div>
+      <div className="mb-5 grid gap-5 xl:grid-cols-2">
+        <Card title="الإنذارات والاستدعاءات">
+          {data.summons?.length ? data.summons.map((item: any) => <article key={item.id} className="border-b py-3">
+            <strong>{item.title}</strong><p className="whitespace-pre-wrap text-sm">{item.body}</p><small>{formatDateShort(item.createdAt)}</small>
+          </article>) : <p>لا توجد استدعاءات مسجلة.</p>}
+        </Card>
+        <Card title="التقييمات والملاحظات">
+          {data.evaluations?.map((item: any) => <article key={item.id} className="border-b py-3">
+            <strong>{EVALUATION_LABELS[item.evaluation as Evaluation] || item.evaluation}</strong><p>{item.note}</p><small>{formatDateShort(item.createdAt)}</small>
+          </article>)}
+          {data.noteEntries?.map((item: any) => <p key={item.id} className="py-2">{item.body}</p>)}
+          {!data.evaluations?.length && !data.noteEntries?.length && <p>لا توجد تقييمات أو ملاحظات مسجلة.</p>}
+        </Card>
+      </div>
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="نسبة الحضور" value={`${data.attendanceSummary?.attendanceRate ?? 0}%`} icon={<IconClipboard size={22} />} />
         <StatCard label="مرات الحضور" value={data.attendanceSummary?.present ?? 0} icon={<IconClipboard size={22} />} />
@@ -112,6 +155,8 @@ export default function StudentPortalPage() {
           <Info label="السورة الحالية" value={data.currentSurah} />
           <Info label="الصفحة الحالية" value={data.currentPage} />
           <Info label="النقاط" value={data.points?.total ?? data.totalPoints ?? 0} />
+          <Info label="التقييم الحالي" value={data.evaluation ? EVALUATION_LABELS[data.evaluation as Evaluation] : null} />
+          <Info label="ملاحظة التقييم" value={data.evaluationNote} />
           <Info label="آخر تسميع" value={data.lastRecitation ? `${data.lastRecitation.fromSurah} — ${data.lastRecitation.toSurah} (${formatDateShort(data.lastRecitation.date)})` : 'لا يوجد تسميع مسجل'} />
           <Info label="آخر اختبار مجتاز" value={data.examSummary?.lastPassedSection} />
         </div>
@@ -136,6 +181,7 @@ export default function StudentPortalPage() {
             {history.data.attendance.slice(0, 12).map((item: any) => <div key={item.id} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 text-sm">
               <span>{formatDateShort(item.date)}</span>
               <strong>{item.status === 'PRESENT' ? 'حاضر' : item.status === 'ABSENT' ? 'غائب' : item.status === 'EXCUSED' ? 'غياب بعذر' : item.status}</strong>
+              {item.note && <span className="text-xs text-slate-500">{item.note}</span>}
             </div>)}
           </div> : <p className="text-sm text-slate-500">لا توجد سجلات حضور متاحة.</p>}
         </Card>
@@ -144,6 +190,7 @@ export default function StudentPortalPage() {
             {history.data.recitations.slice(0, 12).map((item: any) => <div key={item.id} className="border-b border-slate-100 py-2 text-sm">
               <div className="flex items-center justify-between gap-3"><strong>{item.fromSurah} ({item.fromAyah}) — {item.toSurah} ({item.toAyah})</strong><span className="text-xs text-slate-500">{formatDateShort(item.date)}</span></div>
               <p className="mt-1 text-xs text-slate-500">النقاط: {item.points ?? 0} · الأخطاء: {item.mistakes ?? 0} · التنبيهات: {item.warnings ?? 0}</p>
+              {item.evaluation && <p className="text-sm">{EVALUATION_LABELS[item.evaluation as Evaluation] || item.evaluation}</p>}
             </div>)}
           </div> : <p className="text-sm text-slate-500">لا توجد سجلات تسميع متاحة.</p>}
         </Card>

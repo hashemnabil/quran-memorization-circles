@@ -13,7 +13,7 @@ import {
 @ApiTags('الحضور والغياب')
 @ApiBearerAuth()
 @Controller('attendance')
-@Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT, Role.PARENT)
+@Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT)
 export class AttendanceController {
   constructor(private readonly service: AttendanceService) {}
 

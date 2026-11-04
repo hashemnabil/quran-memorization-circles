@@ -21,11 +21,11 @@ export class CertificatesService {
   private async withStudentNotice<T>(studentId: string, title: string, write: (tx: Prisma.TransactionClient) => Promise<T>, body?: string) {
     const saved = await this.prisma.$transaction(async tx => {
       const result = await write(tx);
-      const student = await tx.student.findUnique({ where: { id: studentId }, select: { userId: true, parentProfile: { select: { userId: true } } } });
+      const student = await tx.student.findUnique({ where: { id: studentId }, select: { userId: true } });
       const notices = [];
-      for (const userId of new Set([student?.userId, student?.parentProfile?.userId].filter((id): id is string => !!id))) {
+      for (const userId of new Set([student?.userId].filter((id): id is string => !!id))) {
         const notice = await tx.notification.create({ data: { userId, type: 'SYSTEM', title, body,
-          link: userId === student?.userId ? '/my-files' : `/parent/children/${studentId}`, data: { studentId } } });
+          link: '/my-files', data: { studentId } } });
         await recordNotificationChange(tx, notice); notices.push(notice);
       }
       return { result, notices };

@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { Role } from '@prisma/client';
 import { PUBLIC_KEY, ROLES_KEY } from '../../common/decorators';
+import { rolePermitted } from '../founder-policy';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -23,10 +24,8 @@ export class RolesGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
     if (!user) throw new ForbiddenException('غير مصرح');
 
-    // The admin is allowed everywhere without having to be listed on each route.
-    if (user.role === Role.ADMIN) return true;
-
-    if (!required.includes(user.role)) {
+    // Preserve school administrator access without granting founder ownership.
+    if (!rolePermitted(user.role, required)) {
       throw new ForbiddenException('لا تملك الصلاحية للقيام بهذا الإجراء');
     }
     return true;

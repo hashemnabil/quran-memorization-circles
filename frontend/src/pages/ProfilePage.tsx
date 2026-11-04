@@ -1,5 +1,7 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
+import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import ThemeSelect from '@/components/ThemeSelect';
+import ActivityPrivacySettings from '@/components/ActivityPrivacySettings';
 import LocalSecuritySettings from '@/components/LocalSecuritySettings';
 import FirstUseOnboarding from '@/components/FirstUseOnboarding';
 import { passwordError } from '@/lib/validation';
@@ -28,6 +30,7 @@ import { formatDate, formatDateTime, formatParts } from '@/lib/format';
 import { rememberOfflineLogin } from '@/lib/offline-login';
 
 export default function ProfilePage({ settings = false }: { settings?: boolean }) {
+  const cover = useCuratedBackground('PROFILE_COVER');
   const [replayIntro, setReplayIntro] = useState(false);
   const [nickname, setNickname] = useState('');
   const [savingNickname, setSavingNickname] = useState(false);
@@ -83,7 +86,8 @@ export default function ProfilePage({ settings = false }: { settings?: boolean }
   return (
     <>
       {replayIntro && <div className="fixed inset-0 z-[200] overflow-y-auto"><FirstUseOnboarding onComplete={() => setReplayIntro(false)} /></div>}
-      <PageHeader title={settings ? "إعدادات الحساب" : "الملف الشخصي"} subtitle="رحلتك مع القرآن في مكان واحد" action={<Link className="app-icon-button" aria-label={settings ? "الملف الشخصي" : "إعدادات الحساب"} to={settings ? "/profile" : "/profile/settings"}><IconSettings size={21} /></Link>} />{!settings && <div className="profile-cover"><span>رحلة نور مع القرآن</span><p>كل آية تحفظها، أثر يبقى معك</p></div>}
+      <PageHeader title={settings ? "إعدادات الحساب" : "الملف الشخصي"} subtitle="رحلتك مع القرآن في مكان واحد" action={<Link className="app-icon-button" aria-label={settings ? "الملف الشخصي" : "إعدادات الحساب"} to={settings ? "/profile" : "/profile/settings"}><IconSettings size={21} /></Link>} />
+      {!settings && <><div className="profile-cover" style={cover.url ? { backgroundImage: `linear-gradient(#12372d66,#12372d99),url("${cover.url}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}><div className="absolute bottom-3 end-3 z-10"><BackgroundChoice value={cover} label="خلفية الصفحة" /></div><span>رحلة نور مع القرآن</span><p>كل آية تحفظها، أثر يبقى معك</p></div></>}
       <Link to="/community/users/me" className="inline-flex rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white">👤 افتح ملفي الشخصي العام ومنشوراتي</Link>
 
 
@@ -175,24 +179,13 @@ export default function ProfilePage({ settings = false }: { settings?: boolean }
             </div>
           )}
 
-          {user.role === 'PARENT' && profile?.parentProfile && (
-            <Card title="بياناتي">
-              <dl className="grid gap-3 text-xs sm:grid-cols-2">
-                <Row label="الجوال" value={<span className="numeric" dir="ltr">{profile.parentProfile.phone}</span>} />
-                <Row label="جوال بديل" value={<span className="numeric" dir="ltr">{profile.parentProfile.altPhone}</span>} />
-                <Row label="المهنة" value={profile.parentProfile.occupation} />
-                <Row label="العنوان" value={profile.parentProfile.address} />
-              </dl>
-              <Button variant="secondary" size="sm" className="mt-4" onClick={() => navigate('/parent/children')}>
-                متابعة الأبناء
-              </Button>
-            </Card>
-          )}
 
+          {user.role === 'STUDENT' && <Card title="ملفي الدراسي"><Button onClick={() => navigate('/student')}>الحضور والتقييمات والإنذارات وخطط الحفظ</Button></Card>}
           {['STUDENT', 'TEACHER'].includes(user.role) ? <Card title="بياناتي الشخصية"><Button onClick={() => navigate('/verify-profile')}>تحقق من بياناتي</Button></Card> : <ProfileDetailsCard profile={profile} onUpdated={setUser} />}
 
           {settings && <>
           <LocalSecuritySettings />
+          <ActivityPrivacySettings />
           <Card title="دليل التطبيق"><p className="mb-3 text-sm text-slate-500">تعرّف على الحلقات والمتابعة والتواصل.</p><Button variant="secondary" onClick={() => setReplayIntro(true)}>إعادة مشاهدة شرح التطبيق</Button></Card>
           <Card title="المظهر"><div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"><span className="text-sm text-slate-500">اختر مظهر التطبيق</span><ThemeSelect /></div></Card>
           <Card title="الكنية"><form className="flex gap-2" onSubmit={async e => { e.preventDefault(); setSavingNickname(true); try { const result = await api.patch('/community/nickname', { nickname: nickname.trim() }); if(result.data?.synced===0) toast('حُفظت الكنية محليًا، بانتظار المزامنة'); else toast.success('تم حفظ الكنية'); } catch (error) { toast.error(apiError(error)); } finally { setSavingNickname(false); } }}><Input aria-label="الكنية" placeholder={profile?.nickname || 'أضف كنيتك'} maxLength={60} value={nickname} onChange={e => setNickname(e.target.value)} /><Button type="submit" loading={savingNickname}>حفظ</Button></form></Card>

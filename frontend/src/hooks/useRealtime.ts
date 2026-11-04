@@ -22,8 +22,22 @@ export function useRealtime() {
 
     const socket = getSocket();
     if (!socket) return;
+    let lastInteraction = Date.now();
+    const noteActivity = () => { lastInteraction = Date.now(); };
+    const ping = () => { if (document.visibilityState === 'visible' && Date.now() - lastInteraction < 90_000) socket.emit('activity:ping'); };
+    document.addEventListener('pointerdown', noteActivity, {passive: true});
+    document.addEventListener('keydown', noteActivity);
+    document.addEventListener('visibilitychange', ping);
+    socket.on('connect', ping);
+    const activityTimer = setInterval(ping, 30_000);
+    ping();
+    const onPresence = () => { void queryClient.invalidateQueries({queryKey: ['chat', 'conversations']}); void queryClient.invalidateQueries({queryKey: ['chat', 'conversation']}); };
+    socket.on('presence:update', onPresence);
+    let liveRefresh: ReturnType<typeof setTimeout> | undefined;
     const onDataChanged = (payload: { revision?: unknown }) => {
       if (typeof payload?.revision === 'string') void noteRemoteRevision(payload.revision).catch(() => undefined);
+      // Interactive reads refresh from the primary API independently of replica download.
+      if(navigator.onLine){clearTimeout(liveRefresh);liveRefresh=setTimeout(()=>{void queryClient.invalidateQueries({refetchType:'active'});},250);}
     };
 
     const onNotification = async (payload: { notification: AppNotification }) => {
@@ -34,6 +48,7 @@ export function useRealtime() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
 
       if (document.querySelector('[data-security-blocked]')) return;
+      window.dispatchEvent(new CustomEvent('qc:web-notification', { detail: payload.notification.id }));
       toast(payload.notification.title, {
         icon: '🔔',
         duration: 5000,
@@ -82,6 +97,13 @@ export function useRealtime() {
     socket.on('support:message', onSupportMessage);
 
     return () => {
+      clearInterval(activityTimer);
+      document.removeEventListener('pointerdown', noteActivity);
+      document.removeEventListener('keydown', noteActivity);
+      document.removeEventListener('visibilitychange', ping);
+      socket.off('connect', ping);
+      socket.off('presence:update', onPresence);
+      clearTimeout(liveRefresh);
       socket.off('notification:new', onNotification);
       socket.off('data:changed', onDataChanged);
       socket.off('chat:message', onChatMessage);

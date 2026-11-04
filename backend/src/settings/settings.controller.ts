@@ -49,7 +49,7 @@ export class SettingsController {
 
   @Patch()
   @ApiBearerAuth()
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'تحديث إعدادات المدرسة' })
   update(@CurrentUser() user: AuthUser, @Body() dto: UpdateSettingsDto) {
     return this.service.update(user, dto);
@@ -61,7 +61,7 @@ export class SettingsController {
    */
   @Post('logo')
   @ApiBearerAuth()
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'رفع شعار المدرسة' })
   @UseInterceptors(
@@ -82,7 +82,7 @@ export class SettingsController {
 
   @Delete('logo')
   @ApiBearerAuth()
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'إزالة شعار المدرسة' })
   async removeLogo(@CurrentUser() user: AuthUser) {
     const previous = (await this.service.get()).logoUrl;

@@ -93,6 +93,12 @@ export class ExamsController {
     return this.service.updateMilestoneRecord(user, studentId, sectionId, dto);
   }
 
+  @Patch('combined-milestones/:studentId/:stageCode')
+  @Roles(Role.ADMIN)
+  updateCombinedMilestone(@CurrentUser() user:AuthUser,@Param('studentId') studentId:string,@Param('stageCode') stageCode:string,@Body() dto:UpdateExamMilestoneDto){
+    return this.service.updateCombinedMilestone(user,studentId,stageCode,dto);
+  }
+
   @Get('eligibility/:studentId')
   @ApiOperation({ summary: 'أهلية الطالب للاختبار وتسلسل المقررات' })
   eligibility(@CurrentUser() user: AuthUser, @Param('studentId') studentId: string) {

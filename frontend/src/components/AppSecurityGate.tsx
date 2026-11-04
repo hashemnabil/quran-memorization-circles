@@ -78,8 +78,8 @@ function AccountGate({ account, children }: { account: string; children: ReactNo
             if (useAuthStore.getState().user?.id === account) { lockedRef.current = false; setState('open'); setPin(''); setConfirm(''); }
           } catch (cause) { setError(cause instanceof Error ? cause.message : 'تعذر فتح القفل'); } finally { setBusy(false); }
         }}>
-          <Input label="رمز التطبيق" type="password" inputMode="numeric" autoComplete="off" minLength={6} maxLength={12} required value={pin} onChange={event => setPin(event.target.value.replace(/\D/g, ''))} />
-          {state === 'setup' && <><Input label="تأكيد الرمز" type="password" inputMode="numeric" autoComplete="off" required maxLength={12} value={confirm} onChange={event => setConfirm(event.target.value.replace(/\D/g, ''))} />{device && <label className="prayer-check"><input type="checkbox" checked={useDevice} onChange={event => setUseDevice(event.target.checked)} />السماح بالبصمة أو قفل الجهاز</label>}</>}
+          <MaskedPinInput label="رمز التطبيق" value={pin} onChange={setPin} />
+          {state === 'setup' && <><MaskedPinInput label="تأكيد الرمز" value={confirm} onChange={setConfirm} />{device && <label className="prayer-check"><input type="checkbox" checked={useDevice} onChange={event => setUseDevice(event.target.checked)} />السماح بالبصمة أو قفل الجهاز</label>}</>}
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           <Button type="submit" loading={busy} className="w-full">{state === 'setup' ? 'حفظ الحماية والمتابعة' : 'فتح التطبيق'}</Button>
         </form>}
@@ -89,4 +89,15 @@ function AccountGate({ account, children }: { account: string; children: ReactNo
       </section>
     </main>}
   </>;
+}
+
+/** Native password input remains accessible to keyboards, autofill protections and screen readers. */
+function MaskedPinInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return <label className="security-pin-field">
+    <span className="security-pin-label">{label} <small>(4–8 أرقام)</small></span>
+    <span className="security-pin-visual" aria-hidden="true">
+      {Array.from({ length: 8 }, (_, index) => <span key={index} className={index < value.length ? 'security-pin-dot filled' : 'security-pin-dot'}>{index < value.length ? '●' : '·'}</span>)}
+    </span>
+    <input className="security-pin-native" type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="off" minLength={4} maxLength={8} required value={value} onChange={event => onChange(event.target.value.replace(/\D/g, '').slice(0, 8))} aria-label={label} />
+  </label>;
 }

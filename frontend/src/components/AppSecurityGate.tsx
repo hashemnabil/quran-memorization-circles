@@ -94,20 +94,30 @@ function AccountGate({ account, children }: { account: string; children: ReactNo
 
 /** Show only entered digits; each newly typed digit remains visible for three seconds. */
 function MaskedPinInput({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
-  const [visibleIndex, setVisibleIndex] = useState(-1);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (hideTimer.current) clearTimeout(hideTimer.current); }, []);
+  const [revealed, setRevealed] = useState<number[]>([]);
+  const hideTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  useEffect(() => () => { hideTimers.current.forEach(clearTimeout); hideTimers.current.clear(); }, []);
   const change = (next: string) => {
     const digits = next.replace(/\\D/g, '').slice(0, 8);
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    setVisibleIndex(digits.length > value.length ? digits.length - 1 : -1);
-    if (digits.length > value.length) hideTimer.current = setTimeout(() => setVisibleIndex(-1), 3000);
+    if (digits.length < value.length) {
+      hideTimers.current.forEach((timer, index) => { if (index >= digits.length) { clearTimeout(timer); hideTimers.current.delete(index); } });
+      setRevealed(previous => previous.filter(index => index < digits.length));
+    }
+    if (digits.length > value.length) {
+      for (let index = value.length; index < digits.length; index++) {
+        setRevealed(previous => [...previous, index]);
+        hideTimers.current.set(index, setTimeout(() => {
+          setRevealed(previous => previous.filter(item => item !== index));
+          hideTimers.current.delete(index);
+        }, 3000));
+      }
+    }
     onChange(digits);
   };
   return <label className="security-pin-field">
     <span className="security-pin-label">{label} <small>(4–8 أرقام)</small></span>
     <span className="security-pin-visual" aria-hidden="true">
-      {Array.from(value, (digit, index) => <span key={index} className="security-pin-dot filled">{index === visibleIndex ? digit : '●'}</span>)}
+      {Array.from(value, (digit, index) => <span key={index} className="security-pin-dot filled">{revealed.includes(index) ? digit : '●'}</span>)}
     </span>
     <input className="security-pin-native" type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="off" minLength={4} maxLength={8} required disabled={disabled} value={value} onChange={event => change(event.target.value)} aria-label={label} />
   </label>;

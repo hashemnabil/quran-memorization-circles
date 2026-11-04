@@ -11,7 +11,7 @@ export async function resetLockAfterOnlineLogin(account: string) {
   window.dispatchEvent(new Event('qc:lock-changed'));
 }
 export async function changeLocalPin(account: string, current: string, next: string) {
-  if (!/^\d{6,12}$/.test(next) || /^(\d)\1+$/.test(next)) throw new Error('اختر رمزًا من 6 إلى 12 رقمًا غير متطابق');
+  if (!/^\d{4,8}$/.test(next) || /^(\d)\1+$/.test(next)) throw new Error('اختر رمزًا من 4 إلى 8 رقمًا غير متطابق');
   await appLock.verify(account, current);
   const previous = await credentialStorage.get(`app-lock-v1:${account}`);
   if (!previous) throw new Error('القفل غير مهيأ');

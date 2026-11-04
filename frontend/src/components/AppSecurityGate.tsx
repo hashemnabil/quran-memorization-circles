@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { useAuthStore } from '@/store/auth';
 import { appLock, DeviceSecurity, nativeDeviceSecurity } from '@/lib/local-lock';
 import { needsLocalLock } from '@/lib/app-lock';
-import { Button, Input } from './ui';
+import { Button } from './ui';
 import NotificationPermissionPrompt from './NotificationPermissionPrompt';
 import { offlineAccessAllowed } from '@/lib/offline-access';
 import { DEFAULT_SCHOOL_LOGO } from '@/config/branding';
@@ -23,6 +23,7 @@ function AccountGate({ account, children }: { account: string; children: ReactNo
   const [state, setState] = useState<'checking' | 'setup' | 'locked' | 'open' | 'hidden'>('checking');
   const [pin, setPin] = useState(''); const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const [verified, setVerified] = useState(false);
   const [device, setDevice] = useState(false); const [useDevice, setUseDevice] = useState(false);
   const [deviceEnabled, setDeviceEnabled] = useState(false);
   const lockedRef = useRef(false); const authenticating = useRef(false);
@@ -75,11 +76,11 @@ function AccountGate({ account, children }: { account: string; children: ReactNo
             await ensureLocalAccess(account);
             if (state === 'setup') { if (pin !== confirm) throw new Error('رمزا القفل غير متطابقين'); await appLock.setup(account, pin, useDevice); setDeviceEnabled(useDevice); }
             else await appLock.verify(account, pin);
-            if (useAuthStore.getState().user?.id === account) { lockedRef.current = false; setState('open'); setPin(''); setConfirm(''); }
-          } catch (cause) { setError(cause instanceof Error ? cause.message : 'تعذر فتح القفل'); } finally { setBusy(false); }
+            if (useAuthStore.getState().user?.id === account) { setVerified(true); await new Promise(resolve => window.setTimeout(resolve, 1250)); lockedRef.current = false; setState('open'); setPin(''); setConfirm(''); setVerified(false); }
+          } catch (cause) { setVerified(false); setError(cause instanceof Error ? cause.message : 'تعذر فتح القفل'); } finally { setBusy(false); }
         }}>
-          <MaskedPinInput label="رمز التطبيق" value={pin} onChange={setPin} />
-          {state === 'setup' && <><MaskedPinInput label="تأكيد الرمز" value={confirm} onChange={setConfirm} />{device && <label className="prayer-check"><input type="checkbox" checked={useDevice} onChange={event => setUseDevice(event.target.checked)} />السماح بالبصمة أو قفل الجهاز</label>}</>}
+          {verified ? <PinVerifiedAnimation count={pin.length} /> : <MaskedPinInput label="رمز التطبيق" value={pin} onChange={setPin} disabled={busy} />}
+          {state === 'setup' && <><MaskedPinInput label="تأكيد الرمز" value={confirm} onChange={setConfirm} disabled={busy} />{device && <label className="prayer-check"><input type="checkbox" checked={useDevice} onChange={event => setUseDevice(event.target.checked)} />السماح بالبصمة أو قفل الجهاز</label>}</>}
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           <Button type="submit" loading={busy} className="w-full">{state === 'setup' ? 'حفظ الحماية والمتابعة' : 'فتح التطبيق'}</Button>
         </form>}
@@ -91,13 +92,43 @@ function AccountGate({ account, children }: { account: string; children: ReactNo
   </>;
 }
 
-/** Native password input remains accessible to keyboards, autofill protections and screen readers. */
-function MaskedPinInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+/** Show only entered digits; each newly typed digit remains visible for three seconds. */
+function MaskedPinInput({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
+  const [revealed, setRevealed] = useState<number[]>([]);
+  const hideTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  useEffect(() => () => { hideTimers.current.forEach(clearTimeout); hideTimers.current.clear(); }, []);
+  const change = (next: string) => {
+    const digits = next.replace(/\\D/g, '').slice(0, 8);
+    if (digits.length < value.length) {
+      hideTimers.current.forEach((timer, index) => { if (index >= digits.length) { clearTimeout(timer); hideTimers.current.delete(index); } });
+      setRevealed(previous => previous.filter(index => index < digits.length));
+    }
+    if (digits.length > value.length) {
+      for (let index = value.length; index < digits.length; index++) {
+        setRevealed(previous => [...previous, index]);
+        hideTimers.current.set(index, setTimeout(() => {
+          setRevealed(previous => previous.filter(item => item !== index));
+          hideTimers.current.delete(index);
+        }, 3000));
+      }
+    }
+    onChange(digits);
+  };
   return <label className="security-pin-field">
     <span className="security-pin-label">{label} <small>(4–8 أرقام)</small></span>
     <span className="security-pin-visual" aria-hidden="true">
-      {Array.from({ length: 8 }, (_, index) => <span key={index} className={index < value.length ? 'security-pin-dot filled' : 'security-pin-dot'}>{index < value.length ? '●' : '·'}</span>)}
+      {Array.from(value, (digit, index) => <span key={index} className="security-pin-dot filled">{revealed.includes(index) ? digit : '●'}</span>)}
     </span>
-    <input className="security-pin-native" type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="off" minLength={4} maxLength={8} required value={value} onChange={event => onChange(event.target.value.replace(/\D/g, '').slice(0, 8))} aria-label={label} />
+    <input className="security-pin-native" type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="off" minLength={4} maxLength={8} required disabled={disabled} value={value} onChange={event => change(event.target.value)} aria-label={label} />
   </label>;
+}
+
+function PinVerifiedAnimation({ count }: { count: number }) {
+  return <div className="security-pin-verified" role="status" aria-label="تم التحقق بنجاح">
+    <span className="security-pin-orbit" aria-hidden="true">
+      {Array.from({ length: count }, (_, index) => { const angle = (2 * Math.PI * index / count) - Math.PI / 2; return <span key={index} className="security-pin-orbit-box" style={{ transform: `translate(${Math.cos(angle) * 31}px, ${Math.sin(angle) * 31}px)` }} />; })}
+      <svg className="security-pin-check" viewBox="0 0 52 52" fill="none"><path d="M13 27l9 9 18-20" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+    </span>
+    <span className="security-pin-verified-text">تم التحقق بنجاح</span>
+  </div>;
 }

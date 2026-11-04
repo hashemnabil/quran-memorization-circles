@@ -572,14 +572,22 @@ body:has([data-security-blocked]) [data-rht-toaster]{visibility:hidden!important
   overscroll-behavior: contain;
 }
 
-/* School-branded, accessible PIN entry: gold accents on the existing green security screen. */
+/* Progressive PIN boxes and a four-square verification animation. */
 .security-pin-field{position:relative;display:block;cursor:text;min-height:84px}
 .security-pin-label{display:block;margin-bottom:12px;font-size:14px;font-weight:700;color:var(--ink)}
 .security-pin-label small{font-size:11px;font-weight:400;color:#748079}
-.security-pin-visual{direction:ltr;display:flex;justify-content:center;gap:clamp(4px,1.4vw,10px);padding:6px 0}
-.security-pin-dot{display:grid;place-items:center;flex:1;max-width:40px;height:44px;border:1px solid #b4c7b9;border-radius:12px;background:#f5f8f5;color:#a3823e;font-size:24px;transition:transform .18s ease,background .18s ease,border-color .18s ease}
-.security-pin-dot.filled{border-color:#a3823e;background:#bb9b501c;animation:security-pin-pop .22s ease both}
+.security-pin-visual{direction:ltr;display:flex;justify-content:center;align-items:center;gap:clamp(7px,2vw,12px);min-height:58px;padding:6px 0}
+.security-pin-dot{display:grid;place-items:center;flex:0 1 46px;width:clamp(34px,10vw,46px);height:48px;border:1px solid #b4c7b9;border-radius:13px;background:#f5f8f5;color:#216a4a;font-size:23px;font-weight:700;animation:security-pin-pop .22s ease both;box-shadow:0 3px 10px #12372d0b}
+.security-pin-dot.filled{border-color:#a3823e;background:#bb9b501c}
 .security-pin-field:focus-within .security-pin-dot{border-color:#a3823e}
 .security-pin-native{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:text;font-size:16px}
-@keyframes security-pin-pop{0%{transform:scale(.8)}65%{transform:scale(1.08)}100%{transform:scale(1)}}
-@media(prefers-reduced-motion:reduce){.security-pin-dot{animation:none!important;transition:none!important}}
+.security-pin-verified{min-height:126px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:#20724e}
+.security-pin-orbit{position:relative;display:grid;place-items:center;width:92px;height:92px;animation:security-orbit-spin .8s cubic-bezier(.25,.65,.2,1) both}
+.security-pin-orbit-box{position:absolute;width:31px;height:31px;border:2px solid #37ad78;border-radius:10px;background:#37ad7817;box-shadow:0 0 16px #37ad7830}
+.security-pin-check{position:relative;z-index:1;width:45px;height:45px;color:#17734d;stroke-dasharray:65;stroke-dashoffset:65;animation:security-check-draw .35s .7s ease-out forwards}
+.security-pin-verified-text{font-weight:800;font-size:14px;animation:security-verified-text .25s .85s both}
+@keyframes security-pin-pop{0%{transform:scale(.8);opacity:.4}65%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+@keyframes security-orbit-spin{0%{transform:rotate(-90deg) scale(.6);opacity:0}65%{transform:rotate(300deg) scale(1.06);opacity:1}100%{transform:rotate(360deg) scale(1);opacity:1}}
+@keyframes security-check-draw{to{stroke-dashoffset:0}}
+@keyframes security-verified-text{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.security-pin-dot,.security-pin-orbit,.security-pin-check,.security-pin-verified-text{animation:none!important}.security-pin-check{stroke-dashoffset:0}}

@@ -53,6 +53,8 @@ jobs:
       - run: npm --prefix frontend run test:sound-channels
       - run: npm --prefix frontend run test:adhan
       - run: backend/node_modules/.bin/prisma generate --schema backend/prisma/schema.prisma
+      - run: npm --prefix backend run test:founder
+      - run: npm --prefix backend run test:founder-audit
       - run: npm --prefix backend run test:security
       - run: npm --prefix backend run test:production-start
       - run: npm --prefix backend run test:realtime-sync
@@ -62,6 +64,8 @@ jobs:
       - run: npm --prefix backend run test:sync-protocol
       - run: npm --prefix backend run test:attendance-replay
       - run: npm --prefix backend run prisma:deploy
+      - run: node --test -r ts-node/register src/founder/founder.integration.test.ts
+        working-directory: backend
       - run: node scripts/recovery.integration.mjs
         working-directory: backend
       - run: npm --prefix backend run test:api-integration

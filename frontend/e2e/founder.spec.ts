@@ -39,6 +39,28 @@ test('expired and role-private announcements cannot render on login even in a ma
   await expect(page.getByText('رسالة المحفظين الخاصة')).not.toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
+test('founder uploads the original file as multipart data', async ({ page }) => {
+  await setup(page, [], 'FOUNDER');
+  let upload: { contentType: string; body: Buffer | null } | undefined;
+  await page.route('**/api/founder-assets', route => {
+    if (route.request().method() !== 'POST') return route.fulfill({ json: [] });
+    upload = { contentType: route.request().headers()['content-type'], body: route.request().postDataBuffer() };
+    return route.fulfill({ json: { id: 'uploaded', title: 'Test background', kind: 'CHAT_BACKGROUND' } });
+  });
+  await gotoWithLocalUnlock(page, '/founder');
+  await page.getByRole('button', { name: 'مكتبة الموارد', exact: true }).click();
+  await page.getByLabel('عنوان المورد').fill('Test background');
+  const bytes = Buffer.from([255, 216, 255, 224, 0, 16, 74, 70, 73, 70]);
+  await page.locator('input[type="file"]').setInputFiles({ name: 'background.jpeg', mimeType: 'image/jpeg', buffer: bytes });
+  await page.getByLabel('كلمة المرور لتأكيد العملية').fill('test-only-password');
+  await page.getByRole('button', { name: 'إضافة للمكتبة', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'أُضيف المورد' })).toBeVisible();
+  expect(upload?.contentType).toMatch(/^multipart\/form-data;.*boundary=/);
+  expect(upload?.body?.includes(bytes)).toBe(true);
+  expect(upload?.body?.toString()).toContain('filename="background.jpeg"');
+  expect(upload?.body?.toString()).toContain('name="title"');
+});
+
 test('administrator cannot open founder interface', async ({ page }) => {
   await setup(page, [], 'ADMIN');
   await gotoWithLocalUnlock(page, '/founder');
@@ -81,9 +103,11 @@ test('background picker contains only founder catalog choices without an image u
   await setup(page, [], 'TEACHER');
   await page.route('**/api/founder-assets', route => route.fulfill({ json: [{ id: 'asset-one', title: 'المسجد الأخضر', kind: 'PROFILE_COVER', mime: 'image/png' }] }));
   await gotoWithLocalUnlock(page, '/profile');
-  const picker = page.getByLabel('غلاف الملف الشخصي', { exact: true });
-  await expect(picker.getByRole('option', { name: 'المسجد الأخضر', exact: true })).toHaveCount(1);
-  await picker.selectOption('asset-one');
+  // The background picker is now a compact plus button opening a gallery dialog.
+  await page.getByRole('button', { name: 'خلفية الصفحة', exact: true }).click();
+  const gallery = page.getByRole('dialog', { name: 'اختيار خلفية الصفحة' });
+  await expect(gallery.getByRole('button', { name: 'المسجد الأخضر' })).toBeVisible();
+  await gallery.getByRole('button', { name: 'المسجد الأخضر' }).click();
   expect(await page.evaluate(() => Object.keys(localStorage).some(key => key.includes('PROFILE_COVER') && localStorage.getItem(key) === 'asset-one'))).toBe(true);
 });
 
@@ -96,9 +120,13 @@ test('founder audio selection plays the cached recording from the web sound libr
   await page.route('**/api/founder-assets', route => route.fulfill({ json: [{ id: 'adhan-sample', title: 'أذان المكتبة', kind: 'ADHAN_SOUND', mime: 'audio/ogg' }] }));
   await page.route('**/api/founder-assets/adhan-sample/content', route => route.fulfill({ path: 'public/sounds/adhan.ogg', contentType: 'audio/ogg' }));
   await gotoWithLocalUnlock(page, '/prayer-times/reminders');
-  await page.getByLabel('اختر صوتاً من المكتبة', { exact: true }).selectOption('adhan-sample');
-  const preview = page.getByRole('button', { name: 'معاينة الصوت', exact: true });
+  // The adhan library is integrated into the recording selector.
+  const recording = page.getByRole('combobox', { name: 'تسجيل الأذان' });
+  await expect(recording.getByRole('option', { name: 'أذان المكتبة' })).toHaveCount(1);
+  await recording.selectOption('library:adhan-sample');
+  await expect(recording).toHaveValue('library:adhan-sample');
+  const preview = page.getByRole('button', { name: 'معاينة الأذان', exact: true });
   await expect(preview).toBeEnabled(); await preview.click();
-  await expect.poll(() => page.evaluate(() => (window as any).__playedCuratedAudio)).toBe(true);
-  await page.getByRole('button', { name: 'إيقاف', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'إيقاف المعاينة', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'إيقاف المعاينة', exact: true }).click();
 });

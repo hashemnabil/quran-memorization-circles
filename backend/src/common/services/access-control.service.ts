@@ -119,8 +119,7 @@ export class AccessControlService {
         });
         return own ? { id: own.id } : { id: '__none__' };
       }
-      case Role.PARENT:
-        return user.parentId ? { parentId: user.parentId } : { id: '__none__' };
+
       default:
         return { id: '__none__' };
     }
@@ -131,7 +130,7 @@ export class AccessControlService {
     const scope = await this.studentScope(user);
     const student = await this.prisma.student.findFirst({
       where: { AND: [{ id: studentId, deletedAt: null }, scope] },
-      select: { id: true, circleId: true, fullName: true, status: true, parentId: true },
+      select: { id: true, circleId: true, fullName: true, status: true },
     });
     if (!student) {
       // Distinguish "missing" from "forbidden" without leaking existence to unrelated users.
@@ -251,27 +250,6 @@ export class AccessControlService {
       case Role.EXAM_COMMITTEE:
         return { role: { in: AccessControlService.STAFF } };
 
-      // The administration, and the staff responsible for their own children.
-      case Role.PARENT: {
-        if (!user.parentId) return { role: { in: [Role.ADMIN, Role.SUPPORT] } };
-        const children = await this.prisma.student.findMany({
-          where: { parentId: user.parentId, deletedAt: null, circleId: { not: null } },
-          select: { circleId: true },
-        });
-        const circleIds = [...new Set(children.map((c) => c.circleId!))];
-        const [teacherIds, supervisorIds] = await Promise.all([
-          this.teacherUserIdsOfCircles(circleIds),
-          this.supervisorUserIdsOfCircles(circleIds),
-        ]);
-        const related = [...new Set([...teacherIds, ...supervisorIds])];
-        return {
-          OR: [
-            { role: { in: [Role.ADMIN, Role.SUPPORT] } },
-            ...(related.length ? [{ id: { in: related } }] : []),
-          ],
-        };
-      }
-
       default:
         return null;
     }
@@ -286,7 +264,7 @@ export class AccessControlService {
     if (filter === null) throw new ForbiddenException('لا تملك صلاحية بدء المحادثات');
 
     const target = await this.prisma.user.findFirst({
-      where: { AND: [{ id: targetId, deletedAt: null, isActive: true }, filter] },
+      where: { AND: [{ id: targetId, deletedAt: null, isActive: true, role: { not: Role.PARENT } }, filter] },
       select: { id: true, fullName: true, role: true },
     });
     if (!target) {

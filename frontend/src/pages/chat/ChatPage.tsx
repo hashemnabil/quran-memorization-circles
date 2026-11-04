@@ -95,12 +95,14 @@ export default function ChatPage() {
 
   const { data: conversations, isLoading: loadingList } = useQuery({
     queryKey: ['chat', 'conversations'],
+    refetchInterval: 30_000,
     queryFn: async () => (await api.get<Conversation[]>('/chat/conversations')).data,
   });
 
   // The detail endpoint carries the member list and the moderation flags.
   const { data: active } = useQuery({
     queryKey: ['chat', 'conversation', id],
+    refetchInterval: 30_000,
     queryFn: async () => (await api.get<Conversation>(`/chat/conversations/${id}`)).data,
     enabled: !!id,
   });
@@ -386,8 +388,8 @@ export default function ChatPage() {
                       : isGroup
                         ? `${active?.memberCount ?? 0} أعضاء`
                         : active?.isOnline
-                          ? 'متصل الآن'
-                          : 'غير متصل'}
+                          ? 'نشط الآن'
+                          : active?.lastActiveAt ? `آخر ظهور ${timeAgo(active.lastActiveAt)}` : 'حالة النشاط غير متاحة'}
                   </p>
                 </div>
 

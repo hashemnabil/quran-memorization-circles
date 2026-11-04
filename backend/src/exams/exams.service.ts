@@ -108,11 +108,6 @@ const REQUEST_INCLUDE = {
           code: true,
         },
       },
-      parentProfile: {
-        select: {
-          userId: true,
-        },
-      },
     },
   },
   section: {
@@ -186,11 +181,6 @@ const EXAM_INCLUDE = {
           id: true,
           name: true,
           code: true,
-        },
-      },
-      parentProfile: {
-        select: {
-          userId: true,
         },
       },
     },
@@ -1151,17 +1141,6 @@ export class ExamsService {
       );
     }
 
-    if (request.student.parentProfile?.userId) {
-      notificationPromises.push(
-        this.notifications.notify({
-          userId: request.student.parentProfile.userId,
-          type: NotificationType.EXAM_SCHEDULED,
-          title: 'موعد اختبار قادم',
-          body: `اختبار ${request.student.fullName} في "${this.requestLabel(request)}" بتاريخ ${when}`,
-          link: `/parent/children/${request.studentId}`,
-        }),
-      );
-    }
 
     if (examinerId) {
       notificationPromises.push(
@@ -1441,12 +1420,6 @@ export class ExamsService {
       });
     }
 
-    if (exam.student.parentProfile?.userId) {
-      recipients.push({
-        userId: exam.student.parentProfile.userId,
-        link: `/parent/children/${exam.studentId}`,
-      });
-    }
 
     const studentAccount = await this.prisma.student.findUnique({ where: { id: exam.studentId }, select: { userId: true } });
     if (studentAccount?.userId) recipients.push({ userId: studentAccount.userId, link: '/student' });

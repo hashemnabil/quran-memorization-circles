@@ -15,7 +15,7 @@ export async function createAbsenceAlerts(tx: Prisma.TransactionClient, studentI
   const notices: Notification[] = [];
   await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext('absence-policy'), hashtext(${studentId}))) AS locked`;
   const student = await tx.student.findUnique({ where: { id: studentId }, select: {
-    id: true, fullName: true, userId: true, parentProfile: { select: { userId: true } },
+    id: true, fullName: true, userId: true,
   } });
   if (!student) return notices;
   const { week, month, weekEnd, monthEnd } = absencePeriods(date);
@@ -37,12 +37,12 @@ export async function createAbsenceAlerts(tx: Prisma.TransactionClient, studentI
   }
   const admins = alerts.some(a => a.admin) ? await tx.user.findMany({ where: { role: 'ADMIN', isActive: true, deletedAt: null }, select: { id: true } }) : [];
   for (const alert of alerts) {
-    const recipients = alert.admin ? admins.map(u => u.id) : [student.userId, student.parentProfile?.userId].filter((id): id is string => !!id);
+    const recipients = alert.admin ? admins.map(u => u.id) : [student.userId].filter((id): id is string => !!id);
     for (const userId of new Set(recipients)) {
       const alertKey = `absence:${studentId}:${alert.key}`;
       if (await tx.notification.findFirst({ where: { userId, data: { path: ['alertKey'], equals: alertKey } } })) continue;
       const row = await tx.notification.create({ data: { userId, type: 'ATTENDANCE', title: alert.title, body: alert.body,
-        link: alert.admin ? `/students/${studentId}` : userId === student.userId ? '/student' : `/parent/children/${studentId}`,
+        link: alert.admin ? `/students/${studentId}` : '/student',
         data: { alertKey, studentId, date: day, weekly, monthly, requiresDecision: alert.admin } } });
       await recordNotificationChange(tx, row);
       notices.push(row);

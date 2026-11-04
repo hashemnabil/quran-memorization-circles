@@ -13,6 +13,8 @@ import {
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
+import { ActivityService } from './activity.service';
+import { publicActivity } from './activity-policy';
 
 /**
  * Real-time transport for chat messages and notifications only.
@@ -43,13 +45,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (BigInt(revision) <= BigInt(this.dataRevision || '-1')) return;
     this.dataRevision = revision;
     // No record content is broadcast. Reads still enforce each account's scope.
-    this.server?.to(['role:ADMIN', 'role:SUPERVISOR', 'role:TEACHER', 'role:STUDENT', 'role:PARENT', 'role:SUPPORT', 'role:EXAM_COMMITTEE']).emit('data:changed', { revision: this.dataRevision });
+    this.server?.to(['role:ADMIN', 'role:SUPERVISOR', 'role:TEACHER', 'role:STUDENT', 'role:SUPPORT', 'role:EXAM_COMMITTEE']).emit('data:changed', { revision: this.dataRevision });
   }
 
   constructor(
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly activity: ActivityService = new ActivityService(prisma),
   ) {}
 
   async handleConnection(client: Socket) {
@@ -101,7 +104,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       const filter = await new AccessControlService(this.prisma).contactableUserFilter(client.data.user);
       const contacts = filter === null ? [] : await this.prisma.user.findMany({ where: { AND: [{ id: { in: [...this.online.keys()] }, isActive: true, deletedAt: null }, filter] }, select: { id: true } });
-      client.emit('connected', { userId: user.id, onlineUsers: contacts.map(row => row.id) });
+      const visibility = await this.activity.read(contacts.map(row => row.id));
+      client.emit('connected', { userId: user.id, onlineUsers: contacts.filter(row => publicActivity(visibility.get(row.id), true).isOnline).map(row => row.id) });
       client.emit('data:changed', { revision: await this.currentRevision() });
     } catch (error) {
       client.emit('unauthorized', { message: 'رمز الدخول غير صالح' });
@@ -120,6 +124,19 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       this.online.delete(userId);
       void this.presence(userId, false);
     }
+  }
+
+  @SubscribeMessage('activity:ping')
+  async activityPing(@ConnectedSocket() client: Socket) {
+    if (!await this.authorized(client)) return {ok: false};
+    try { await this.activity.touch(client.data.user.id); return {ok: true}; }
+    catch { return {ok: false}; }
+  }
+
+  @SubscribeMessage('activity:privacy-changed')
+  async privacyChanged(@ConnectedSocket() client: Socket) {
+    if (!await this.authorized(client)) return;
+    await this.presence(client.data.user.id, this.online.has(client.data.user.id));
   }
 
   @SubscribeMessage('conversation:join')
@@ -194,10 +211,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
   private async presence(userId: string, online: boolean) {
     try {
+      const visible = !(await this.activity.read([userId])).get(userId)?.hidden;
       for (const receiver of await this.server.fetchSockets()) {
         if (!await this.authorized(receiver)) continue;
         const filter = await new AccessControlService(this.prisma).contactableUserFilter(receiver.data.user);
-        if (filter !== null && await this.prisma.user.findFirst({ where: { AND: [{ id: userId, deletedAt: null }, filter] }, select: { id: true } })) receiver.emit('presence:update', { userId, online });
+        if (filter !== null && await this.prisma.user.findFirst({ where: { AND: [{ id: userId, deletedAt: null }, filter] }, select: { id: true } })) receiver.emit('presence:update', { userId, online: visible && online });
       }
     } catch { this.logger.warn('Presence update unavailable'); }
   }

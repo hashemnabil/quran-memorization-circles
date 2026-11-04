@@ -125,6 +125,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   if (url.pathname === '/attendance/summons') return (await get('guardianSummons')).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   if (url.pathname === '/suspensions/active') return (await get('suspensions')).filter(row => row.status === 'APPROVED' && !row.returnedAt);
   if (['/meetings','/examCommittees'].includes(url.pathname)) return (await get(segments[0] as EntityTable)).sort((a,b) => String(b.heldAt).localeCompare(String(a.heldAt)));
+  if (url.pathname === '/students/me/history') return (await get('students')).find(row => row.selfAccountId === accountId())?._offline?.history;
   if (url.pathname === '/students/me') return (await get('students')).find(row => row.selfAccountId === accountId());
   if (url.pathname === '/students/accounts') return get('studentAccounts');
   if (url.pathname === '/users/stats') {
@@ -287,8 +288,17 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (route[0]==='community' && route[1]==='posts' && route.length===3 && method==='delete') {
     const post=(await get('communityPosts')).find(row=>row.id===route[2]);const actor=readActiveIdentity();
-    if(!post || post.authorId!==actor?.id && actor?.role!=='ADMIN')throw Object.assign(new Error('لا تملك صلاحية حذف المنشور'),{localWriteRejected:true});
+    if(!post || post.authorId!==actor?.id)throw Object.assign(new Error('حذف المنشور لصاحبه فقط'),{localWriteRejected:true});
     return remove('communityPosts',route[2]);
+  }
+  if (route[0]==='community' && ['posts','comments'].includes(route[1]) && route.length===3 && method==='patch') {
+    const table=route[1]==='posts'?'communityPosts':'communityComments';
+    const row=(await get(table)).find(item=>item.id===route[2]);
+    const actor=readActiveIdentity();
+    if(!actor || !row || (row.authorId||row.userId||row.user?.id)!==actor.id)throw Object.assign(new Error('التعديل لصاحب المحتوى فقط'),{localWriteRejected:true});
+    const limit=table==='communityPosts'?2000:500;
+    if(typeof data?.body!=='string'||!data.body.trim()||data.body.length>limit)throw Object.assign(new Error('النص غير صالح'),{localWriteRejected:true});
+    return save(table,{...row,body:data.body.trim()},'update');
   }
   if (route[0]==='community' && route.length===4 && method==='post' && (route[1]==='posts'&&route[3]==='comments'||route[1]==='comments'&&route[3]==='replies')) {
     if(typeof data?.body!=='string'||!data.body.trim()||data.body.length>500)throw Object.assign(new Error('التعليق غير صالح'),{localWriteRejected:true});
@@ -452,7 +462,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
   if (route[0] === 'attendance' && route[1] === 'absence-permissions') {
     const actor = readActiveIdentity();
     if (method === 'post' && route.length === 2) {
-      if (!actor || actor.role === 'PARENT' || data.requesterId && data.requesterId !== actor.id || typeof data.reason !== 'string' || !data.reason.trim() || data.reason.length > 500 || data.note != null && (typeof data.note !== 'string' || data.note.length > 1000)) throw Object.assign(new Error('يمكنك تقديم طلب إذن لنفسك فقط؛ السبب مطلوب والملاحظة اختيارية'), { localWriteRejected: true });
+      if (!actor || data.requesterId && data.requesterId !== actor.id || typeof data.reason !== 'string' || !data.reason.trim() || data.reason.length > 500 || data.note != null && (typeof data.note !== 'string' || data.note.length > 1000)) throw Object.assign(new Error('يمكنك تقديم طلب إذن لنفسك فقط؛ السبب مطلوب والملاحظة اختيارية'), { localWriteRejected: true });
       const student = actor.role === 'STUDENT' ? (await get('students')).find(row => row.selfAccountId === actor.id || row.userId === actor.id) : undefined;
       if (actor.role === 'STUDENT' && !student) throw Object.assign(new Error('حمّل ملفك قبل تقديم طلب دون اتصال'), { localWriteRejected: true });
       if (data.studentId && data.studentId !== student?.id) throw Object.assign(new Error('لا يمكنك طلب إذن لطالب آخر'), { localWriteRejected: true });

@@ -81,7 +81,7 @@ async function apply(tx: Prisma.TransactionClient, user: AuthUser, op: Operation
     const ids = dto.entries.map((item) => item.studentId);
     const students = await tx.student.findMany({
       where: { id: { in: ids }, circleId, deletedAt: null },
-      select: { id: true, fullName: true, parentProfile: { select: { userId: true } } },
+      select: { id: true, fullName: true,  },
     });
     if (students.length !== ids.length) throw new BadRequestException('بعض الطلاب لا ينتمون إلى هذه الحلقة');
     const result = await applyAttendanceEntries(tx, user, dto, date);

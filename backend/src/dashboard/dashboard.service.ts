@@ -30,8 +30,6 @@ export class DashboardService {
         return this.committeeOverview(user);
       case Role.SUPPORT:
         return this.supportOverview(user);
-      case Role.PARENT:
-        return this.parentOverview(user);
       default:
         return { role: user.role };
     }
@@ -53,7 +51,6 @@ export class DashboardService {
       pendingExamRequests,
       upcomingExams,
       openTickets,
-      parents,
     ] = await Promise.all([
       this.prisma.student.count({ where: { deletedAt: null } }),
       this.prisma.student.count({ where: { deletedAt: null, status: StudentStatus.ACTIVE } }),
@@ -71,7 +68,6 @@ export class DashboardService {
       this.prisma.supportTicket.count({
         where: { deletedAt: null, status: { in: ['OPEN', 'IN_PROGRESS'] } },
       }),
-      this.prisma.parentProfile.count({ where: { deletedAt: null } }),
     ]);
 
     const [attendanceToday, evaluationBreakdown, activity, nextExams, topCircles] = await Promise.all([
@@ -119,7 +115,6 @@ export class DashboardService {
         suspendedStudents,
         teachers,
         supervisors,
-        parents,
         circles,
         activeCircles,
       },
@@ -391,62 +386,6 @@ export class DashboardService {
       role: Role.SUPPORT,
       counts: { open, inProgress, resolved, closed, assignedToMe, total: open + inProgress + resolved + closed },
       recentTickets: recent,
-    };
-  }
-
-  // --- parent --------------------------------------------------------------
-
-  private async parentOverview(user: AuthUser) {
-    if (!user.parentId) return { role: Role.PARENT, children: [] };
-
-    const students = await this.prisma.student.findMany({
-      where: { parentId: user.parentId, deletedAt: null },
-      select: { id: true, fullName: true, status: true, evaluation: true, memorizedParts: true },
-    });
-
-    const ids = students.map((s) => s.id);
-    const [upcomingExams, recentRecitations, absencesThisMonth] = await Promise.all([
-      ids.length
-        ? this.prisma.exam.findMany({
-            where: {
-              studentId: { in: ids },
-              status: ExamStatus.SCHEDULED,
-              scheduledAt: { gte: new Date() },
-            },
-            include: {
-              student: { select: { id: true, fullName: true } },
-              section: { select: { name: true, order: true } },
-          sections: { select: { section: { select: { name: true, order: true } } } },
-            },
-            orderBy: { scheduledAt: 'asc' },
-            take: 5,
-          })
-        : [],
-      ids.length
-        ? this.prisma.recitation.findMany({
-            where: { studentId: { in: ids }, deletedAt: null },
-            include: { student: { select: { id: true, fullName: true } } },
-            orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-            take: 5,
-          })
-        : [],
-      ids.length
-        ? this.prisma.attendance.count({
-            where: { studentId: { in: ids }, status: 'ABSENT', date: { gte: this.startOfMonth() } },
-          })
-        : 0,
-    ]);
-
-    return {
-      role: Role.PARENT,
-      counts: {
-        children: students.length,
-        suspended: students.filter((s) => s.status === StudentStatus.SUSPENDED).length,
-        absencesThisMonth,
-      },
-      children: students,
-      upcomingExams,
-      recentRecitations,
     };
   }
 

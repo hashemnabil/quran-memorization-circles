@@ -38,6 +38,7 @@ export class NotificationsService {
 
   async broadcast(actor: AuthUser, dto: BroadcastDto) {
     if (actor.role !== Role.ADMIN) throw new ForbiddenException('إرسال الإشعارات متاح للإدارة فقط');
+    if (!['ALL', 'STAFF', 'TEACHER', 'STUDENT', 'CIRCLE'].includes(dto.audience)) throw new BadRequestException('الفئة المحددة غير صالحة');
     if (!dto.title.trim() || !dto.body.trim()) throw new BadRequestException('العنوان ونص الإشعار مطلوبان');
     if (dto.selection === 'SELECTED' && !dto.userIds.length) throw new BadRequestException('حدد مستلمًا واحدًا على الأقل');
     if (dto.selection === 'ALL' && dto.userIds.length) throw new BadRequestException('لا ترسل قائمة أشخاص عند اختيار الجميع');
@@ -45,7 +46,7 @@ export class NotificationsService {
       if (!dto.circleId || !await this.prisma.circle.findFirst({ where: { id: dto.circleId, deletedAt: null }, select: { id: true } })) throw new BadRequestException('اختر حلقة موجودة');
     } else if (dto.circleId) throw new BadRequestException('اختيار الحلقة متاح لفئة الحلقات فقط');
     const users = await this.prisma.user.findMany({ where: { isActive: true, deletedAt: null,
-      ...(dto.audience === 'ALL' ? {} : dto.audience === 'STAFF' ? { role: { in: [Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE] } } : dto.audience === 'CIRCLE' ? { role: Role.STUDENT, studentProfile: { circleId: dto.circleId, deletedAt: null } } : { role: dto.audience as Role }),
+      ...(dto.audience === 'ALL' ? { role: { not: Role.PARENT } } : dto.audience === 'STAFF' ? { role: { in: [Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE] } } : dto.audience === 'CIRCLE' ? { role: Role.STUDENT, studentProfile: { circleId: dto.circleId, deletedAt: null } } : { role: dto.audience as Role }),
       ...(dto.selection === 'SELECTED' ? { id: { in: dto.userIds } } : {}),
     }, select: { id: true } });
     if (!users.length || dto.selection === 'SELECTED' && users.length !== dto.userIds.length)
@@ -118,20 +119,20 @@ export class NotificationsService {
     return this.notifyMany(users.map((u) => u.id), input);
   }
 
-  /** Student and guardian get their own permitted destination, never staff-only links. */
+  /** Students get their own permitted destination, never staff-only links. */
   async notifyStudent(studentId: string, input: Omit<CreateNotificationInput, 'userId' | 'link'>) {
     const student = await this.prisma.student.findUnique({ where: { id: studentId },
-      select: { userId: true, parentProfile: { select: { userId: true } } } });
+      select: { userId: true } });
     const recipients = new Map<string, string>();
-    if (student?.parentProfile?.userId) recipients.set(student.parentProfile.userId, `/parent/children/${studentId}`);
     if (student?.userId) recipients.set(student.userId, '/student');
-    for (const [userId, link] of recipients) await this.notify({ ...input, userId, link });
+    for (const [userId, link] of recipients) await this.notify({ ...input, data: { ...input.data, studentId }, userId, link });
   }
 
-  async list(user: AuthUser, query: PaginationDto & { unreadOnly?: boolean }) {
+  async list(user: AuthUser, query: PaginationDto & { unreadOnly?: boolean; type?: NotificationType }) {
     const where = {
       userId: user.id,
       ...(String(query.unreadOnly) === 'true' ? { isRead: false } : {}),
+        ...(query.type ? {type: query.type} : {}),
     };
     const [data, total, unreadCount] = await this.prisma.$transaction([
       this.prisma.notification.findMany({

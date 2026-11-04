@@ -1,4 +1,4 @@
-import { gotoWithLocalUnlock, unlockLocalGate } from './local-security-helpers';
+import { gotoWithLocalUnlock, unlockLocalGate, fillLoginCredentials } from './local-security-helpers';
 import { test, expect, chromium, type BrowserContext } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -61,8 +61,7 @@ for (const rejected of [false, true]) {
     };
     const signIn = async (page: Awaited<ReturnType<typeof start>>) => {
       await gotoWithLocalUnlock(page,`${origin}/login`);
-      await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
-      await page.getByLabel('كلمة المرور', { exact: true }).fill(password);
+      await fillLoginCredentials(page, user.username, password);
       await page.getByRole('button', { name: 'دخول', exact: true }).click();
     await unlockLocalGate(page);
       await expect(page).not.toHaveURL(/\/login$/);
@@ -157,8 +156,7 @@ test('student first password change preserves offline login with the new passwor
     return route.fulfill({ json: { data: [], meta: { hasNextPage: false, total: 0 } } });
   });
   await gotoWithLocalUnlock(page,'/login');
-  await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
-  await page.getByLabel('كلمة المرور', { exact: true }).fill(initialPassword);
+  await fillLoginCredentials(page, user.username, initialPassword);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
     await unlockLocalGate(page);
   await page.getByLabel(/^كلمة المرور المؤقتة/).fill(initialPassword);
@@ -170,8 +168,7 @@ test('student first password change preserves offline login with the new passwor
   await page.getByRole('button', { name: 'حفظ كلمة المرور', exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
   offlineMode = true; await context.setOffline(true);
-  await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
-  await page.getByLabel('كلمة المرور', { exact: true }).fill(newPassword);
+  await fillLoginCredentials(page, user.username, newPassword);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
     await unlockLocalGate(page);
   await expect(page).toHaveURL(url => url.pathname === '/' || url.pathname === '/student');
@@ -536,8 +533,7 @@ test('online reads use the server and persist the fresh record for the next offl
     return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
   });
   await gotoWithLocalUnlock(page,'/login');
-  await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
-  await page.getByLabel('كلمة المرور', { exact: true }).fill(password);
+  await fillLoginCredentials(page, user.username, password);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
     await unlockLocalGate(page);
   await expect(page).not.toHaveURL(/\/login$/);
@@ -552,8 +548,7 @@ test('online reads use the server and persist the fresh record for the next offl
   await gotoWithLocalUnlock(page,'/profile');
   await page.locator('main').getByRole('button', { name: 'تسجيل الخروج', exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
-  await page.getByLabel('اسم المستخدم', { exact: true }).fill(user.username);
-  await page.getByLabel('كلمة المرور', { exact: true }).fill(password);
+  await fillLoginCredentials(page, user.username, password);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
     await unlockLocalGate(page);
   await expect(page).not.toHaveURL(/\/login$/);

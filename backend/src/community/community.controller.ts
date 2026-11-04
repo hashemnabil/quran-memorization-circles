@@ -2,10 +2,11 @@ import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get,
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser, CurrentUser } from '../common/decorators';
 import { Role, NotificationType } from '@prisma/client';
+import { ChatService } from '../chat/chat.service';
 
 @Controller('community')
 export class CommunityController {
-  constructor(private readonly prisma:PrismaService){}
+  constructor(private readonly prisma:PrismaService, private readonly chat?:ChatService){}
   private async notifyInteraction(actorId:string, recipientId:string, title:string, link:string){
     if(actorId===recipientId)return;
     const actor=await this.prisma.user.findUnique({where:{id:actorId},select:{fullName:true}});
@@ -14,7 +15,12 @@ export class CommunityController {
   @Get('school')
   async school(){
     const settings=await this.prisma.schoolSettings.findUnique({where:{id:'default'},select:{name:true,logoUrl:true,about:true,address:true,phone:true}});
-    return settings??{name:'صفحة المدرسة',logoUrl:null,about:null,address:null,phone:null};
+    const [circles,students,teachers]=await Promise.all([
+      this.prisma.circle.count({where:{isActive:true,deletedAt:null}}),
+      this.prisma.student.count({where:{status:'ACTIVE',deletedAt:null}}),
+      this.prisma.teacherProfile.count({where:{isActive:true,deletedAt:null,user:{isActive:true,deletedAt:null}}}),
+    ]);
+    return {...(settings??{name:'صفحة المدرسة',logoUrl:null,about:null,address:null,phone:null}),stats:{circles,students,teachers}};
   }
   @Get('feed')
   feed(@Query('userId') userId?:string,@Query('school') school?:string){
@@ -43,9 +49,25 @@ export class CommunityController {
   async remove(@CurrentUser() user:AuthUser,@Param('id') id:string){
     const post=await this.prisma.communityPost.findUnique({where:{id}});
     if(!post)throw new BadRequestException('المنشور غير موجود');
-    if(post.authorId!==user.id&&user.role!==Role.ADMIN)throw new ForbiddenException();
+    if(post.authorId!==user.id)throw new ForbiddenException('حذف المنشور لصاحبه فقط');
     await this.prisma.communityPost.delete({where:{id}});
     return {deleted:true};
+  }
+  @Patch('posts/:id')
+  async editPost(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
+    if(typeof body!=='string'||!body.trim()||body.length>2000)throw new BadRequestException('المنشور يجب أن يكون نصاً لا يتجاوز 2000 حرف');
+    const post=await this.prisma.communityPost.findUnique({where:{id}});
+    if(!post)throw new BadRequestException('المنشور غير موجود');
+    if(post.authorId!==user.id)throw new ForbiddenException('تعديل المنشور لصاحبه فقط');
+    return this.prisma.communityPost.update({where:{id},data:{body:body.trim()}});
+  }
+  @Patch('comments/:id')
+  async editComment(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
+    if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('التعليق غير صالح');
+    const comment=await this.prisma.communityComment.findUnique({where:{id}});
+    if(!comment)throw new BadRequestException('التعليق غير موجود');
+    if(comment.userId!==user.id)throw new ForbiddenException('تعديل التعليق لصاحبه فقط');
+    return this.prisma.communityComment.update({where:{id},data:{body:body.trim()}});
   }
   @Post('posts/:id/like')
   async like(@CurrentUser() user:AuthUser,@Param('id') id:string){
@@ -106,6 +128,17 @@ export class CommunityController {
     const admins=await this.prisma.user.findMany({where:{role:Role.ADMIN,isActive:true,deletedAt:null},select:{id:true}});
     await Promise.all(admins.map(a=>this.notifyInteraction(user.id,a.id,'رد على ستوري المدرسة','/community/school')));
     return reply;
+  }
+  @Post('stories/:id/direct-reply')
+  async directReply(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
+    if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('الرد غير صالح');
+    const story=await this.prisma.communityStory.findUnique({where:{id}});
+    if(!story||story.expiresAt<=new Date())throw new BadRequestException('القصة انتهت');
+    if(story.authorId===user.id)throw new BadRequestException('هذه قصتك');
+    if(!this.chat)throw new BadRequestException('المحادثات غير متاحة');
+    const conversation=await this.chat.createDirect(user,{userId:story.authorId});
+    await this.chat.send(user,conversation.id,{body:`رد على الستوري: «${story.body}»\n\n${body.trim()}`});
+    return {conversationId:conversation.id};
   }
   @Get('stories/:id/replies')
   async storyReplies(@CurrentUser() user:AuthUser,@Param('id') id:string){

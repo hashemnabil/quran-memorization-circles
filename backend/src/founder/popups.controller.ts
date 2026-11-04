@@ -49,7 +49,7 @@ export class PopupsController {
     const account = await this.prisma.user.findFirst({ where: { id: user.id, role: Role.FOUNDER, isActive: true, deletedAt: null }, select: { passwordHash: true } });
     if (!account || !await bcrypt.compare(body.password, account.passwordHash)) throw new UnauthorizedException('تعذر التحقق من الهوية');
     if (typeof body.title !== 'string' || !body.title.trim() || body.title.length > 200 || typeof body.body !== 'string' || body.body.length > 2000 || !validPopup(body.popup) || !safePopupLink(body.link || '')) throw new BadRequestException('بيانات الإعلان غير صالحة');
-    if (!Array.isArray(body.audience) || body.audience.length > 8 || body.audience.some((role: unknown) => !Object.values(Role).includes(role as Role))) throw new BadRequestException('الجمهور غير صالح');
+    if (!Array.isArray(body.audience) || body.audience.length > 7 || body.audience.some((role: unknown) => role === Role.PARENT || !Object.values(Role).includes(role as Role))) throw new BadRequestException('الجمهور غير صالح');
     if (body.popup.placement !== 'AFTER' && body.audience.length) throw new BadRequestException('إعلان ما قبل الدخول يجب أن يكون عاماً دون جمهور داخلي');
     const start = new Date(body.publishedAt), end = body.expiresAt ? new Date(body.expiresAt) : null;
     if (!Number.isFinite(start.getTime()) || end && (!Number.isFinite(end.getTime()) || end <= start)) throw new BadRequestException('فترة الإعلان غير صالحة');
@@ -72,7 +72,7 @@ export class PopupsController {
     if (!account || !await bcrypt.compare(body.password, account.passwordHash)) throw new UnauthorizedException('تعذر التحقق من الهوية');
     const row = await this.prisma.announcement.findFirst({ where: { id, isPopup: true }, select: visibleSelect });
     if (!row || !validPopup(row.popup) || row.popup.placement === 'BEFORE' || row.popup.state !== 'PUBLISHED' || !row.isActive || row.publishedAt > new Date() || row.expiresAt && row.expiresAt <= new Date()) throw new BadRequestException('انشر إعلاناً صالحاً بعد الدخول قبل إرسال إشعار');
-    const people = await this.prisma.user.findMany({ where: { isActive: true, deletedAt: null, role: row.audience.length ? { in: row.audience } : { not: Role.PARENT } }, select: { id: true }, take: 501 });
+    const people = await this.prisma.user.findMany({ where: { isActive: true, deletedAt: null, role: row.audience.length ? { in: row.audience.filter(role => role !== Role.PARENT) } : { not: Role.PARENT } }, select: { id: true }, take: 501 });
     if (people.length > 500) throw new BadRequestException('الإرسال الحالي يدعم حتى 500 مستلم؛ خصّص جمهور الإعلان');
     const notices = await this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${id}), 6291002)) AS locked`;

@@ -13,7 +13,6 @@ import { AuthModule } from './auth/auth.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { UsersModule } from './users/users.module';
 import { TeachersModule } from './teachers/teachers.module';
-import { ParentsModule } from './parents/parents.module';
 import { CirclesModule } from './circles/circles.module';
 import { StudentsModule } from './students/students.module';
 import { AttendanceModule } from './attendance/attendance.module';
@@ -55,7 +54,6 @@ import { SchoolOperationsModule } from './school-operations/school-operations.mo
     // Domain.
     UsersModule,
     TeachersModule,
-    ParentsModule,
     CirclesModule,
     StudentsModule,
     AttendanceModule,

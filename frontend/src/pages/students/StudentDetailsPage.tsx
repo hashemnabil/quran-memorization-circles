@@ -1,4 +1,5 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
+import MemorizationPlans from '@/components/MemorizationPlans';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -274,6 +275,7 @@ export default function StudentDetailsPage() {
           )
         }
       />
+      <MemorizationPlans studentId={student.id}/>
 
       {student.status === 'ACTIVITY' && (
         <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
@@ -462,8 +464,8 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
       <Card title="البيانات الشخصية" className="lg:col-span-1">
         <InfoRow label="رقم الطالب" value={<span className="numeric">{student.code.replace(/^ST-/i, '')}</span>} />
         <InfoRow label="تاريخ الميلاد" value={formatDate(student.birthDate)} />
-        <InfoRow label="البريد الإلكتروني" value={student.parentProfile?.user.email} />
-        <InfoRow label="اسم المستخدم" value={student.parentProfile?.user.username} />
+        <InfoRow label="البريد الإلكتروني" value={student.user?.email} />
+        <InfoRow label="اسم المستخدم" value={student.user?.username} />
         <InfoRow label="العمر" value={calcAge(student.birthDate)} />
         <InfoRow label="رقم الهوية" value={<span className="numeric" dir="ltr">{student.nationalId}</span>} />
         <InfoRow label="العنوان" value={student.address} />
@@ -493,23 +495,20 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
         <InfoRow label="المشرف" value={student.supervisorName} />
       </Card>
 
-      <Card title="بيانات ولي الأمر" className="lg:col-span-1">
+      <Card title="جهة اتصال الطوارئ" className="lg:col-span-1">
         <InfoRow
-          label="اسم ولي الأمر"
-          value={student.guardianName ?? student.parentName ?? student.parentProfile?.user.fullName}
+          label="اسم جهة الاتصال"
+          value={student.guardianName}
         />
         <InfoRow
           label="رقم الهوية"
-          value={<span className="numeric" dir="ltr">{student.fatherNationalId ?? student.parentProfile?.nationalId}</span>}
+          value={<span className="numeric" dir="ltr">{student.fatherNationalId}</span>}
         />
         <InfoRow
           label="رقم الجوال"
-          value={<span dir="ltr">{student.guardianPhone ?? student.parentPhone ?? student.parentProfile?.phone ?? student.parentProfile?.user.phone}</span>}
+          value={<span dir="ltr">{student.guardianPhone}</span>}
         />
-        <InfoRow label="جوال إضافي" value={<span dir="ltr">{student.parentProfile?.altPhone}</span>} />
         <InfoRow label="صلة القرابة" value={student.guardianRelation} />
-        <InfoRow label="المهنة" value={student.parentProfile?.occupation} />
-        <InfoRow label="العنوان" value={student.parentProfile?.address} />
       </Card>
 
       <Card title="المستوى والتقييم" className="lg:col-span-1">
@@ -1272,8 +1271,8 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
     nationalId: student.nationalId ?? '',
     fatherNationalId: student.fatherNationalId ?? '',
     address: student.address ?? '',
-    guardianName: student.guardianName ?? student.parentName ?? student.parentProfile?.user.fullName ?? '',
-    guardianPhone: student.guardianPhone ?? student.parentPhone ?? student.parentProfile?.phone ?? '',
+    guardianName: student.guardianName ?? '',
+    guardianPhone: student.guardianPhone ?? '',
     guardianRelation: student.guardianRelation ?? '',
     memorizedParts: student.memorizedParts,
     currentSurah: student.currentSurah ?? '',

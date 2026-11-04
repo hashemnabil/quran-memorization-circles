@@ -2,9 +2,15 @@ import 'reflect-metadata';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Prisma } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 import { PopupsController } from './popups.controller';
 const row = { id: 'notice', title: 'اختبار', body: '', link: null, isActive: true, audience: [] as string[], publishedAt: new Date('2020-01-01'), expiresAt: new Date('2099-01-01'), popup: { placement: 'BOTH', repeat: 'UNTIL_ACK', state: 'PUBLISHED', priority: 0, requireAck: true, important: false, buttonText: '', imageAssetId: '' } };
 const user: any = { id: 'student', role: 'STUDENT' };
+
+test('founder popups reject the retired parent audience before writing', async () => {
+  const controller = new PopupsController({ user: { findFirst: async () => ({ passwordHash: await bcrypt.hash('password', 4) }) } } as any);
+  await assert.rejects(controller.save({ id: 'founder', role: 'FOUNDER' } as any, { ...row, password: 'password', audience: ['PARENT'] }), /الجمهور/);
+});
 test('public controller filters private notices and never queries private receipts', async () => {
   let query: any;
   const controller = new PopupsController({ announcement: { findMany: async (value: any) => { query = value; return [row, { ...row, id: 'private', audience: ['TEACHER'] }]; } } } as any);

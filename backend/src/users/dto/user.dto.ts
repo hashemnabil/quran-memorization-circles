@@ -9,6 +9,7 @@ import {
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsNotIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -48,8 +49,9 @@ export class CreateUserDto {
   @MaxLength(120)
   fullName: string;
 
-  @ApiProperty({ enum: Role })
+  @ApiProperty({ enum: Object.values(Role).filter(role => role !== Role.PARENT) })
   @IsEnum(Role, { message: 'الدور المحدد غير صالح' })
+  @IsNotIn([Role.PARENT])
   role: Role;
 
   @PhoneField()
@@ -106,9 +108,10 @@ export class BulkIdsDto {
 }
 
 export class QueryUsersDto extends PaginationDto {
-  @ApiPropertyOptional({ enum: Role })
+  @ApiPropertyOptional({ enum: Object.values(Role).filter(role => role !== Role.PARENT) })
   @IsOptional()
   @IsEnum(Role)
+  @IsNotIn([Role.PARENT])
   role?: Role;
 
   @ApiPropertyOptional()
@@ -120,9 +123,10 @@ export class QueryUsersDto extends PaginationDto {
 
 /** Unified staff directory: everyone who works at the school, in one list. */
 export class QueryStaffDto extends PaginationDto {
-  @ApiPropertyOptional({ enum: Role, description: 'تصفية حسب الدور داخل الكادر' })
+  @ApiPropertyOptional({ enum: Object.values(Role).filter(role => role !== Role.PARENT), description: 'تصفية حسب الدور داخل الكادر' })
   @IsOptional()
   @IsEnum(Role)
+  @IsNotIn([Role.PARENT])
   role?: Role;
 
   @ApiPropertyOptional()

@@ -265,9 +265,7 @@ export class StudentsController {
   }
 
   /**
-   * Open to guardians as well as staff: a father uploading his son's photo from
-   * the parent portal is the common case, and `setPhoto` scopes it to his own
-   * children.
+   * Students may maintain their own photo; the service verifies ownership.
    */
   @Patch(':id/photo')
   @ApiOperation({ summary: 'تعيين أو إزالة صورة الطالب' })

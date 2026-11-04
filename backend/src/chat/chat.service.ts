@@ -11,6 +11,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AuthUser } from '../common/decorators';
+import { ActivityService } from '../realtime/activity.service';
+import { publicActivity } from '../realtime/activity-policy';
 import { paginate } from '../common/dto/pagination.dto';
 import {
   AddMembersDto,
@@ -35,6 +37,7 @@ export class ChatService {
     private readonly realtime: RealtimeGateway,
     private readonly notifications: NotificationsService,
     private readonly acl: AccessControlService,
+    private readonly activity: ActivityService = new ActivityService(prisma),
   ) {}
 
   /** Every conversation the user belongs to, with unread counts and last message. */
@@ -58,6 +61,7 @@ export class ChatService {
     });
 
     const contactIds = await this.contactIds(user, memberships.flatMap(m => m.conversation.members.map(member => member.user.id)));
+    const activity = await this.activity.read([...contactIds]);
     const results = await Promise.all(
       memberships.map(async (m) => {
         const unreadCount = await this.prisma.message.count({
@@ -82,7 +86,7 @@ export class ChatService {
           description: m.conversation.description,
           avatarUrl: m.conversation.avatarUrl ?? other?.user.avatarUrl ?? null,
           otherUser: other?.user ?? null,
-          isOnline: other ? this.realtime.isOnline(other.user.id) : false,
+          ...publicActivity(other && contactIds.has(other.user.id) ? activity.get(other.user.id) : null, !!other && this.realtime.isOnline(other.user.id)),
           members: m.conversation.members,
           memberCount: m.conversation.members.length,
           lastMessage: m.conversation.messages[0] ?? null,
@@ -230,6 +234,7 @@ export class ChatService {
     const other = !isGroup ? conversation.members.find((m) => m.user.id !== user.id) : null;
     const contactIds = await this.contactIds(user, conversation.members.map(member => member.user.id));
     const contactRestricted = conversation.members.some(member => member.user.id !== user.id && !contactIds.has(member.user.id));
+    const activity = other && contactIds.has(other.user.id) ? (await this.activity.read([other.user.id])).get(other.user.id) : null;
 
     return {
       ...conversation,
@@ -239,7 +244,7 @@ export class ChatService {
       // the same user showed a photo in the list and initials in the header.
       avatarUrl: conversation.avatarUrl ?? other?.user.avatarUrl ?? null,
       otherUser: other?.user ?? null,
-      isOnline: other ? this.realtime.isOnline(other.user.id) : false,
+      ...publicActivity(activity, !!other && this.realtime.isOnline(other.user.id)),
       memberCount: conversation.members.length,
       isAdmin: membership.isAdmin,
       contactRestricted,

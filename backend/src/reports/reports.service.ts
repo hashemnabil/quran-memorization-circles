@@ -70,7 +70,6 @@ export class ReportsService {
         },
         include: {
           circle: { select: { name: true, teachers: { where: { endedAt: null }, include: { teacher: { include: { user: { select: { fullName: true } } } } } } } },
-          parentProfile: { include: { user: { select: { fullName: true } } } },
         },
         orderBy: { fullName: 'asc' },
         take: 10000,
@@ -84,8 +83,8 @@ export class ReportsService {
         'تاريخ الميلاد': r.birthDate ?? '',
         'الحلقة': r.circle?.name ?? (r.status === 'ACTIVITY' ? 'برنامج النشاط' : 'غير مسجل'),
         'المعلم': r.circle?.teachers.map(t => t.teacher.user.fullName).join('، ') ?? '',
-        'ولي الأمر': r.guardianName ?? r.parentProfile?.user.fullName ?? '',
-        'هاتف ولي الأمر': r.guardianPhone ?? r.parentProfile?.phone ?? '',
+        'جهة اتصال الطوارئ': r.guardianName ?? '',
+        'هاتف الطوارئ': r.guardianPhone ?? '',
         'الأجزاء': r.memorizedParts,
         'النقاط': Math.round(r.totalPoints * 100) / 100,
         'التقييم': r.evaluation ? evaluationLabels[r.evaluation] ?? r.evaluation : '',

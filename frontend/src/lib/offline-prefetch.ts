@@ -18,20 +18,19 @@ export async function prefetchSections(send: Send, account: string, currentAccou
   const manager = ['ADMIN', 'SUPERVISOR'].includes(role);
   const today = new Date().toISOString().slice(0, 10);
   const paths = new Set(['/settings/public', '/settings', '/announcements/active', '/users/directory', '/support', '/support/stats', '/chat/conversations', '/chat/unread-count', '/dashboard/overview']);
-  if (role !== 'PARENT') paths.add('/attendance/absence-permissions');
-  if (staff) ['/parents/options', '/transfers', '/suspensions', '/suspensions/active', '/preparations', '/attendance/stats', '/exams/upcoming'].forEach(path => paths.add(path));
+  paths.add('/attendance/absence-permissions');
+  if (staff) ['/transfers', '/suspensions', '/suspensions/active', '/preparations', '/attendance/stats', '/exams/upcoming'].forEach(path => paths.add(path));
   if (manager) ['/users/staff', '/courses/stats', '/staff-attendance', '/staff-attendance/history', '/staff-attendance/summary', '/media-activities'].forEach(path => paths.add(path));
   if (manager) paths.add(`/staff-attendance/sheet?date=${today}`);
   if (['ADMIN', 'SUPPORT'].includes(role)) paths.add('/support/staff');
   if (['ADMIN', 'EXAM_COMMITTEE'].includes(role)) paths.add('/exams/examiners');
-  if (role === 'ADMIN') ['/users', '/users/stats', '/parents', '/announcements', '/certificates/templates', '/certificates/issued', '/certificates/requests', '/dashboard/activity', '/students/accounts', '/notifications/recipients'].forEach(path => paths.add(path));
+  if (role === 'ADMIN') ['/users', '/users/stats', '/announcements', '/certificates/templates', '/certificates/issued', '/certificates/requests', '/dashboard/activity', '/students/accounts', '/notifications/recipients'].forEach(path => paths.add(path));
   if (role === 'ADMIN') {
     paths.add('/registry/admin/stats'); paths.add('/registry/admin/users');
     paths.add(`/certificates/monthly-report-data?from=${today.slice(0, 7)}-01&to=${today}`);
   }
   if (role === 'TEACHER') paths.add('/teachers/my-overview');
   if (role === 'STUDENT') ['/students/me', '/students/me/history', '/certificates/mine', '/certificates/requests/mine', '/preparations'].forEach(path => paths.add(path));
-  if (role === 'PARENT') { paths.add('/parents/my-children'); paths.add('/preparations'); }
   if (staff) {
     for (const row of await db.circles.where('accountId').equals(account).toArray()) {
       paths.add(`/circles/${row.id}/history`); paths.add(`/attendance/circle/${row.id}/summary`);
@@ -47,7 +46,7 @@ export async function prefetchSections(send: Send, account: string, currentAccou
     notifications: ['users', 'students', 'circles', 'teacher_profiles', 'circle_teachers', 'broadcast_activity_v1'],
     settings: ['school_settings'], announcements: ['announcements'], users: ['users', 'teacher_profiles', 'circle_teachers', 'circles', 'students', 'chat_contact_policy'],
     support: ['support_tickets', 'ticket_messages', 'users'], chat: ['conversations', 'conversation_members', 'messages', 'users', 'circle_teachers', 'circles', 'students', 'chat_contact_policy'],
-    parents: ['parent_profiles', 'students', 'circles', 'users'], transfers: ['transfer_requests', 'students'],
+    transfers: ['transfer_requests', 'students'],
     suspensions: ['suspension_requests', 'students'], preparations: ['preparation_assignments', 'students'],
     attendance: ['attendance', 'students', 'circles'], exams: ['exams', 'exam_requests', 'exam_sections', 'users'],
     courses: ['courses', 'course_enrollments', 'course_attendance', 'students'],
@@ -110,7 +109,7 @@ export async function prefetchSections(send: Send, account: string, currentAccou
     const items = paginated ? rows : Array.isArray(data) ? data : [];
     for (const row of items) {
       if (row?.id) {
-        if (['/support', '/transfers', '/suspensions', '/users', '/parents', '/chat/conversations', '/parents/my-children', '/registry/admin/users'].includes(path)) pending.push(`${path}/${encodeURIComponent(row.id)}`);
+        if (['/support', '/transfers', '/suspensions', '/users', '/chat/conversations', '/registry/admin/users'].includes(path)) pending.push(`${path}/${encodeURIComponent(row.id)}`);
         if (path === '/chat/conversations') pending.push(`${path}/${encodeURIComponent(row.id)}/messages`);
       }
       if (/^\/courses\/[^/]+\/attendance\/history$/.test(path) && row.date) pending.push(path.replace(/history$/, String(row.date).slice(0, 10)));

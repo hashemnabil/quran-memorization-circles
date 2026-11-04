@@ -5,6 +5,7 @@ import { Role } from '@prisma/client';
 import { BroadcastDto } from './broadcast.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { NotificationsService } from './notifications.service';
+import { QueryNotificationsDto } from './query-notifications.dto';
 
 @ApiTags('الإشعارات')
 @ApiBearerAuth()
@@ -24,7 +25,7 @@ export class NotificationsController {
 
   @Get()
   @ApiOperation({ summary: 'قائمة إشعارات المستخدم الحالي' })
-  list(@CurrentUser() user: AuthUser, @Query() query: PaginationDto & { unreadOnly?: boolean }) {
+  list(@CurrentUser() user: AuthUser, @Query() query: QueryNotificationsDto) {
     return this.service.list(user, query);
   }
 

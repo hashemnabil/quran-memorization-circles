@@ -282,7 +282,7 @@ export default function App() {
           }
         />
         <Route path="absence-permissions" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER', 'STUDENT', 'SUPPORT', 'EXAM_COMMITTEE']}><AbsencePermissionsPage /></RequireRole>} />
-        <Route path="guardian-summons" element={<RequireRole roles={['ADMIN']}><GuardianSummonsPage /></RequireRole>} />
+        <Route path="student-summons" element={<RequireRole roles={['ADMIN']}><GuardianSummonsPage /></RequireRole>} />
         <Route
           path="recitations"
           element={

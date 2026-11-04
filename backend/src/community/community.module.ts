@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
 import { CommunityController } from './community.controller';
-@Module({controllers:[CommunityController]})
+import { ChatModule } from '../chat/chat.module';
+@Module({imports:[ChatModule],controllers:[CommunityController]})
 export class CommunityModule {}

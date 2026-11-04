@@ -19,6 +19,14 @@ beforeEach(async () => {
 });
 after(() => db.close());
 
+test('student self-history offline resolves only the current account record', async () => {
+  await mergeRows('students', [
+    { id: student, selfAccountId: 'account', _offline: { history: { attendance: [{ id: 'own-attendance' }] } } },
+    { id: 'other-student', selfAccountId: 'other-account', _offline: { history: { attendance: [{ id: 'private-attendance' }] } } },
+  ], 'account');
+  assert.deepEqual(await localRead('/students/me/history'), { attendance: [{ id: 'own-attendance' }] });
+});
+
 test('a late image response cannot repopulate a signed-out account', async () => {
   const originalFetch = globalThis.fetch;
   let release!: (response: Response) => void;

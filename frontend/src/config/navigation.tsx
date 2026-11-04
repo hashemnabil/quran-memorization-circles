@@ -38,7 +38,7 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-const ALL: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'PARENT', 'SUPPORT', 'STUDENT'];
+const ALL: Role[] = ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'SUPPORT', 'STUDENT'];
 
 /**
  * The single source of truth for the sidebar. Each entry declares which roles
@@ -84,7 +84,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/students', label: 'الطلاب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/attendance', label: 'الحضور والغياب', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/absence-permissions', label: 'إذن الغياب', icon: <IconCalendar size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER', 'STUDENT', 'SUPPORT', 'EXAM_COMMITTEE'] },
-      { to: '/guardian-summons', label: 'استدعاءات أولياء الأمور', icon: <IconBell size={19} />, roles: ['ADMIN'] },
+      { to: '/student-summons', label: 'استدعاءات الطلاب', icon: <IconBell size={19} />, roles: ['ADMIN'] },
       { to: '/recitations', label: 'التسميع اليومي', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/student-accounts', label: 'حسابات الطلاب', icon: <IconUsers size={19} />, roles: ['ADMIN'] },
       { to: '/exams', label: 'الاختبارات والنتائج', icon: <IconAward size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE'] },
@@ -145,7 +145,7 @@ NAV_GROUPS.push({ title: 'المشاركة', items: [{ to: '/donations', label: 
 const SECTION_PATHS = [
   ['الرئيسية', ['/']],
   ['المتابعة اليومية', ['/attendance','/recitations','/exams','/teacher-duties','/staff/attendance']],
-  ['الأذونات', ['/absence-permissions','/guardian-summons']],
+  ['الأذونات', ['/absence-permissions','/student-summons']],
   ['الطلاب والحلقات', ['/students','/circles','/courses','/student-accounts','/transfers','/suspensions']],
   ['ملفي الدراسي', ['/student','/my-files']],
   ['التقارير والشهادات', ['/documents/attendance','/documents/recitations','/documents/exams','/documents/student','/documents/circles','/certificates-admin','/documents/students','/documents/memorization-students','/documents/activity-students','/documents/suspended-students','/documents/course-students','/documents/courses','/documents/course-attendance']],

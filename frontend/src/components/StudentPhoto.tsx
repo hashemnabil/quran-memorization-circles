@@ -10,10 +10,8 @@ import { IconCamera } from '@/components/ui/Icons';
 /**
  * A student's picture, optionally editable.
  *
- * A student has no account of their own, so the photo belongs to the record
- * rather than to a login. Guardians set it from the parent portal — the common
- * case, and the reason this exists — and staff can set it from the student
- * file; `PATCH /students/:id/photo` scopes a parent to their own children.
+ * Students maintain their own photo. The server checks ownership against the
+ * authenticated account; staff remain limited to their authorized students.
  */
 export function StudentPhoto({
   studentId,
@@ -56,8 +54,8 @@ export function StudentPhoto({
   const synchronize = async () => {
     await syncQueuedStudentPhotos();
     if (account && useAuthStore.getState().user?.id === account && !(await readStudentPhoto(account, studentId))) {
-      await queryClient.invalidateQueries({ queryKey: ['parents'] });
       await queryClient.invalidateQueries({ queryKey: ['students'] });
+      await queryClient.invalidateQueries({ queryKey: ['student', 'me'] });
     }
   };
 

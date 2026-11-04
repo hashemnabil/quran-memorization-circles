@@ -316,7 +316,7 @@ export class CoursesService {
     const ids = [...new Set(dto.studentIds)];
     const students = await tx.student.findMany({
       where: { id: { in: ids }, deletedAt: null },
-      select: { id: true, fullName: true, parentProfile: { select: { userId: true } } },
+      select: { id: true, fullName: true, userId: true },
     });
     if (students.length !== ids.length) {
       throw new BadRequestException('بعض الطلاب المحددين غير موجودين');
@@ -354,13 +354,13 @@ export class CoursesService {
     }, { timeout: 30000 });
 
     for (const student of students) {
-      if (student.parentProfile?.userId) {
+      if (student.userId) {
         await this.notifications.notify({
-          userId: student.parentProfile.userId,
+          userId: student.userId,
           type: NotificationType.COURSE,
           title: 'تسجيل في دورة',
           body: `تم تسجيل ${student.fullName} في ${course.name}`,
-          link: `/parent/children/${student.id}`,
+          link: '/student',
         });
       }
     }

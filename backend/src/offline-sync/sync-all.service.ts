@@ -147,7 +147,7 @@ export class FullSyncService {
       case 'mediaPlans': return { data: user.role === Role.ADMIN && page === 1 ? await s.schedules.media() : [], meta: { hasNextPage: false } };
       case 'teacherDuties': return { data: staff && page === 1 ? await s.schedules.duties(user) : [], meta: { hasNextPage: false } };
       case 'dutyTeachers': return { data: user.role === Role.ADMIN && page === 1 ? await s.schedules.teachers() : [], meta: { hasNextPage: false } };
-      case 'students': return user.role === Role.STUDENT ? { data: page === 1 ? [await s.students.getMyProfile(user)] : [], meta: { hasNextPage: false } } : staff ? this.hydratePage(await s.students.findAll(user, plainToInstance(QueryStudentsDto, query)), async (id) => ({ ...await s.students.findOne(user, id), _offline: {
+      case 'students': return user.role === Role.STUDENT ? { data: page === 1 ? [{ ...await s.students.getMyProfile(user), _offline: { history: await s.students.getMyHistory(user) } }] : [], meta: { hasNextPage: false } } : staff ? this.hydratePage(await s.students.findAll(user, plainToInstance(QueryStudentsDto, query)), async (id) => ({ ...await s.students.findOne(user, id), _offline: {
         eligibility: await s.exams.eligibility(user, id), milestones: await s.exams.milestoneRecords(user, id), history: await s.students.history(user, id), progress: await s.recitations.studentProgress(user, id),
       } }), changedIds) : empty;
       case 'circles': return staff ? this.hydratePage(await s.circles.findAll(user, plainToInstance(QueryCirclesDto, query)), (id) => s.circles.findOne(user, id), changedIds) : empty;
@@ -363,8 +363,10 @@ export class FullSyncService {
     }
     if (op.table === 'communityPosts') {
       if (op.action === 'create') return s.community.post(user, {body:op.data.body,schoolPost:op.data.schoolPost});
+      if (op.action === 'update') return s.community.editPost(user,id,op.data.body);
       if (op.action === 'delete') return s.community.remove(user,id);
     }
+    if (op.table === 'communityComments' && op.action === 'update') return s.community.editComment(user,id,op.data.body);
     if (op.table === 'communityComments' && op.action === 'create') {
       if (!uuid.test(op.data.postId)) throw new BadRequestException('منشور غير صالح');
       if (op.data.parentId) {

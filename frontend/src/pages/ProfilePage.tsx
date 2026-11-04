@@ -1,6 +1,7 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import ThemeSelect from '@/components/ThemeSelect';
+import ActivityPrivacySettings from '@/components/ActivityPrivacySettings';
 import LocalSecuritySettings from '@/components/LocalSecuritySettings';
 import FirstUseOnboarding from '@/components/FirstUseOnboarding';
 import { passwordError } from '@/lib/validation';
@@ -178,24 +179,13 @@ export default function ProfilePage({ settings = false }: { settings?: boolean }
             </div>
           )}
 
-          {user.role === 'PARENT' && profile?.parentProfile && (
-            <Card title="بياناتي">
-              <dl className="grid gap-3 text-xs sm:grid-cols-2">
-                <Row label="الجوال" value={<span className="numeric" dir="ltr">{profile.parentProfile.phone}</span>} />
-                <Row label="جوال بديل" value={<span className="numeric" dir="ltr">{profile.parentProfile.altPhone}</span>} />
-                <Row label="المهنة" value={profile.parentProfile.occupation} />
-                <Row label="العنوان" value={profile.parentProfile.address} />
-              </dl>
-              <Button variant="secondary" size="sm" className="mt-4" onClick={() => navigate('/parent/children')}>
-                متابعة الأبناء
-              </Button>
-            </Card>
-          )}
 
+          {user.role === 'STUDENT' && <Card title="ملفي الدراسي"><Button onClick={() => navigate('/student')}>الحضور والتقييمات والإنذارات وخطط الحفظ</Button></Card>}
           {['STUDENT', 'TEACHER'].includes(user.role) ? <Card title="بياناتي الشخصية"><Button onClick={() => navigate('/verify-profile')}>تحقق من بياناتي</Button></Card> : <ProfileDetailsCard profile={profile} onUpdated={setUser} />}
 
           {settings && <>
           <LocalSecuritySettings />
+          <ActivityPrivacySettings />
           <Card title="دليل التطبيق"><p className="mb-3 text-sm text-slate-500">تعرّف على الحلقات والمتابعة والتواصل.</p><Button variant="secondary" onClick={() => setReplayIntro(true)}>إعادة مشاهدة شرح التطبيق</Button></Card>
           <Card title="المظهر"><div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"><span className="text-sm text-slate-500">اختر مظهر التطبيق</span><ThemeSelect /></div></Card>
           <Card title="الكنية"><form className="flex gap-2" onSubmit={async e => { e.preventDefault(); setSavingNickname(true); try { const result = await api.patch('/community/nickname', { nickname: nickname.trim() }); if(result.data?.synced===0) toast('حُفظت الكنية محليًا، بانتظار المزامنة'); else toast.success('تم حفظ الكنية'); } catch (error) { toast.error(apiError(error)); } finally { setSavingNickname(false); } }}><Input aria-label="الكنية" placeholder={profile?.nickname || 'أضف كنيتك'} maxLength={60} value={nickname} onChange={e => setNickname(e.target.value)} /><Button type="submit" loading={savingNickname}>حفظ</Button></form></Card>

@@ -42,7 +42,7 @@ const SUSPENSION_INCLUDE = {
       fullName: true,
       status: true,
       guardianPhone: true,
-      parentProfile: { select: { userId: true } },
+
       circle: { select: { id: true, name: true, code: true } },
     },
   },

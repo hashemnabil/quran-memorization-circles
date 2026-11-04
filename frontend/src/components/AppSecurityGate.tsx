@@ -109,7 +109,7 @@ function MaskedPinInput({ label, value, onChange, disabled = false }: { label: s
         hideTimers.current.set(index, setTimeout(() => {
           setRevealed(previous => previous.filter(item => item !== index));
           hideTimers.current.delete(index);
-        }, 3000));
+        }, 1000));
       }
     }
     onChange(digits);
@@ -117,7 +117,7 @@ function MaskedPinInput({ label, value, onChange, disabled = false }: { label: s
   return <label className="security-pin-field">
     <span className="security-pin-label">{label} <small>(4–8 أرقام)</small></span>
     <span className="security-pin-visual" aria-hidden="true">
-      {Array.from(value, (digit, index) => <span key={index} className="security-pin-dot filled">{revealed.includes(index) ? digit : '●'}</span>)}
+      {value.length === 0 ? <span className="security-pin-dot security-pin-placeholder" /> : Array.from(value, (digit, index) => <span key={index} className="security-pin-dot filled">{revealed.includes(index) ? digit : '●'}</span>)}
     </span>
     <input className="security-pin-native" type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="off" minLength={4} maxLength={8} required disabled={disabled} value={value} onChange={event => change(event.target.value)} aria-label={label} />
   </label>;

@@ -23,7 +23,7 @@ export function createAppLock(storage: LockStorage, now = Date.now) {
   return {
     read: (account: string) => run(() => read(account)),
     setup: (account: string, pin: string, deviceUnlock = false) => run(async () => {
-      if (!/^\d{6,12}$/.test(pin) || /^(\d)\1+$/.test(pin)) throw new Error('اختر رمزًا من 6 إلى 12 رقمًا غير متطابق');
+      if (!/^\d{4,8}$/.test(pin) || /^(\d)\1+$/.test(pin)) throw new Error('اختر رمزًا من 4 إلى 8 رقمًا غير متطابق');
       if (await read(account)) throw new Error('افتح القفل الحالي قبل تغيير الرمز');
       const salt = crypto.getRandomValues(new Uint8Array(16));
       await write(account, { version: 1, salt: encode(salt), hash: await digest(pin, salt), failures: 0, retryAt: 0, departedAt: null, deviceUnlock });

@@ -79,7 +79,7 @@ function AccountGate({ account, children }: { account: string; children: ReactNo
             if (useAuthStore.getState().user?.id === account) { setVerified(true); await new Promise(resolve => window.setTimeout(resolve, 1250)); lockedRef.current = false; setState('open'); setPin(''); setConfirm(''); setVerified(false); }
           } catch (cause) { setVerified(false); setError(cause instanceof Error ? cause.message : 'تعذر فتح القفل'); } finally { setBusy(false); }
         }}>
-          {verified ? <PinVerifiedAnimation /> : <MaskedPinInput label="رمز التطبيق" value={pin} onChange={setPin} disabled={busy} />}
+          {verified ? <PinVerifiedAnimation count={pin.length} /> : <MaskedPinInput label="رمز التطبيق" value={pin} onChange={setPin} disabled={busy} />}
           {state === 'setup' && <><MaskedPinInput label="تأكيد الرمز" value={confirm} onChange={setConfirm} disabled={busy} />{device && <label className="prayer-check"><input type="checkbox" checked={useDevice} onChange={event => setUseDevice(event.target.checked)} />السماح بالبصمة أو قفل الجهاز</label>}</>}
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           <Button type="submit" loading={busy} className="w-full">{state === 'setup' ? 'حفظ الحماية والمتابعة' : 'فتح التطبيق'}</Button>
@@ -123,10 +123,10 @@ function MaskedPinInput({ label, value, onChange, disabled = false }: { label: s
   </label>;
 }
 
-function PinVerifiedAnimation() {
+function PinVerifiedAnimation({ count }: { count: number }) {
   return <div className="security-pin-verified" role="status" aria-label="تم التحقق بنجاح">
     <span className="security-pin-orbit" aria-hidden="true">
-      {Array.from({ length: 4 }, (_, index) => <span key={index} className="security-pin-orbit-box" />)}
+      {Array.from({ length: count }, (_, index) => { const angle = (2 * Math.PI * index / count) - Math.PI / 2; return <span key={index} className="security-pin-orbit-box" style={{ transform: `translate(${Math.cos(angle) * 31}px, ${Math.sin(angle) * 31}px)` }} />; })}
       <svg className="security-pin-check" viewBox="0 0 52 52" fill="none"><path d="M13 27l9 9 18-20" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </span>
     <span className="security-pin-verified-text">تم التحقق بنجاح</span>

@@ -109,7 +109,7 @@ function MaskedPinInput({ label, value, onChange, disabled = false }: { label: s
         hideTimers.current.set(index, setTimeout(() => {
           setRevealed(previous => previous.filter(item => item !== index));
           hideTimers.current.delete(index);
-        }, 3000));
+        }, 1000));
       }
     }
     onChange(digits);

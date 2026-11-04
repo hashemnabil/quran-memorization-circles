@@ -24,6 +24,7 @@ function AccountGate({ account, children }: { account: string; children: ReactNo
   const [pin, setPin] = useState(''); const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const [verified, setVerified] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [device, setDevice] = useState(false); const [useDevice, setUseDevice] = useState(false);
   const [deviceEnabled, setDeviceEnabled] = useState(false);
   const lockedRef = useRef(false); const authenticating = useRef(false);
@@ -71,15 +72,24 @@ function AccountGate({ account, children }: { account: string; children: ReactNo
       <section className="security-panel"><img src={DEFAULT_SCHOOL_LOGO} alt="شعار المدرسة" className="security-mark object-contain p-1" /><h1>{state === 'setup' ? 'احمِ حسابك على هذا الجهاز' : 'حسابك في أمان'}</h1>
         <p>{state === 'setup' ? 'أنشئ رمزًا خاصًا بالتطبيق. يُقفل بعد مغادرته دقيقة، وتفتحه دون إنترنت مع بقاء بياناتك وتعديلاتك محفوظة.' : 'أدخل رمز التطبيق للعودة إلى الصفحة التي توقفت عندها.'}</p>
         {(state === 'checking' || state === 'hidden') ? <p role="status">حماية الحساب…</p> : <form onSubmit={async event => {
-          event.preventDefault(); if (busy) return; setBusy(true); setError('');
+          event.preventDefault(); if (busy) return; setBusy(true); setError(''); setFailed(false);
           try {
             await ensureLocalAccess(account);
             if (state === 'setup') { if (pin !== confirm) throw new Error('رمزا القفل غير متطابقين'); await appLock.setup(account, pin, useDevice); setDeviceEnabled(useDevice); }
             else await appLock.verify(account, pin);
             if (useAuthStore.getState().user?.id === account) { setVerified(true); await new Promise(resolve => window.setTimeout(resolve, 1250)); lockedRef.current = false; setState('open'); setPin(''); setConfirm(''); setVerified(false); }
-          } catch (cause) { setVerified(false); setError(cause instanceof Error ? cause.message : 'تعذر فتح القفل'); } finally { setBusy(false); }
+          } catch (cause) {
+            setVerified(false);
+            setError(cause instanceof Error ? cause.message : 'تعذر فتح القفل');
+            if (state === 'locked') {
+              setFailed(true);
+              await new Promise(resolve => window.setTimeout(resolve, 1250));
+              setPin('');
+              setFailed(false);
+            }
+          } finally { setBusy(false); }
         }}>
-          {verified ? <PinVerifiedAnimation count={pin.length} /> : <MaskedPinInput label="رمز التطبيق" value={pin} onChange={setPin} disabled={busy} />}
+          {verified || failed ? <PinVerifiedAnimation count={pin.length} failed={failed} /> : <MaskedPinInput label="رمز التطبيق" value={pin} onChange={setPin} disabled={busy} />}
           {state === 'setup' && <><MaskedPinInput label="تأكيد الرمز" value={confirm} onChange={setConfirm} disabled={busy} />{device && <label className="prayer-check"><input type="checkbox" checked={useDevice} onChange={event => setUseDevice(event.target.checked)} />السماح بالبصمة أو قفل الجهاز</label>}</>}
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           <Button type="submit" loading={busy} className="w-full">{state === 'setup' ? 'حفظ الحماية والمتابعة' : 'فتح التطبيق'}</Button>
@@ -123,12 +133,12 @@ function MaskedPinInput({ label, value, onChange, disabled = false }: { label: s
   </label>;
 }
 
-function PinVerifiedAnimation({ count }: { count: number }) {
-  return <div className="security-pin-verified" role="status" aria-label="تم التحقق بنجاح">
+function PinVerifiedAnimation({ count, failed = false }: { count: number; failed?: boolean }) {
+  return <div className={`security-pin-verified${failed ? ' security-pin-failed' : ''}`} role="status" aria-label={failed ? 'فشل التحقق' : 'تم التحقق بنجاح'}>
     <span className="security-pin-orbit" aria-hidden="true">
       {Array.from({ length: count }, (_, index) => { const angle = (2 * Math.PI * index / count) - Math.PI / 2; return <span key={index} className="security-pin-orbit-box" style={{ transform: `translate(${Math.cos(angle) * 31}px, ${Math.sin(angle) * 31}px)` }} />; })}
-      <svg className="security-pin-check" viewBox="0 0 52 52" fill="none"><path d="M13 27l9 9 18-20" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      {failed ? <svg className="security-pin-check" viewBox="0 0 52 52" fill="none"><path d="M16 16l20 20M36 16L16 36" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" /></svg> : <svg className="security-pin-check" viewBox="0 0 52 52" fill="none"><path d="M13 27l9 9 18-20" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
     </span>
-    <span className="security-pin-verified-text">تم التحقق بنجاح</span>
+    <span className="security-pin-verified-text">{failed ? 'فشل التحقق' : 'تم التحقق بنجاح'}</span>
   </div>;
 }

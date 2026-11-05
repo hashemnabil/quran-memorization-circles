@@ -65,7 +65,7 @@ export class UploadsService {
     return `http://localhost:${port}`;
   }
 
-  private assertAcceptable(file: Express.Multer.File) {
+  assertAcceptable(file: Express.Multer.File) {
     if (!file) throw new BadRequestException('لم يتم اختيار ملف');
     const ext = extname(file.originalname || '').toLowerCase();
     if (!ALLOWED_EXT.includes(ext) || !ALLOWED_MIME.includes(file.mimetype)) {

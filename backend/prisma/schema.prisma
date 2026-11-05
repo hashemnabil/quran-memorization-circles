@@ -201,6 +201,9 @@ model User {
   fullName     String
   role         Role
   phone        String?
+  communityMentionNotifications Boolean @default(true)
+  communityMedia CommunityMedia[]
+  bio          String?   @db.VarChar(280)
   nickname     String?   @db.VarChar(60)
   avatarUrl    String?
   /// Unified staff directory fields — filled for teachers, supervisors,
@@ -903,6 +906,8 @@ model ExamCommittee {
 // ---------------------------------------------------------------------------
 
 model SupportTicket {
+  deletionCompletedAt DateTime?
+  retentionNote String? @db.VarChar(2000)
   id          String         @id @default(uuid())
   number      Int            @unique @default(autoincrement())
   subject     String
@@ -1586,7 +1591,21 @@ model TeacherDutyAssignment {
   @@map("teacher_duty_assignments")
 }
 
+model CommunityMedia {
+  id String @id @default(uuid())
+  ownerId String
+  owner User @relation(fields:[ownerId],references:[id],onDelete:Cascade)
+  mime String
+  bytes Bytes
+  createdAt DateTime @default(now())
+  @@index([ownerId,createdAt])
+}
+
 model CommunityPost {
+  mediaIds String[] @default([])
+  audience String @default("ALL")
+  recipientIds String[] @default([])
+  mentions Json @default("[]")
   id String @id @default(uuid())
   authorId String
   body String @db.VarChar(2000)
@@ -1632,6 +1651,12 @@ model CommunityCommentLike {
   @@id([userId,commentId])
 }
 model CommunityStory {
+  mediaIds String[] @default([])
+  mentions Json @default("[]")
+  background String @default("#123c30")
+  textColor String @default("#ffffff")
+  fontSize Int @default(28)
+  bold Boolean @default(true)
   id String @id @default(uuid())
   authorId String
   body String @db.VarChar(500)

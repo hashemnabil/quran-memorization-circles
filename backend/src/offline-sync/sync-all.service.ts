@@ -103,8 +103,8 @@ export class FullSyncService {
         });
         return {data,meta:{hasNextPage:data.length===200}};
       }
-      case 'communityPosts': return {data:page===1?await s.community.feed():[],meta:{hasNextPage:false}};
-      case 'communityComments': return {data:page===1?(await s.community.feed()).flatMap(post=>post.comments):[],meta:{hasNextPage:false}};
+      case 'communityPosts': return {data:page===1?await s.community.feed(user):[],meta:{hasNextPage:false}};
+      case 'communityComments': return {data:page===1?(await s.community.feed(user)).flatMap(post=>post.comments):[],meta:{hasNextPage:false}};
       case 'accountPreferences': return {data:page===1?[await s.community.profile(user.id)]:[],meta:{hasNextPage:false}};
       case 'meetings': return { data: user.role === Role.ADMIN && page === 1 ? await s.operations.meetings(user) : [], meta: { hasNextPage: false } };
       case 'examCommittees': return { data: (staff || user.role === Role.EXAM_COMMITTEE) && page === 1 ? await s.operations.committees(user) : [], meta: { hasNextPage: false } };
@@ -346,7 +346,7 @@ export class FullSyncService {
     if (op.table === 'exams' && op.action === 'delete') return s.exams.removeUngraded(user, id);
     if (op.table === 'chatMessages' && op.action === 'create') {
       if (!uuid.test(op.data.conversationId)) throw new BadRequestException('محادثة غير صالحة');
-      return s.chat.send(user, op.data.conversationId, await this.dto(SendMessageDto, {body:op.data.body}));
+      return s.chat.send(user, op.data.conversationId, await this.dto(SendMessageDto, {body:op.data.body,attachmentUrl:op.data.attachmentUrl}));
     }
     if (op.table === 'chatMessages' && ['update', 'delete'].includes(op.action)) {
       if (!uuid.test(op.data.conversationId) || !uuid.test(id) || typeof op.data.previousBody !== 'string'
@@ -362,7 +362,7 @@ export class FullSyncService {
       return s.community.nickname(user, op.data.nickname);
     }
     if (op.table === 'communityPosts') {
-      if (op.action === 'create') return s.community.post(user, {body:op.data.body,schoolPost:op.data.schoolPost});
+      if (op.action === 'create') return s.community.post(user, {body:op.data.body,schoolPost:op.data.schoolPost,audience:op.data.audience,recipientIds:op.data.recipientIds,mentionIds:op.data.mentionIds,mediaIds:op.data.mediaIds});
       if (op.action === 'update') return s.community.editPost(user,id,op.data.body);
       if (op.action === 'delete') return s.community.remove(user,id);
     }

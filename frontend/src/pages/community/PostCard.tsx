@@ -7,9 +7,12 @@ import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { Avatar, Button, Card, Input, Modal, Textarea, useConfirm } from '@/components/ui';
 import { IconHeart, IconChat, IconEdit, IconTrash } from '@/components/ui/Icons';
 
+import CommunityImage from './CommunityImage';
+import MentionText, { type Mention } from './MentionText';
+
 type Person = { id: string; fullName: string; avatarUrl?: string | null };
 export type CommunityPost = {
-  id: string; synced?: number; body: string; schoolPost: boolean; createdAt: string;
+  id: string; synced?: number; body: string; mediaIds?: string[]; audience?: 'ALL'|'SELECTED'; mentions?: Mention[]; schoolPost: boolean; createdAt: string;
   author: Person; likes: {user: Person}[]; _count: {likes: number; comments: number};
   comments: {id: string; synced?: number; body: string; parentId?: string | null; user: Person; _count?: {likes: number}}[];
 };
@@ -59,7 +62,7 @@ export default function PostCard({post, userId, school, expanded = false, highli
     <Card>
       <header className="post-author">
         <Link to={profileUrl}><Avatar name={name} src={post.schoolPost ? school?.logoUrl : post.author.avatarUrl} size={44}/></Link>
-        <div className="min-w-0 flex-1"><Link className="font-bold hover:underline" to={profileUrl}>{name}</Link><time className="block text-xs text-slate-500" dateTime={post.createdAt}>{new Date(post.createdAt).toLocaleString('ar')}</time></div>
+        <div className="min-w-0 flex-1"><Link className="font-bold hover:underline" to={profileUrl}>{name}</Link><span className="text-xs text-slate-500">{post.audience==='SELECTED'?'أشخاص محددون · ':''}</span><time className="block text-xs text-slate-500" dateTime={post.createdAt}>{new Date(post.createdAt).toLocaleString('ar')}</time></div>
         {post.author.id === userId && <details className="post-options"><summary aria-label="خيارات المنشور">•••</summary><div>
           <button type="button" onClick={() => setEdit({id: post.id, kind: 'posts', body: post.body})}><IconEdit size={16}/>تعديل</button>
           <button type="button" disabled={action.isPending} className="text-red-600" onClick={async () => { if (await confirm({title: 'حذف المنشور', message: 'هل تريد حذف هذا المنشور؟', variant: 'danger'})) action.mutate({path: `/community/posts/${post.id}`, method: 'delete'}); }}><IconTrash size={16}/>حذف</button>
@@ -67,9 +70,10 @@ export default function PostCard({post, userId, school, expanded = false, highli
       </header>
       {post.synced === 0 && <p role="status" className="mt-3 text-xs text-amber-700">بانتظار المزامنة — محفوظ على الجهاز</p>}
       <div className="post-content" onDoubleClick={() => like(true)}>
-        <p className="whitespace-pre-wrap break-words">{post.body.split(/(@المدرسة)/g).map((part, index) => part === '@المدرسة' ? <Link key={index} to="/community/school" className="font-bold text-primary-700">{part}</Link> : part)}</p>
+        <p className="whitespace-pre-wrap break-words"><MentionText body={post.body} mentions={post.mentions}/></p>
         {heart && <span className="post-heart" aria-hidden="true"><IconHeart size={64}/></span>}
       </div>
+      {post.mediaIds?.map(id=><CommunityImage key={id} id={id}/>)}
       <div className="post-counts"><button type="button" onClick={() => setShowLikers(value => !value)} aria-expanded={showLikers}>{post._count.likes} إعجاب · {showLikers ? 'إخفاء الأسماء' : 'عرض الأسماء'}</button><span>{post._count.comments} تعليق</span></div>
       <div className="post-actions">
         <button type="button" disabled={action.isPending} aria-pressed={liked} onClick={() => like()}><IconHeart size={19}/>{liked ? 'أعجبني' : 'إعجاب'}</button>

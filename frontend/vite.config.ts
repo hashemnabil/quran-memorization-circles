@@ -1,3 +1,4 @@
+import { releaseVersion } from './scripts/release-version.mjs';
 import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
 import { productionCsp } from './src/lib/security-csp';
 import react from '@vitejs/plugin-react';
@@ -28,6 +29,8 @@ function proxy(options: ProxyOptions = {}): ProxyOptions {
 
 export default defineConfig({
   define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(releaseVersion().version),
+    'import.meta.env.VITE_APP_BUILD': JSON.stringify(process.env.ANDROID_VERSION_CODE || process.env.VERSION_CODE || process.env.GITHUB_SHA?.slice(0,12) || 'local'),
     'import.meta.env.VITE_ANDROID_FCM_CONFIGURED': JSON.stringify(
       process.env.VITE_ANDROID_FCM_CONFIGURED === 'true' || existsSync(path.resolve(__dirname, 'android/app/google-services.json')) ? 'true' : 'false',
     ),

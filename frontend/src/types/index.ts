@@ -463,6 +463,8 @@ export interface Exam {
 }
 
 export interface SupportTicket {
+  deletionCompletedAt?: string|null;
+  retentionNote?: string|null;
   pendingUpdate?: boolean;
   pendingStatus?: TicketStatus | null;
   synced?: number;

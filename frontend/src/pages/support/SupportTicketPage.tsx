@@ -14,6 +14,8 @@ import {
   PageHeader,
   Select,
   cx,
+  Textarea,
+  useConfirm,
 } from '@/components/ui';
 import { IconLifeBuoy, IconSend } from '@/components/ui/Icons';
 import {
@@ -32,6 +34,9 @@ export default function SupportTicketPage() {
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
 
+  const confirm=useConfirm();
+  const [retentionNote,setRetentionNote]=useState('');
+  const [deletingAccount,setDeletingAccount]=useState(false);
   const [body, setBody] = useState('');
   const [isInternal, setIsInternal] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -185,6 +190,7 @@ export default function SupportTicketPage() {
         </Card>
 
         <div className="space-y-5">
+          {ticket.category==='ACCOUNT_DELETION'&&user.role==='ADMIN'&&<Card title="معالجة حذف الحساب">{ticket.deletionCompletedAt?<><p className="text-sm">تمت المعالجة في {formatDateTime(ticket.deletionCompletedAt)}</p><p className="mt-3 whitespace-pre-wrap text-sm">{ticket.retentionNote}</p></>:<div className="space-y-3"><p className="text-sm leading-7">يُغلق الحساب وتُنهى جلساته وتُخفى هوية ملفه وتُحذف منشوراته الشخصية وقصصه وتعليقاته. تبقى السجلات التعليمية والإدارية والرسائل ومنشورات المدرسة للتدقيق؛ وضّح سبب الاحتفاظ ومدة المراجعة قبل التأكيد. هذه المعالجة تحتاج اتصالاً.</p><Textarea label="السجلات المحتفظ بها والسبب وموعد مراجعتها" maxLength={2000} minLength={20} value={retentionNote} onChange={event=>setRetentionNote(event.target.value)}/><Button variant="danger" loading={deletingAccount} disabled={retentionNote.trim().length<20||!navigator.onLine} onClick={async()=>{if(!await confirm({title:'تنفيذ طلب حذف الحساب',message:'سيُغلق حساب صاحب الطلب وتُحذف بياناته الاجتماعية الشخصية؛ لا يمكن التراجع عن حذفها. هل راجعت قرار الاحتفاظ؟',variant:'danger'}))return;setDeletingAccount(true);try{await api.post('/support/account-deletion/'+id+'/complete',{retentionNote,confirmed:true});toast.success('تمت معالجة الطلب وتسجيل قرار الاحتفاظ');void queryClient.invalidateQueries({queryKey:['support']});}catch(error){toast.error(apiError(error));}finally{setDeletingAccount(false);}}}>تنفيذ الحذف وإغلاق الحساب</Button></div>}</Card>}
           <Card title="تفاصيل التذكرة">
             <dl className="space-y-2.5 text-xs">
               <Row label="مقدّم الطلب" value={ticketRequesterName(ticket)} />

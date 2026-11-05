@@ -958,7 +958,7 @@ function NewConversationModal({ mode, onClose }: { mode: 'direct' | 'group'; onC
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
-          <Button onClick={() => create.mutate()} loading={create.isPending} disabled={!canSubmit}>
+          <Button onClick={() => create.mutate(mode === 'direct' ? selected[0] : undefined)} loading={create.isPending} disabled={!canSubmit}>
             {mode === 'direct' ? 'بدء المحادثة' : 'إنشاء المجموعة'}
           </Button>
         </>

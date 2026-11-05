@@ -179,7 +179,8 @@ test('community composer works across mobile sizes and themes and retains encryp
     await page.evaluate(value=>{document.documentElement.dataset.theme=value;},theme);
     await expect(page.getByRole('heading',{name:'إنشاء قصة',exact:true})).toBeVisible();
     await expect(page.getByRole('button',{name:'نشر',exact:true})).toBeVisible();
-    await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1)).toBe(true);
+    const overflow=await page.evaluate(()=>Array.from(document.querySelectorAll('.community-composer,.composer-body,.composer-body *')).map(element=>({tag:element.tagName,classes:element.className,left:element.getBoundingClientRect().left,right:element.getBoundingClientRect().right,width:element.getBoundingClientRect().width})).filter(box=>box.left < -1 || box.right > innerWidth+1).slice(0,12));
+    await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),{message:JSON.stringify(overflow)}).toBe(true);
     await expect(page.getByRole('region',{name:'معاينة'})).toContainText(body);
   }
   await expect.poll(()=>page.evaluate(account=>new Promise(resolve=>{

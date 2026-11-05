@@ -1,6 +1,8 @@
 .community-composer { max-width: 52rem; margin-inline: auto; min-height: 70dvh; }
 .composer-toolbar { position: sticky; top: 0; z-index: 25; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem 0; background: var(--surface, #fff); }
 .composer-toolbar h1 { font-weight: 800; font-size: clamp(1rem, 4vw, 1.35rem); }
+.composer-body > * { min-width: 0; max-width: 100%; }
+.composer-body input[type="file"] { width: 100%; min-width: 0; max-width: 100%; }
 .composer-body { display: grid; gap: 1rem; padding-block: 1rem max(2rem, env(safe-area-inset-bottom)); }
 .composer-directory { max-height: 15rem; overflow-y: auto; border: 1px solid #64748b33; border-radius: 1rem; }
 .composer-directory button:hover, .composer-directory label:hover { background: #10b98112; }
@@ -20,7 +22,7 @@
   .community-composer { margin: -.5rem; }
   .composer-toolbar { padding: .75rem .5rem; }
   .composer-body { padding-inline: .5rem; }
-  .composer-body .card { padding: 1rem; }
+  .composer-body .card > .p-5 { padding: 1rem; }
   .composer-body textarea { font-size: 1rem; }
   .community-page, .community-composer { min-width: 0; overflow-wrap: anywhere; }
   .chat-layout > .chat-conversation-list { position: relative; min-height: 0; }

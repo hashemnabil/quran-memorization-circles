@@ -179,7 +179,25 @@ test('community composer works across mobile sizes and themes and retains encryp
     await page.evaluate(value=>{document.documentElement.dataset.theme=value;},theme);
     await expect(page.getByRole('heading',{name:'إنشاء قصة',exact:true})).toBeVisible();
     await expect(page.getByRole('button',{name:'نشر',exact:true})).toBeVisible();
-    await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1)).toBe(true);
+    await expect.poll(async () => {
+      const layout = await page.evaluate(() => ({
+        viewport: window.innerWidth,
+        document: document.documentElement.scrollWidth,
+        offenders: [...document.querySelectorAll<HTMLElement>('body *')]
+          .filter(element => {
+            const rect = element.getBoundingClientRect();
+            return rect.width > 0 && (rect.right > window.innerWidth + 1 || rect.left < -1);
+          })
+          .slice(0, 12)
+          .map(element => ({
+            tag: element.tagName,
+            className: typeof element.className === 'string' ? element.className.slice(0, 120) : '',
+            bounds: [Math.round(element.getBoundingClientRect().left), Math.round(element.getBoundingClientRect().right)],
+          })),
+      }));
+      if (layout.document > layout.viewport + 1) console.log('MOBILE_OVERFLOW_DIAGNOSTIC', JSON.stringify({ width, theme, ...layout }));
+      return layout.document <= layout.viewport + 1;
+    }).toBe(true);
     await expect(page.getByRole('region',{name:'معاينة'})).toContainText(body);
   }
   await expect.poll(()=>page.evaluate(account=>new Promise(resolve=>{

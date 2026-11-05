@@ -49,6 +49,8 @@ const LIST_SELECT = {
   birthDate: true,
   gender: true,
   nationalId: true,
+  guardianName: true,
+  guardianPhone: true,
   status: true,
   evaluation: true,
   memorizedParts: true,

@@ -473,9 +473,9 @@ export default function StudentsPage() {
                       </td>
                       <td className="text-sm text-slate-600">{student.teacherName ?? '—'}</td>
                       <td>
-                        <span className="block text-sm text-slate-600">{student.parentName ?? '—'}</span>
+                        <span className="block text-sm text-slate-600">{student.guardianName ?? '—'}</span>
                         <span className="numeric block text-[11px] text-slate-400" dir="ltr">
-                          {student.parentPhone ?? ''}
+                          {student.guardianPhone ?? ''}
                         </span>
                       </td>
                       <td className="numeric font-bold text-slate-700">{formatParts(student.memorizedParts)}</td>

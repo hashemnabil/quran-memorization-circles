@@ -112,8 +112,10 @@ export class NotificationsService {
 
   /** Convenience helper: notify everyone holding one of the given roles. */
   async notifyRoles(roles: Role[], input: Omit<CreateNotificationInput, 'userId'>) {
+    const activeRoles = roles.filter(role => role !== Role.PARENT);
+    if (!activeRoles.length) return [];
     const users = await this.prisma.user.findMany({
-      where: { role: { in: roles }, isActive: true, deletedAt: null },
+      where: { role: { in: activeRoles }, isActive: true, deletedAt: null },
       select: { id: true },
     });
     return this.notifyMany(users.map((u) => u.id), input);

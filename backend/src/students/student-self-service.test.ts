@@ -63,3 +63,15 @@ test('retired parent role is rejected in account and announcement validation', a
   const announcement = Object.assign(new CreateAnnouncementDto(), { title: 'Notice', audience: [Role.PARENT] });
   assert.ok((await validate(announcement)).find(error => error.property === 'audience' && error.constraints?.isNotIn));
 });
+
+test('role-targeted notifications cannot resurrect retired parent recipients', async () => {
+  const service = new NotificationsService({user: {findMany: async ({where}: any) => {
+    assert.deepEqual(where.role.in, [Role.STUDENT]);
+    return [{id: actor.id}];
+  }}} as any, {} as any);
+  const sent: any[] = [];
+  service.notifyMany = async ids => {sent.push(ids); return ids;};
+  await service.notifyRoles([Role.PARENT, Role.STUDENT], {type: 'SYSTEM', title: 'Review'});
+  assert.deepEqual(sent, [[actor.id]]);
+  assert.deepEqual(await service.notifyRoles([Role.PARENT], {type: 'SYSTEM', title: 'Retired'}), []);
+});

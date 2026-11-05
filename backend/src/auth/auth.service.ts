@@ -182,7 +182,7 @@ export class AuthService {
         ...(dto.phone !== undefined ? { phone: dto.phone || null } : {}),
         ...(dto.avatarUrl !== undefined ? { avatarUrl: dto.avatarUrl || null } : {}),
       },
-      include: { teacher: { select: { id: true } }, parent: { select: { id: true } } },
+      include: { teacher: { select: { id: true } } },
     });
 
     // The old picture is now unreferenced — replaced or cleared — so it is
@@ -244,7 +244,6 @@ export class AuthService {
       isActive: user.isActive,
       mustChangePassword: user.mustChangePassword ?? false,
       teacherId: user.teacher?.id ?? null,
-      parentId: null,
     };
   }
 }

@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { randomBytes, createCipheriv, createDecipheriv, createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import bcrypt from 'bcryptjs';
-import { resolveStudent } from './student-transfer-policy.mjs';
+import { resolveStudent, studentTransferUsername, transferNotificationId, validateTransferContexts } from './student-transfer-policy.mjs';
 import { pathToFileURL } from 'node:url';
 
 // Dry-run by default. Never reuse a parent's identity or password for a child.
@@ -41,12 +41,19 @@ export async function transferParentData(db, { apply = false, mapping = {}, back
         transfers.push({ kind: 'ticket', source: ticket, student });
       }
     }
+    validateTransferContexts(transfers);
+    const students = [...new Map(parents.flatMap(parent => parent.students).map(student => [student.id, student])).values()];
+    for (const student of students) {
+      if (!student.userId) continue;
+      const account = await tx.user.findUnique({ where: { id: student.userId } });
+      if (!account || account.role !== 'STUDENT' || account.deletedAt) throw new Error(`Invalid student account: ${student.id}`);
+    }
     for (const transfer of transfers) {
       transfer.previous = await tx.activityLog.findFirst({ where: { action: 'PARENT_STUDENT_TRANSFER', entityType: transfer.kind, entityId: transfer.source.id } });
       if (transfer.previous && transfer.previous.metadata?.studentId !== transfer.student.id) throw new Error(`Previously transferred to another student: ${transfer.source.id}`);
     }
     const summary = { dryRun: !apply, parents: parents.length, transfers: transfers.length,
-      accountsRequired: parents.flatMap(p => p.students).filter(s => !s.userId).length };
+      accountsRequired: students.filter(s => !s.userId).length };
     if (!apply) return summary;
     if (!/^[a-f0-9]{64}$/i.test(backupKey || '') || !backup) throw new Error('Apply requires --backup <new file> and STUDENT_TRANSFER_BACKUP_KEY (64 hex characters; store separately)');
     const key = Buffer.from(backupKey, 'hex');
@@ -61,7 +68,7 @@ export async function transferParentData(db, { apply = false, mapping = {}, back
     if (!Buffer.concat([decipher.update(Buffer.from(verify.ciphertext, 'base64')), decipher.final()]).equals(snapshot)) throw new Error('Backup verification failed');
     await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext('quran-sync-journal'), 0)) AS locked`;
     const accounts = new Map();
-    for (const student of parents.flatMap(p => p.students)) {
+    for (const student of students) {
       const legacy = parents.find(parent => parent.students.some(child => child.id === student.id));
       // Keep family contact information on the student, independent of the archived profile.
       await tx.student.update({ where: { id: student.id }, data: {
@@ -71,7 +78,7 @@ export async function transferParentData(db, { apply = false, mapping = {}, back
       } });
       let userId = student.userId;
       if (!userId) {
-        const account = await tx.user.create({ data: { username: `student-${student.id}`, fullName: student.fullName, role: 'STUDENT',
+        const account = await tx.user.create({ data: { username: studentTransferUsername(student.id), fullName: student.fullName, role: 'STUDENT',
           passwordHash: await bcrypt.hash(randomBytes(32).toString('hex'), 10), mustChangePassword: true, isActive: !student.deletedAt } });
         userId = account.id;
         await tx.student.update({ where: { id: student.id }, data: { userId } });
@@ -86,7 +93,7 @@ export async function transferParentData(db, { apply = false, mapping = {}, back
       const userId = accounts.get(student.id);
       if (kind === 'notification') {
         // Deterministic id and semantic key both prevent duplicate historical alerts.
-        const id = createHash('sha256').update(`parent-transfer:${source.id}:${student.id}`).digest('hex');
+        const id = transferNotificationId(source.id, student.id);
         const duplicate = await tx.notification.findFirst({ where: { userId, type: source.type, title: source.title, body: source.body,
           ...(source.data?.alertKey ? { data: { path: ['alertKey'], equals: source.data.alertKey } } : { createdAt: source.createdAt }) } });
         if (!duplicate) {
@@ -117,7 +124,15 @@ export async function transferParentData(db, { apply = false, mapping = {}, back
     } });
     for (const { kind, source, student } of transfers) {
       const userId = accounts.get(student.id);
-      if (kind === 'conversation' && !await tx.conversationMember.findUnique({ where: { conversationId_userId: { conversationId: source.conversationId, userId } } })) throw new Error('Conversation verification failed');
+      if (kind === 'notification') {
+        const saved = await tx.notification.findFirst({ where: { userId, type: source.type, title: source.title, body: source.body,
+          ...(source.data?.alertKey ? { data: { path: ['alertKey'], equals: source.data.alertKey } } : { createdAt: source.createdAt }) } });
+        if (!saved) throw new Error(`Notification verification failed: ${source.id}`);
+      }
+      if (kind === 'conversation') {
+        const member = await tx.conversationMember.findUnique({ where: { conversationId_userId: { conversationId: source.conversationId, userId } } });
+        if (!member || !source.leftAt && member.leftAt) throw new Error('Conversation verification failed');
+      }
       if (kind === 'permission') {
         const saved = await tx.absencePermissionRequest.findUnique({ where: { id: source.id } });
         if (saved?.requesterId !== userId || saved?.studentId !== student.id) throw new Error('Permission verification failed');
@@ -127,7 +142,10 @@ export async function transferParentData(db, { apply = false, mapping = {}, back
         if (saved?.createdById !== userId) throw new Error('Support ticket verification failed');
       }
     }
-    return { ...summary, backupVerified: true };
+    const backupSha256 = createHash('sha256').update(await readFile(backup)).digest('hex');
+    await tx.activityLog.create({ data: { action: 'PARENT_RETIREMENT_VERIFIED', summary: 'التحقق من نقل وظائف ولي الأمر إلى الطالب دون حذف الأرشيف',
+      metadata: { parents: parents.length, students: students.length, transfers: transfers.length, backupSha256 } } });
+    return { ...summary, backupVerified: true, recordsVerified: true, backupSha256 };
   }, { isolationLevel: 'Serializable', timeout: 120000, maxWait: 10000 });
 }
 

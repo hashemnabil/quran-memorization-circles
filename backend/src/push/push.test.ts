@@ -46,11 +46,11 @@ test('Google RS256 and Apple ES256 provider tokens have valid signatures', () =>
     assert(verify(apple ? 'SHA256' : 'RSA-SHA256', Buffer.from(`${head}.${body}`), { key: pair.publicKey, ...(apple ? { dsaEncoding: 'ieee-p1363' as const } : {}) }, Buffer.from(signature, 'base64url')));
   }
 });
-function fixture(owner = 'recipient', failure?: Error, hidePreview = true) {
+function fixture(owner = 'recipient', failure?: Error, hidePreview = true, recipientRole = 'STUDENT') {
   const updates: any[] = []; const delivered: any[] = []; let sends = 0;
   const job: any = { id: 'job', deviceId: 'device', status: 'PENDING', attempts: 0, nextAttemptAt: new Date(0), notification: { id: 'notice', userId: 'recipient', isRead: false, title: 'Private title', body: 'Private student details', link: '/chat/conversation' }, device: {} };
   const tx: any = { $queryRaw: async () => [], notification: { findMany: async () => [] } };
-  const prisma: any = { $transaction: async (run: any) => run(tx), user: { count: async () => 1 },
+  const prisma: any = { $transaction: async (run: any) => run(tx), user: { count: async ({where}: any) => { assert.equal(where.role.not, 'PARENT'); return recipientRole === where.role.not ? 0 : 1; } },
     pushDevice: { findUnique: async () => ({ id: 'device', userId: owner, token: 'opaque-token', platform: 'android', enabled: true, hidePreview }), updateMany: async (input: any) => updates.push(input) },
     pushDelivery: { findMany: async () => [job], updateMany: async () => ({ count: 1 }), update: async ({ data }: any) => updates.push(data) } };
   const service = new PushService(prisma); (service as any).provider = { send: async (_platform:any,_token:any,notice:any) => { delivered.push(notice); sends++; if (failure) throw failure; } };
@@ -59,6 +59,13 @@ function fixture(owner = 'recipient', failure?: Error, hidePreview = true) {
 test('queued notices cannot be sent to the next account using the same device', async () => {
   const { service, updates, sends } = fixture('another-account'); await service.drain();
   assert.equal(sends(), 0); assert.equal(updates[0].status, 'SKIPPED');
+});
+
+test('queued notices for retired parents are skipped even while their old device remains enabled', async () => {
+  const {service, updates, sends} = fixture('recipient', undefined, true, 'PARENT');
+  await service.drain();
+  assert.equal(sends(), 0);
+  assert.equal(updates[0].status, 'SKIPPED');
 });
 test('transient failures retain a retry; invalidated device tokens disable only that token', async () => {
   const retry = fixture('recipient', new Error('temporary network failure')); await retry.service.drain();

@@ -49,12 +49,10 @@ export interface AuthUser {
   isActive: boolean;
   mustChangePassword?: boolean;
   teacherId?: string | null;
-  parentId?: string | null;
   phone?: string | null;
   /** True while the account still uses a password the management set. */
   lastLoginAt?: string | null;
   teacherProfile?: TeacherProfile | null;
-  parentProfile?: ParentProfile | null;
   supervisedCircles?: number;
 }
 
@@ -132,26 +130,6 @@ export interface TeacherProfile {
   studentsCount?: number;
 }
 
-export interface ParentProfile {
-  id: string;
-  userId: string;
-  nationalId?: string | null;
-  phone?: string | null;
-  altPhone?: string | null;
-  address?: string | null;
-  occupation?: string | null;
-  user: {
-    id: string;
-    fullName: string;
-    username?: string;
-    email?: string | null;
-    phone?: string | null;
-    avatarUrl?: string | null;
-    isActive: boolean;
-  };
-  students?: { id: string; code: string; fullName: string; status: StudentStatus; circle?: { id: string; name: string } | null }[];
-}
-
 export interface CircleTeacherLink {
   linkId: string;
   id: string;
@@ -201,7 +179,7 @@ export interface Student {
   id: string;
   code: string;
   fullName: string;
-  /** Set by the school or by the guardian from the parent portal. */
+  /** Set by the school or reviewed student self-service. */
   photoUrl?: string | null;
   birthDate?: string | null;
   gender: 'MALE' | 'FEMALE';
@@ -223,7 +201,6 @@ export interface Student {
   guardianName?: string | null;
   guardianPhone?: string | null;
   guardianRelation?: string | null;
-  parentId?: string | null;
   circleId?: string | null;
   circle?: {
     id: string;
@@ -231,20 +208,9 @@ export interface Student {
     code: string;
     supervisor?: { id: string; fullName: string } | null;
   } | null;
-  parentProfile?: {
-    id: string;
-    nationalId?: string | null;
-    phone?: string | null;
-    altPhone?: string | null;
-    address?: string | null;
-    occupation?: string | null;
-    user: { id: string; fullName: string; username?: string; phone?: string | null; email?: string | null };
-  } | null;
   teacherName?: string | null;
   teacherId?: string | null;
   supervisorName?: string | null;
-  parentName?: string | null;
-  parentPhone?: string | null;
   createdAt: string;
   lastRecitation?: Recitation | null;
   activeSuspension?: Suspension | null;

@@ -3,7 +3,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import PrayerCard from '@/components/PrayerCard';
 import MemorizationPlans from '@/components/MemorizationPlans';
 import DailyOverview from '@/components/DailyOverview';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api, apiError } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -23,6 +23,9 @@ export default function StudentPortalPage() {
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const { hash } = useLocation();
+  const [attendanceLimit, setAttendanceLimit] = useState(12);
+  const [recitationLimit, setRecitationLimit] = useState(12);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -60,6 +63,13 @@ export default function StudentPortalPage() {
     enabled: !user?.mustChangePassword,
     queryFn: async () => (await api.get('/students/me/history')).data,
   });
+  useEffect(() => {
+    if (!data || !hash) return;
+    const id = hash.slice(1);
+    if (!['student-plans', 'student-warnings', 'student-evaluations', 'student-attendance', 'student-recitations'].includes(id)) return;
+    const frame = requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'}));
+    return () => cancelAnimationFrame(frame);
+  }, [data?.id, hash]);
 
   if (user?.mustChangePassword) {
     return (
@@ -88,7 +98,7 @@ export default function StudentPortalPage() {
       <div className="mb-5"><StudentPhoto studentId={data.id} fullName={data.fullName} photoUrl={data.photoUrl} size={80} editable onChanged={() => { void refetch(); }} /></div>
       <StudentQuestionnaire key={data.id} profile={data} />
       <DailyOverview/>
-      <MemorizationPlans studentId={data.id}/>
+      <section id="student-plans" className="scroll-mt-24"><MemorizationPlans studentId={data.id}/></section>
       {data.activeSuspension && <Card title="قرار الإيقاف أو التحويل" className="mb-5">
         <p className="whitespace-pre-wrap">{data.activeSuspension.reason}</p>
         <p className="mt-2 text-sm">من {formatDateShort(data.activeSuspension.startDate)}{data.activeSuspension.endDate ? ` إلى ${formatDateShort(data.activeSuspension.endDate)}` : ' — إلى حين قرار الإدارة'}</p>
@@ -128,18 +138,18 @@ export default function StudentPortalPage() {
         <Button variant="secondary" onClick={() => navigate('/absence-permissions')}>أذونات الغياب</Button>
       </div>
       <div className="mb-5 grid gap-5 xl:grid-cols-2">
-        <Card title="الإنذارات والاستدعاءات">
+        <section id="student-warnings" className="scroll-mt-24"><Card title="الإنذارات والاستدعاءات">
           {data.summons?.length ? data.summons.map((item: any) => <article key={item.id} className="border-b py-3">
             <strong>{item.title}</strong><p className="whitespace-pre-wrap text-sm">{item.body}</p><small>{formatDateShort(item.createdAt)}</small>
           </article>) : <p>لا توجد استدعاءات مسجلة.</p>}
-        </Card>
-        <Card title="التقييمات والملاحظات">
+        </Card></section>
+        <section id="student-evaluations" className="scroll-mt-24"><Card title="التقييمات والملاحظات">
           {data.evaluations?.map((item: any) => <article key={item.id} className="border-b py-3">
             <strong>{EVALUATION_LABELS[item.evaluation as Evaluation] || item.evaluation}</strong><p>{item.note}</p><small>{formatDateShort(item.createdAt)}</small>
           </article>)}
           {data.noteEntries?.map((item: any) => <p key={item.id} className="py-2">{item.body}</p>)}
           {!data.evaluations?.length && !data.noteEntries?.length && <p>لا توجد تقييمات أو ملاحظات مسجلة.</p>}
-        </Card>
+        </Card></section>
       </div>
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="نسبة الحضور" value={`${data.attendanceSummary?.attendanceRate ?? 0}%`} icon={<IconClipboard size={22} />} />
@@ -176,24 +186,26 @@ export default function StudentPortalPage() {
         </div>
       </Card>
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <Card title="سجل الحضور والغياب">
-          {history.data?.attendance?.length ? <div className="space-y-2">
-            {history.data.attendance.slice(0, 12).map((item: any) => <div key={item.id} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 text-sm">
+        <section id="student-attendance" className="scroll-mt-24"><Card title="سجل الحضور والغياب">
+          {history.isLoading ? <LoadingState rows={2}/> : history.isError ? <ErrorState message="تعذر تحميل سجل الحضور" onRetry={()=>void history.refetch()}/> : history.data?.attendance?.length ? <div className="space-y-2">
+            {history.data.attendance.slice(0, attendanceLimit).map((item: any) => <div key={item.id} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 text-sm">
               <span>{formatDateShort(item.date)}</span>
               <strong>{item.status === 'PRESENT' ? 'حاضر' : item.status === 'ABSENT' ? 'غائب' : item.status === 'EXCUSED' ? 'غياب بعذر' : item.status}</strong>
               {item.note && <span className="text-xs text-slate-500">{item.note}</span>}
             </div>)}
+            {history.data.attendance.length > attendanceLimit && <Button variant="secondary" onClick={()=>setAttendanceLimit(limit=>limit+12)}>عرض سجلات حضور أقدم</Button>}
           </div> : <p className="text-sm text-slate-500">لا توجد سجلات حضور متاحة.</p>}
-        </Card>
-        <Card title="سجل التسميع">
-          {history.data?.recitations?.length ? <div className="space-y-2">
-            {history.data.recitations.slice(0, 12).map((item: any) => <div key={item.id} className="border-b border-slate-100 py-2 text-sm">
+        </Card></section>
+        <section id="student-recitations" className="scroll-mt-24"><Card title="سجل التسميع">
+          {history.isLoading ? <LoadingState rows={2}/> : history.isError ? <ErrorState message="تعذر تحميل سجل التسميع" onRetry={()=>void history.refetch()}/> : history.data?.recitations?.length ? <div className="space-y-2">
+            {history.data.recitations.slice(0, recitationLimit).map((item: any) => <div key={item.id} className="border-b border-slate-100 py-2 text-sm">
               <div className="flex items-center justify-between gap-3"><strong>{item.fromSurah} ({item.fromAyah}) — {item.toSurah} ({item.toAyah})</strong><span className="text-xs text-slate-500">{formatDateShort(item.date)}</span></div>
               <p className="mt-1 text-xs text-slate-500">النقاط: {item.points ?? 0} · الأخطاء: {item.mistakes ?? 0} · التنبيهات: {item.warnings ?? 0}</p>
               {item.evaluation && <p className="text-sm">{EVALUATION_LABELS[item.evaluation as Evaluation] || item.evaluation}</p>}
             </div>)}
+            {history.data.recitations.length > recitationLimit && <Button variant="secondary" onClick={()=>setRecitationLimit(limit=>limit+12)}>عرض سجلات تسميع أقدم</Button>}
           </div> : <p className="text-sm text-slate-500">لا توجد سجلات تسميع متاحة.</p>}
-        </Card>
+        </Card></section>
       </div>
     </>
   );

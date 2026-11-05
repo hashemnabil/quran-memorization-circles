@@ -89,7 +89,7 @@ jobs:
       - run: node backend/scripts/e2e-fixtures.mjs
       - run: npx --prefix frontend playwright install --with-deps chromium
       - name: Verify mobile social workflows
-        run: npm --prefix frontend run test:e2e -- --grep 'community composer|selected post composer|mobile account'
+        run: npm --prefix frontend run test:e2e -- --grep 'community composer|selected post composer|mobile account|native-style settings'
       - run: npm --prefix frontend run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -98,3 +98,10 @@ jobs:
           path: |
             frontend/playwright-report
             frontend/test-results
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-settings-preview
+          path: frontend/test-results/**/settings-*.png
+          if-no-files-found: ignore

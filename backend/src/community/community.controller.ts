@@ -1,7 +1,5 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
-import { UploadsService } from '../uploads/uploads.service';
 import { recordNotificationChange } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser, CurrentUser } from '../common/decorators';
@@ -12,17 +10,12 @@ import { ChatService } from '../chat/chat.service';
 
 @Controller('community')
 export class CommunityController {
-  constructor(private readonly prisma:PrismaService, private readonly chat?:ChatService, private readonly uploads?:UploadsService){}
+  constructor(private readonly prisma:PrismaService, private readonly chat?:ChatService){}
   @Get('capabilities')
-  capabilities(){return {privateAudienceVersion:1};}
+  capabilities(){return {privateAudienceVersion:1,imageUploads:false};}
   @Post('media')
-  @UseInterceptors(FileInterceptor('file',{limits:{fileSize:5*1024*1024,files:1}}))
-  async uploadMedia(@CurrentUser() user:AuthUser,@UploadedFile() file:Express.Multer.File){
-    if(!this.uploads)throw new BadRequestException('رفع الصور غير متاح');
-    this.uploads.assertAcceptable(file);
-    // A daily cap also bounds abandoned drafts. Media never enters public uploads/.
-    if(await this.prisma.communityMedia.count({where:{ownerId:user.id,createdAt:{gte:new Date(Date.now()-86400000)}}})>=30)throw new BadRequestException('بلغت الحد اليومي للصور');
-    return this.prisma.communityMedia.create({data:{ownerId:user.id,mime:file.mimetype,bytes:file.buffer},select:{id:true}});
+  async uploadMedia(){
+    throw new ForbiddenException('إضافة الصور متوقفة؛ يمكنك النشر وإرسال الرسائل نصياً');
   }
   @Get('media/:id')
   async media(@CurrentUser() user:AuthUser,@Param('id') id:string,@Res() response:Response){

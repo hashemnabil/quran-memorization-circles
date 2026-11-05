@@ -28,7 +28,7 @@ function useTheme() {
   }, []);
   return { mode, setMode };
 }
-export default function ThemeSelect() {
+function useThemeChoice() {
   const { mode, setMode } = useTheme();
   const choose = (value: ThemeMode, button: HTMLButtonElement) => {
     if (value === mode && !document.documentElement.dataset.themeTransition) return;
@@ -40,6 +40,17 @@ export default function ThemeSelect() {
       flushSync(() => { setMode(value); window.dispatchEvent(new CustomEvent('qc:theme', { detail: value })); });
     });
   };
+  return {mode,choose};
+}
+export function ThemeSwitch(){
+  const {mode,choose}=useThemeChoice();
+  const [systemDark,setSystemDark]=useState(()=>window.matchMedia('(prefers-color-scheme: dark)').matches);
+  useEffect(()=>{const query=window.matchMedia('(prefers-color-scheme: dark)');const sync=()=>setSystemDark(query.matches);query.addEventListener('change',sync);return()=>query.removeEventListener('change',sync);},[]);
+  const dark=mode==='dark'||mode==='system'&&systemDark;
+  return <button type="button" role="switch" aria-label="الوضع الليلي" aria-checked={dark} className="settings-switch" onClick={event=>choose(dark?'light':'dark',event.currentTarget)}/>;
+}
+export default function ThemeSelect(){
+  const {mode,choose}=useThemeChoice();
   return <div className="theme-control" role="group" aria-label="مظهر التطبيق">
     {(['light', 'dark', 'system'] as const).map(value => <button key={value} type="button" className="theme-option" aria-pressed={mode === value} onClick={event => choose(value, event.currentTarget)}>
       <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">

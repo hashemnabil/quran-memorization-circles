@@ -8,6 +8,11 @@ import { SupportService } from '../support/support.service';
 
 const actor={id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',role:Role.ADMIN} as any;
 const other='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+test('new social image uploads are disabled without any storage write',async()=>{
+  const controller=new CommunityController({} as any);
+  await assert.rejects(()=>controller.uploadMedia(),/إضافة الصور متوقفة/);
+  assert.equal(controller.capabilities().imageUploads,false);
+});
 test('selected audience is bounded, explicit and deduplicated; legacy posts default to all',()=>{
   assert.deepEqual(audienceOf({body:'old client'}),{audience:'ALL',recipientIds:[]});
   assert.deepEqual(audienceOf({body:'x',audience:'SELECTED',recipientIds:[other,other]}).recipientIds,[other]);

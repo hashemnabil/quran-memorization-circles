@@ -70,7 +70,9 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('PATCH','/community/preferences',Role.STUDENT,{communityMentionNotifications:true});
       const form=new FormData();form.append('file',new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1sAAAAASUVORK5CYII=','base64')],{type:'image/png'}),'test.png');
       const uploaded=await fetch(base+'/api/community/media',{method:'POST',headers:{Authorization:'Bearer '+sessions.ADMIN.accessToken},body:form});
-      assert.equal(uploaded.status,201);const image=await uploaded.json() as any;
+      assert.equal(uploaded.status,403);
+      // Historic images remain readable; uploading new bytes is disabled.
+      const image=await db.communityMedia.create({data:{ownerId:ids.ADMIN!,mime:'image/png',bytes:Buffer.from([137,80,78,71])}});
       const post=await request('POST','/community/posts',Role.ADMIN,{...privateDraft,mediaIds:[image.id]},201);
       assert.equal(await db.notification.count({where:{userId:ids.STUDENT,link:'/community/posts?post='+post.id}}),1);
       assert((await request('GET','/community/feed',Role.STUDENT)).some((row:any)=>row.id===post.id));

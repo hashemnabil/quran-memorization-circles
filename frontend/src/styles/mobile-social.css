@@ -36,3 +36,10 @@
 .community-composer .input, .community-composer select, .community-composer textarea { min-width: 0; max-width: 100%; }
 .community-composer .composer-story-preview { width: 100%; overflow-wrap: anywhere; word-break: break-word; }
 @media (max-width: 767px) { .community-composer { width: 100%; margin-inline: 0; } .community-composer .composer-body { width: 100%; } .community-composer .composer-toolbar { min-width: 0; } }
+
+/* Prevent the mobile story editor from widening the page. */
+@media (max-width: 767px) {
+  html:has(.community-composer), body:has(.community-composer) { max-width: 100%; overflow-x: clip; }
+  .community-composer, .community-composer .composer-story-preview { overflow-x: clip; }
+  .community-composer .composer-toolbar > *, .community-composer .composer-body > * { min-width: 0; }
+}

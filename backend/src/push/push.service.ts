@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../common/decorators';
+import { Role } from '@prisma/client';
 import { PushProvider, PushSendError, validAndroidChannel } from './push-provider';
 
 @Injectable()
@@ -41,7 +42,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.prisma.$transaction(async tx => {
         await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext('push-prepare'), 0)) AS locked`;
-        const notices = await tx.notification.findMany({ where: { pushQueuedAt: null, isRead: false, createdAt: { gte: new Date(Date.now() - 86400000) } }, orderBy: { createdAt: 'asc' }, take: 100 });
+        const notices = await tx.notification.findMany({ where: { user: {role: {not: Role.PARENT}, isActive: true, deletedAt: null}, pushQueuedAt: null, isRead: false, createdAt: { gte: new Date(Date.now() - 86400000) } }, orderBy: { createdAt: 'asc' }, take: 100 });
         for (const notice of notices) {
           const devices = await tx.pushDevice.findMany({ where: { userId: notice.userId, enabled: true, createdAt: { lte: notice.createdAt } } });
           for (const device of devices) if (this.provider.ready(device.platform)) await tx.pushDelivery.upsert({ where: { notificationId_deviceId: { notificationId: notice.id, deviceId: device.id } }, create: { notificationId: notice.id, deviceId: device.id }, update: {} });
@@ -53,7 +54,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         // Re-read device ownership immediately before sending. A queued notification
         // may never be delivered to the next account signing into this installation.
         const device = await this.prisma.pushDevice.findUnique({ where: { id: job.deviceId } });
-        const active = device?.enabled && device.userId === job.notification.userId && !job.notification.isRead && await this.prisma.user.count({ where: { id: device.userId, isActive: true, deletedAt: null } });
+        const active = device?.enabled && device.userId === job.notification.userId && !job.notification.isRead && await this.prisma.user.count({ where: { id: device.userId, isActive: true, deletedAt: null, role: {not: Role.PARENT} } });
         if (!active) { await this.prisma.pushDelivery.update({ where: { id: job.id }, data: { status: 'SKIPPED' } }); return; }
         const claimed = await this.prisma.pushDelivery.updateMany({ where: { id: job.id, status: job.status, nextAttemptAt: job.nextAttemptAt }, data: { status: 'SENDING', attempts: { increment: 1 }, nextAttemptAt: new Date(Date.now() + 60000) } });
         if (!claimed.count) return;

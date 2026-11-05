@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createDecipheriv } from 'node:crypto';
-import { resolveStudent } from './student-transfer-policy.mjs';
+import { resolveStudent, studentTransferUsername, transferNotificationId, validateTransferContexts } from './student-transfer-policy.mjs';
 import { transferParentData } from './transfer-parent-data.mjs';
 import { verifyStudentTransferBackup } from './verify-student-transfer-backup.mjs';
 
@@ -19,9 +19,9 @@ test('references must agree and belong to the source parent; siblings require ex
   assert.throws(() => resolveStudent({ id: 'orphan' }, []), /mapping required/);
 });
 
-function fixture({ siblings = false, missingAccount = false, failWrite = false, ticketCategory } = {}) {
+function fixture({ siblings = false, missingAccount = false, failWrite = false, failVerification = false, ticketCategory } = {}) {
   let state = {
-    users: [{ id: 'parent', role: 'PARENT', isActive: true }, { id: 'student-user', role: 'STUDENT', isActive: true }],
+    users: [{ id: 'parent', role: 'PARENT', isActive: true }, { id: 'student-user', role: 'STUDENT', isActive: true }, ...(siblings ? [{ id: 'second-user', role: 'STUDENT', isActive: true }] : [])],
     students: [{ id: 'one', fullName: 'Student', userId: missingAccount ? null : 'student-user', deletedAt: null }, ...(siblings ? [{ id: 'two', userId: 'second-user' }] : [])],
     notifications: [{ id: 'old', userId: 'parent', type: 'ATTENDANCE', title: 'Absent', body: 'Recorded', data: { studentId: 'one' }, createdAt: new Date('2026-01-01'), isRead: true, readAt: new Date('2026-01-02') }],
     members: [{ id: 'old-member', userId: 'parent', conversationId: 'chat', joinedAt: new Date('2026-01-01'), leftAt: null, lastReadAt: null, isAdmin: true }],
@@ -47,7 +47,7 @@ function fixture({ siblings = false, missingAccount = false, failWrite = false, 
       student: { update: async ({ where, data }) => write(() => Object.assign(working.students.find(s => s.id === where.id), data)) },
       notification: {
         findMany: async () => working.notifications.filter(n => n.userId === 'parent'),
-        findFirst: async ({ where }) => working.notifications.find(n => n.userId === where.userId && n.type === where.type && n.title === where.title && n.body === where.body && +n.createdAt === +where.createdAt),
+        findFirst: async ({ where }) => failVerification ? undefined : working.notifications.find(n => n.userId === where.userId && n.type === where.type && n.title === where.title && n.body === where.body && +n.createdAt === +where.createdAt),
         upsert: async ({ where, create }) => write(() => { const old = working.notifications.find(n => n.id === where.id); if(old) return old; working.notifications.push(create); return create; }),
       },
       conversationMember: {
@@ -113,7 +113,11 @@ test('encrypted backup can be restored; transfer preserves sources, timestamps a
   try {
     const f = fixture();
     const backup = join(directory, 'backup.enc');
-    assert.equal((await transferParentData(f.db, { apply: true, backup, backupKey: key })).backupVerified, true);
+    const applied = await transferParentData(f.db, { apply: true, backup, backupKey: key });
+    assert.equal(applied.backupVerified, true);
+    assert.equal(applied.recordsVerified, true);
+    assert.match(applied.backupSha256, /^[a-f0-9]{64}$/);
+    assert.equal(f.state().ledger.find(row => row.action === 'PARENT_RETIREMENT_VERIFIED').metadata.backupSha256, applied.backupSha256);
     const check = await verifyStudentTransferBackup(backup, key);
     assert.equal(check.verified, true); assert.equal(check.counts.notifications, 1);
     await assert.rejects(verifyStudentTransferBackup(backup, 'cd'.repeat(32)));
@@ -128,6 +132,7 @@ test('encrypted backup can be restored; transfer preserves sources, timestamps a
     const notice = f.state().notifications.find(n => n.userId === 'student-user');
     assert.equal(notice.isRead, true); assert.equal(+notice.createdAt, +new Date('2026-01-01'));
     assert.equal(notice.link, '/student'); assert.ok(notice.pushQueuedAt);
+    assert.match(notice.id, /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
     assert.equal(f.state().members[1].isAdmin, false); assert.ok(f.state().members[0].leftAt);
     assert.equal(f.state().permissions[0].requesterId, 'student-user');
     assert.deepEqual(f.state().announcements[0].audience, ['STUDENT']);
@@ -135,6 +140,7 @@ test('encrypted backup can be restored; transfer preserves sources, timestamps a
     assert.equal(f.state().notifications.length, 2); assert.equal(f.state().members.length, 2);
     assert.equal(f.state().notifications[0].userId, 'parent');
     f.state().students.push({ id: 'two', userId: 'second-user' });
+    f.state().users.push({ id: 'second-user', role: 'STUDENT' });
     const beforeRemap = f.mutations();
     await assert.rejects(transferParentData(f.db, { mapping: { conversations: { chat: 'two' } } }), /Previously transferred/);
     assert.equal(f.mutations(), beforeRemap);
@@ -142,6 +148,37 @@ test('encrypted backup can be restored; transfer preserves sources, timestamps a
     const corrupted = join(directory, 'corrupted.enc'); await writeFile(corrupted, JSON.stringify(envelope));
     await assert.rejects(verifyStudentTransferBackup(corrupted, key));
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('generated account names satisfy login limits and notification ids work with the outbox', () => {
+  const student = '12345678-1234-4234-8234-123456789abc';
+  const username = studentTransferUsername(student);
+  assert.equal(username.length, 32);
+  assert.match(username, /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/);
+  assert.equal(username, studentTransferUsername(student));
+  assert.notEqual(username, studentTransferUsername('another-student'));
+  const id = transferNotificationId('notice', student);
+  assert.match(id, /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+  assert.equal(id, transferNotificationId('notice', student));
+  assert.notEqual(id, transferNotificationId('notice', 'another-student'));
+});
+
+test('cross-linked conversation and ticket notifications cannot expose a sibling’s records', () => {
+  const notice = {kind: 'notification', source: {id: 'notice', userId: 'parent', data: {conversationId: 'chat'}}, student: {id: 'one'}};
+  const conversation = {kind: 'conversation', source: {id: 'member', userId: 'parent', conversationId: 'chat'}, student: {id: 'two'}};
+  assert.throws(() => validateTransferContexts([notice, conversation]), /different students/);
+  assert.throws(() => validateTransferContexts([
+    {...notice, source: {...notice.source, data: {ticketId: 'ticket'}}},
+    {kind: 'ticket', source: {id: 'ticket', createdById: 'parent'}, student: {id: 'two'}},
+  ]), /different students/);
+  assert.throws(() => validateTransferContexts([{...conversation, source: {...conversation.source, conversation: {messages: [{body: '/parent/children/one'}]}}}]), /another student's reference/);
+});
+
+test('dry-run rejects an invalid linked student account before backups or writes', async () => {
+  const f = fixture();
+  f.state().users[1].role = 'ADMIN';
+  await assert.rejects(transferParentData(f.db), /Invalid student account/);
+  assert.equal(f.mutations(), 0);
 });
 
 test('existing backup is never overwritten and a database failure rolls back all writes', async () => {
@@ -155,4 +192,16 @@ test('existing backup is never overwritten and a database failure rolls back all
     await assert.rejects(transferParentData(failure.db, { apply: true, backup: join(directory, 'failure.enc'), backupKey: 'ab'.repeat(32) }), /simulated DB failure/);
     assert.equal(failure.state().notifications.length, 1); assert.equal(failure.state().users[0].isActive, true);
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('failed post-transfer verification rolls back account and history changes', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'student-transfer-verification-'));
+  try {
+    const f = fixture({failVerification: true});
+    await assert.rejects(transferParentData(f.db, {apply: true, backup: join(directory, 'student-transfer.enc'), backupKey: 'ab'.repeat(32)}), /Notification verification failed/);
+    assert.equal(f.state().users[0].isActive, true);
+    assert.equal(f.state().notifications.length, 1);
+    assert.equal(f.state().permissions[0].requesterId, 'parent');
+    assert.equal((await verifyStudentTransferBackup(join(directory, 'student-transfer.enc'), 'ab'.repeat(32))).verified, true);
+  } finally { await rm(directory, {recursive: true, force: true}); }
 });

@@ -26,3 +26,8 @@ Thumbs.db
 *.p12
 keystore.properties
 .release-signing/
+
+# Private student migration material; encryption keys are kept outside the repo.
+**/student-transfer*.enc
+/backend/transfer-mapping*.json
+/backend/student-transfer-mapping*.json

@@ -28,6 +28,7 @@ enum Role {
   TEACHER
   EXAM_COMMITTEE
   /// Reserved for archived accounts only; rejected by authentication and account creation.
+  /// Retired archival value only; cannot authenticate or receive new roles.
   PARENT
   STUDENT
   SUPPORT
@@ -419,6 +420,7 @@ model Student {
   fatherNationalId String?
   address          String?
   phone            String?
+  /// Historical family link retained for verified migration, not authorization.
   parentId         String?
   guardianName     String?
   guardianPhone    String?
@@ -436,7 +438,7 @@ model Student {
   currentSurah     String?
   currentPage      Int?
   /// The student's own picture. Students have no account, so this is set by the
-  /// school or by their guardian from the parent portal.
+  /// school or by the student through the reviewed self-service form.
   photoUrl         String?
   /// Running total of recitation and surah-completion points. Kept as a column
   /// rather than summed on read so student lists stay cheap to sort and page.

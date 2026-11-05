@@ -180,7 +180,16 @@ export default function ProfilePage({ settings = false }: { settings?: boolean }
           )}
 
 
-          {user.role === 'STUDENT' && <Card title="ملفي الدراسي"><Button onClick={() => navigate('/student')}>الحضور والتقييمات والإنذارات وخطط الحفظ</Button></Card>}
+          {user.role === 'STUDENT' && <Card title="متابعتي الدراسية" subtitle="كل ما يخص رحلتك التعليمية من حسابك مباشرة"><div className="grid gap-2 sm:grid-cols-2">{[
+            ['/student#student-attendance', 'الحضور والغياب'],
+            ['/student#student-evaluations', 'التقييمات والملاحظات'],
+            ['/student#student-warnings', 'الإنذارات والاستدعاءات'],
+            ['/student#student-plans', 'خطط الحفظ والمراجعة'],
+            ['/student#student-recitations', 'سجل التسميع'],
+            ['/notifications', 'الإشعارات والتنبيهات'],
+            ['/my-files', 'التقارير والشهادات'],
+            ['/chat', 'الرسائل'],
+          ].map(([to, label])=><Link key={to} className="daily-shortcut" to={to}>{label}</Link>)}</div></Card>}
           {['STUDENT', 'TEACHER'].includes(user.role) ? <Card title="بياناتي الشخصية"><Button onClick={() => navigate('/verify-profile')}>تحقق من بياناتي</Button></Card> : <ProfileDetailsCard profile={profile} onUpdated={setUser} />}
 
           {settings && <>

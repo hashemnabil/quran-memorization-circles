@@ -62,7 +62,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       fullName: user.fullName,
       role: user.role,
       teacherId: user.teacher && user.teacher.isActive && !user.teacher.deletedAt ? user.teacher.id : null,
-      parentId: null,
     };
   }
 }

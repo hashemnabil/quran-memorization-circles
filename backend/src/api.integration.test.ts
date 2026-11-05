@@ -173,6 +173,29 @@ test('role workflows and production security regressions over HTTP', { timeout: 
         await db.user.delete({ where: { id: stranger.id } });
       }
     });
+    await t.test('student follow-up uses authenticated identity without any parent account or sibling access', async () => {
+      const publicNote = await db.studentNote.create({data: {studentId: student.id, authorId: ids.TEACHER!, body: 'Student-visible follow-up', isPrivate: false}});
+      const privateNote = await db.studentNote.create({data: {studentId: student.id, authorId: ids.TEACHER!, body: 'Staff-only follow-up', isPrivate: true}});
+      const summons = await db.guardianSummons.create({data: {studentId: student.id, issuedById: ids.ADMIN!, title: 'Student review', body: 'Review with your teacher'}});
+      const ownPlan = await request('POST', `/students/${student.id}/plans`, Role.ADMIN, {title: 'Student own plan', unit: 'PAGES', period: 'WEEKLY', target: 5});
+      const hiddenPlan = await request('POST', `/students/${hiddenStudent.id}/plans`, Role.ADMIN, {title: 'Another student plan', unit: 'PAGES', period: 'WEEKLY', target: 8});
+      const mine = await request('GET', `/students/me?studentId=${hiddenStudent.id}`, Role.STUDENT);
+      assert.equal(mine.id, student.id);
+      assert.equal(mine.parentId, undefined);
+      assert.equal(mine.parentProfile, undefined);
+      assert(mine.summons.some((row: any) => row.id === summons.id));
+      assert(mine.noteEntries.some((row: any) => row.id === publicNote.id));
+      assert(!mine.noteEntries.some((row: any) => row.id === privateNote.id));
+      const plans = await request('GET', `/students/${student.id}/plans`, Role.STUDENT);
+      assert(plans.some((row: any) => row.id === ownPlan.id));
+      assert(!plans.some((row: any) => row.id === hiddenPlan.id));
+      await request('GET', `/students/${hiddenStudent.id}/plans`, Role.STUDENT, undefined, 403);
+      await request('GET', `/students/${hiddenStudent.id}/history`, Role.STUDENT, undefined, 403);
+      await request('GET', `/students/${hiddenStudent.id}`, Role.STUDENT, undefined, 403);
+      await request('POST', `/students/${student.id}/plans/${ownPlan.id}/progress`, Role.STUDENT, {amount: 1, requestId: randomUUID()}, 403);
+      await request('GET', '/students/me/history', Role.STUDENT);
+      assert.equal(await db.parentProfile.count({where: {students: {some: {id: student.id}}}}), 0);
+    });
     await t.test('profile proposals require administrative approval, reject with a reason and replay safely offline', async () => {
       const proposal = await request('POST', '/profile-reviews', Role.STUDENT, { patch: { address: 'Proposed student home' } });
       assert.notEqual((await db.student.findUniqueOrThrow({ where: { id: student.id } })).address, 'Proposed student home');

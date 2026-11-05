@@ -259,7 +259,7 @@ test('mobile account and chat pages keep navigation and conversation controls us
 
 
 test('native-style settings use grouped rows, search, real details and a persistent dark switch',async({page},info)=>{
-  await page.addInitScript(()=>localStorage.setItem('qc.theme','light'));
+  await page.addInitScript(()=>{if(!localStorage.getItem('qc.theme'))localStorage.setItem('qc.theme','light');});
   await login(page,'ADMIN');await page.setViewportSize({width:390,height:844});
   await gotoWithLocalUnlock(page,'/profile/settings');
   await expect(page.getByRole('heading',{name:'الإعدادات',exact:true})).toBeVisible();
@@ -272,7 +272,7 @@ test('native-style settings use grouped rows, search, real details and a persist
   await page.reload();await unlockLocalGate(page);
   await expect(page.getByRole('switch',{name:'الوضع الليلي'})).toHaveAttribute('aria-checked','true');
   await page.screenshot({path:info.outputPath('settings-dark.png'),fullPage:true});
-  await page.getByRole('textbox',{name:'البحث في الإعدادات'}).fill('كلمة المرور');
+  await page.getByRole('searchbox',{name:'البحث في الإعدادات'}).fill('كلمة المرور');
   await expect(page.locator('.settings-group')).toHaveCount(1);
   await page.getByRole('link',{name:'كلمة المرور',exact:true}).click();
   await expect(page.getByLabel('كلمة المرور الحالية',{exact:true})).toBeVisible();

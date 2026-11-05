@@ -16,5 +16,5 @@ export default function CommunityImage({ id }: { id: string }) {
     }).catch(() => { if (!controller.signal.aborted) setFailed(true); });
     return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [id, account]);
-  return src ? <img src={src} alt="صورة المنشور" className="max-h-[32rem] w-full rounded-xl object-contain"/> : <p className="p-3 text-sm" role="status">{failed ? 'الصورة غير متاحة؛ تحقق من الاتصال والصلاحيات' : 'تحميل الصورة…'}</p>;
+  return src ? <img src={src} alt="صورة مرفقة" className="max-h-[32rem] w-full rounded-xl object-contain"/> : <p className="p-3 text-sm" role="status">{failed ? 'الصورة غير متاحة؛ تحقق من الاتصال والصلاحيات' : 'تحميل الصورة…'}</p>;
 }

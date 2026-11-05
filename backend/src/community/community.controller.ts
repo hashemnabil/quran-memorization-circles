@@ -67,7 +67,10 @@ export class CommunityController {
   private async permitted(user:AuthUser, ids:string[]){
     if(!ids.length)return [];
     const scope=await new AccessControlService(this.prisma).contactableUserFilter(user);
-    const rows=await this.prisma.user.findMany({where:{AND:[{id:{in:ids},isActive:true,deletedAt:null,role:{not:Role.PARENT}},{OR:[{id:user.id},scope??{id:'__none__'}]}]},select:{id:true,username:true,fullName:true}});
+    // Prisma drops empty objects inside OR; an unrestricted staff scope must
+    // remain an unrestricted AND clause rather than turning into self-only.
+    const allowed=scope===null?{id:user.id}:Object.keys(scope).length?{OR:[{id:user.id},scope]}:{};
+    const rows=await this.prisma.user.findMany({where:{AND:[{id:{in:ids},isActive:true,deletedAt:null,role:{not:Role.PARENT}},allowed]},select:{id:true,username:true,fullName:true}});
     if(rows.length!==ids.length)throw new ForbiddenException('بعض الحسابات خارج نطاق صلاحياتك');
     return rows;
   }
@@ -98,7 +101,7 @@ export class CommunityController {
   }
   @Get('users/:id')
   async profile(@Param('id') id:string){
-    const user=await this.prisma.user.findFirst({where:{id,isActive:true,deletedAt:null},select:{id:true,fullName:true,nickname:true,username:true,bio:true,avatarUrl:true,role:true,createdAt:true}});
+    const user=await this.prisma.user.findFirst({where:{id,isActive:true,deletedAt:null,role:{not:Role.PARENT}},select:{id:true,fullName:true,nickname:true,username:true,bio:true,avatarUrl:true,role:true,createdAt:true}});
     if(!user)throw new BadRequestException('المستخدم غير موجود');
     const cover = await this.prisma.presentationChoice.findUnique({ where: { userId_kind: { userId: id, kind: 'PROFILE_COVER' } } });
     const asset = cover?.assetId ? await this.prisma.founderAsset.findFirst({ where: { id: cover.assetId, kind: 'PROFILE_COVER', isActive: true }, select: { id: true } }) : null;

@@ -18,6 +18,12 @@ test('selected audience is bounded, explicit and deduplicated; legacy posts defa
 test('visibility has no administrative bypass for a selected post',()=>{
   assert.deepEqual(visibility(actor.id),{OR:[{authorId:actor.id},{audience:'ALL'},{audience:'SELECTED',recipientIds:{has:actor.id}}]});
 });
+test('administrator contact scope remains unrestricted rather than self-only in Prisma OR',async()=>{
+  let query:any;
+  const controller=new CommunityController({user:{findMany:async(args:any)=>{query=args;return [{id:other,username:'student',fullName:'Student'}];}}} as any);
+  assert.equal((await (controller as any).permitted(actor,[other]))[0].id,other);
+  assert.deepEqual(query.where.AND[1],{});
+});
 test('story formatting rejects injected CSS and unbounded sizes',()=>{
   assert.equal(storyAppearance({body:'x'}).fontSize,28);
   assert.throws(()=>storyAppearance({body:'x',background:'url(https://example.test)'}));

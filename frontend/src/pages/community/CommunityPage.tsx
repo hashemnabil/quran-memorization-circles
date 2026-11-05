@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useParams, useLocation } from 'react-router-dom';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,6 +32,9 @@ export default function CommunityPage(){
  const school=useQuery({queryKey:['community','school'],queryFn:async()=>(await api.get<School>('/community/school')).data});
  const stories=useQuery({queryKey:['community','stories'],queryFn:async()=>(await api.get<Story[]>('/community/stories')).data});
  const replies=useQuery({queryKey:['community','story-replies',selectedStory],queryFn:async()=>(await api.get<{id:string;body:string;user:Person}[]>('/community/stories/'+selectedStory+'/replies')).data,enabled:!!selectedStory&&selectedStory!=='new'&&!!stories.data?.find(st=>st.id===selectedStory)?.schoolStory});
+ const targetStory=new URLSearchParams(location.search).get('story');
+ const openedStory=useRef<string|null>(null);
+ useEffect(()=>{if(!targetStory||!stories.data||openedStory.current===targetStory)return;openedStory.current=targetStory;if(stories.data.some(story=>story.id===targetStory)){setSelectedStory(targetStory);setStoryProgress(0);action.mutate({path:'/community/stories/'+targetStory+'/view'});}else toast('انتهت القصة أو لم تعد متاحة');},[targetStory,stories.data]);
  const targetPost=new URLSearchParams(location.search).get('post');
  const targetComment=new URLSearchParams(location.search).get('comment');
  useEffect(()=>{

@@ -39,6 +39,15 @@ test('authoritative feed removes stale clean posts and comments but keeps pendin
   assert.equal(await db.table('communityComments').count(),0);
 });
 
+test('device cleanup preserves an unpublished community draft and allows an empty discarded draft',async()=>{
+  await db.meta.put({key:'account:community-draft:story',value:{body:'unsent story',mediaIds:[]}});
+  await assert.rejects(()=>clearAccountData('account'));
+  assert.equal((await db.meta.get('account:community-draft:story'))?.value.body,'unsent story');
+  await db.meta.put({key:'account:community-draft:story',value:{body:'',mediaIds:[]}});
+  await clearAccountData('account');
+  assert.equal(await db.meta.get('account:community-draft:story'),undefined);
+});
+
 test('student self-history offline resolves only the current account record', async () => {
   await mergeRows('students', [
     { id: student, selfAccountId: 'account', _offline: { history: { attendance: [{ id: 'own-attendance' }] } } },

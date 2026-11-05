@@ -13,6 +13,8 @@ import { ChatService } from '../chat/chat.service';
 @Controller('community')
 export class CommunityController {
   constructor(private readonly prisma:PrismaService, private readonly chat?:ChatService, private readonly uploads?:UploadsService){}
+  @Get('capabilities')
+  capabilities(){return {privateAudienceVersion:1};}
   @Post('media')
   @UseInterceptors(FileInterceptor('file',{limits:{fileSize:5*1024*1024,files:1}}))
   async uploadMedia(@CurrentUser() user:AuthUser,@UploadedFile() file:Express.Multer.File){

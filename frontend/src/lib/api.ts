@@ -35,6 +35,12 @@ export const api = axios.create({
 });
 
 const networkAdapter = axios.getAdapter(api.defaults.adapter!);
+async function requirePrivateAudienceProtocol() {
+  // Never use an offline/cached capability here: a rolled-back older server
+  // would otherwise silently turn a selected post into its legacy public post.
+  const result=await api.get('/community/capabilities',{adapter:networkAdapter});
+  if(result.data?.privateAudienceVersion!==1)throw new Error('الخادم يحتاج تحديث دعم الجمهور الخاص؛ بقي منشورك محفوظاً');
+}
 export async function syncQueuedStudentPhotos() {
   const account = accountId();
   if (!navigator.onLine || tokenStore.isLocal()) return;
@@ -64,6 +70,7 @@ export async function syncQueuedAvatar() {
 }
 configureOffline(async (method, path, data) => {
   if (tokenStore.isLocal()) throw new Error('افتح الجلسة على الخادم قبل المزامنة؛ تعديلاتك محفوظة محليًا');
+  if(method!=='get'&&path.startsWith('/sync-all')&&data?.operations?.some((operation:any)=>operation.table==='communityPosts'&&operation.action==='create'&&operation.data?.audience==='SELECTED'))await requirePrivateAudienceProtocol();
   const response = await api.request({ method, url: path, data, adapter: networkAdapter });
   return response.data;
 }, () => {
@@ -175,6 +182,10 @@ api.defaults.adapter = async (config) => {
     stillCurrent();
     result.data = data;
     return result;
+  }
+  if(method==='post'&&path==='/community/posts'){
+    const payload=typeof config.data==='string'?JSON.parse(config.data):config.data;
+    if(payload?.audience==='SELECTED')await requirePrivateAudienceProtocol();
   }
   const result = await networkAdapter(config);
   if (['post', 'patch', 'put', 'delete'].includes(method)) {

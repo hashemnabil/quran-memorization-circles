@@ -203,9 +203,37 @@ test('selected post composer inserts real mentions and publishes with an explici
   await page.getByRole('option',{name:new RegExp('Browser STUDENT')}).click();
   await page.getByRole('button',{name:'معاينة قبل النشر',exact:true}).click();
   await expect(page.getByRole('region',{name:'معاينة'}).getByRole('link')).toHaveAttribute('href','/community/users/'+fixtures.accounts.STUDENT.id);
+  let published=0;page.on('request',request=>{if(request.method()==='POST'&&new URL(request.url()).pathname==='/api/community/posts')published++;});
+  await page.route('**/api/community/capabilities',route=>route.fulfill({json:{privateAudienceVersion:0}}));
+  await page.getByRole('button',{name:'نشر',exact:true}).click();
+  await expect(page.getByText('الخادم يحتاج تحديث دعم الجمهور الخاص؛ بقي منشورك محفوظاً',{exact:true})).toBeVisible();
+  expect(published).toBe(0);await expect(page).toHaveURL(/\/community\/posts\/new$/);
+  await page.unroute('**/api/community/capabilities');
   await page.getByRole('button',{name:'نشر',exact:true}).click();
   await expect(page).toHaveURL(/\/community\/posts$/);
   const post=page.locator('.community-post').filter({hasText:'Hello @'+fixtures.accounts.STUDENT.username}).first();
   await expect(post).toContainText('أشخاص محددون');
   await expect(post.getByRole('link',{name:'@'+fixtures.accounts.STUDENT.username,exact:true})).toHaveAttribute('href','/community/users/'+fixtures.accounts.STUDENT.id);
+});
+
+
+test('mobile account and chat pages keep navigation and conversation controls usable in both themes',async({page})=>{
+  test.setTimeout(180000);await login(page,'ADMIN');
+  for(const width of [360,430])for(const theme of ['light','dark']){
+    await page.setViewportSize({width,height:844});
+    await page.evaluate(value=>{localStorage.setItem('qc.theme',value);window.dispatchEvent(new CustomEvent('qc:theme',{detail:value}));},theme);
+    for(const path of ['/community/users/me','/profile/settings','/chat']){
+      await gotoWithLocalUnlock(page,path);
+      await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1)).toBe(true);
+      if(path==='/profile/settings')await expect(page.getByText('إصدار التطبيق',{exact:false})).toBeVisible();
+      if(path==='/chat'){
+        const create=page.getByRole('button',{name:'محادثة جديدة',exact:true});await expect(create).toBeVisible();await create.click();
+        const dialog=page.getByRole('dialog');await dialog.getByRole('button',{name:/Browser TEACHER/}).click();
+        await expect(page).toHaveURL(/\/chat\/[0-9a-f-]+$/);
+        await expect(page.locator('.chat-conversation-list')).not.toBeVisible();
+        await expect(page.locator('.chat-composer textarea')).toBeVisible();
+        const box=await page.locator('.chat-composer').boundingBox();expect(box!.y+box!.height).toBeLessThanOrEqual(845);
+      }
+    }
+  }
 });

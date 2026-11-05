@@ -23,7 +23,7 @@
   .composer-body .card { padding: 1rem; }
   .composer-body textarea { font-size: 1rem; }
   .community-page, .community-composer { min-width: 0; overflow-wrap: anywhere; }
-  .chat-layout > .chat-conversation-list { position: relative; display: flex; flex-direction: column; min-height: 0; }
+  .chat-layout > .chat-conversation-list { position: relative; min-height: 0; }
   .chat-layout > .chat-conversation-list ul { max-height: none; flex: 1; padding-bottom: 9rem; }
   .chat-page-heading { display: none; }
 }

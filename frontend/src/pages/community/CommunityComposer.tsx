@@ -62,8 +62,8 @@ export default function CommunityComposer({ story = false }: { story?: boolean }
     } catch (error) { toast.error(apiError(error, error instanceof Error ? error.message : 'تعذر النشر؛ المسودة محفوظة')); }
     finally { setBusy(false); }
   };
-  return <main className="community-composer" dir="rtl">
-    <header className="composer-toolbar"><Link to="/community/posts" className="btn-secondary">العودة</Link><h1>{story ? 'إنشاء قصة' : 'إنشاء منشور'}</h1><Button loading={busy} disabled={!loaded || !draft.body.trim() || !story && draft.audience === 'SELECTED' && !draft.recipients.length} onClick={() => void publish()}>نشر</Button></header>
+  return <section className="community-composer" dir="rtl" aria-labelledby="community-composer-title">
+    <header className="composer-toolbar"><Link to="/community/posts" className="btn-secondary">العودة</Link><h1 id="community-composer-title">{story ? 'إنشاء قصة' : 'إنشاء منشور'}</h1><Button loading={busy} disabled={!loaded || !draft.body.trim() || !story && draft.audience === 'SELECTED' && !draft.recipients.length} onClick={() => void publish()}>نشر</Button></header>
     <div className="composer-body">
       <Card><div className="flex items-center gap-3"><Avatar name={draft.school?school.data?.name??'المدرسة':user.fullName} src={draft.school?school.data?.logoUrl:user.avatarUrl} size={44}/><strong>{draft.school?school.data?.name??'المدرسة':user.fullName}</strong></div>
         {user.role === 'ADMIN' && <label className="mt-4 block">هوية الناشر<select className="input mt-2 w-full" value={draft.school ? 'school' : 'self'} onChange={e => patch({ school: e.target.value === 'school' })}><option value="self">حسابي الشخصي</option><option value="school">المدرسة</option></select></label>}
@@ -80,6 +80,5 @@ export default function CommunityComposer({ story = false }: { story?: boolean }
       <Button variant="ghost" disabled={!loaded||busy} onClick={async()=>{if(await confirm({title:'مسح المسودة',message:'هل تريد مسح النص والصور المحددة من هذه المسودة؟',variant:'danger'}))setDraft({...empty});}}>مسح المسودة</Button>
       <p className="text-xs text-slate-500">{story ? 'تختفي القصة بعد 24 ساعة. يلزم الاتصال للنشر.' : 'يمكن حفظ المنشور النصي دون اتصال وإرساله عند عودة الاتصال.'}</p>
     </div>
-  </main>;
+  </section>;
 }
-

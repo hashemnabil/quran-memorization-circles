@@ -24,6 +24,12 @@ export class SupportController {
     return this.service.requestDeletion(user, dto);
   }
 
+  @Post('account-deletion/:id/complete')
+  @Roles(Role.ADMIN)
+  completeDeletion(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body() dto:{retentionNote?:string;confirmed?:boolean}){
+    return this.service.completeDeletion(user,id,dto);
+  }
+
   /**
    * Reachable without a token: it is linked from the login page for people who
    * cannot get in. Rate-limited in the service.

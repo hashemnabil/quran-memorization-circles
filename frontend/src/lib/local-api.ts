@@ -48,7 +48,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
     return (await get('accountPreferences')).find(row=>row.id===accountId()) || (await db.responses.get(responseKey(accountId(),path,params)))?.data;
   }
   if (url.pathname === '/community/feed') {
-    const posts=(await get('communityPosts')).filter(row=>(!params.userId || row.authorId===params.userId && !row.schoolPost) && (params.school!=='true' || row.schoolPost)).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+    const posts=(await get('communityPosts')).filter(row=>(row.authorId===accountId() || !row.audience || row.audience==='ALL' || row.audience==='SELECTED'&&row.recipientIds?.includes(accountId())) && (!params.userId || row.authorId===params.userId && !row.schoolPost) && (params.school!=='true' || row.schoolPost)).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
     const comments=await get('communityComments');
     return posts.map(post=>{const rows=[...(post.comments||[])];for(const comment of comments.filter(row=>row.postId===post.id)) { const index=rows.findIndex(row=>row.id===comment.id); if(index<0)rows.push(comment);else rows[index]=comment; }return {...post,comments:rows,_count:{likes:post._count?.likes||0,comments:Math.max(post._count?.comments||0,rows.length)}};});
   }
@@ -234,7 +234,7 @@ export async function rememberRead(path: string, params: any, data: any) {
   if (path === '/support') await mergeRows('supportTickets', data?.data || [], account);
   if (/^\/support\/[^/]+$/.test(path) && data?.id) await mergeRows('supportTickets', [data], account);
   if (/^\/chat\/conversations\/[^/]+\/messages$/.test(path)) await mergeRows('chatMessages', data?.data||[], account);
-  if (path==='/community/feed') { await mergeRows('communityPosts',data||[],account); await mergeRows('communityComments',(data||[]).flatMap((post:any)=>(post.comments||[]).map((comment:any)=>({...comment,postId:post.id}))),account); }
+  if (path==='/community/feed') { if(!params?.userId&&params?.school!=='true'){const visible=new Set((data||[]).map((post:any)=>post.id));await db.table('communityPosts').where('accountId').equals(account).filter(row=>row.synced===1&&!visible.has(row.id)).delete();await db.table('communityComments').where('accountId').equals(account).filter(row=>row.synced===1&&!visible.has(row.postId)).delete();} await mergeRows('communityPosts',data||[],account); await mergeRows('communityComments',(data||[]).flatMap((post:any)=>(post.comments||[]).map((comment:any)=>({...comment,postId:post.id}))),account); }
   if (path==='/community/users/'+account) await mergeRows('accountPreferences',[data],account);
   if (path === '/profile-reviews/me') { await db.meta.put({ key: `${account}:reference:/profile-reviews/me`, value: data }); await mergeRows('profileReviews', data.requests || [], account); }
   if (path.split('?')[0] === '/profile-reviews') await mergeRows('profileReviews', data.data || [], account);
@@ -275,7 +275,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
       const detail=await localConversation('/chat/conversations/'+route[2]) || (await db.responses.get(responseKey(accountId(),'/chat/conversations/'+route[2],undefined)))?.data;
     if(!actor || !detail || detail.canPost===false) throw Object.assign(new Error('نزّل المحادثة المسموح بها قبل إرسال رسائل دون اتصال'),{localWriteRejected:true});
     if(typeof data?.body!=='string'||!data.body.trim()||data.body.length>4000)throw Object.assign(new Error('نص الرسالة غير صالح'),{localWriteRejected:true});
-    return save('chatMessages',{conversationId:route[2],body:data.body.trim(),sender:actor,createdAt:new Date().toISOString()},'create');
+    return save('chatMessages',{conversationId:route[2],body:data.body.trim(),attachmentUrl:data.attachmentUrl,sender:actor,createdAt:new Date().toISOString()},'create');
   }
   if (path==='/community/nickname' && method==='patch') {
     if(typeof data?.nickname!=='string'||data.nickname.length>60)throw Object.assign(new Error('الكنية غير صالحة'),{localWriteRejected:true});
@@ -284,7 +284,8 @@ export async function localWrite(method: string, path: string, data: any): Promi
   if (path==='/community/posts' && method==='post') {
     const actor=readActiveIdentity();if(!actor || data.schoolPost&&actor.role!=='ADMIN')throw Object.assign(new Error('النشر باسم المدرسة للإدارة فقط'),{localWriteRejected:true});
     if(typeof data?.body!=='string'||!data.body.trim()||data.body.length>2000)throw Object.assign(new Error('المنشور غير صالح'),{localWriteRejected:true});
-    return save('communityPosts',{body:data.body.trim(),schoolPost:!!data.schoolPost,authorId:actor.id,author:actor,comments:[],likes:[],_count:{likes:0,comments:0},createdAt:new Date().toISOString()},'create');
+    if(data.audience && !['ALL','SELECTED'].includes(data.audience) || data.audience==='SELECTED'&&(!Array.isArray(data.recipientIds)||!data.recipientIds.length))throw Object.assign(new Error('حدد الجمهور أولاً'),{localWriteRejected:true});
+    return save('communityPosts',{body:data.body.trim(),schoolPost:!!data.schoolPost,audience:data.audience||'ALL',recipientIds:data.audience==='SELECTED'?data.recipientIds:[],mentionIds:data.mentionIds||[],mediaIds:data.mediaIds||[],authorId:actor.id,author:actor,comments:[],likes:[],_count:{likes:0,comments:0},createdAt:new Date().toISOString()},'create');
   }
   if (route[0]==='community' && route[1]==='posts' && route.length===3 && method==='delete') {
     const post=(await get('communityPosts')).find(row=>row.id===route[2]);const actor=readActiveIdentity();

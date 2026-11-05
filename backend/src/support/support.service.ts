@@ -7,6 +7,7 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AuthUser } from '../common/decorators';
 import { paginate } from '../common/dto/pagination.dto';
 import * as bcrypt from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
 import {
   CreateTicketDto,
   AccountDeletionDto,
@@ -33,6 +34,39 @@ export class SupportService {
 
   private isStaff(user: AuthUser) {
     return user.role === Role.SUPPORT || user.role === Role.ADMIN;
+  }
+
+  async completeDeletion(actor: AuthUser, id: string, dto: {retentionNote?: string; confirmed?: boolean}) {
+    if(actor.role!==Role.ADMIN)throw new ForbiddenException('معالجة حذف الحساب للإدارة فقط');
+    if(dto?.confirmed!==true||typeof dto.retentionNote!=='string'||dto.retentionNote.trim().length<20||dto.retentionNote.length>2000)throw new BadRequestException('أكد الإجراء ووضح السجلات المحتفظ بها وسبب الاحتفاظ (20–2000 حرف)');
+    const passwordHash=await bcrypt.hash(randomBytes(32).toString('hex'),12);
+    return this.prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM support_tickets WHERE id=${id} FOR UPDATE`;
+      const ticket=await tx.supportTicket.findFirst({where:{id,category:'ACCOUNT_DELETION',deletedAt:null}});
+      if(!ticket?.createdById)throw new BadRequestException('طلب حذف حساب موثق غير موجود');
+      if(ticket.deletionCompletedAt)return {completed:true,completedAt:ticket.deletionCompletedAt};
+      if(ticket.createdById===actor.id)throw new ForbiddenException('يجب أن يعالج طلبك مدير آخر');
+      const target=await tx.user.findUnique({where:{id:ticket.createdById}});
+      if(!target||target.role===Role.ADMIN)throw new ForbiddenException('حذف حسابات الإدارة يحتاج معالجة إدارية منفصلة');
+      const at=new Date();
+      await tx.user.update({where:{id:target.id},data:{isActive:false,deletedAt:at,passwordHash,fullName:'حساب محذوف',username:'deleted_'+target.id.replace(/-/g,'').slice(0,24),email:null,phone:null,avatarUrl:null,nickname:null,bio:null,jobTitle:null,specialization:null}});
+      await tx.refreshToken.updateMany({where:{userId:target.id,revokedAt:null},data:{revokedAt:at}});
+      await tx.pushDevice.updateMany({where:{userId:target.id},data:{enabled:false}});
+      await tx.conversationMember.updateMany({where:{userId:target.id,leftAt:null},data:{leftAt:at,isAdmin:false}});
+      await tx.communityPost.deleteMany({where:{authorId:target.id,schoolPost:false}});
+      await tx.communityStory.deleteMany({where:{authorId:target.id,schoolStory:false}});
+      await tx.communityComment.deleteMany({where:{userId:target.id}});
+      // Images of audited school posts and retained messages must not be deleted.
+      const media=await tx.communityMedia.findMany({where:{ownerId:target.id},select:{id:true}});
+      for(const image of media){
+        const retained=await tx.communityPost.count({where:{mediaIds:{has:image.id}}})+await tx.communityStory.count({where:{mediaIds:{has:image.id}}})+await tx.message.count({where:{attachmentUrl:'community-media:'+image.id}});
+        if(!retained)await tx.communityMedia.delete({where:{id:image.id}});
+      }
+      await tx.supportTicket.update({where:{id},data:{deletionCompletedAt:at,retentionNote:dto.retentionNote.trim(),status:TicketStatus.RESOLVED,resolvedAt:at}});
+      await tx.ticketMessage.create({data:{ticketId:id,senderId:actor.id,body:'عولج طلب الحذف: أُغلق الحساب وأُخفيت هوية الملف وحُذفت منشوراته الشخصية وقصصه وتعليقاته. السجلات المحتفظ بها وأسبابها: '+dto.retentionNote.trim()}});
+      await tx.activityLog.create({data:{userId:actor.id,action:'ACCOUNT_DELETION_COMPLETE',entityType:'SupportTicket',entityId:id,summary:'إغلاق وإخفاء هوية حساب بناءً على طلب موثق مع قرار احتفاظ'}});
+      return {completed:true,completedAt:at};
+    },{timeout:30000});
   }
 
   async requestDeletion(actor: AuthUser, dto: AccountDeletionDto) {
@@ -307,6 +341,8 @@ export class SupportService {
 
     const ticket = await this.prisma.supportTicket.findFirst({ where: { id, deletedAt: null } });
     if (!ticket) throw new NotFoundException('طلب الدعم غير موجود');
+    if(dto.category&&['ACCOUNT_DELETION','PASSWORD_RESET'].includes(dto.category)&&dto.category!==ticket.category)throw new BadRequestException('لا يمكن تحويل طلب عادي إلى طلب يتطلب التحقق من الهوية');
+
     if (ticket.category === 'PASSWORD_RESET' && actor.role !== Role.ADMIN) throw new ForbiddenException('هذا الطلب مخصص للإدارة');
     if (ticket.category === 'PASSWORD_RESET' && dto.category && dto.category !== 'PASSWORD_RESET') throw new BadRequestException('لا يمكن تغيير نوع طلب استعادة الحساب');
     if (ticket.category === 'ACCOUNT_DELETION' && (actor.role !== Role.ADMIN || dto.category && dto.category !== 'ACCOUNT_DELETION')) throw new ForbiddenException('طلبات الحذف مخصصة للإدارة ولا يمكن تغيير نوعها');

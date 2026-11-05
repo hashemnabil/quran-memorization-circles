@@ -293,6 +293,10 @@ export class ChatService {
       }
     }
 
+    if(dto.attachmentUrl){
+      const mediaId=dto.attachmentUrl.match(/^community-media:([0-9a-f-]{36})$/i)?.[1];
+      if(!mediaId||!await this.prisma.communityMedia.count({where:{id:mediaId,ownerId:user.id}}))throw new BadRequestException('الصورة المرفقة غير صالحة أو لا تملكها');
+    }
     const message = await this.prisma.$transaction(async (tx) => {
       const created = await tx.message.create({
         data: {

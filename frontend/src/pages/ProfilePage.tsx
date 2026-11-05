@@ -1,3 +1,5 @@
+import AppVersion from '@/components/AppVersion';
+import CommunityPreferences from '@/components/CommunityPreferences';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import ThemeSelect from '@/components/ThemeSelect';
@@ -193,13 +195,8 @@ export default function ProfilePage({ settings = false }: { settings?: boolean }
           {['STUDENT', 'TEACHER'].includes(user.role) ? <Card title="بياناتي الشخصية"><Button onClick={() => navigate('/verify-profile')}>تحقق من بياناتي</Button></Card> : <ProfileDetailsCard profile={profile} onUpdated={setUser} />}
 
           {settings && <>
-          <LocalSecuritySettings />
-          <ActivityPrivacySettings />
-          <Card title="دليل التطبيق"><p className="mb-3 text-sm text-slate-500">تعرّف على الحلقات والمتابعة والتواصل.</p><Button variant="secondary" onClick={() => setReplayIntro(true)}>إعادة مشاهدة شرح التطبيق</Button></Card>
-          <Card title="المظهر"><div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"><span className="text-sm text-slate-500">اختر مظهر التطبيق</span><ThemeSelect /></div></Card>
+          <h2 className="text-xl font-extrabold" id="account-settings">الحساب والأمان</h2>
           <Card title="الكنية"><form className="flex gap-2" onSubmit={async e => { e.preventDefault(); setSavingNickname(true); try { const result = await api.patch('/community/nickname', { nickname: nickname.trim() }); if(result.data?.synced===0) toast('حُفظت الكنية محليًا، بانتظار المزامنة'); else toast.success('تم حفظ الكنية'); } catch (error) { toast.error(apiError(error)); } finally { setSavingNickname(false); } }}><Input aria-label="الكنية" placeholder={profile?.nickname || 'أضف كنيتك'} maxLength={60} value={nickname} onChange={e => setNickname(e.target.value)} /><Button type="submit" loading={savingNickname}>حفظ</Button></form></Card>
-          <NativePushSettings />
-          <Card title="الإعدادات — الإشعارات"><Link className="btn-secondary inline-flex" to="/profile/settings/notifications/sound">صوت الإشعارات</Link><Link className="mt-3 block text-sm underline" to="/prayer-times/reminders">إعدادات تذكيرات الصلاة</Link></Card>
           <Card title="تغيير كلمة المرور" subtitle="سيتم إنهاء جميع جلساتك بعد التغيير">
             <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
               <Input
@@ -238,6 +235,20 @@ export default function ProfilePage({ settings = false }: { settings?: boolean }
               </div>
             </form>
           </Card>
+          <CommunityPreferences />
+          <LocalSecuritySettings />
+          <ActivityPrivacySettings />
+
+          <h2 className="text-xl font-extrabold">التخصيص</h2><Card title="المظهر"><div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"><span className="text-sm text-slate-500">اختر مظهر التطبيق</span><ThemeSelect /></div></Card>
+
+          <h2 className="text-xl font-extrabold">الإشعارات والأذان</h2>
+          <CommunityPreferences section="notifications" />
+          <NativePushSettings />
+          <Card title="الإعدادات — الإشعارات"><Link className="btn-secondary inline-flex" to="/profile/settings/notifications/sound">صوت الإشعارات</Link><Link className="mt-3 block text-sm underline" to="/prayer-times/reminders">إعدادات تذكيرات الصلاة</Link></Card>
+
+          <Card title="دليل التطبيق"><p className="mb-3 text-sm text-slate-500">تعرّف على الحلقات والمتابعة والتواصل.</p><Button variant="secondary" onClick={() => setReplayIntro(true)}>إعادة مشاهدة شرح التطبيق</Button></Card>
+          <Card title="الجوال والتطبيق"><div className="grid gap-3 sm:grid-cols-2"><Link className="daily-shortcut" to="/support">المساعدة والدعم</Link><Link className="daily-shortcut" to="/prayer-times/reminders">أذونات الإشعارات وتذكير الأذان</Link><Link className="daily-shortcut" to="/about">حول التطبيق</Link><Link className="daily-shortcut" to="/privacy">سياسة الخصوصية</Link></div><div className="mt-4"><AppVersion/></div></Card>
+          <Card title="إدارة الحساب"><Link className="text-red-700 underline" to="/account-deletion">طلب حذف الحساب والبيانات</Link><Button variant="secondary" onClick={()=>void logout()}>تسجيل الخروج</Button></Card>
           </>}
           {!settings && <Card title="منشوراتي"><Link className="btn-primary inline-flex" to="/community/users/me">عرض ملفي ومنشوراتي</Link></Card>}
         </div>

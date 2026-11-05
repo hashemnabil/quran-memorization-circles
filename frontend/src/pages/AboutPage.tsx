@@ -1,3 +1,4 @@
+import AppVersion from '@/components/AppVersion';
 import { Link } from 'react-router-dom';
 import { DEFAULT_SCHOOL_NAME } from '@/config/branding';
 import { useAuthStore } from '@/store/auth';
@@ -36,7 +37,7 @@ const sections = [
 ];
 export default function AboutPage() {
   const user = useAuthStore(state => state.user);
-  return <main dir="rtl" className="min-h-screen bg-[#f3f7f4] px-5 py-8 sm:py-14"><div className="mx-auto max-w-5xl">
+  return <main dir="rtl" className="about-page min-h-screen bg-[#f3f7f4] px-5 py-8 sm:py-14"><div className="mx-auto max-w-5xl">
     <Link to={user ? '/' : '/login'} className="mb-6 inline-flex min-h-11 items-center font-bold text-primary-800">← العودة</Link>
     <header className="relative overflow-hidden rounded-[2rem] bg-[#123c30] px-6 py-10 text-white sm:px-12">
       <img src="/brand-logo.png" alt="شعار المدرسة" className="mb-6 h-20 w-20 rounded-full bg-white p-1" />
@@ -45,6 +46,6 @@ export default function AboutPage() {
       <nav aria-label="أقسام دليل البرنامج" className="mt-7 flex flex-wrap gap-2">{sections.map(section => <a key={section.mark} href={`#section-${section.mark}`} className="rounded-full border border-white/20 px-4 py-2 text-sm hover:bg-white/10">{section.title}</a>)}</nav>
     </header>
     {sections.map(section => <section id={`section-${section.mark}`} key={section.mark} className="scroll-mt-8 pt-10"><div className="mb-5 flex items-center gap-3"><span className="text-sm font-extrabold text-primary-600">{section.mark}</span><h2 className="text-2xl font-extrabold text-slate-900">{section.title}</h2></div><div className="grid gap-4 sm:grid-cols-2">{section.items.map(([title, text]) => <article key={title} className="rounded-2xl border border-slate-200/70 bg-white p-6"><h3 className="mb-3 font-bold text-primary-900">{title}</h3><p className="text-sm leading-8 text-slate-600">{text}</p></article>)}</div></section>)}
-    <footer className="mt-10 border-t py-6 text-sm leading-7 text-slate-500">تختلف الأقسام المتاحة بحسب صلاحية الحساب. <Link to="/privacy" className="font-bold text-primary-700">سياسة الخصوصية</Link></footer>
+    <div className="mt-8"><AppVersion/></div><footer className="mt-10 border-t py-6 text-sm leading-7 text-slate-500">تختلف الأقسام المتاحة بحسب صلاحية الحساب. <Link to="/privacy" className="font-bold text-primary-700">سياسة الخصوصية</Link></footer>
   </div></main>;
 }

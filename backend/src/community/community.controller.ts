@@ -1,16 +1,91 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
+import { UploadsService } from '../uploads/uploads.service';
+import { recordNotificationChange } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser, CurrentUser } from '../common/decorators';
 import { Role, NotificationType } from '@prisma/client';
+import { AccessControlService } from '../common/services/access-control.service';
+import { audienceOf, CommunityDraft, identifiers, storyAppearance, visibility } from './community-policy';
 import { ChatService } from '../chat/chat.service';
 
 @Controller('community')
 export class CommunityController {
-  constructor(private readonly prisma:PrismaService, private readonly chat?:ChatService){}
+  constructor(private readonly prisma:PrismaService, private readonly chat?:ChatService, private readonly uploads?:UploadsService){}
+  @Get('capabilities')
+  capabilities(){return {privateAudienceVersion:1};}
+  @Post('media')
+  @UseInterceptors(FileInterceptor('file',{limits:{fileSize:5*1024*1024,files:1}}))
+  async uploadMedia(@CurrentUser() user:AuthUser,@UploadedFile() file:Express.Multer.File){
+    if(!this.uploads)throw new BadRequestException('رفع الصور غير متاح');
+    this.uploads.assertAcceptable(file);
+    // A daily cap also bounds abandoned drafts. Media never enters public uploads/.
+    if(await this.prisma.communityMedia.count({where:{ownerId:user.id,createdAt:{gte:new Date(Date.now()-86400000)}}})>=30)throw new BadRequestException('بلغت الحد اليومي للصور');
+    return this.prisma.communityMedia.create({data:{ownerId:user.id,mime:file.mimetype,bytes:file.buffer},select:{id:true}});
+  }
+  @Get('media/:id')
+  async media(@CurrentUser() user:AuthUser,@Param('id') id:string,@Res() response:Response){
+    const [own,post,story,message]=await Promise.all([
+      this.prisma.communityMedia.count({where:{id,ownerId:user.id}}),
+      this.prisma.communityPost.count({where:{AND:[{mediaIds:{has:id}},visibility(user.id)]}}),
+      this.prisma.communityStory.count({where:{mediaIds:{has:id},expiresAt:{gt:new Date()}}}),
+      this.prisma.message.count({where:{attachmentUrl:'community-media:'+id,deletedAt:null,conversation:{members:{some:{userId:user.id,leftAt:null}}}}}),
+    ]);
+    if(!own&&!post&&!story&&!message)throw new ForbiddenException('الصورة غير متاحة');
+    const media=await this.prisma.communityMedia.findUnique({where:{id}});
+    if(!media)throw new BadRequestException('الصورة غير موجودة');
+    response.set({'Content-Type':media.mime,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Disposition':'inline'}).send(media.bytes);
+  }
+  private async images(user:AuthUser,dto:CommunityDraft){
+    const ids=identifiers(dto.mediaIds,3);
+    if(ids.length!==await this.prisma.communityMedia.count({where:{id:{in:ids},ownerId:user.id}}))throw new ForbiddenException('اختر صوراً تملكها');
+    return ids;
+  }
+  @Get('preferences')
+  preferences(@CurrentUser() user:AuthUser){return this.prisma.user.findUnique({where:{id:user.id},select:{communityMentionNotifications:true}});}
+  @Patch('preferences')
+  setPreferences(@CurrentUser() user:AuthUser,@Body('communityMentionNotifications') enabled:boolean){
+    if(typeof enabled!=='boolean')throw new BadRequestException('إعداد غير صالح');
+    return this.prisma.user.update({where:{id:user.id},data:{communityMentionNotifications:enabled},select:{communityMentionNotifications:true}});
+  }
   private async notifyInteraction(actorId:string, recipientId:string, title:string, link:string){
     if(actorId===recipientId)return;
     const actor=await this.prisma.user.findUnique({where:{id:actorId},select:{fullName:true}});
     await this.prisma.notification.create({data:{userId:recipientId,type:NotificationType.SYSTEM,title:(actor?.fullName??'أحد الأعضاء')+' '+title,link}});
+  }
+  private async mentionNotices(tx:import('@prisma/client').Prisma.TransactionClient,user:AuthUser,ids:string[],link:string){
+    const recipients=await tx.user.findMany({where:{id:{in:ids,not:user.id},isActive:true,deletedAt:null,communityMentionNotifications:true},select:{id:true}});
+    for(const recipient of recipients){
+      const notice=await tx.notification.create({data:{userId:recipient.id,type:NotificationType.SYSTEM,title:'تمت الإشارة إليك في المجتمع',link,data:{source:'COMMUNITY_MENTION',actorId:user.id}}});
+      await recordNotificationChange(tx,notice);
+    }
+  }
+  private async readable(user:AuthUser,id:string){
+    const post=await this.prisma.communityPost.findFirst({where:{AND:[{id},visibility(user.id)]}});
+    if(!post)throw new ForbiddenException('المنشور غير متاح');
+    return post;
+  }
+  private async permitted(user:AuthUser, ids:string[]){
+    if(!ids.length)return [];
+    const scope=await new AccessControlService(this.prisma).contactableUserFilter(user);
+    // Prisma drops empty objects inside OR; an unrestricted staff scope must
+    // remain an unrestricted AND clause rather than turning into self-only.
+    const allowed=scope===null?{id:user.id}:Object.keys(scope).length?{OR:[{id:user.id},scope]}:{};
+    const rows=await this.prisma.user.findMany({where:{AND:[{id:{in:ids},isActive:true,deletedAt:null,role:{not:Role.PARENT}},allowed]},select:{id:true,username:true,fullName:true}});
+    if(rows.length!==ids.length)throw new ForbiddenException('بعض الحسابات خارج نطاق صلاحياتك');
+    return rows;
+  }
+  @Get('directory')
+  async directory(@CurrentUser() user:AuthUser,@Query('q') q?:string){
+    if(typeof q!=='string'||q.length>80)throw new BadRequestException('بحث غير صالح');
+    const scope=await new AccessControlService(this.prisma).contactableUserFilter(user);
+    return this.prisma.user.findMany({where:{AND:[{isActive:true,deletedAt:null,role:{not:Role.PARENT},id:{not:user.id}},scope??{id:'__none__'},{OR:[{fullName:{contains:q,mode:'insensitive'}},{username:{contains:q,mode:'insensitive'}}]}]},take:30,orderBy:{fullName:'asc'},select:{id:true,fullName:true,username:true,avatarUrl:true}});
+  }
+  private async mentions(user:AuthUser,dto:CommunityDraft,recipients?:string[]){
+    const rows=await this.permitted(user,identifiers(dto.mentionIds,20));
+    if(rows.some(row=>!dto.body.split(/\s+/u).includes('@'+row.username)||recipients&&!recipients.includes(row.id)&&row.id!==user.id))throw new BadRequestException('المنشن يجب أن يطابق النص والجمهور');
+    return rows;
   }
   @Get('school')
   async school(){
@@ -23,16 +98,21 @@ export class CommunityController {
     return {...(settings??{name:'صفحة المدرسة',logoUrl:null,about:null,address:null,phone:null}),stats:{circles,students,teachers}};
   }
   @Get('feed')
-  feed(@Query('userId') userId?:string,@Query('school') school?:string){
-    return this.prisma.communityPost.findMany({where:{...(userId?{authorId:userId,schoolPost:false}:{}),...(school==='true'?{schoolPost:true}:{})},orderBy:{createdAt:'desc'},take:100,include:{author:{select:{id:true,fullName:true,nickname:true,avatarUrl:true,role:true}},_count:{select:{likes:true,comments:true}},likes:{take:100,include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}}}},comments:{take:100,orderBy:{createdAt:'asc'},include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}},_count:{select:{likes:true}}}}}});
+  feed(@CurrentUser() user:AuthUser,@Query('userId') userId?:string,@Query('school') school?:string){
+    return this.prisma.communityPost.findMany({where:{AND:[visibility(user.id)],...(userId?{authorId:userId,schoolPost:false}:{}),...(school==='true'?{schoolPost:true}:{})},orderBy:{createdAt:'desc'},take:100,include:{author:{select:{id:true,fullName:true,nickname:true,avatarUrl:true,role:true}},_count:{select:{likes:true,comments:true}},likes:{take:100,include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}}}},comments:{take:100,orderBy:{createdAt:'asc'},include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}},_count:{select:{likes:true}}}}}});
   }
   @Get('users/:id')
   async profile(@Param('id') id:string){
-    const user=await this.prisma.user.findFirst({where:{id,isActive:true,deletedAt:null},select:{id:true,fullName:true,nickname:true,avatarUrl:true,role:true,createdAt:true}});
+    const user=await this.prisma.user.findFirst({where:{id,isActive:true,deletedAt:null,role:{not:Role.PARENT}},select:{id:true,fullName:true,nickname:true,username:true,bio:true,avatarUrl:true,role:true,createdAt:true}});
     if(!user)throw new BadRequestException('المستخدم غير موجود');
     const cover = await this.prisma.presentationChoice.findUnique({ where: { userId_kind: { userId: id, kind: 'PROFILE_COVER' } } });
     const asset = cover?.assetId ? await this.prisma.founderAsset.findFirst({ where: { id: cover.assetId, kind: 'PROFILE_COVER', isActive: true }, select: { id: true } }) : null;
     return { ...user, coverAssetId: asset?.id || null };
+  }
+  @Patch('bio')
+  bio(@CurrentUser() user:AuthUser,@Body('bio') bio:string){
+    if(typeof bio!=='string'||bio.length>280)throw new BadRequestException('النبذة لا تتجاوز 280 حرفاً');
+    return this.prisma.user.update({where:{id:user.id},data:{bio:bio.trim()||null},select:{id:true,bio:true}});
   }
   @Patch('nickname')
   nickname(@CurrentUser() user:AuthUser,@Body('nickname') nickname:string){
@@ -40,10 +120,18 @@ export class CommunityController {
     return this.prisma.user.update({where:{id:user.id},data:{nickname:nickname.trim()||null},select:{id:true,nickname:true}});
   }
   @Post('posts')
-  post(@CurrentUser() user:AuthUser,@Body() dto:{body:string;schoolPost?:boolean}){
+  async post(@CurrentUser() user:AuthUser,@Body() dto:CommunityDraft){
     if(typeof dto?.body!=='string'||!dto.body.trim()||dto.body.length>2000)throw new BadRequestException('المنشور يجب أن يكون نصاً لا يتجاوز 2000 حرف');
     if(dto.schoolPost&&user.role!==Role.ADMIN)throw new ForbiddenException('النشر باسم المدرسة للإدارة فقط');
-    return this.prisma.communityPost.create({data:{authorId:user.id,body:dto.body.trim(),schoolPost:!!dto.schoolPost}});
+    const audience=audienceOf(dto);
+    await this.permitted(user,audience.recipientIds);
+    const mentions=await this.mentions(user,dto,audience.audience==='SELECTED'?audience.recipientIds:undefined);
+    const mediaIds=await this.images(user,dto);
+    return this.prisma.$transaction(async tx=>{
+      const post=await tx.communityPost.create({data:{authorId:user.id,body:dto.body.trim(),schoolPost:!!dto.schoolPost,...audience,mentions,mediaIds}});
+      await this.mentionNotices(tx,user,mentions.map(row=>row.id),'/community/posts?post='+post.id);
+      return post;
+    });
   }
   @Delete('posts/:id')
   async remove(@CurrentUser() user:AuthUser,@Param('id') id:string){
@@ -71,6 +159,7 @@ export class CommunityController {
   }
   @Post('posts/:id/like')
   async like(@CurrentUser() user:AuthUser,@Param('id') id:string){
+    await this.readable(user,id);
     const existing=await this.prisma.communityLike.findUnique({where:{userId_postId:{userId:user.id,postId:id}}});
     if(existing){await this.prisma.communityLike.delete({where:{userId_postId:{userId:user.id,postId:id}}});return {liked:false};}
     await this.prisma.communityLike.create({data:{userId:user.id,postId:id}});const post=await this.prisma.communityPost.findUnique({where:{id},select:{authorId:true}});if(post)await this.notifyInteraction(user.id,post.authorId,'أعجب بمنشورك','/community/posts?post='+id);return {liked:true};
@@ -78,6 +167,7 @@ export class CommunityController {
   @Post('posts/:id/comments')
   async comment(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('body') body:string){
     if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('التعليق غير صالح');
+    await this.readable(user,id);
     const result=await this.prisma.communityComment.create({data:{userId:user.id,postId:id,body:body.trim()},include:{post:{select:{authorId:true}}}});await this.notifyInteraction(user.id,result.post.authorId,'علّق على منشورك','/community/posts?post='+id+'&comment='+result.id);return result;
   }
 
@@ -85,6 +175,7 @@ export class CommunityController {
   async likeComment(@CurrentUser() user:AuthUser,@Param('id') id:string){
     const found=await this.prisma.communityComment.findUnique({where:{id}});
     if(!found)throw new BadRequestException('التعليق غير موجود');
+    await this.readable(user,found.postId);
     const where={userId_commentId:{userId:user.id,commentId:id}};
     const existing=await this.prisma.communityCommentLike.findUnique({where});
     if(existing){await this.prisma.communityCommentLike.delete({where});return {liked:false};}
@@ -96,6 +187,7 @@ export class CommunityController {
     if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('الرد غير صالح');
     const parent=await this.prisma.communityComment.findUnique({where:{id}});
     if(!parent)throw new BadRequestException('التعليق غير موجود');
+    await this.readable(user,parent.postId);
     const reply=await this.prisma.communityComment.create({data:{userId:user.id,postId:parent.postId,parentId:id,body:body.trim()}});await this.notifyInteraction(user.id,parent.userId,'رد على تعليقك','/community/posts?post='+parent.postId+'&comment='+reply.id);return reply;
   }
   @Get('stories')
@@ -104,11 +196,17 @@ export class CommunityController {
     return stories.map(story=>({...story,views:story.authorId===user.id||user.role===Role.ADMIN?story.views:story.views.filter(view=>view.userId===user.id)}));
   }
   @Post('stories')
-  createStory(@CurrentUser() user:AuthUser,@Body() dto:{body:string;schoolStory?:boolean}){
+  async createStory(@CurrentUser() user:AuthUser,@Body() dto:CommunityDraft){
     const body=dto?.body;
     if(dto?.schoolStory&&user.role!==Role.ADMIN)throw new ForbiddenException('قصص المدرسة للإدارة فقط');
     if(typeof body!=='string'||!body.trim()||body.length>500)throw new BadRequestException('القصة غير صالحة');
-    return this.prisma.communityStory.create({data:{authorId:user.id,body:body.trim(),schoolStory:!!dto.schoolStory,expiresAt:new Date(Date.now()+86400000)}});
+    const mentions=await this.mentions(user,dto);
+    const mediaIds=await this.images(user,dto),appearance=storyAppearance(dto);
+    return this.prisma.$transaction(async tx=>{
+      const story=await tx.communityStory.create({data:{authorId:user.id,body:body.trim(),schoolStory:!!dto.schoolStory,mentions,mediaIds,...appearance,expiresAt:new Date(Date.now()+86400000)}});
+      await this.mentionNotices(tx,user,mentions.map(row=>row.id),'/community/stories?story='+story.id);
+      return story;
+    });
   }
   @Delete('stories/:id')
   async deleteStory(@CurrentUser() user:AuthUser,@Param('id') id:string){

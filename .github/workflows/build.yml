@@ -56,7 +56,7 @@ jobs:
       - run: npm --prefix backend run test:founder
       - run: npm --prefix backend run test:founder-audit
       - name: Test UI domain and contact policies
-        run: node --test -r ts-node/register src/community/community-policy.test.ts
+        run: node --test -r ts-node/register src/community/community-policy.test.ts src/community/community-audience.test.ts
         working-directory: backend
       - run: npm --prefix backend run test:security
       - run: npm --prefix backend run test:student-transfer
@@ -88,6 +88,8 @@ jobs:
           NODE_ENV: production
       - run: node backend/scripts/e2e-fixtures.mjs
       - run: npx --prefix frontend playwright install --with-deps chromium
+      - name: Verify mobile social workflows
+        run: npm --prefix frontend run test:e2e -- --grep 'community composer|selected post composer|mobile account'
       - run: npm --prefix frontend run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()

@@ -26,6 +26,7 @@ test('role workflows and production security regressions over HTTP', { timeout: 
   const sessions: Partial<Record<Role, any>> = {};
   let circle: any, hiddenCircle: any, student: any, hiddenStudent: any;
   let course: any, template: any, conversation: any;
+  const deletionAccountId = randomUUID();
   const registryRecordId = randomUUID();
   let teacherId: string;
   const recoveryId = randomUUID();
@@ -59,6 +60,43 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('GET', '/auth/me', Role.PARENT, undefined, 401);
       await request('GET', '/users', undefined, undefined, 401);
       assert.equal((await request('GET', '/health')).status, 'ok');
+    });
+    await t.test('community audiences, mentions, protected media and offline replay stay private over HTTP',async()=>{
+      const mentioned=await db.user.findUniqueOrThrow({where:{id:ids.STUDENT!}});
+      await request('PATCH','/community/preferences',Role.STUDENT,{communityMentionNotifications:false});
+      const privateDraft={body:'Hello @'+mentioned.username,audience:'SELECTED',recipientIds:[ids.STUDENT],mentionIds:[ids.STUDENT]};
+      const quiet=await request('POST','/community/posts',Role.ADMIN,privateDraft,201);
+      assert.equal(await db.notification.count({where:{userId:ids.STUDENT,link:'/community/posts?post='+quiet.id}}),0);
+      await request('PATCH','/community/preferences',Role.STUDENT,{communityMentionNotifications:true});
+      const form=new FormData();form.append('file',new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1sAAAAASUVORK5CYII=','base64')],{type:'image/png'}),'test.png');
+      const uploaded=await fetch(base+'/api/community/media',{method:'POST',headers:{Authorization:'Bearer '+sessions.ADMIN.accessToken},body:form});
+      assert.equal(uploaded.status,201);const image=await uploaded.json() as any;
+      const post=await request('POST','/community/posts',Role.ADMIN,{...privateDraft,mediaIds:[image.id]},201);
+      assert.equal(await db.notification.count({where:{userId:ids.STUDENT,link:'/community/posts?post='+post.id}}),1);
+      assert((await request('GET','/community/feed',Role.STUDENT)).some((row:any)=>row.id===post.id));
+      assert(!(await request('GET','/community/feed?userId='+ids.ADMIN,Role.TEACHER)).some((row:any)=>row.id===post.id));
+      assert(!(await request('GET','/sync-all?table=communityPosts',Role.TEACHER)).data.some((row:any)=>row.id===post.id));
+      await request('POST','/community/posts/'+post.id+'/like',Role.TEACHER,{},403);
+      await request('POST','/community/posts/'+post.id+'/comments',Role.TEACHER,{body:'unauthorized'},403);
+      const comment=await request('POST','/community/posts/'+post.id+'/comments',Role.STUDENT,{body:'visible'},201);
+      await request('POST','/community/comments/'+comment.id+'/replies',Role.TEACHER,{body:'unauthorized'},403);
+      await request('POST','/community/comments/'+comment.id+'/like',Role.TEACHER,{},403);
+      const allowed=await fetch(base+'/api/community/media/'+image.id,{headers:{Authorization:'Bearer '+sessions.STUDENT.accessToken}});
+      assert.equal(allowed.status,200);assert.match(allowed.headers.get('cache-control')||'',/no-store/);
+      await request('GET','/community/media/'+image.id,Role.TEACHER,undefined,403);
+      await request('POST','/community/posts',Role.STUDENT,{body:'school',schoolPost:true},403);
+      await request('POST','/community/posts',Role.ADMIN,{...privateDraft,recipientIds:[ids.TEACHER]},400);
+      await request('POST','/community/posts',Role.ADMIN,{body:'Hi',mentionIds:[ids.STUDENT]},400);
+      const operation={opId:randomUUID(),entityId:randomUUID(),table:'communityPosts',action:'create',data:privateDraft};
+      const first=await request('POST','/sync-all',Role.ADMIN,{operations:[operation]});
+      assert.equal(first.outcomes[0].status,'applied');
+      await request('POST','/sync-all',Role.ADMIN,{operations:[operation]});
+      const saved=first.outcomes[0].data;
+      assert.equal(await db.notification.count({where:{userId:ids.STUDENT,link:'/community/posts?post='+saved.id}}),1);
+      const story=await request('POST','/community/stories',Role.ADMIN,{body:'Story @'+mentioned.username,mentionIds:[ids.STUDENT],background:'#183153',textColor:'#ffffff',fontSize:36,bold:false},201);
+      const fetched=(await request('GET','/community/stories',Role.STUDENT)).find((row:any)=>row.id===story.id);
+      assert.equal(fetched.background,'#183153');assert.equal(fetched.mentions[0].id,ids.STUDENT);
+      await db.communityStory.delete({where:{id:story.id}});
     });
     await t.test('targeted broadcasts are administrator-only and replay once; recovery requests are private', async () => {
       const title = `Broadcast ${suffix}`;
@@ -284,6 +322,26 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       await request('DELETE', '/uploads', Role.STUDENT, { url: uploaded.url }, 403);
       assert.equal((await request('DELETE', '/uploads', Role.TEACHER, { url: uploaded.url })).deleted, true);
     });
+    await t.test('verified deletion revokes sessions, removes personal community data and records retention exactly once',async()=>{
+      const username='delete'+suffix;
+      await db.user.create({data:{id:deletionAccountId,username,fullName:'Deletion test',role:Role.STUDENT,passwordHash:await bcrypt.hash(password,4),email:'delete'+suffix+'@example.test',bio:'personal bio'}});
+      const session=await request('POST','/auth/login',undefined,{username,password},200);
+      const own=async(method:string,path:string,body?:unknown)=>{const result=await fetch(base+'/api'+path,{method,headers:{Authorization:'Bearer '+session.accessToken,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});assert.ok(result.ok);return result.json() as Promise<any>;};
+      const post=await own('POST','/community/posts',{body:'personal content'});
+      const ticket=await own('POST','/support/account-deletion',{currentPassword:password,reason:'Test verified request'});
+      const decision={confirmed:true,retentionNote:'Retain educational and administrative records for institutional audit; review this decision with the school annually.'};
+      await request('POST','/support/account-deletion/'+ticket.id+'/complete',Role.SUPPORT,decision,403);
+      await request('POST','/support/account-deletion/'+ticket.id+'/complete',Role.ADMIN,{...decision,confirmed:false},400);
+      const outcome=await request('POST','/support/account-deletion/'+ticket.id+'/complete',Role.ADMIN,decision,201);
+      assert.equal(outcome.completed,true);
+      await request('POST','/support/account-deletion/'+ticket.id+'/complete',Role.ADMIN,decision,201);
+      const account=await db.user.findUniqueOrThrow({where:{id:deletionAccountId}});
+      assert.equal(account.isActive,false);assert.equal(account.email,null);assert.equal(account.bio,null);assert.equal(account.fullName,'حساب محذوف');
+      assert.equal(await db.communityPost.count({where:{id:post.id}}),0);
+      assert.equal(await db.activityLog.count({where:{action:'ACCOUNT_DELETION_COMPLETE',entityId:ticket.id}}),1);
+      assert.equal((await fetch(base+'/api/auth/me',{headers:{Authorization:'Bearer '+session.accessToken}})).status,401);
+      const retained=await db.supportTicket.findUniqueOrThrow({where:{id:ticket.id}});assert.equal(retained.retentionNote,decision.retentionNote);assert(retained.deletionCompletedAt);
+    });
     await t.test('concurrent refresh rotates once and password change invalidates access and refresh tokens', async () => {
       const refreshToken = sessions.ADMIN.refreshToken;
       const responses = await Promise.all([0, 1].map(() => fetch(`${base}/api/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken }) })));
@@ -311,7 +369,7 @@ test('role workflows and production security regressions over HTTP', { timeout: 
     if (template?.id) await db.certificateTemplate.deleteMany({ where: { id: template.id } });
     if (circle?.id || hiddenCircle?.id) await db.circle.deleteMany({ where: { id: { in: [circle?.id, hiddenCircle?.id].filter(Boolean) } } });
     if (student?.id || hiddenStudent?.id) await db.student.deleteMany({ where: { id: { in: [student?.id, hiddenStudent?.id].filter(Boolean) } } });
-    await db.user.deleteMany({ where: { id: { in: Object.values(ids) } } });
+    await db.user.deleteMany({ where: { id: { in: [...Object.values(ids),deletionAccountId] } } });
     await db.profileReview.deleteMany({ where: { requesterId: { in: Object.values(ids) } } });
     await app.close();
   }

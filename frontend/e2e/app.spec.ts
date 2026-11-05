@@ -165,3 +165,94 @@ test('offline attendance survives a lost committed response and replays with the
   expect(sheet.students.filter((student: any) => student.id === fixtures.student.id)).toHaveLength(1);
   expect(sheet.students.find((student: any) => student.id === fixtures.student.id).attendance.status).toBe('ABSENT');
 });
+
+
+test('community composer works across mobile sizes and themes and retains encrypted drafts',async({page})=>{
+  await login(page,'ADMIN');
+  await gotoWithLocalUnlock(page,'/community/stories/new');
+  const body='Story mobile '+Date.now();
+  await page.getByLabel('نص القصة',{exact:true}).fill(body);
+  await page.getByRole('button',{name:'خلفية #183153',exact:true}).click();
+  await page.getByRole('button',{name:'معاينة قبل النشر',exact:true}).click();
+  for(const width of [360,390,430])for(const theme of ['light','dark']){
+    await page.setViewportSize({width,height:844});
+    await page.evaluate(value=>{document.documentElement.dataset.theme=value;},theme);
+    await expect(page.getByRole('heading',{name:'إنشاء قصة',exact:true})).toBeVisible();
+    await expect(page.getByRole('button',{name:'نشر',exact:true})).toBeVisible();
+    await expect.poll(async () => {
+      const layout = await page.evaluate(() => ({
+        viewport: window.innerWidth,
+        document: document.documentElement.scrollWidth,
+        editor: document.querySelector<HTMLElement>('.community-composer') ? {width:document.querySelector<HTMLElement>('.community-composer')!.clientWidth,scroll:document.querySelector<HTMLElement>('.community-composer')!.scrollWidth} : null,
+        offenders: [...document.querySelectorAll<HTMLElement>('body *')]
+          .filter(element => {
+            const rect = element.getBoundingClientRect();
+            return rect.width > 0 && (rect.right > window.innerWidth + 1 || rect.left < -1);
+          })
+          .slice(0, 12)
+          .map(element => ({
+            tag: element.tagName,
+            className: typeof element.className === 'string' ? element.className.slice(0, 120) : '',
+            bounds: [Math.round(element.getBoundingClientRect().left), Math.round(element.getBoundingClientRect().right)],
+          })),
+      }));
+      if (layout.document > layout.viewport + 1) console.log('MOBILE_OVERFLOW_DIAGNOSTIC', JSON.stringify({ width, theme, ...layout }));
+      return layout.document <= layout.viewport + 1 && (!layout.editor || layout.editor.scroll <= layout.editor.width+1);
+    }).toBe(true);
+    await expect(page.getByRole('region',{name:'معاينة'})).toContainText(body);
+  }
+  await expect.poll(()=>page.evaluate(account=>new Promise(resolve=>{
+    const open=indexedDB.open('halaqatFull');open.onsuccess=()=>{const database=open.result;const read=database.transaction('meta').objectStore('meta').get(account+':community-draft:story');read.onsuccess=()=>{resolve(Boolean(read.result));database.close();};};
+  }),fixtures.accounts.ADMIN.id)).toBe(true);
+  await page.reload();await unlockLocalGate(page);
+  await expect(page.getByLabel('نص القصة',{exact:true})).toHaveValue(body);
+  await page.getByRole('button',{name:'نشر',exact:true}).click();
+  await expect(page).toHaveURL(/\/community\/posts$/);
+  await page.getByRole('button',{name:/Browser ADMIN/}).first().click();
+  await expect(page.getByRole('dialog',{name:'عرض الستوري'})).toContainText(body);
+});
+
+test('selected post composer inserts real mentions and publishes with an explicit audience',async({page})=>{
+  await login(page,'ADMIN');await page.setViewportSize({width:390,height:844});
+  await gotoWithLocalUnlock(page,'/community/posts/new');
+  await page.getByLabel('الجمهور',{exact:true}).selectOption('SELECTED');
+  await page.getByLabel('البحث عن حسابات الجمهور').fill(fixtures.accounts.STUDENT.username);
+  await page.getByRole('checkbox',{name:new RegExp('Browser STUDENT')}).check();
+  await page.getByLabel('نص المنشور',{exact:true}).fill('Hello @'+fixtures.accounts.STUDENT.username);
+  await page.getByRole('option',{name:new RegExp('Browser STUDENT')}).click();
+  await page.getByRole('button',{name:'معاينة قبل النشر',exact:true}).click();
+  await expect(page.getByRole('region',{name:'معاينة'}).getByRole('link')).toHaveAttribute('href','/community/users/'+fixtures.accounts.STUDENT.id);
+  let published=0;page.on('request',request=>{if(request.method()==='POST'&&new URL(request.url()).pathname==='/api/community/posts')published++;});
+  await page.route('**/api/community/capabilities',route=>route.fulfill({json:{privateAudienceVersion:0}}));
+  await page.getByRole('button',{name:'نشر',exact:true}).click();
+  await expect(page.getByText('الخادم يحتاج تحديث دعم الجمهور الخاص؛ بقي منشورك محفوظاً',{exact:true})).toBeVisible();
+  expect(published).toBe(0);await expect(page).toHaveURL(/\/community\/posts\/new$/);
+  await page.unroute('**/api/community/capabilities');
+  await page.getByRole('button',{name:'نشر',exact:true}).click();
+  await expect(page).toHaveURL(/\/community\/posts$/);
+  const post=page.locator('.community-post').filter({hasText:'Hello @'+fixtures.accounts.STUDENT.username}).first();
+  await expect(post).toContainText('أشخاص محددون');
+  await expect(post.getByRole('link',{name:'@'+fixtures.accounts.STUDENT.username,exact:true})).toHaveAttribute('href','/community/users/'+fixtures.accounts.STUDENT.id);
+});
+
+
+test('mobile account and chat pages keep navigation and conversation controls usable in both themes',async({page})=>{
+  test.setTimeout(180000);await login(page,'ADMIN');
+  for(const width of [360,430])for(const theme of ['light','dark']){
+    await page.setViewportSize({width,height:844});
+    await page.evaluate(value=>{localStorage.setItem('qc.theme',value);window.dispatchEvent(new CustomEvent('qc:theme',{detail:value}));},theme);
+    for(const path of ['/community/users/me','/profile/settings','/chat']){
+      await gotoWithLocalUnlock(page,path);
+      await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1)).toBe(true);
+      if(path==='/profile/settings')await expect(page.getByText('إصدار التطبيق',{exact:false})).toBeVisible();
+      if(path==='/chat'){
+        const create=page.getByRole('button',{name:'محادثة جديدة',exact:true});await expect(create).toBeVisible();await create.click();
+        const dialog=page.getByRole('dialog');await dialog.getByRole('button',{name:/Browser TEACHER/}).click();
+        await expect(page).toHaveURL(/\/chat\/[0-9a-f-]+$/);
+        await expect(page.locator('.chat-conversation-list')).not.toBeVisible();
+        await expect(page.locator('.chat-composer textarea')).toBeVisible();
+        const box=await page.locator('.chat-composer').boundingBox();expect(box!.y+box!.height).toBeLessThanOrEqual(845);
+      }
+    }
+  }
+});

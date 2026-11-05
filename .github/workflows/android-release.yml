@@ -54,6 +54,8 @@ jobs:
       - run: npm --prefix frontend run test:full-offline
       - run: npm --prefix frontend run build
         env:
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
           VITE_API_URL: https://quran-memorization-circles.onrender.com/api
           VITE_SOCKET_URL: https://quran-memorization-circles.onrender.com
           VITE_ANDROID_FCM_CONFIGURED: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}

@@ -4,7 +4,7 @@
   "description": "Backend for the Quran Memorization Circles Management System",
   "private": true,
   "scripts": {
-    "test:ui-domain": "node --test -r ts-node/register src/community/community-policy.test.ts src/chat/offline-message.test.ts src/notifications/notification-flows.test.ts src/security-readiness.test.ts",
+    "test:ui-domain": "node --test -r ts-node/register src/community/community-policy.test.ts src/community/community-audience.test.ts src/chat/offline-message.test.ts src/notifications/notification-flows.test.ts src/security-readiness.test.ts",
     "test:student-transfer": "node --test scripts/student-transfer.test.mjs && node --test -r ts-node/register src/students/student-self-service.test.ts src/attendance/absence-alerts.test.ts src/notifications/notification-flows.test.ts",
     "test:student-transfer-integration": "node scripts/student-transfer.integration.mjs",
     "db:transfer-parent-data": "node scripts/transfer-parent-data.mjs",
@@ -86,7 +86,10 @@
     "body-parser": "^1.20.9",
     "lodash": "^4.17.24",
     "js-yaml": "^4.3.2",
-    "qs": "^6.16.0"
+    "qs": "^6.16.0",
+    "ajv@>=8 <9": "^8.18.0",
+    "picomatch@>=4 <5": "^4.0.4",
+    "webpack": "^5.105.0"
   },
   "engines": {
     "node": ">=22 <25"

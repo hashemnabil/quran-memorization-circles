@@ -1,6 +1,8 @@
+import { releaseVersion } from './release-version.mjs';
 import fs from 'node:fs';
 const filename = process.argv[2] || 'frontend/ios/App/App.xcodeproj/project.pbxproj';
-const { IOS_TEAM_ID: team, IOS_PROFILE_UUID: profile, VERSION_NAME: version, VERSION_CODE: build } = process.env;
+const { IOS_TEAM_ID: team, IOS_PROFILE_UUID: profile } = process.env;
+const {version,build}=releaseVersion();
 if (!/^[A-Z0-9]{10}$/.test(team || '') || !/^[A-Fa-f0-9-]{36}$/.test(profile || '') || !/^\d+\.\d+\.\d+$/.test(version || '') || !/^[1-9]\d*$/.test(build || '')) throw new Error('Invalid iOS release configuration');
 let updated = 0;
 const source = fs.readFileSync(filename, 'utf8').replace(/buildSettings = \{([^{}]*)\};\s*name = Release;/g, block => {

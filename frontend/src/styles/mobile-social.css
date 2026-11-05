@@ -30,3 +30,9 @@
 @media (prefers-reduced-motion: reduce) { .community-composer * { scroll-behavior: auto; } }
 
 [data-theme="dark"] .about-page { background: var(--canvas); }
+
+/* Keep the story preview and native controls inside narrow mobile viewports. */
+.community-composer, .composer-body, .composer-body > *, .composer-story-preview { box-sizing: border-box; min-width: 0; max-width: 100%; }
+.community-composer .input, .community-composer select, .community-composer textarea { min-width: 0; max-width: 100%; }
+.community-composer .composer-story-preview { width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+@media (max-width: 767px) { .community-composer { width: 100%; margin-inline: 0; } .community-composer .composer-body { width: 100%; } .community-composer .composer-toolbar { min-width: 0; } }

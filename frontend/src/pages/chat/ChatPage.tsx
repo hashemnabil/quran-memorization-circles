@@ -925,9 +925,9 @@ function NewConversationModal({ mode, onClose }: { mode: 'direct' | 'group'; onC
   });
 
   const create = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (directUserId?: string) => {
       if (mode === 'direct') {
-        return (await api.post('/chat/conversations/direct', { userId: selected[0] })).data;
+        return (await api.post('/chat/conversations/direct', { userId: directUserId ?? selected[0] })).data;
       }
       return (await api.post('/chat/conversations/group', { title, memberIds: selected })).data;
     },
@@ -941,7 +941,7 @@ function NewConversationModal({ mode, onClose }: { mode: 'direct' | 'group'; onC
   });
 
   const toggle = (userId: string) => {
-    if (mode === 'direct') setSelected([userId]);
+    if (mode === 'direct') { if (!create.isPending) create.mutate(userId); }
     else setSelected((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]));
   };
 

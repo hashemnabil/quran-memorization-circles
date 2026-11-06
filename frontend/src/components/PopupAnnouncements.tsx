@@ -65,12 +65,10 @@ export default function PopupAnnouncements() {
   const scope = user ? `user:${user.id}:${user.role}` : 'public';
   const [rows, setRows] = useState<{ scope: string; data: Popup[] }>({ scope: '', data: [] });
   const [dismissed, setDismissed] = useState<string[]>([]), [error, setError] = useState('');
-  const [unlocked, setUnlocked] = useState(document.documentElement.dataset.appLocked !== '1');
   const opening = useRef(crypto.randomUUID());
   const content = useRef<HTMLDivElement>(null);
-  useEffect(() => { const observer = new MutationObserver(() => setUnlocked(document.documentElement.dataset.appLocked !== '1')); observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-app-locked'] }); return () => observer.disconnect(); }, []);
   useEffect(() => {
-    if (!['authenticated', 'unauthenticated'].includes(status) || !unlocked) return;
+    if (!['authenticated', 'unauthenticated'].includes(status)) return;
     let active = true;
     const cacheKey = `qc.popup.cache.${scope}`;
     const read = (key: string, fallback: any) => { try { const value = JSON.parse(localStorage.getItem(key) || 'null'); return value ? user ? openValue(user.id, key, value) : value : fallback; } catch { return fallback; } };
@@ -97,9 +95,9 @@ export default function PopupAnnouncements() {
     }
     void refresh(); const timer = window.setInterval(() => void refresh(), 60000); window.addEventListener('online', refresh);
     return () => { active = false; clearInterval(timer); window.removeEventListener('online', refresh); };
-  }, [scope, status, unlocked]);
+  }, [scope, status]);
   const now = new Date();
-  const row = rows.scope === scope && unlocked && (user || pathname === '/login') ? [...rows.data].sort((a, b) => Number(b.id === target) - Number(a.id === target)).find(row => {
+  const row = rows.scope === scope && (user || pathname === '/login') ? [...rows.data].sort((a, b) => Number(b.id === target) - Number(a.id === target)).find(row => {
     if (!row?.popup || !row.isActive || row.popup.state !== 'PUBLISHED' || new Date(row.publishedAt) > now || row.expiresAt && new Date(row.expiresAt) <= now || dismissed.includes(`${scope}:${row.id}`)) return false;
     if (!user && (row.audience?.length || !['BEFORE', 'BOTH'].includes(row.popup.placement))) return false;
     if (user && (!['AFTER', 'BOTH'].includes(row.popup.placement) || row.audience?.length && !row.audience.includes(user.role))) return false;

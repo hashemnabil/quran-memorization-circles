@@ -452,7 +452,7 @@ test('unexpected screen errors offer recovery without clearing the saved account
     const url = new URL(route.request().url());
     return route.fulfill({ json: url.pathname === '/api/auth/me' ? user : url.pathname === '/api/announcements/active' ? { unexpected: true } : { name: 'School', data: [], meta: { total: 0, totalPages: 1 } } });
   });
-  await page.goto('/profile');
+  await gotoWithLocalUnlock(page, '/profile');
   await expect(page.getByRole('heading', { name: 'تعذر عرض الصفحة', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'إعادة فتح الصفحة', exact: true })).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('qc.offlineUser') || 'null')?.id)).toBe(account);

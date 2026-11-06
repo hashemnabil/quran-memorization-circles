@@ -54,7 +54,8 @@ function AccountGate({ account, children }: { account: string; children: ReactNo
     document.addEventListener('visibilitychange', visibility); window.addEventListener('pagehide', pagehide); window.addEventListener('qc:lock-changed', changed);
     const native = Capacitor.isNativePlatform() ? NativeApp.addListener('appStateChange', event => lifecycle(event.isActive)) : undefined;
     window.addEventListener('qc:lock-now', lockNow);
-    // The authenticated subtree stays mounted during locking; its authorized sync remains active.
+    // Do not mount the authenticated subtree while the PIN gate is closed: its
+    // effects can otherwise write to encrypted IndexedDB without an active key.
     return () => { active = false; document.removeEventListener('visibilitychange', visibility); window.removeEventListener('pagehide', pagehide); window.removeEventListener('qc:lock-changed', changed); window.removeEventListener('qc:lock-now', lockNow); void native?.then(listener => listener.remove()); };
   }, [account]);
   const blocked = state !== 'open';
@@ -67,7 +68,7 @@ function AccountGate({ account, children }: { account: string; children: ReactNo
   }, [blocked]);
   return <>
     {!blocked && <NotificationPermissionPrompt />}
-    <div ref={element => { if (element) element.inert = blocked; }} aria-hidden={blocked || undefined} style={blocked ? { visibility: 'hidden', position: 'fixed', inset: 0, pointerEvents: 'none' } : undefined}>{children}</div>
+    {!blocked && <div>{children}</div>}
     {blocked && <main className="security-screen" data-security-blocked dir="rtl" aria-label="قفل التطبيق">
       <section className="security-panel"><img src={DEFAULT_SCHOOL_LOGO} alt="شعار المدرسة" className="security-mark object-contain p-1" /><h1>{state === 'setup' ? 'احمِ حسابك على هذا الجهاز' : 'حسابك في أمان'}</h1>
         <p>{state === 'setup' ? 'أنشئ رمزًا خاصًا بالتطبيق. يُقفل بعد مغادرته دقيقة، وتفتحه دون إنترنت مع بقاء بياناتك وتعديلاتك محفوظة.' : 'أدخل رمز التطبيق للعودة إلى الصفحة التي توقفت عندها.'}</p>
@@ -108,7 +109,7 @@ function MaskedPinInput({ label, value, onChange, disabled = false }: { label: s
   const hideTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   useEffect(() => () => { hideTimers.current.forEach(clearTimeout); hideTimers.current.clear(); }, []);
   const change = (next: string) => {
-    const digits = next.replace(/\\D/g, '').slice(0, 8);
+    const digits = next.replace(/\D/g, '').slice(0, 8);
     if (digits.length < value.length) {
       hideTimers.current.forEach((timer, index) => { if (index >= digits.length) { clearTimeout(timer); hideTimers.current.delete(index); } });
       setRevealed(previous => previous.filter(index => index < digits.length));

@@ -16,8 +16,8 @@ type Person={bio?:string|null;username?:string;coverAssetId?:string|null;id:stri
 type Comment={synced?:number;id:string;body:string;parentId?:string|null;user:Person;_count?:{likes:number}};
 type Story={mediaIds?:string[];background?:string;textColor?:string;fontSize?:number;bold?:boolean;mentions?:Mention[];id:string;schoolStory:boolean;body:string;authorId:string;author:Person;views:{liked:boolean;user:Person}[]};
 type Post=CommunityPost;
-export default function CommunityPage(){
- const {userId:rawUserId}=useParams();const user=useAuthStore(s=>s.user)!;const location=useLocation();const userId=rawUserId==='me'?user.id:rawUserId;const qc=useQueryClient();
+export default function CommunityPage({ ownProfile = false }: { ownProfile?: boolean }){
+ const {userId:rawUserId}=useParams();const user=useAuthStore(s=>s.user)!;const location=useLocation();const userId=ownProfile||rawUserId==='me'?user.id:rawUserId;const qc=useQueryClient();
  const [storyReply,setStoryReply]=useState('');const [showStoryViewers,setShowStoryViewers]=useState(false);const [selectedStory,setSelectedStory]=useState<string|null>(null);const [storyProgress,setStoryProgress]=useState(0);const [storyPaused,setStoryPaused]=useState(false);const [replyTo,setReplyTo]=useState<string|null>(null);const [showLikers,setShowLikers]=useState<Record<string,boolean>>({});const [showAllComments,setShowAllComments]=useState<Record<string,boolean>>({});const [comment,setComment]=useState<Record<string,string>>({});const [nickname,setNickname]=useState('');
  const [showFollowers,setShowFollowers]=useState(false);
  const followers=useInfiniteQuery({
@@ -77,7 +77,25 @@ export default function CommunityPage(){
     <Link className="rounded-xl bg-slate-100 px-4 py-3 font-bold hover:bg-slate-200" to="/community/users/me">👤 ملفي الشخصي</Link>
     <Link className="rounded-xl bg-slate-100 px-4 py-3 font-bold hover:bg-slate-200" to="/notifications">🔔 الإشعارات</Link>
   </nav>
-  {userId&&profile.data&&<Card><div className="profile-cover" style={profile.data.coverAssetId ? {backgroundImage: `linear-gradient(#12372d66,#12372d99),url("${String(api.defaults.baseURL).replace(/\/$/, "")}/founder-assets/${encodeURIComponent(profile.data.coverAssetId)}/content")`,backgroundSize:"cover",backgroundPosition:"center"}:undefined}><span>رحلتي مع القرآن</span></div>{userId===user.id&&<Link to="/profile/settings" className="profile-settings-link" aria-label="إعدادات الحساب">⚙</Link>}<div className="-mt-7 flex items-center gap-3 px-3"><Avatar name={profile.data.fullName} src={profile.data.avatarUrl} size={72}/><div><h2 className="font-bold">{profile.data.fullName}</h2><p className="text-sm text-slate-500">{profile.data.nickname||'بدون كنية'} · {ROLE_LABELS[profile.data.role as keyof typeof ROLE_LABELS]??profile.data.role}</p></div></div>{profile.data.bio&&<p className="mt-4 whitespace-pre-wrap break-words text-sm">{profile.data.bio}</p>}{profile.data.username&&<p className="mt-2 text-sm text-slate-500" dir="ltr">@{profile.data.username}</p>}{userId===user.id&&<Link className="btn-secondary mt-4 inline-flex" to="/profile/settings">تعديل الملف الشخصي</Link>}{userId===user.id&&<div className="mt-3 flex gap-2"><input className="input" maxLength={60} value={nickname} onChange={e=>setNickname(e.target.value)} placeholder="أضف كنيتك"/><Button onClick={()=>action.mutate({path:'/community/nickname',data:{nickname},method:'patch'})}>حفظ الكنية</Button></div>}</Card>}
+  {userId&&profile.data&&<section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" dir="rtl">
+    <div className="profile-cover relative min-h-48 sm:min-h-64" style={profile.data.coverAssetId ? {backgroundImage: `linear-gradient(#12372d33,#12372d66),url("${String(api.defaults.baseURL).replace(/\\/$/, "")}/founder-assets/${encodeURIComponent(profile.data.coverAssetId)}/content")`,backgroundSize:"cover",backgroundPosition:"center"}:undefined}>
+      <span className="sr-only">غلاف الملف الشخصي</span>
+    </div>
+    <div className="relative px-4 pb-6 sm:px-7">
+      <div className="-mt-12 flex items-end justify-between gap-3">
+        <div className="rounded-full border-4 border-white bg-white shadow-md"><Avatar name={profile.data.fullName} src={profile.data.avatarUrl} size={96}/></div>
+        {userId===user.id&&<Link to="/profile/settings" className="mb-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm" aria-label="إعدادات الملف الشخصي">⚙ الإعدادات</Link>}
+      </div>
+      <div className="mt-3 space-y-1">
+        <h1 className="text-2xl font-extrabold text-slate-900">{profile.data.fullName}</h1>
+        <p className="text-sm font-semibold text-slate-600">{profile.data.nickname||'بدون كنية'} · {ROLE_LABELS[profile.data.role as keyof typeof ROLE_LABELS]??profile.data.role}</p>
+        {profile.data.bio&&<p className="whitespace-pre-wrap break-words pt-2 text-sm leading-7 text-slate-700">{profile.data.bio}</p>}
+        {profile.data.username&&<p className="text-sm text-slate-500" dir="ltr">@{profile.data.username}</p>}
+      </div>
+      {userId===user.id&&<div className="mt-4 flex flex-wrap items-center gap-2"><Link className="btn-secondary inline-flex" to="/profile/settings">تعديل الملف الشخصي</Link><Link className="btn-secondary inline-flex" to="/community/posts/new">إنشاء منشور ＋</Link></div>}
+      {userId===user.id&&<div className="mt-4 flex flex-wrap gap-2"><input className="input min-w-0 flex-1" aria-label="الكنية" maxLength={60} value={nickname} onChange={e=>setNickname(e.target.value)} placeholder={profile.data.nickname||'أضف كنيتك'}/><Button onClick={()=>action.mutate({path:'/community/nickname',data:{nickname},method:'patch'})}>حفظ الكنية</Button></div>}
+    </div>
+  </section>}
   {userId===user.id&&<Card><Link to="/community/posts/new" className="composer-launch"><Avatar name={user.fullName} src={user.avatarUrl} size={40}/><span>بماذا تفكر؟ يمكنك الإشارة إلى @المدرسة في منشورك</span><strong>إنشاء منشور ＋</strong></Link></Card>}
   {userId&&<h2 className="text-lg font-bold">منشورات {userId===user.id?'ملفي':profile.data?.fullName}</h2>}
 

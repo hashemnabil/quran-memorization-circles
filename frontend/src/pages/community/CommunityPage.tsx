@@ -78,7 +78,7 @@ export default function CommunityPage({ ownProfile = false }: { ownProfile?: boo
     <Link className="rounded-xl bg-slate-100 px-4 py-3 font-bold hover:bg-slate-200" to="/notifications">🔔 الإشعارات</Link>
   </nav>
   {userId&&profile.data&&<section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" dir="rtl">
-    <div className="profile-cover relative min-h-48 sm:min-h-64" style={profile.data.coverAssetId ? {backgroundImage: `linear-gradient(#12372d33,#12372d66),url("${String(api.defaults.baseURL).replace(/\\/$/, "")}/founder-assets/${encodeURIComponent(profile.data.coverAssetId)}/content")`,backgroundSize:"cover",backgroundPosition:"center"}:undefined}>
+    <div className="profile-cover relative min-h-48 sm:min-h-64" style={profile.data.coverAssetId ? {backgroundImage: `linear-gradient(#12372d33,#12372d66),url("${String(api.defaults.baseURL).replace(/\/$/, "")}/founder-assets/${encodeURIComponent(profile.data.coverAssetId)}/content")`,backgroundSize:"cover",backgroundPosition:"center"}:undefined}>
       <span className="sr-only">غلاف الملف الشخصي</span>
     </div>
     <div className="relative px-4 pb-6 sm:px-7">

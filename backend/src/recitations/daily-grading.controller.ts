@@ -47,6 +47,10 @@ export class DailyRecitationGradingController {
     await this.acl.assertStudentWriteAccess(user, row.studentId);
     if (user.role === Role.TEACHER && row.teacherId !== user.teacherId) throw new BadRequestException('يمكن تعديل أحكام تسميعك المسجل فقط');
     await this.prisma.$executeRaw`UPDATE "recitations" SET "tajweed" = ${count} WHERE "id" = ${id}`;
-    return this.prisma.recitation.findUnique({ where: { id }, select: { id: true, tajweed: true, points: true, evaluation: true } });
+    const updated = await this.prisma.$queryRaw<Array<{ id: string; tajweed: number; points: number; evaluation: string }>>`
+      SELECT "id", "tajweed", "points", "evaluation"::text AS "evaluation"
+      FROM "recitations" WHERE "id" = ${id}
+    `;
+    return updated[0];
   }
 }

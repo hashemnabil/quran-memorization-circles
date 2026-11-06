@@ -88,6 +88,7 @@ jobs:
           NODE_ENV: production
       - run: node backend/scripts/e2e-fixtures.mjs
       - run: npx --prefix frontend playwright install --with-deps chromium
+        timeout-minutes: 5
       - name: Verify mobile social workflows
         run: npm --prefix frontend run test:e2e -- --grep 'community composer|selected post composer|mobile account|native-style settings'
       - run: npm --prefix frontend run test:e2e

@@ -82,6 +82,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/profile-reviews/students', label: 'تحقق من بيانات الطالب', icon: <IconUser size={19} />, roles: ['ADMIN'] },
       { to: '/students', label: 'الطلاب', icon: <IconGraduation size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
+      { to: '/students/achievements', label: 'إنجازات الطلاب', icon: <IconBook size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/attendance', label: 'الحضور والغياب', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
       { to: '/absence-permissions', label: 'إذن الغياب', icon: <IconCalendar size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER', 'STUDENT', 'SUPPORT', 'EXAM_COMMITTEE'] },
       { to: '/student-summons', label: 'استدعاءات الطلاب', icon: <IconBell size={19} />, roles: ['ADMIN'] },

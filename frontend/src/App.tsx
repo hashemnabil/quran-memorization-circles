@@ -45,6 +45,7 @@ import AttendancePage from '@/pages/attendance/AttendancePage';
 import AbsencePermissionsPage from '@/pages/attendance/AbsencePermissionsPage';
 import GuardianSummonsPage from '@/pages/attendance/GuardianSummonsPage';
 import RecitationsPage from '@/pages/recitations/RecitationsPage';
+import DailyRecitationGradingSettingsPage from '@/pages/DailyRecitationGradingSettingsPage';
 const ExamsPage = lazy(() => import('@/pages/exams/ExamsPage'));
 import TransfersPage from '@/pages/transfers/TransfersPage';
 import SuspensionsPage from '@/pages/suspensions/SuspensionsPage';
@@ -75,13 +76,8 @@ export default function App() {
   const loadSession = useAuthStore((s) => s.loadSession);
   const currentUser = useAuthStore((s) => s.user);
 
-  useEffect(() => {
-    void loadSession();
-  }, [loadSession]);
+  useEffect(() => { void loadSession(); }, [loadSession]);
 
-  // Restore the last successful reads for this account, then persist cache changes.
-  // The snapshot is account-scoped and is only a stale offline fallback; live queries
-  // still refetch from the existing API whenever connectivity is available.
   useEffect(() => {
     if (!currentUser?.id) return;
     let active = true;
@@ -89,31 +85,17 @@ export default function App() {
     let unsubscribe: (() => void) | undefined;
     void restoreQueryCache(currentUser.id, () => active && useAuthStore.getState().user?.id === currentUser.id).catch(() => false).finally(() => {
       if (!active) return;
-      // Signal that this account's durable snapshot has been restored before
-      // background refreshes can replace cached reads with network responses.
       window.dispatchEvent(new CustomEvent('qc:offline-cache-restored', { detail: { accountId: currentUser.id } }));
-      // Cached data is only the offline fallback. On every online app launch,
-      // invalidate active reads so the server is contacted before stale rows settle.
       if (navigator.onLine) void queryClient.invalidateQueries({ refetchType: 'active' });
       unsubscribe = queryClient.getQueryCache().subscribe(() => {
         if (timer) clearTimeout(timer);
-        timer = setTimeout(() => {
-          void persistQueryCache(currentUser.id).catch(() => {
-            // Offline reads are best-effort if IndexedDB is unavailable or full.
-          });
-        }, 400);
+        timer = setTimeout(() => { void persistQueryCache(currentUser.id).catch(() => undefined); }, 400);
       });
-      // Also persist the current snapshot after restoration.
       void persistQueryCache(currentUser.id).catch(() => undefined);
     });
-    return () => {
-      active = false;
-      if (timer) clearTimeout(timer);
-      unsubscribe?.();
-    };
+    return () => { active = false; if (timer) clearTimeout(timer); unsubscribe?.(); };
   }, [currentUser?.id]);
 
-  // Marks the app as running, so a gap in the beat means the browser was closed.
   useEffect(() => startHeartbeat(), []);
 
   return (
@@ -127,22 +109,8 @@ export default function App() {
       <Route path="/account-deletion" element={<AccountDeletionPage />} />
       <Route path="/register" element={<RegistryLoginPage />} />
       <Route path="/register/data" element={<RegistryDataPage />} />
-      <Route
-        path="/login"
-        element={
-          <RedirectIfAuthenticated>
-            <LoginPage />
-          </RedirectIfAuthenticated>
-        }
-      />
-
-      <Route
-        element={
-          <RequireAuth>
-            <AppLayout />
-          </RequireAuth>
-        }
-      >
+      <Route path="/login" element={<RedirectIfAuthenticated><LoginPage /></RedirectIfAuthenticated>} />
+      <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
         <Route path="founder" element={<RequireRole roles={['FOUNDER']}><FounderPage /></RequireRole>} />
         <Route path="founder/users" element={<RequireRole roles={['FOUNDER']}><UsersPage /></RequireRole>} />
         <Route path="founder/settings" element={<RequireRole roles={['FOUNDER']}><SettingsPage /></RequireRole>} />
@@ -169,156 +137,26 @@ export default function App() {
         <Route path="media-schedule" element={<RequireRole roles={['ADMIN']}><MediaSchedulePage /></RequireRole>} />
         <Route path="teacher-duties" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><TeacherDutyPage /></RequireRole>} />
         <Route path="my-files" element={<RequireRole roles={['STUDENT']}><StudentFilesPage /></RequireRole>} />
-
-        {/* The exam committee works from the exam queue only, so the circle
-            management pages are closed to it (spec item 7). */}
-        <Route
-          path="circles"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
-              <CirclesPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="circles/:id"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
-              <CircleDetailsPage />
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="students"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
-              <StudentsPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="students/:id"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
-              <StudentDetailsPage />
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="teachers"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR']}>
-              <TeachersPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="teachers/:id"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
-              <TeacherDetailsPage />
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="supervisors"
-          element={
-            <RequireRole roles={['ADMIN']}>
-              <SupervisorsPage />
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="courses"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
-              <CoursesPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="courses/:id"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
-              <CourseDetailsPage />
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="staff"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR']}>
-              <StaffPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="staff/attendance"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR']}>
-              <StaffAttendancePage />
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="announcements"
-          element={
-            <RequireRole roles={['ADMIN']}>
-              <AnnouncementsPage />
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="attendance"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
-              <AttendancePage />
-            </RequireRole>
-          }
-        />
+        <Route path="circles" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><CirclesPage /></RequireRole>} />
+        <Route path="circles/:id" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><CircleDetailsPage /></RequireRole>} />
+        <Route path="students" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentsPage /></RequireRole>} />
+        <Route path="students/:id" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentDetailsPage /></RequireRole>} />
+        <Route path="teachers" element={<RequireRole roles={['ADMIN', 'SUPERVISOR']}><TeachersPage /></RequireRole>} />
+        <Route path="teachers/:id" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><TeacherDetailsPage /></RequireRole>} />
+        <Route path="supervisors" element={<RequireRole roles={['ADMIN']}><SupervisorsPage /></RequireRole>} />
+        <Route path="courses" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><CoursesPage /></RequireRole>} />
+        <Route path="courses/:id" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><CourseDetailsPage /></RequireRole>} />
+        <Route path="staff" element={<RequireRole roles={['ADMIN', 'SUPERVISOR']}><StaffPage /></RequireRole>} />
+        <Route path="staff/attendance" element={<RequireRole roles={['ADMIN', 'SUPERVISOR']}><StaffAttendancePage /></RequireRole>} />
+        <Route path="announcements" element={<RequireRole roles={['ADMIN']}><AnnouncementsPage /></RequireRole>} />
+        <Route path="attendance" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><AttendancePage /></RequireRole>} />
         <Route path="absence-permissions" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER', 'STUDENT', 'SUPPORT', 'EXAM_COMMITTEE']}><AbsencePermissionsPage /></RequireRole>} />
         <Route path="student-summons" element={<RequireRole roles={['ADMIN']}><GuardianSummonsPage /></RequireRole>} />
-        <Route
-          path="recitations"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
-              <RecitationsPage />
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="exams/*"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE']}>
-              <ExamsPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="transfers/*"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
-              <TransfersPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="suspensions/*"
-          element={
-            <RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}>
-              <SuspensionsPage />
-            </RequireRole>
-          }
-        />
-
+        <Route path="recitations" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><RecitationsPage /></RequireRole>} />
+        <Route path="recitations/grading-settings" element={<RequireRole roles={['ADMIN']}><DailyRecitationGradingSettingsPage /></RequireRole>} />
+        <Route path="exams/*" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE']}><ExamsPage /></RequireRole>} />
+        <Route path="transfers/*" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><TransfersPage /></RequireRole>} />
+        <Route path="suspensions/*" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><SuspensionsPage /></RequireRole>} />
         <Route path="community" element={<CommunityPage />} />
         <Route path="community/posts" element={<CommunityPage />} />
         <Route path="community/posts/new" element={<CommunityComposer />} />
@@ -331,34 +169,11 @@ export default function App() {
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="support" element={<SupportPage />} />
         <Route path="support/:id" element={<SupportTicketPage />} />
-
-        <Route
-          path="registry-admin"
-          element={
-            <RequireRole roles={['ADMIN']}>
-              <RegistryAdminPage />
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="users"
-          element={
-            <RequireRole roles={['ADMIN']}>
-              <UsersPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="settings"
-          element={
-            <RequireRole roles={['ADMIN']}>
-              <SettingsPage />
-            </RequireRole>
-          }
-        />
-        <Route path="profile" element={<ProfilePage />} /><Route path="profile/settings" element={<MobileSettingsPage />} />
-
+        <Route path="registry-admin" element={<RequireRole roles={['ADMIN']}><RegistryAdminPage /></RequireRole>} />
+        <Route path="users" element={<RequireRole roles={['ADMIN']}><UsersPage /></RequireRole>} />
+        <Route path="settings" element={<RequireRole roles={['ADMIN']}><SettingsPage /></RequireRole>} />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route path="profile/settings" element={<MobileSettingsPage />} />
         <Route path="forbidden" element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

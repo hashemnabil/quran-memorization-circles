@@ -18,7 +18,9 @@ export async function unlockLocalGate(page: Page) {
   });
   const panel = page.locator('.security-panel');
   if (!await panel.isVisible()) {
-    if (new URL(page.url()).pathname !== '/login') await expect(page.locator('.app-topbar')).toBeVisible();\n    return;\n  }
+    if (new URL(page.url()).pathname !== '/login') await expect(page.locator('.app-topbar')).toBeVisible();
+    return;
+  }
 
   // React can replace the entire form during session hydration. Only retry
   // while the security panel still exists; do not consume the whole test

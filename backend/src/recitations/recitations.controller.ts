@@ -22,6 +22,15 @@ export class RecitationsController {
     return this.service.surahs();
   }
 
+  @Get('grading-settings')
+  gradingSettings() { return this.service.gradingSettings(); }
+
+  @Patch('grading-settings')
+  @Roles(Role.ADMIN)
+  updateGradingSettings(@CurrentUser() user: AuthUser, @Body() values: Record<string, number>) {
+    return this.service.updateGradingSettings(user, values);
+  }
+
   @Get('student/:studentId/progress')
   @ApiOperation({ summary: 'تقدم الطالب في التسميع' })
   progress(@CurrentUser() user: AuthUser, @Param('studentId') studentId: string) {

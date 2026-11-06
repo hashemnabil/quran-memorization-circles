@@ -290,6 +290,7 @@ export interface Recitation {
   versesCount?: number | null;
   mistakes?: number;
   warnings?: number;
+  tajweedErrors?: number;
   points?: number;
   /** التسميع اليومي يُقيَّم بتقدير عام فقط — لا درجة رقمية. */
   evaluation?: Evaluation | null;

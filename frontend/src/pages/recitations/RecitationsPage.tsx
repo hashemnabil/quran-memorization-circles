@@ -31,6 +31,18 @@ interface SurahInfo {
   name: string;
   ayahs: number;
 }
+type GradingRules = { mistakePenalty: number; warningPenalty: number; tajweedPenalty: number; excellent: number; veryGood: number; good: number; acceptable: number };
+const DEFAULT_RULES: GradingRules = { mistakePenalty: 1, warningPenalty: 0.25, tajweedPenalty: 0.5, excellent: 90, veryGood: 80, good: 70, acceptable: 60 };
+
+function RecitationRulesModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ['recitations', 'grading-settings'], queryFn: async () => (await api.get<GradingRules>('/recitations/grading-settings')).data });
+  const [draft, setDraft] = useState<GradingRules | null>(null);
+  const values = draft ?? data ?? DEFAULT_RULES;
+  const save = useMutation({ mutationFn: async () => api.patch('/recitations/grading-settings', values), onSuccess: () => { void qc.invalidateQueries({ queryKey: ['recitations', 'grading-settings'] }); toast.success('حُفظت قواعد التقييم للتسميع الجديد'); onClose(); }, onError: error => toast.error(apiError(error)) });
+  const fields: [keyof GradingRules, string][] = [['mistakePenalty','خصم الخطأ'],['warningPenalty','خصم التنبيه'],['tajweedPenalty','خصم خطأ الأحكام'],['excellent','ممتاز من ٪'],['veryGood','جيد جداً من ٪'],['good','جيد من ٪'],['acceptable','مقبول من ٪']];
+  return <Modal open onClose={onClose} title="قواعد تقييم التسميع"><p className="mb-3 text-sm">تُطبق القواعد على التسميع الجديد والتعديل، وتبقى درجات السجلات السابقة محفوظة.</p>{isLoading?<LoadingState/>:<form className="grid gap-3 sm:grid-cols-2" onSubmit={event=>{event.preventDefault();save.mutate();}}>{fields.map(([key,label])=><Input key={key} label={label} type="number" min={0} max={100} step="0.01" required value={values[key]} onChange={event=>setDraft({...values,[key]:Number(event.target.value)})}/>)}<Button className="sm:col-span-2" type="submit" loading={save.isPending}>حفظ القواعد</Button></form>}</Modal>;
+}
 
 /**
  * The daily recitation log, read by day → circle → student.
@@ -57,6 +69,7 @@ export default function RecitationsPage() {
   const [openCircle, setOpenCircle] = useState<{ date: string; circleId: string } | null>(null);
 
   const canRecord = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(user.role);
+  const [editingRules, setEditingRules] = useState(false);
 
   const { data: circles } = useQuery({
     queryKey: ['circles', 'options'],
@@ -121,6 +134,8 @@ export default function RecitationsPage() {
           )
         }
       />
+      {user.role === 'ADMIN' && <Button variant="secondary" className="mb-4" onClick={() => setEditingRules(true)}>ضبط خصومات وتقييم التسميع</Button>}
+      {editingRules && <RecitationRulesModal onClose={() => setEditingRules(false)} />}
 
       <Card className="mb-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -314,7 +329,7 @@ export default function RecitationsPage() {
                                                     {rec.mistakes ?? 0} خطأ
                                                   </span>
                                                   <span className="numeric text-amber-600">
-                                                    {rec.warnings ?? 0} تنبيه
+                                                    {rec.warnings ?? 0} تنبيه · {rec.tajweedErrors ?? 0} أحكام
                                                   </span>
                                                   {rec.evaluation && (
                                                     <Badge className={EVALUATION_COLORS[rec.evaluation]}>
@@ -386,7 +401,7 @@ export function RecitationFormModal({ defaultCircleId, student, onClose }: { def
     pagesCount: 1,
     mistakes: 0,
     warnings: 0,
-    evaluation: 'VERY_GOOD',
+    tajweedErrors: 0,
     notes: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -402,6 +417,7 @@ export function RecitationFormModal({ defaultCircleId, student, onClose }: { def
     queryFn: async () => (await api.get<SurahInfo[]>('/recitations/surahs')).data,
     staleTime: Infinity,
   });
+  const { data: rules = DEFAULT_RULES } = useQuery({ queryKey: ['recitations', 'grading-settings'], queryFn: async () => (await api.get<GradingRules>('/recitations/grading-settings')).data });
 
   const { data: students } = useQuery({
     queryKey: ['students', { circleId, limit: 200 }],
@@ -450,10 +466,9 @@ export function RecitationFormModal({ defaultCircleId, student, onClose }: { def
     return total + Math.max(0, Math.min(form.toAyah, toSurah.ayahs));
   })();
 
-  const earnedPoints =
-    Math.round(
-      Math.max(0, versesCount - form.mistakes - form.warnings * 0.25) * 100,
-    ) / 100;
+  const earnedPoints = Math.round(Math.max(0, versesCount - form.mistakes * rules.mistakePenalty - form.warnings * rules.warningPenalty - form.tajweedErrors * rules.tajweedPenalty) * 100) / 100;
+  const percent = versesCount ? earnedPoints / versesCount * 100 : 0;
+  const evaluation = percent >= rules.excellent ? 'EXCELLENT' : percent >= rules.veryGood ? 'VERY_GOOD' : percent >= rules.good ? 'GOOD' : percent >= rules.acceptable ? 'ACCEPTABLE' : 'UNSATISFACTORY';
 
   const submit = () => {
     const next: Record<string, string> = {};
@@ -574,7 +589,7 @@ export function RecitationFormModal({ defaultCircleId, student, onClose }: { def
           min={0}
           value={form.mistakes}
           onChange={(e) => set('mistakes', Number(e.target.value))}
-          hint="يُخصم عن كل خطأ نقطة واحدة"
+          hint={`الخصم لكل خطأ: ${rules.mistakePenalty}`}
         />
         <Input
           label="عدد التنبيهات"
@@ -582,8 +597,9 @@ export function RecitationFormModal({ defaultCircleId, student, onClose }: { def
           min={0}
           value={form.warnings}
           onChange={(e) => set('warnings', Number(e.target.value))}
-          hint="يُخصم عن كل تنبيه ربع نقطة"
+          hint={`الخصم لكل تنبيه: ${rules.warningPenalty}`}
         />
+        <Input label="أخطاء الأحكام والتجويد" type="number" min={0} value={form.tajweedErrors} onChange={(e) => set('tajweedErrors', Number(e.target.value))} hint={`الخصم لكل خطأ أحكام: ${rules.tajweedPenalty}`}/>
 
         <div className="sm:col-span-2 rounded-xl bg-gold-50 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -591,17 +607,11 @@ export function RecitationFormModal({ defaultCircleId, student, onClose }: { def
             <span className="numeric text-2xl font-extrabold text-gold-700">{earnedPoints}</span>
           </div>
           <p className="numeric mt-1 text-xs text-gold-800/80">
-            {versesCount} آية − {form.mistakes} خطأ − ({form.warnings} × 0.25) تنبيه
+            {versesCount} آية − ({form.mistakes} × {rules.mistakePenalty}) أخطاء − ({form.warnings} × {rules.warningPenalty}) تنبيهات − ({form.tajweedErrors} × {rules.tajweedPenalty}) أحكام
           </p>
         </div>
 
-        <Select label="التقييم" required value={form.evaluation} onChange={(e) => set('evaluation', e.target.value)}>
-          {Object.entries(EVALUATION_LABELS).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </Select>
+        <p className="sm:col-span-2 text-sm font-bold">التقييم التلقائي: {EVALUATION_LABELS[evaluation as keyof typeof EVALUATION_LABELS]} ({Math.round(percent)}٪)</p>
         <Textarea label="ملاحظات" value={form.notes} onChange={(e) => set('notes', e.target.value)} className="sm:col-span-2" />
       </div>
     </Modal>

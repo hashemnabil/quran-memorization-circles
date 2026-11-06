@@ -31,11 +31,15 @@ export async function prefetchSections(send: Send, account: string, currentAccou
   }
   if (role === 'TEACHER') paths.add('/teachers/my-overview');
   if (role === 'STUDENT') ['/students/me', '/students/me/history', '/certificates/mine', '/certificates/requests/mine', '/preparations'].forEach(path => paths.add(path));
+  if (role === 'STUDENT') {
+    const mine = await db.students.where('accountId').equals(account).toArray();
+    for (const row of mine.filter(row => row.userId === account || row.user?.id === account)) paths.add(`/students/${row.id}/plans`);
+  }
   if (staff) {
     for (const row of await db.circles.where('accountId').equals(account).toArray()) {
       paths.add(`/circles/${row.id}/history`); paths.add(`/attendance/circle/${row.id}/summary`);
     }
-    for (const row of await db.students.where('accountId').equals(account).toArray()) paths.add(`/students/${row.id}/evaluations`);
+    for (const row of await db.students.where('accountId').equals(account).toArray()) { paths.add(`/students/${row.id}/evaluations`); paths.add(`/students/${row.id}/plans`); }
     for (const row of await db.courses.where('accountId').equals(account).toArray()) {
       paths.add(`/courses/${row.id}/attendance/history`);
       paths.add(`/courses/${row.id}/attendance/sheet?date=${today}`);
@@ -53,7 +57,7 @@ export async function prefetchSections(send: Send, account: string, currentAccou
     'staff-attendance': ['staff_attendance', 'users'], 'media-activities': ['media_activities'],
     certificates: ['certificate_records', 'certificate_templates', 'student_file_requests', 'students', 'attendance', 'recitations'],
     registry: ['registry_users'], circles: ['circles', 'circle_teachers', 'circle_memberships', 'students', 'attendance', 'recitations', 'exams'],
-    students: ['students', 'student_evaluations', 'student_notes', 'attendance', 'recitations', 'exams', 'exam_requests', 'preparation_assignments', 'surah_completions'],
+    students: ['students', 'student_evaluations', 'student_notes', 'attendance', 'recitations', 'exams', 'exam_requests', 'preparation_assignments', 'surah_completions', 'memorization_plans', 'memorization_progress'],
     teachers: ['teacher_profiles', 'users', 'students', 'attendance', 'recitations', 'circle_teachers'],
   };
   const affected = (path: string) => !changedEntities || path.startsWith('/dashboard/') ||

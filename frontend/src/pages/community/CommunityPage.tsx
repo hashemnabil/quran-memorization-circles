@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useParams, useLocation } from 'react-router-dom';
+import { Link, useParams, useLocation, useNavigate } from 'react-router-dom';
+import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import CommunityImage from './CommunityImage';
@@ -17,7 +18,7 @@ type Comment={synced?:number;id:string;body:string;parentId?:string|null;user:Pe
 type Story={mediaIds?:string[];background?:string;textColor?:string;fontSize?:number;bold?:boolean;mentions?:Mention[];id:string;schoolStory:boolean;body:string;authorId:string;author:Person;views:{liked:boolean;user:Person}[]};
 type Post=CommunityPost;
 export default function CommunityPage({ ownProfile = false }: { ownProfile?: boolean }){
- const {userId:rawUserId}=useParams();const user=useAuthStore(s=>s.user)!;const location=useLocation();const userId=ownProfile||rawUserId==='me'?user.id:rawUserId;const qc=useQueryClient();
+ const {userId:rawUserId}=useParams();const user=useAuthStore(s=>s.user)!;const location=useLocation();const userId=ownProfile||rawUserId==='me'?user.id:rawUserId;const qc=useQueryClient();const navigate=useNavigate();const logout=useAuthStore(state=>state.logout);const cover=useCuratedBackground('PROFILE_COVER');const [accountMenuOpen,setAccountMenuOpen]=useState(false);
  const [storyReply,setStoryReply]=useState('');const [showStoryViewers,setShowStoryViewers]=useState(false);const [selectedStory,setSelectedStory]=useState<string|null>(null);const [storyProgress,setStoryProgress]=useState(0);const [storyPaused,setStoryPaused]=useState(false);const [replyTo,setReplyTo]=useState<string|null>(null);const [showLikers,setShowLikers]=useState<Record<string,boolean>>({});const [showAllComments,setShowAllComments]=useState<Record<string,boolean>>({});const [comment,setComment]=useState<Record<string,string>>({});const [nickname,setNickname]=useState('');
  const [showFollowers,setShowFollowers]=useState(false);
  const followers=useInfiniteQuery({
@@ -78,13 +79,14 @@ export default function CommunityPage({ ownProfile = false }: { ownProfile?: boo
     <Link className="rounded-xl bg-slate-100 px-4 py-3 font-bold hover:bg-slate-200" to="/notifications">🔔 الإشعارات</Link>
   </nav>
   {userId&&profile.data&&<section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" dir="rtl">
-    <div className="profile-cover relative min-h-48 sm:min-h-64" style={profile.data.coverAssetId ? {backgroundImage: `linear-gradient(#12372d33,#12372d66),url("${String(api.defaults.baseURL).replace(/\/$/, "")}/founder-assets/${encodeURIComponent(profile.data.coverAssetId)}/content")`,backgroundSize:"cover",backgroundPosition:"center"}:undefined}>
+    <div className="profile-cover relative min-h-48 sm:min-h-64" style={userId===user.id&&cover.url ? {backgroundImage: `linear-gradient(#12372d33,#12372d66),url("${cover.url}")`,backgroundSize:"cover",backgroundPosition:"center"} : profile.data.coverAssetId ? {backgroundImage: `linear-gradient(#12372d33,#12372d66),url("${String(api.defaults.baseURL).replace(/\/$/, "")}/founder-assets/${encodeURIComponent(profile.data.coverAssetId)}/content")`,backgroundSize:"cover",backgroundPosition:"center"}:undefined}>
       <span className="sr-only">غلاف الملف الشخصي</span>
+       {userId===user.id&&<div className="absolute bottom-3 end-3 z-10"><BackgroundChoice value={cover} label="خلفية الصفحة" /></div>}
     </div>
     <div className="relative px-4 pb-6 sm:px-7">
       <div className="-mt-12 flex items-end justify-between gap-3">
         <div className="rounded-full border-4 border-white bg-white shadow-md"><Avatar name={profile.data.fullName} src={profile.data.avatarUrl} size={96}/></div>
-        {userId===user.id&&<Link to="/profile/account" className="mb-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm" aria-label="قائمة الحساب">⚙ إدارة الحساب وتسجيل الخروج</Link>}
+        {userId===user.id&&<button type="button" onClick={()=>setAccountMenuOpen(open=>!open)} aria-label="قائمة الحساب" aria-expanded={accountMenuOpen} className="mb-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm">⚙ قائمة الحساب</button>}
       </div>
       <div className="mt-3 space-y-1">
         <h1 className="text-2xl font-extrabold text-slate-900">{profile.data.fullName}</h1>

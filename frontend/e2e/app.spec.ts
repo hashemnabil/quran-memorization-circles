@@ -126,7 +126,11 @@ test('offline attendance survives a lost committed response and replays with the
   await expect(page.getByText(fixtures.student.fullName, { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'تعيين الكل غائب', exact: true }).click();
   await context.setOffline(true);
-  await page.getByRole('button', { name: 'حفظ الكشف', exact: true }).first().click();
+  // Going offline can briefly remount the attendance view while the local session settles.
+  // Wait for a stable unlocked form instead of clicking a detached button.
+  await expect(page.locator('[data-security-blocked]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'حفظ الكشف', exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'حفظ الكشف', exact: true }).first().click({ timeout: 15000 });
   await expect.poll(async () => (await readTeacherOutbox(page)).length).toBe(1);
   const originalId = (await readTeacherOutbox(page))[0].opId;
   let committedResponse: any;

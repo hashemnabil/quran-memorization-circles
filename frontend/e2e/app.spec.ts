@@ -279,6 +279,7 @@ test('native-style settings use grouped rows, search, real details and a persist
   await page.getByRole('link',{name:'كلمة المرور',exact:true}).click();
   await expect(page.getByLabel('كلمة المرور الحالية',{exact:true})).toBeVisible();
   await page.getByRole('link',{name:'العودة للإعدادات'}).click();
+  await page.getByRole('searchbox',{name:'البحث في الإعدادات'}).fill('');
   await page.getByRole('link',{name:'رمز الأمان',exact:true}).click();
   await expect(page.locator('input[type=password]').first()).toBeVisible();
   for(const width of [360,430]){await page.setViewportSize({width,height:844});await gotoWithLocalUnlock(page,'/profile/settings');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);}

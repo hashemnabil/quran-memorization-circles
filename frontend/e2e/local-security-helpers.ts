@@ -14,10 +14,11 @@ export async function unlockLocalGate(page: Page) {
   await page.waitForFunction(() => {
     if (document.querySelector('.login-screen button[type="submit"]:disabled')) return false;
     const screen = document.querySelector('.security-screen');
-    return screen ? !!screen.querySelector('form') : !!document.querySelector('.login-screen, .app-topbar');
+    return screen ? !!screen.querySelector('form') : !!document.querySelector('.app-topbar') || (location.pathname === '/login' && !!document.querySelector('.login-screen'));
   });
   const panel = page.locator('.security-panel');
-  if (!await panel.isVisible()) return;
+  if (!await panel.isVisible()) {
+    if (new URL(page.url()).pathname !== '/login') await expect(page.locator('.app-topbar')).toBeVisible();\n    return;\n  }
 
   // React can replace the entire form during session hydration. Only retry
   // while the security panel still exists; do not consume the whole test

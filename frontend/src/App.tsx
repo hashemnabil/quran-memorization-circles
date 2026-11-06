@@ -39,6 +39,7 @@ import CirclesPage from '@/pages/circles/CirclesPage';
 import CircleDetailsPage from '@/pages/circles/CircleDetailsPage';
 import StudentsPage from '@/pages/students/StudentsPage';
 const StudentDetailsPage = lazy(() => import('@/pages/students/StudentDetailsPage'));
+const StudentAchievementsPage = lazy(() => import('@/pages/students/StudentAchievementsPage'));
 import TeachersPage from '@/pages/teachers/TeachersPage';
 import TeacherDetailsPage from '@/pages/teachers/TeacherDetailsPage';
 import AttendancePage from '@/pages/attendance/AttendancePage';
@@ -140,6 +141,7 @@ export default function App() {
         <Route path="circles" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><CirclesPage /></RequireRole>} />
         <Route path="circles/:id" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><CircleDetailsPage /></RequireRole>} />
         <Route path="students" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentsPage /></RequireRole>} />
+        <Route path="students/achievements" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentAchievementsPage /></RequireRole>} />
         <Route path="students/:id" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentDetailsPage /></RequireRole>} />
         <Route path="teachers" element={<RequireRole roles={['ADMIN', 'SUPERVISOR']}><TeachersPage /></RequireRole>} />
         <Route path="teachers/:id" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><TeacherDetailsPage /></RequireRole>} />

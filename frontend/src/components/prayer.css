@@ -24,3 +24,29 @@
 .prayer-card::before{z-index:1;pointer-events:none;background:linear-gradient(90deg,#062c3170,#062c31c0 55%,#062c31e8)}
 .prayer-card>:not(.prayer-mosque){position:relative;z-index:2}
 @media(max-width:639px){.prayer-card::before{background:linear-gradient(90deg,#062c3180,#062c31d6)}}
+
+/* Prayer scene switches using Gaza's calculated sunrise and maghrib. */
+.prayer-card .prayer-mosque { transition: filter 1.2s ease, opacity 1.2s ease; }
+.prayer-card.prayer-card-day { border-color: #b8d9dc; background: #c9e8f2; color: #123b43; }
+.prayer-card.prayer-card-day .prayer-mosque { filter: brightness(1.85) saturate(.65); }
+.prayer-card.prayer-card-day::before { background: linear-gradient(90deg, #e4f7ff94, #d3eff7dc 62%, #d3eff7f0); }
+.prayer-card.prayer-card-day .prayer-eyebrow,
+.prayer-card.prayer-card-day .prayer-date { color: #234c52; }
+.prayer-card.prayer-card-day .prayer-slot { color: #16434b; background: #ffffffb8; border-color: #fff; }
+.prayer-card.prayer-card-day .prayer-slot.is-next { background: #f8e3a8; color: #294a43; }
+.prayer-card.prayer-card-day .prayer-actions a { background: #ffffffd9; color: #16434b; border-color: #8eacac; }
+.prayer-card.prayer-card-day .prayer-card-heading { border-color: #23515a38; }
+.prayer-card.prayer-card-day .prayer-countdown { text-shadow: none; }
+.prayer-card.prayer-card-night .prayer-mosque { filter: brightness(.83) saturate(1.15); }
+.prayer-brand-icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 17px; background: #f4d99530; color: #f4d995; box-shadow: inset 0 0 0 1px #f4d99566; }
+.prayer-card-day .prayer-brand-icon { color: #14565a; background: #ffffffb8; box-shadow: inset 0 0 0 1px #1b555a30; }
+.prayer-slot-icon { display: grid; place-items: center; }
+.prayer-slot-icon .app-icon { transition: transform .25s ease; }
+.prayer-slot:hover .prayer-slot-icon .app-icon { transform: translateY(-3px) scale(1.1); }
+.prayer-slot.is-next .prayer-slot-icon .app-icon { animation: prayer-icon-breathe 2.6s ease-in-out infinite; }
+.prayer-next h2 .app-icon { display: inline-block; vertical-align: middle; }
+@keyframes prayer-icon-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.13); } }
+@media (prefers-reduced-motion: reduce) {
+  .prayer-card .prayer-mosque, .prayer-slot-icon .app-icon { transition: none; }
+  .prayer-slot.is-next .prayer-slot-icon .app-icon { animation: none; }
+}

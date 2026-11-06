@@ -719,3 +719,35 @@ body:has([data-security-blocked]) [data-rht-toaster]{visibility:hidden!important
     background: linear-gradient(125deg,rgba(19,27,82,.96),rgba(37,27,93,.96));
   }
 }
+
+/* Keep the active state behind the entire tab; never paint a second mint chip. */
+@media (max-width: 1023px) {
+  .mobile-navigation.mobile-navigation-sliding {
+    align-items: stretch;
+    overflow: hidden;
+  }
+  .mobile-navigation.mobile-navigation-sliding > .mobile-navigation-pill {
+    top: 6px;
+    bottom: 6px;
+    height: auto;
+    border-radius: 20px;
+    background: linear-gradient(145deg,#367dff,#3b4fda 70%,#5542bc);
+    box-shadow: 0 3px 16px rgba(60,111,255,.36), inset 0 1px rgba(255,255,255,.22);
+  }
+  .mobile-navigation.mobile-navigation-sliding > .mobile-navigation-sliding-item,
+  .mobile-navigation.mobile-navigation-sliding > .mobile-navigation-sliding-item.mobile-navigation-active,
+  [data-theme='dark'] .mobile-navigation.mobile-navigation-sliding > .mobile-navigation-sliding-item.mobile-navigation-active {
+    min-height: 58px;
+    background: transparent !important;
+    box-shadow: none;
+    color: #f7f8ff;
+  }
+  .mobile-navigation.mobile-navigation-sliding .mobile-navigation-icon {
+    background: transparent !important;
+    box-shadow: none;
+  }
+  .mobile-navigation.mobile-navigation-sliding > .mobile-navigation-sliding-item > span:last-child {
+    position: relative;
+    z-index: 1;
+  }
+}

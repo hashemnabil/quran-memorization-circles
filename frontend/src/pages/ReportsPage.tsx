@@ -68,6 +68,21 @@ export default function ReportsPage() {
  const statLabels: Record<string,string> = { total:'إجمالي السجلات', present:'الحضور', absent:'الغياب', excused:'الغياب بعذر', pages:'مجموع الصفحات', points:'مجموع النقاط', students:'عدد الطلاب', passed:'ناجح', failed:'راسب', average:'متوسط العلامات', circles:'عدد الحلقات', attendance:'سجلات الحضور', recitations:'سجلات التسميع', active:'منتظمون', suspended:'موقوفون', activity:'برنامج النشاط' };
  const statEntries=Object.entries(data?.stats??{}).map(([key,value])=>[statLabels[key]??key,value] as [string,number]);
  const rows: Record<string, unknown>[] = type==='student' ? (data?.attendance??[]).map(r=>({المجموعة:'الحضور',...r})).concat((data?.recitations??[]).map(r=>({المجموعة:'التسميع',...r})),(data?.exams??[]).map(r=>({المجموعة:'الاختبارات',...r}))) : (data?.rows??[]);
+ const selectedCircle=(circles as any[]).find((circle:any)=>circle.id===circleId);
+ const selectedTeacher=((teachers?.data??teachers??[]) as any[]).find((teacher:any)=>teacher.id===teacherId);
+ const selectedStudent=((students?.data??students??[]) as any[]).find((student:any)=>student.id===studentId);
+ const reportTitle=documentPage?.title||reports.find(report=>report.id===type)?.title||'تقرير';
+ const isAggregatePdf=['attendance','recitations','exams','circles'].includes(type)&&!studentId;
+ const pdfRows=isAggregatePdf
+   ? statEntries.map(([label,value])=>({البيان:label,القيمة:value}))
+   : rows;
+ const pdfDetails={
+   circle:circleId ? (selectedCircle?.name??'الحلقة المحددة') : undefined,
+   teacher:teacherId ? (selectedTeacher?.user?.fullName??selectedTeacher?.fullName??'المحفّظ المحدد') : undefined,
+   student:studentId ? (selectedStudent?.fullName??data?.student?.fullName as string|undefined) : undefined,
+   period:from||to ? `${from||'البداية'} — ${to||'اليوم'}` : undefined,
+   aggregate:isAggregatePdf,
+ };
  const columns=rows.length?Object.keys(rows[0]):[];
  const exportReport=async()=>{
   setExporting(true);
@@ -88,7 +103,7 @@ export default function ReportsPage() {
    {type==='students'&&<label className="text-sm font-semibold text-slate-700">التقييم<Select value={evaluation} onChange={e=>setEvaluation(e.target.value)}><option value="">كل التقييمات</option><option value="EXCELLENT">ممتاز</option><option value="VERY_GOOD">جيد جداً</option><option value="GOOD">جيد</option><option value="ACCEPTABLE">مقبول</option><option value="UNSATISFACTORY">غير مرضٍ</option></Select></label>}
    {type==='recitations'&&<label className="text-sm font-semibold text-slate-700">المعلم<Select value={teacherId} onChange={e=>setTeacherId(e.target.value)}><option value="">كل المعلمين</option>{((teachers?.data??teachers??[]) as any[]).map((t:any)=><option key={t.id} value={t.id}>{t.user?.fullName??t.fullName}</option>)}</Select></label>}
    {type==='student'&&<label className="text-sm font-semibold text-slate-700">الطالب<Select value={studentId} onChange={e=>setStudentId(e.target.value)}><option value="">اختر الطالب</option>{((students?.data??[]) as any[]).map((s:any)=><option key={s.id} value={s.id}>{s.fullName}</option>)}</Select></label>}
-   <div className="flex flex-wrap items-end gap-2"><Button onClick={()=>setRefresh(v=>v+1)}>تحديث التقرير</Button><Button variant="secondary" onClick={exportReport} disabled={isLoading||isError||(type==='student'&&!studentId)||(['courseStudents','courseAttendance'].includes(type)&&!courseId)}>تصدير Excel</Button><Button variant="secondary" loading={exporting} disabled={isLoading||isError||(type==='student'&&!studentId)||(['courseStudents','courseAttendance'].includes(type)&&!courseId)} onClick={async()=>{setExporting(true);try{await saveDeviceFile(await exportLocalPdf(documentPage?.title||reports.find(r=>r.id===type)?.title||'تقرير',rows),`${documentPage?.title||'تقرير'}.pdf`);}catch{window.alert('تعذر إنشاء PDF على الجهاز');}finally{setExporting(false);}}}>تصدير PDF</Button></div>
+   <div className="flex flex-wrap items-end gap-2"><Button onClick={()=>setRefresh(v=>v+1)}>تحديث التقرير</Button><Button variant="secondary" onClick={exportReport} disabled={isLoading||isError||(type==='student'&&!studentId)||(['courseStudents','courseAttendance'].includes(type)&&!courseId)}>تصدير Excel</Button><Button variant="secondary" loading={exporting} disabled={isLoading||isError||(type==='student'&&!studentId)||(['courseStudents','courseAttendance'].includes(type)&&!courseId)} onClick={async()=>{setExporting(true);try{await saveDeviceFile(await exportLocalPdf(reportTitle,pdfRows,pdfDetails),`${reportTitle}.pdf`);}catch{window.alert('تعذر إنشاء PDF على الجهاز');}finally{setExporting(false);}}}>تصدير PDF</Button></div>
   </div></Card>
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{statEntries.map(([key,value])=><StatCard key={key} label={key} value={value}/>)}</div>
   <Card><div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-bold text-slate-900">{documentPage?.title ?? (status==='SUSPENDED'?'سجل طلاب المفصولين':status==='ACTIVITY'?'سجل طلاب النشاط':track==='CIRCLE'?'سجل طلاب التحفيظ':status==='ACTIVE'?'سجل طلاب التحفيظ':reports.find(r=>r.id===type)?.title)}</h2><span className="text-sm text-slate-500">{rows.length} سجل</span></div>

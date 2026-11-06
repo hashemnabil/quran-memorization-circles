@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { listOfflineSnapshot } from '@/lib/offline/changeFeed';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { Card, PageHeader, LoadingState, ErrorState, Select } from '@/components/ui';
@@ -12,25 +13,24 @@ const parts = (value: unknown) => Math.max(0, Math.min(30, Number(value) || 0));
 
 export default function StudentAchievementsPage() {
   const user = useAuthStore(state => state.user);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [circleId, setCircleId] = useState('');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Student | null>(null);
   const circles = useQuery({
     queryKey: ['achievements', 'circles'],
-    queryFn: async () => (await api.get<any[]>('/circles/options')).data,
+    queryFn: async () => { try { return (await api.get<Array<{id:string;name:string}>>('/circles/options')).data; } catch (error) { if (!user || (error as {response?: unknown})?.response) throw error; const local = await listOfflineSnapshot(user.id, 'circle'); return local.filter(row => !row.deletedAt).map(row => ({id:row.id,name:String(row.name ?? '')})); } },
   });
   const students = useQuery({
     queryKey: ['achievements', 'students', search, circleId, page],
-    queryFn: async () => (await api.get<PaginatedResponse<Student>>('/students', {
-      params: { page, limit: 20, search: search || undefined, circleId: circleId || undefined },
-    })).data,
+    queryFn: async () => { try { return (await api.get<PaginatedResponse<Student>>('/students', { params: {page,limit:20,search:search||undefined,circleId:circleId||undefined} })).data; } catch(error) { if (!user || (error as {response?: unknown})?.response) throw error; const local = (await listOfflineSnapshot(user.id, 'student')) as unknown as Student[]; if (!local.length) throw error; const filtered = local.filter(student => (!circleId || student.circleId === circleId) && (!search || student.fullName.includes(search))); const start = (page-1)*20; return {data:filtered.slice(start,start+20),meta:{total:filtered.length,page,limit:20,totalPages:Math.max(1,Math.ceil(filtered.length/20)),hasNextPage:start+20<filtered.length,hasPreviousPage:page>1}} as PaginatedResponse<Student>; } },
   });
   const rows = students.data?.data ?? [];
   const current = useMemo(() => selected && rows.find(row => row.id === selected.id) || selected, [selected, rows]);
   const count = students.data?.meta?.total ?? rows.length;
   const surahs = useQuery({ queryKey: ['achievements','surahs'], queryFn: async () => (await api.get<Array<{number:number;name:string;ayahs:number}>>('/recitations/surahs')).data });
-  const detail = useQuery({ queryKey: ['achievements','student',current?.id], queryFn: async () => (await api.get<Student>('/students/'+current!.id)).data, enabled: !!current?.id });
+  const detail = useQuery({ queryKey: ['achievements','student',current?.id], queryFn: async () => { try { return (await api.get<Student>('/students/'+current!.id)).data; } catch(error) { if ((error as {response?: unknown})?.response) throw error; const cached = queryClient.getQueryData<Student>(['students',current!.id]); if (cached?.id === current!.id) return cached; throw error; } }, enabled: !!current?.id });
   const completed = new Set((detail.data?.surahCompletions ?? []).map(item => item.surah));
   const completedCount = surahs.data?.filter(item => completed.has(item.name)).length ?? 0;
   const exportReport = async () => {
@@ -60,6 +60,7 @@ export default function StudentAchievementsPage() {
           </Select>
         </label>
       </div>
+      {!navigator.onLine && <p role="status" className="mt-3 text-sm font-semibold text-amber-700">وضع دون إنترنت: البيانات المحفوظة على الجهاز فقط. افتح تفاصيل الطالب مرة أثناء الاتصال لحفظ السور.</p>}
       <p className="mt-4 text-sm text-slate-500">الطلاب في نتائج البحث: {count}. التقدم المعروض يعتمد على الأجزاء المحفوظة المسجلة، ولا يحتسب سورًا مكتملة دون سجل يؤكد ذلك.</p>
     </Card>
     {students.isLoading ? <LoadingState /> : students.isError ? <ErrorState message={apiError(students.error, 'تعذّر تحميل إنجازات الطلاب')} onRetry={() => void students.refetch()} /> :

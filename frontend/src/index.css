@@ -666,3 +666,24 @@ body:has([data-security-blocked]) [data-rht-toaster]{visibility:hidden!important
   .mobile-navigation-sliding-item,
   .mobile-navigation-sliding-item .mobile-navigation-icon { transition: none !important; }
 }
+
+/* Reserve room for the floating dock so it never covers the last cards or buttons. */
+@media (max-width: 1023px) {
+  .app-workspace { padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)); }
+  .mobile-navigation.mobile-navigation-sliding {
+    inset-inline: 16px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    max-width: 560px;
+    margin-inline: auto;
+  }
+  .mobile-navigation-sliding .mobile-navigation-pill {
+    top: 6px;
+    bottom: 6px;
+    background: linear-gradient(155deg, #d7f8e3, #b9edcd);
+  }
+  .mobile-navigation-sliding .mobile-navigation-sliding-item {
+    min-height: 54px;
+    gap: 3px;
+  }
+  .mobile-navigation-sliding-item .mobile-navigation-icon { width: 32px; height: 29px; }
+}

@@ -687,3 +687,35 @@ body:has([data-security-blocked]) [data-rht-toaster]{visibility:hidden!important
   }
   .mobile-navigation-sliding-item .mobile-navigation-icon { width: 32px; height: 29px; }
 }
+
+/* Midnight-blue / violet glass dock, matching the approved mobile preview. */
+@media (max-width: 1023px) {
+  .mobile-navigation.mobile-navigation-sliding {
+    border: 1px solid rgba(151,166,255,.5);
+    background: linear-gradient(125deg,rgba(31,43,116,.94),rgba(48,39,115,.94));
+    box-shadow: 0 14px 34px rgba(17,22,78,.3), inset 0 1px rgba(213,223,255,.28);
+    color: #f4f5ff;
+  }
+  .mobile-navigation-sliding .mobile-navigation-pill,
+  [data-theme='dark'] .mobile-navigation-sliding .mobile-navigation-pill {
+    background: linear-gradient(150deg,#348dff,#2454d6 65%,#4938c2);
+    box-shadow: 0 5px 18px rgba(24,112,255,.42),inset 0 1px rgba(255,255,255,.35);
+  }
+  .mobile-navigation-sliding .mobile-navigation-sliding-item,
+  .mobile-navigation-sliding .mobile-navigation-sliding-item:visited {
+    color: #e4e8ff;
+  }
+  .mobile-navigation-sliding .mobile-navigation-sliding-item.mobile-navigation-active {
+    color: #fff;
+  }
+  .mobile-navigation-sliding-item.mobile-navigation-active .mobile-navigation-icon {
+    filter: drop-shadow(0 3px 5px rgba(182,212,255,.65));
+  }
+  .mobile-navigation-sliding-item:focus-visible {
+    outline: 2px solid #a9caff;
+  }
+  [data-theme='dark'] .mobile-navigation.mobile-navigation-sliding {
+    border-color: rgba(151,166,255,.35);
+    background: linear-gradient(125deg,rgba(19,27,82,.96),rgba(37,27,93,.96));
+  }
+}

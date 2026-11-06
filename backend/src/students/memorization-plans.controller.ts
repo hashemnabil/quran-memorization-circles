@@ -51,16 +51,26 @@ export class MemorizationPlansController {
     });
   }
   @Post(':id/progress')
-  async progress(@CurrentUser() user: AuthUser, @Param('studentId') studentId: string, @Param('id') id: string, @Body() body: {amount: number; note?: string; requestId: string}) {
+  async progress(@CurrentUser() user: AuthUser, @Param('studentId') studentId: string, @Param('id') id: string, @Body() body: {amount: number; note?: string; requestId: string; rangeStart?: number; rangeEnd?: number; days?: number}) {
     await this.canWrite(user, studentId);
     if (!body || typeof body.amount !== 'number' || !Number.isFinite(body.amount) || body.amount <= 0 || typeof body.requestId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestId) || (body.note !== undefined && (typeof body.note !== 'string' || body.note.length > 500))) throw new BadRequestException('بيانات الإنجاز غير صالحة');
+    if (body.days !== undefined && (!Number.isInteger(body.days) || body.days < 1 || body.days > 10000)) throw new BadRequestException('عدد أيام الإنجاز غير صالح');
+    const ranged = body.rangeStart !== undefined || body.rangeEnd !== undefined;
+    if (ranged && (!Number.isInteger(body.rangeStart) || !Number.isInteger(body.rangeEnd) || body.rangeStart! < 1 || body.rangeEnd! < body.rangeStart!)) throw new BadRequestException('نطاق الإنجاز غير صالح');
     return this.prisma.$transaction(async tx => {
       const [plan] = await tx.$queryRaw<Plan[]>`SELECT * FROM "memorization_plans" WHERE "id" = ${id} AND "studentId" = ${studentId} FOR UPDATE`;
       if (!plan) throw new NotFoundException('الخطة غير موجودة');
+      if (ranged && !['VERSES', 'PAGES', 'SURAHS', 'JUZ'].includes(plan.unit)) throw new BadRequestException('لا يدعم هذا النوع تحديد نطاق');
+      if (ranged && body.amount !== body.rangeEnd! - body.rangeStart! + 1) throw new BadRequestException('كمية الإنجاز لا تطابق النطاق');
+      if (ranged && body.rangeEnd! > ({JUZ:30,SURAHS:114,PAGES:604,VERSES:6236} as Record<string,number>)[plan.unit]) throw new BadRequestException('النطاق يتجاوز حدود المصحف');
       const existing = await tx.$queryRaw<Array<{id: string}>>`SELECT "id" FROM "memorization_progress" WHERE "id" = ${body.requestId} AND "planId" = ${id} AND "recordedById" = ${user.id}`;
       if (existing.length) return plan;
+      if (ranged) {
+        const overlap = await tx.$queryRaw<Array<{id: string}>>`SELECT "id" FROM "memorization_progress" WHERE "planId" = ${id} AND "rangeStart" <= ${body.rangeEnd!} AND "rangeEnd" >= ${body.rangeStart!} LIMIT 1`;
+        if (overlap.length) throw new BadRequestException('هذا النطاق أو جزء منه مسجل مسبقًا في الخطة');
+      }
       if (plan.archived || plan.completed + body.amount > plan.target) throw new BadRequestException('الإنجاز يتجاوز المتبقي أو الخطة مؤرشفة');
-      await tx.$executeRaw`INSERT INTO "memorization_progress" ("id", "planId", "recordedById", "amount", "note") VALUES (${body.requestId}, ${id}, ${user.id}, ${body.amount}, ${body.note?.trim() || ''})`;
+      await tx.$executeRaw`INSERT INTO "memorization_progress" ("id", "planId", "recordedById", "amount", "note", "rangeStart", "rangeEnd", "days") VALUES (${body.requestId}, ${id}, ${user.id}, ${body.amount}, ${body.note?.trim() || ''} , ${ranged ? body.rangeStart! : null}, ${ranged ? body.rangeEnd! : null}, ${body.days ?? 1})`;
       const [updated] = await tx.$queryRaw<Plan[]>`UPDATE "memorization_plans" SET "completed" = "completed" + ${body.amount} WHERE "id" = ${id} RETURNING *`;
       return updated;
     });

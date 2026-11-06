@@ -1,3 +1,4 @@
+import HonorBoardPreview from '@/components/HonorBoardPreview';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { FormEvent, useEffect, useState } from 'react';
 import PrayerCard from '@/components/PrayerCard';
@@ -95,6 +96,7 @@ export default function StudentPortalPage() {
     <>
       <PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
       <PrayerCard />
+      <HonorBoardPreview />
       <div className="mb-5"><StudentPhoto studentId={data.id} fullName={data.fullName} photoUrl={data.photoUrl} size={80} editable onChanged={() => { void refetch(); }} /></div>
       <StudentQuestionnaire key={data.id} profile={data} />
       <DailyOverview/>

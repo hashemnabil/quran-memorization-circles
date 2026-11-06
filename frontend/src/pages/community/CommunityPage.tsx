@@ -89,13 +89,14 @@ export default function CommunityPage({ ownProfile = false }: { ownProfile?: boo
         <div className="rounded-full border-4 border-white bg-white shadow-md"><Avatar name={person.fullName} src={person.avatarUrl} size={96}/></div>
         {userId===user.id&&<button type="button" onClick={()=>setAccountMenuOpen(open=>!open)} aria-label="خيارات الملف الشخصي" aria-expanded={accountMenuOpen} className="mb-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm">⚙ قائمة الحساب</button>}
       </div>
+      {userId===user.id&&accountMenuOpen&&<div className="mb-3 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3"><Link to="/notifications" onClick={()=>setAccountMenuOpen(false)} className="btn-secondary">الإشعارات</Link><Link to="/chat" onClick={()=>setAccountMenuOpen(false)} className="btn-secondary">المحادثات</Link><Link to="/profile/account" onClick={()=>setAccountMenuOpen(false)} className="btn-secondary">إعدادات الحساب</Link></div>}
       <div className="mt-3 space-y-1">
         <h1 className="text-2xl font-extrabold text-slate-900">{person.fullName}</h1>
         <p className="text-sm font-semibold text-slate-600">{person.nickname||'بدون كنية'} · {ROLE_LABELS[person.role as keyof typeof ROLE_LABELS]??person.role}</p>
         {person.bio&&<p className="whitespace-pre-wrap break-words pt-2 text-sm leading-7 text-slate-700">{person.bio}</p>}
         {person.username&&<p className="text-sm text-slate-500" dir="ltr">@{person.username}</p>}
       </div>
-      {userId===user.id&&<div className="mt-4 flex flex-wrap items-center gap-2"><Link className="btn-secondary inline-flex" to="/profile/settings">تعديل الملف الشخصي</Link><Link className="btn-secondary inline-flex" to="/community/posts/new">إنشاء منشور ＋</Link></div>}
+      {userId===user.id&&<div className="mt-4 flex flex-wrap items-center gap-2"><button type="button" className="btn-secondary" onClick={async()=>{try{await logout();navigate("/login",{replace:true});}catch(error){toast.error(error instanceof Error?error.message:"تعذر تسجيل الخروج");}}}>تسجيل الخروج</button><Link className="btn-secondary inline-flex" to="/profile/settings">تعديل الملف الشخصي</Link><Link className="btn-secondary inline-flex" to="/community/posts/new">إنشاء منشور ＋</Link></div>}
       {userId===user.id&&<div className="mt-4 flex flex-wrap gap-2"><input className="input min-w-0 flex-1" aria-label="الكنية" maxLength={60} value={nickname} onChange={e=>setNickname(e.target.value)} placeholder={person.nickname||'أضف كنيتك'}/><Button onClick={()=>action.mutate({path:'/community/nickname',data:{nickname},method:'patch'})}>حفظ الكنية</Button></div>}
     </div>
   </section>}

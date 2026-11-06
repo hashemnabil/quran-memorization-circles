@@ -221,15 +221,15 @@ for (const width of [1280, 390]) {
       return route.fulfill({ json: { data: [], meta: { page: 1, total: 0, totalPages: 1, hasNextPage: false } } });
     });
     await gotoWithLocalUnlock(page,'/profile');
-    await expect(page.getByRole('button', { name: 'قائمة الحساب', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+    await expect(page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true })).toBeVisible();
+    await page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
     await page.getByRole('link', { name: 'الإشعارات', exact: true }).first().click();
     await expect(page).toHaveURL(/\/notifications$/);
     await page.getByRole('button', { name: /مراجعة بياناتك/ }).click();
     await expect(page).toHaveURL(/\/verify-profile$/);
     await page.getByRole('button', { name: 'تعديل بياناتي', exact: true }).click();
     await expect(page.getByRole('button', { name: 'إرسال للتحقق', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+    await page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
     await page.getByRole('link', { name: 'المحادثات', exact: true }).first().click();
     await expect(page).toHaveURL(/\/chat$/);
     // Cache the support screen, then exercise a real sidebar link while offline.
@@ -755,7 +755,7 @@ test('student edits remain pending offline and online until administrative appro
   await expect(page.getByText('قاعة الاختبار التجريبية', { exact: false })).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 450));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(400);
-  await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+  await page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
   // Playwright scrolls the sticky account trigger into view before clicking it.
   // Back navigation must restore the actual departure position after that action.
   const departureScroll = await page.evaluate(() => window.scrollY);
@@ -954,9 +954,9 @@ test('cold offline navigation opens downloaded core screens and searches locally
   await sidebar.evaluate(element => { element.scrollTop = 150; });
   const sidebarOffset = await sidebar.evaluate(element => element.scrollTop);
   expect(sidebarOffset).toBeGreaterThan(0);
-  await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+  await page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
   expect(await sidebar.evaluate(element => element.scrollTop)).toBe(sidebarOffset);
-  await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+  await page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'test-results/design-mobile.png', fullPage: true, animations: 'disabled' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

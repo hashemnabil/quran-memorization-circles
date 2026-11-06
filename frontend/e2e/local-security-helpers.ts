@@ -18,7 +18,10 @@ export async function unlockLocalGate(page: Page) {
   });
   const panel = page.locator('.security-panel');
   if (!await panel.isVisible()) {
-    if (new URL(page.url()).pathname !== '/login') await expect(page.locator('.app-topbar')).toBeVisible();
+    if (new URL(page.url()).pathname !== '/login') {
+      await expect(page.locator('.app-topbar')).toBeVisible();
+      await expect(page.locator('[data-security-blocked]')).toHaveCount(0);
+    }
     return;
   }
 
@@ -39,7 +42,8 @@ export async function unlockLocalGate(page: Page) {
       if (await submit.count()) {
         await submit.click({ timeout: 2500 });
       }
-      await expect(page.locator('[data-security-blocked]')).toHaveCount(0);
+      await expect(page.locator('[data-security-blocked]')).toHaveCount(0, { timeout: 10000 });
+      if (new URL(page.url()).pathname !== '/login') await expect(page.locator('.app-topbar')).toBeVisible();
       return;
     } catch (error) {
       if (!await panel.isVisible()) return;

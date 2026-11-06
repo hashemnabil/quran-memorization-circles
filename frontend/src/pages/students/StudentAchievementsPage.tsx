@@ -8,6 +8,8 @@ import { Card, PageHeader, LoadingState, ErrorState, Select } from '@/components
 import type { PaginatedResponse, Student } from '@/types';
 import { exportLocalPdf } from '@/lib/local-pdf';
 import { saveDeviceFile } from '@/lib/save-device-file';
+import { SURAHS } from '@/lib/quran-surahs';
+import toast from 'react-hot-toast';
 
 const parts = (value: unknown) => Math.max(0, Math.min(30, Number(value) || 0));
 
@@ -29,10 +31,10 @@ export default function StudentAchievementsPage() {
   const rows = students.data?.data ?? [];
   const current = useMemo(() => selected && rows.find(row => row.id === selected.id) || selected, [selected, rows]);
   const count = students.data?.meta?.total ?? rows.length;
-  const surahs = useQuery({ queryKey: ['achievements','surahs'], queryFn: async () => (await api.get<Array<{number:number;name:string;ayahs:number}>>('/recitations/surahs')).data });
-  const detail = useQuery({ queryKey: ['achievements','student',current?.id], queryFn: async () => { try { return (await api.get<Student>('/students/'+current!.id)).data; } catch(error) { if ((error as {response?: unknown})?.response) throw error; const cached = queryClient.getQueryData<Student>(['students',current!.id]); if (cached?.id === current!.id) return cached; throw error; } }, enabled: !!current?.id });
+  const surahs = SURAHS;
+  const detail = useQuery({ queryKey: ['achievements','student',current?.id], queryFn: async () => { try { return (await api.get<Student>('/students/'+current!.id)).data; } catch(error) { if ((error as {response?: unknown})?.response) throw error; const cached = queryClient.getQueryData<Student>(['students',current!.id]) ?? queryClient.getQueryData<Student>(['achievements','student',current!.id]); if (cached?.id === current!.id) return cached; throw error; } }, enabled: !!current?.id });
   const completed = new Set((detail.data?.surahCompletions ?? []).map(item => item.surah));
-  const completedCount = surahs.data?.filter(item => completed.has(item.name)).length ?? 0;
+  const completedCount = surahs.filter(item => completed.has(item.name)).length ?? 0;
   const exportReport = async () => {
     const student = detail.data;
     if (!student) return;
@@ -42,9 +44,9 @@ export default function StudentAchievementsPage() {
       { البيان: 'الحلقة', القيمة: student.circle?.name ?? '—' },
       { البيان: 'الأجزاء المحفوظة', القيمة: parts(student.memorizedParts) + ' من 30' },
       { البيان: 'السور المكتملة', القيمة: completedCount + ' من 114' },
-      ...(surahs.data ?? []).filter(item => completed.has(item.name)).map(item => ({ البيان: 'سورة مكتملة', القيمة: item.name })),
+      ...surahs.filter(item => completed.has(item.name)).map(item => ({ البيان: 'سورة مكتملة', القيمة: item.name })),
     ];
-    await saveDeviceFile(await exportLocalPdf(title, report), 'تقرير-إنجاز-' + student.fullName + '.pdf');
+    try { await saveDeviceFile(await exportLocalPdf(title, report), 'تقرير-إنجاز-' + student.fullName + '.pdf'); } catch { toast.error('تعذّر حفظ تقرير الإنجاز على الجهاز'); }
   };
   return <div dir="rtl" className="space-y-5">
     <PageHeader title="إنجازات الطلاب" subtitle={user?.role === 'TEACHER' ? 'متابعة إنجازات طلاب حلقاتك' : 'متابعة إنجازات طلاب المدرسة حسب الحلقة والطالب'} />
@@ -82,19 +84,19 @@ export default function StudentAchievementsPage() {
       <div className="mt-6">
         <h3 className="text-center text-xl font-extrabold text-rose-700">قلبي القرآني</h3>
         <p className="mt-1 text-center text-sm text-slate-600">{completedCount} / 114 سورة مكتملة</p>
-        {detail.isLoading || surahs.isLoading ? <LoadingState /> : detail.isError || surahs.isError ? <ErrorState message="تعذّر تحميل السور المكتملة" onRetry={() => { void detail.refetch(); void surahs.refetch(); }} /> :
-          <div className="mx-auto mt-4 grid max-w-xl grid-cols-9 gap-1.5" aria-label="القلب القرآني: السور المكتملة">
-            {(surahs.data ?? []).map((item, index) => {
+        {detail.isLoading ? <LoadingState /> : detail.isError ? <ErrorState message="تعذّر تحميل السور المكتملة" onRetry={() => { void detail.refetch();  }} /> :
+          <div className="mx-auto mt-4 grid max-w-xl grid-cols-9 gap-1.5" style={{ clipPath: "polygon(50% 12%, 62% 1%, 80% 1%, 96% 12%, 100% 30%, 96% 48%, 83% 66%, 50% 100%, 17% 66%, 4% 48%, 0% 30%, 4% 12%, 20% 1%, 38% 1%)" }} aria-label="القلب القرآني: السور المكتملة">
+            {surahs.map((item, index) => {
               const done = completed.has(item.name);
               const x = (index % 9 - 4) / 4.5;
               const y = (Math.floor(index / 9) - 5.8) / 6.5;
               const inside = Math.pow(x*x+y*y-1, 3)-x*x*Math.pow(y,3) <= 0;
-              return <div key={item.number} title={item.name + ' — ' + (done ? 'مكتملة' : 'غير مكتملة')} className={'flex aspect-square min-w-0 items-center justify-center rounded-md border text-[9px] leading-tight sm:text-[11px] ' + (done ? 'border-rose-600 bg-rose-600 text-white' : 'border-slate-200 bg-slate-100 text-slate-600')} style={{ opacity: inside ? 1 : .32 }}>{item.name}</div>;
+              return <div key={item.number} title={item.name + ' — ' + (done ? 'مكتملة' : 'غير مكتملة')} className={'flex aspect-square min-w-0 items-center justify-center rounded-md border text-[9px] leading-tight sm:text-[11px] ' + (done ? 'border-rose-600 bg-rose-600 text-white' : 'border-slate-200 bg-slate-100 text-slate-600')} style={{ opacity: inside ? 1 : .55 }}>{item.name}</div>;
             })}
           </div>}
         <p className="mt-3 text-center text-xs text-slate-500">الأحمر للسور المثبت إتمامها في سجل الطالب، والرمادي للسور الأخرى.</p>
       </div>
-      <button type="button" onClick={() => void exportReport()} disabled={!detail.data || !surahs.data} className="mt-4 rounded-xl bg-emerald-800 px-4 py-2 font-bold text-white disabled:opacity-50">تصدير تقرير الإنجاز PDF</button>
+      <button type="button" onClick={() => void exportReport()} disabled={!detail.data} className="mt-4 rounded-xl bg-emerald-800 px-4 py-2 font-bold text-white disabled:opacity-50">تصدير تقرير الإنجاز PDF</button>
       <Link className="mt-4 inline-flex rounded-xl bg-emerald-800 px-4 py-2 font-bold text-white" to={`/students/${current.id}`}>فتح ملف الطالب</Link>
     </Card>}
   </div>;

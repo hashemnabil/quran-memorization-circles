@@ -1,5 +1,5 @@
 /** Bundled Quran reference data for offline achievements. Kept in sync with backend/src/common/quran.ts. */
-export const SURAHS: SurahInfo[] = [
+export const SURAHS: { number: number; name: string; ayahs: number }[] = [
   { number: 1, name: 'الفاتحة', ayahs: 7 },
   { number: 2, name: 'البقرة', ayahs: 286 },
   { number: 3, name: 'آل عمران', ayahs: 200 },

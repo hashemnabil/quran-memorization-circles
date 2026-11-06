@@ -28,7 +28,7 @@ export default function CommunityPage({ ownProfile = false }: { ownProfile?: boo
   enabled:showFollowers,
  });
  const profile=useQuery({queryKey:['community','profile',userId],queryFn:async()=>(await api.get<Person>('/community/users/'+userId)).data,enabled:!!userId});
- const person: Person | undefined = userId === user.id ? { ...user, ...(profile.data && typeof person.id === 'string' ? profile.data : {}) } : profile.data;
+ const person: Person | undefined = userId === user.id ? { ...user, ...(profile.data && typeof profile.data.id === 'string' ? profile.data : {}) } : profile.data;
  const isStories=location.pathname==='/community/stories';const showSchool=location.pathname==='/community/school';
  const feed=useQuery({queryKey:['community','feed',userId,showSchool],queryFn:async()=>(await api.get<Post[]>('/community/feed',{params:{...(userId?{userId}:{}),...(!userId&&showSchool?{school:'true'}:{})}})).data});
  const school=useQuery({queryKey:['community','school'],queryFn:async()=>(await api.get<School>('/community/school')).data});

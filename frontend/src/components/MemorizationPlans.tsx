@@ -42,7 +42,7 @@ export default function MemorizationPlans({studentId}: {studentId: string}) {
     }, onSuccess: () => { setEditor(null); refresh(); toast.success('تم حفظ الخطة'); }, onError: error => toast.error(apiError(error)),
   });
   const addProgress = useMutation({
-    mutationFn: () => api.post(`/students/${studentId}/plans/${progress!.id}/progress`, {amount: hasRange ? rangeCount : Number(amount), note: [hasRange ? `${UNITS[progress!.unit]} من ${rangeStart} إلى ${rangeEnd}` : '', `أيام الإنجاز: ${days}`, note].filter(Boolean).join(' | '), requestId}),
+    mutationFn: () => api.post(`/students/${studentId}/plans/${progress!.id}/progress`, {amount: hasRange ? rangeCount : Number(amount), note, rangeStart: hasRange ? Number(rangeStart) : undefined, rangeEnd: hasRange ? Number(rangeEnd) : undefined, days: Number(days), requestId}),
     onSuccess: response => { setProgress(null); refresh(); toast.success(response.data.completed >= response.data.target ? 'مبارك! أتممت الخطة بنجاح' : 'تم اعتماد الإنجاز'); },
     onError: error => toast.error(apiError(error)),
   });

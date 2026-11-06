@@ -84,7 +84,7 @@ export default function CommunityPage({ ownProfile = false }: { ownProfile?: boo
     <div className="relative px-4 pb-6 sm:px-7">
       <div className="-mt-12 flex items-end justify-between gap-3">
         <div className="rounded-full border-4 border-white bg-white shadow-md"><Avatar name={profile.data.fullName} src={profile.data.avatarUrl} size={96}/></div>
-        {userId===user.id&&<Link to="/profile/settings" className="mb-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm" aria-label="إعدادات الملف الشخصي">⚙ الإعدادات</Link>}
+        {userId===user.id&&<Link to="/profile/account" className="mb-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm" aria-label="قائمة الحساب">⚙ إدارة الحساب وتسجيل الخروج</Link>}
       </div>
       <div className="mt-3 space-y-1">
         <h1 className="text-2xl font-extrabold text-slate-900">{profile.data.fullName}</h1>

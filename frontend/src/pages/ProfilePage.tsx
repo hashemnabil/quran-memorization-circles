@@ -26,7 +26,13 @@ import { EMPLOYMENT_LABELS, ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateTime, formatParts } from '@/lib/format';
 import { rememberOfflineLogin } from '@/lib/offline-login';
 
-export default function ProfilePage({ settings = false, settingsSection='identity' }: { settings?: boolean; settingsSection?: 'identity'|'password' }) {
+export default function ProfilePage(props: { settings?: boolean; settingsSection?: 'identity'|'password' }) {
+  // Keep /profile as the stable account route used by offline and account workflows.
+  // The social profile remains accessible through its dedicated community route.
+  return <AccountProfilePage {...props} />;
+}
+
+function AccountProfilePage({ settings = false, settingsSection='identity' }: { settings?: boolean; settingsSection?: 'identity'|'password' }) {
   const cover = useCuratedBackground('PROFILE_COVER');
   const [replayIntro, setReplayIntro] = useState(false);
   const [nickname, setNickname] = useState('');

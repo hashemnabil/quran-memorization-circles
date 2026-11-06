@@ -12,6 +12,7 @@ import { AuthUser } from '../common/decorators';
 import { paginate } from '../common/dto/pagination.dto';
 import { SURAHS, countVerses, findSurah } from '../common/quran';
 import { calculatePoints, pointsBreakdown } from '../common/points';
+import { recitationEvaluation } from '../common/grading';
 import { StudentsService } from '../students/students.service';
 import {
   CreateRecitationDto,
@@ -43,6 +44,31 @@ export class RecitationsService {
   /** Reference data for the recitation form. */
   surahs() {
     return SURAHS;
+  }
+
+  async gradingSettings() {
+    const row = await this.prisma.schoolSettings.findUnique({ where: { id: 'default' } });
+    return {
+      mistakePenalty: row?.recitationMistakePenalty ?? 1,
+      warningPenalty: row?.recitationWarningPenalty ?? 0.25,
+      tajweedPenalty: row?.recitationTajweedPenalty ?? 0.5,
+      excellent: row?.recitationExcellentMin ?? 90,
+      veryGood: row?.recitationVeryGoodMin ?? 80,
+      good: row?.recitationGoodMin ?? 70,
+      acceptable: row?.recitationAcceptableMin ?? 60,
+    };
+  }
+
+  async updateGradingSettings(actor: AuthUser, values: Record<string, number>) {
+    if (actor.role !== Role.ADMIN) throw new ForbiddenException('تعديل قواعد التقييم للإدارة فقط');
+    const keys = ['mistakePenalty', 'warningPenalty', 'tajweedPenalty', 'excellent', 'veryGood', 'good', 'acceptable'];
+    if (!values || Object.keys(values).some(key => !keys.includes(key))) throw new BadRequestException('إعدادات تقييم غير صالحة');
+    const next = { ...await this.gradingSettings(), ...values };
+    if (keys.some(key => typeof next[key] !== 'number' || !Number.isFinite(next[key]) || next[key] < 0 || next[key] > 100)
+      || !(next.excellent > next.veryGood && next.veryGood > next.good && next.good > next.acceptable)) throw new BadRequestException('الخصومات بين 0 و100، وحدود التقييم تنازلية');
+    await this.prisma.schoolSettings.upsert({ where: { id: 'default' }, create: { id: 'default', recitationMistakePenalty: next.mistakePenalty, recitationWarningPenalty: next.warningPenalty, recitationTajweedPenalty: next.tajweedPenalty, recitationExcellentMin: next.excellent, recitationVeryGoodMin: next.veryGood, recitationGoodMin: next.good, recitationAcceptableMin: next.acceptable }, update: { recitationMistakePenalty: next.mistakePenalty, recitationWarningPenalty: next.warningPenalty, recitationTajweedPenalty: next.tajweedPenalty, recitationExcellentMin: next.excellent, recitationVeryGoodMin: next.veryGood, recitationGoodMin: next.good, recitationAcceptableMin: next.acceptable } });
+    await this.activity.log({ userId: actor.id, action: 'RECITATION_GRADING_SETTINGS', summary: 'تحديث خصومات وحدود تقييم التسميع' });
+    return next;
   }
 
   async findAll(user: AuthUser, query: QueryRecitationsDto) {
@@ -255,11 +281,14 @@ export class RecitationsService {
     // range means the teacher never has to do arithmetic to record a session.
     const verses =
       dto.versesCount ?? countVerses(dto.fromSurah, dto.fromAyah, dto.toSurah, dto.toAyah);
+    const rules = await this.gradingSettings();
     const points = calculatePoints({
       versesCount: verses,
       mistakes: dto.mistakes,
       warnings: dto.warnings,
-    });
+      tajweedErrors: dto.tajweedErrors,
+    }, rules);
+    const evaluation = recitationEvaluation(verses ? points / verses * 100 : 0, rules);
 
     const recitation = await this.prisma.recitation.create({
       data: {
@@ -276,8 +305,9 @@ export class RecitationsService {
         versesCount: verses,
         mistakes: dto.mistakes ?? 0,
         warnings: dto.warnings ?? 0,
+        tajweedErrors: dto.tajweedErrors ?? 0,
         points,
-        evaluation: dto.evaluation,
+        evaluation,
         notes: dto.notes,
       },
       include: RECITATION_INCLUDE,
@@ -301,7 +331,7 @@ export class RecitationsService {
       entityId: recitation.id,
     });
 
-    return { ...recitation, breakdown: pointsBreakdown({ versesCount: verses, mistakes: dto.mistakes, warnings: dto.warnings }) };
+    return { ...recitation, breakdown: pointsBreakdown({ versesCount: verses, mistakes: dto.mistakes, warnings: dto.warnings, tajweedErrors: dto.tajweedErrors }, rules) };
   }
 
   async update(actor: AuthUser, id: string, dto: UpdateRecitationDto) {
@@ -333,12 +363,15 @@ export class RecitationsService {
     const toAyah = dto.toAyah ?? recitation.toAyah;
     const mistakes = dto.mistakes ?? recitation.mistakes;
     const warnings = dto.warnings ?? recitation.warnings;
+    const tajweedErrors = dto.tajweedErrors ?? recitation.tajweedErrors;
     const verses =
       dto.versesCount ??
       (dto.fromSurah || dto.toSurah || dto.fromAyah !== undefined || dto.toAyah !== undefined
         ? countVerses(fromSurah, fromAyah, toSurah, toAyah)
         : (recitation.versesCount ?? countVerses(fromSurah, fromAyah, toSurah, toAyah)));
 
+    const rules = await this.gradingSettings();
+    const points = calculatePoints({ versesCount: verses, mistakes, warnings, tajweedErrors }, rules);
     const updated = await this.prisma.recitation.update({
       where: { id },
       data: {
@@ -352,8 +385,9 @@ export class RecitationsService {
         versesCount: verses,
         mistakes,
         warnings,
-        points: calculatePoints({ versesCount: verses, mistakes, warnings }),
-        evaluation: dto.evaluation,
+        tajweedErrors,
+        points,
+        evaluation: recitationEvaluation(verses ? points / verses * 100 : 0, rules),
         notes: dto.notes,
       },
       include: RECITATION_INCLUDE,
@@ -362,7 +396,7 @@ export class RecitationsService {
     await this.students.recalculatePoints(recitation.studentId);
     return {
       ...updated,
-      breakdown: pointsBreakdown({ versesCount: verses, mistakes, warnings }),
+      breakdown: pointsBreakdown({ versesCount: verses, mistakes, warnings, tajweedErrors }, rules),
     };
   }
 

@@ -9,7 +9,7 @@ import AppLaunchGate from '@/components/AppLaunchGate';
 import PrayerTimesPage from '@/pages/PrayerTimesPage';
 import PrayerReminderSettingsPage from '@/pages/PrayerReminderSettingsPage';
 import NotificationSoundSettingsPage from '@/pages/NotificationSoundSettingsPage';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth';
 import { startHeartbeat } from '@/lib/session';
 import { queryClient } from '@/lib/queryClient';
@@ -64,8 +64,8 @@ import CourseDetailsPage from '@/pages/courses/CourseDetailsPage';
 import AnnouncementsPage from '@/pages/announcements/AnnouncementsPage';
 import SettingsPage from '@/pages/SettingsPage';
 import OfflineSettingsPage from '@/pages/OfflineSettingsPage';
-import ProfilePage from '@/pages/ProfilePage';
 import MobileSettingsPage from '@/pages/MobileSettingsPage';
+import ProfilePage from '@/pages/ProfilePage';
 import { ForbiddenPage, NotFoundPage } from '@/pages/ErrorPages';
 import RegistryLoginPage from '@/pages/RegistryLoginPage';
 import RegistryDataPage from '@/pages/RegistryDataPage';
@@ -169,11 +169,34 @@ export default function App() {
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="support" element={<SupportPage />} />
         <Route path="support/:id" element={<SupportTicketPage />} />
-        <Route path="registry-admin" element={<RequireRole roles={['ADMIN']}><RegistryAdminPage /></RequireRole>} />
-        <Route path="users" element={<RequireRole roles={['ADMIN']}><UsersPage /></RequireRole>} />
-        <Route path="settings" element={<RequireRole roles={['ADMIN']}><SettingsPage /></RequireRole>} />
-        <Route path="profile" element={<ProfilePage />} />
-        <Route path="profile/settings" element={<MobileSettingsPage />} />
+
+        <Route
+          path="registry-admin"
+          element={
+            <RequireRole roles={['ADMIN']}>
+              <RegistryAdminPage />
+            </RequireRole>
+          }
+        />
+
+        <Route
+          path="users"
+          element={
+            <RequireRole roles={['ADMIN']}>
+              <UsersPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="settings"
+          element={
+            <RequireRole roles={['ADMIN']}>
+              <SettingsPage />
+            </RequireRole>
+          }
+        />
+        <Route path="profile" element={<ProfilePage />} /><Route path="profile/settings" element={<MobileSettingsPage />} />
+
         <Route path="forbidden" element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

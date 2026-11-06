@@ -617,6 +617,7 @@ model Recitation {
   versesCount Int?
   mistakes    Int    @default(0)
   warnings    Int    @default(0)
+  tajweedErrors Int @default(0)
   points      Float  @default(0)
   /// Teacher's overall impression of the session. Independent of the points.
   evaluation Evaluation?
@@ -1099,6 +1100,13 @@ model Message {
 model SchoolSettings {
   examMistakePenalty Float @default(1)
   examAlertPenalty Float @default(0.5)
+  recitationMistakePenalty Float @default(1)
+  recitationWarningPenalty Float @default(0.25)
+  recitationTajweedPenalty Float @default(0.5)
+  recitationExcellentMin Float @default(90)
+  recitationVeryGoodMin Float @default(80)
+  recitationGoodMin Float @default(70)
+  recitationAcceptableMin Float @default(60)
   id           String   @id @default("default")
   name         String   @default("مدرسة عبدالله بن عمر")
   mosqueName   String?
@@ -1697,6 +1705,7 @@ model MemorizationPlan {
   unit String
   period String
   target Float
+  scope Json?
   completed Float @default(0)
   archived Boolean @default(false)
   dueAt DateTime?
@@ -1712,6 +1721,8 @@ model MemorizationProgress {
   planId String
   recordedById String
   amount Float
+  itemIds Int[] @default([])
+  versesCount Int @default(0)
   note String @default("")
   createdAt DateTime @default(now())
   plan MemorizationPlan @relation(fields: [planId], references: [id], onDelete: Cascade)

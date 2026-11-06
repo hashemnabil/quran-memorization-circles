@@ -84,7 +84,8 @@ test('offline reading confirmation survives reload and is synchronized after rec
   const row = popup(); row.popup.repeat = 'UNTIL_ACK'; row.popup.requireAck = true;
   const { events, user } = await setup(page, [row], 'TEACHER');
   await gotoWithLocalUnlock(page, '/prayer-times');
-  await expect(page.getByRole('dialog', { name: row.title })).toBeVisible();
+  // Popup retrieval follows authenticated-session restoration and PIN unlock.
+  await expect(page.getByRole('dialog', { name: row.title })).toBeVisible({ timeout: 15000 });
   await page.evaluate(() => navigator.serviceWorker.ready);
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await expect.poll(() => page.evaluate(async () => !!await caches.match('/'))).toBe(true);

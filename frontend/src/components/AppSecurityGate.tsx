@@ -54,7 +54,8 @@ function AccountGate({ account, children }: { account: string; children: ReactNo
     document.addEventListener('visibilitychange', visibility); window.addEventListener('pagehide', pagehide); window.addEventListener('qc:lock-changed', changed);
     const native = Capacitor.isNativePlatform() ? NativeApp.addListener('appStateChange', event => lifecycle(event.isActive)) : undefined;
     window.addEventListener('qc:lock-now', lockNow);
-    // Do not mount the authenticated subtree while the PIN gate is closed: its\n    // effects can otherwise write to encrypted IndexedDB without an active key.
+    // Do not mount the authenticated subtree while the PIN gate is closed: its
+    // effects can otherwise write to encrypted IndexedDB without an active key.
     return () => { active = false; document.removeEventListener('visibilitychange', visibility); window.removeEventListener('pagehide', pagehide); window.removeEventListener('qc:lock-changed', changed); window.removeEventListener('qc:lock-now', lockNow); void native?.then(listener => listener.remove()); };
   }, [account]);
   const blocked = state !== 'open';
@@ -108,7 +109,7 @@ function MaskedPinInput({ label, value, onChange, disabled = false }: { label: s
   const hideTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   useEffect(() => () => { hideTimers.current.forEach(clearTimeout); hideTimers.current.clear(); }, []);
   const change = (next: string) => {
-    const digits = next.replace(/\\D/g, '').slice(0, 8);
+    const digits = next.replace(/\D/g, '').slice(0, 8);
     if (digits.length < value.length) {
       hideTimers.current.forEach((timer, index) => { if (index >= digits.length) { clearTimeout(timer); hideTimers.current.delete(index); } });
       setRevealed(previous => previous.filter(index => index < digits.length));

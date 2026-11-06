@@ -1,4 +1,7 @@
 .mobile-settings { max-width: 42rem; margin-inline: auto; padding-bottom: 1.5rem; min-width: 0; color: var(--ink); }
+.app-workspace:has(.mobile-settings), .app-workspace:has(.settings-detail) { background: #f5f6f7; }
+[data-theme="dark"] .app-workspace:has(.mobile-settings), [data-theme="dark"] .app-workspace:has(.settings-detail) { background: #0b1012; }
+.app-workspace:has(.mobile-settings) + footer, .app-workspace:has(.settings-detail) + footer { display: none; }
 .settings-heading { display: flex; align-items: center; gap: .8rem; padding: .5rem 0 1.2rem; }
 .settings-heading h1 { font-size: 1.35rem; font-weight: 800; }
 .settings-back { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: var(--surface); border: 1px solid var(--line); }

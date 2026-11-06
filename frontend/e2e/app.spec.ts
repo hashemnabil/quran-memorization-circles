@@ -266,11 +266,13 @@ test('native-style settings use grouped rows, search, real details and a persist
   await expect(page.locator('input[type=password]')).toHaveCount(0);
   await expect(page.locator('.settings-group')).toHaveCount(5);
   await expect(page.getByRole('switch',{name:'الوضع الليلي'})).toHaveAttribute('aria-checked','false');
+  await expect(page.getByRole('status',{name:'بدء التطبيق',exact:true})).not.toBeVisible();
   await page.screenshot({path:info.outputPath('settings-light.png'),fullPage:true});
   await page.getByRole('switch',{name:'الوضع الليلي'}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await page.reload();await unlockLocalGate(page);
   await expect(page.getByRole('switch',{name:'الوضع الليلي'})).toHaveAttribute('aria-checked','true');
+  await expect(page.getByRole('status',{name:'بدء التطبيق',exact:true})).not.toBeVisible();
   await page.screenshot({path:info.outputPath('settings-dark.png'),fullPage:true});
   await page.getByRole('searchbox',{name:'البحث في الإعدادات'}).fill('كلمة المرور');
   await expect(page.locator('.settings-group')).toHaveCount(1);

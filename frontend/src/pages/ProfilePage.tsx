@@ -82,6 +82,8 @@ export default function ProfilePage({ settings = false, settingsSection='identit
             <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
               <Input
                 label="كلمة المرور الحالية"
+                aria-label="كلمة المرور الحالية"
+                autoComplete="current-password"
                 type="password"
                 required
                 value={currentPassword}

@@ -10,7 +10,7 @@ import { NativePushSettings } from '@/components/NativePush';
 import FirstUseOnboarding from '@/components/FirstUseOnboarding';
 import AppVersion from '@/components/AppVersion';
 import { Avatar, Button, Card, useConfirm } from '@/components/ui';
-import { IconUser, IconLock, IconEye, IconSettings, IconBell, IconClock, IconLifeBuoy, IconInfo, IconTrash, IconLogout, IconBook, IconChevronLeft, IconSearch, IconDownload } from '@/components/ui/Icons';
+import { IconUser, IconLock, IconEye, IconSettings, IconMoon, IconBell, IconClock, IconLifeBuoy, IconInfo, IconTrash, IconLogout, IconBook, IconChevronLeft, IconSearch, IconDownload } from '@/components/ui/Icons';
 import { useAuthStore } from '@/store/auth';
 import { apiError } from '@/lib/api';
 import { ROLE_LABELS } from '@/lib/labels';
@@ -75,7 +75,7 @@ export default function MobileSettingsPage() {
       <label className="settings-search"><IconSearch size={19}/><input aria-label="البحث في الإعدادات" value={search} onChange={event=>setSearch(event.target.value)} placeholder="البحث في الإعدادات" type="search"/></label>
       {!search&&<Link className="settings-account" to="/profile"><Avatar name={user.fullName} src={user.avatarUrl} size={48}/><span><strong>{user.fullName}</strong><small>{ROLE_LABELS[user.role]}</small></span><IconChevronLeft size={18}/></Link>}
       {filtered.map(group=><section className="settings-section" key={group.title} aria-label={group.title}><h2>{group.title}</h2><div className="settings-group">
-        {group.title==='التخصيص'&&!search&&<div className="settings-row"><span className="settings-row-icon"><IconSettings size={20}/></span><span className="settings-row-label">الوضع الليلي</span><ThemeSwitch/></div>}
+        {group.title==='التخصيص'&&!search&&<div className="settings-row"><span className="settings-row-icon"><IconMoon size={20}/></span><span className="settings-row-label">الوضع الليلي</span><ThemeSwitch/></div>}
         {group.rows.map(row=>{const Icon=row.icon;const contents=<><span className="settings-row-icon"><Icon size={20}/></span><span className="settings-row-label">{row.title}{row.hint&&<small>{row.hint}</small>}</span><IconChevronLeft size={17}/></>;return row.to?<Link className={'settings-row'+(row.danger?' settings-row-danger':'')} key={row.title} to={row.to}>{contents}</Link>:<button disabled={busy} className={'settings-row'+(row.danger?' settings-row-danger':'')} type="button" key={row.title} onClick={()=>void action(row.action)}>{contents}</button>;})}
       </div></section>)}
       {!filtered.length&&<p className="settings-empty" role="status">لا توجد إعدادات مطابقة لبحثك.</p>}

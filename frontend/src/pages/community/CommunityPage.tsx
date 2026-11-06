@@ -87,7 +87,7 @@ export default function CommunityPage({ ownProfile = false }: { ownProfile?: boo
     <div className="relative px-4 pb-6 sm:px-7">
       <div className="-mt-12 flex items-end justify-between gap-3">
         <div className="rounded-full border-4 border-white bg-white shadow-md"><Avatar name={person.fullName} src={person.avatarUrl} size={96}/></div>
-        {userId===user.id&&<button type="button" onClick={()=>setAccountMenuOpen(open=>!open)} aria-label="قائمة الحساب" aria-expanded={accountMenuOpen} className="mb-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm">⚙ قائمة الحساب</button>}
+        {userId===user.id&&<button type="button" onClick={()=>setAccountMenuOpen(open=>!open)} aria-label="خيارات الملف الشخصي" aria-expanded={accountMenuOpen} className="mb-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm">⚙ قائمة الحساب</button>}
       </div>
       <div className="mt-3 space-y-1">
         <h1 className="text-2xl font-extrabold text-slate-900">{person.fullName}</h1>

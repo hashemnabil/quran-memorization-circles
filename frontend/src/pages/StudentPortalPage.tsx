@@ -157,6 +157,25 @@ export default function StudentPortalPage() {
         <StatCard label="الأجزاء المحفوظة" value={formatParts(data.memorizedParts ?? 0)} icon={<IconBook size={22} />} hint="من 30 جزءاً" />
         <StatCard label="الاختبارات المجتازة" value={data.examSummary?.passed ?? 0} icon={<IconAward size={22} />} />
       </div>
+      <Card title="أوسمة إنجازاتي" subtitle="محطات تشجيعية من سجلّك الدراسي، بدون مقارنة مع الآخرين">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {([
+            { id: 'first-part', label: 'أول جزء', detail: 'حفظ جزء كامل', earned: Number(data.memorizedParts ?? 0) >= 1, progress: Math.min(1, Math.max(0, Number(data.memorizedParts ?? 0))), target: 1 },
+            { id: 'five-parts', label: 'خمسة أجزاء', detail: 'حفظ خمسة أجزاء', earned: Number(data.memorizedParts ?? 0) >= 5, progress: Math.min(5, Math.max(0, Number(data.memorizedParts ?? 0))), target: 5 },
+            { id: 'ten-parts', label: 'عشرة أجزاء', detail: 'حفظ عشرة أجزاء', earned: Number(data.memorizedParts ?? 0) >= 10, progress: Math.min(10, Math.max(0, Number(data.memorizedParts ?? 0))), target: 10 },
+            { id: 'complete-quran', label: 'ختم الحفظ', detail: 'إتمام ثلاثين جزءًا', earned: Number(data.memorizedParts ?? 0) >= 30, progress: Math.min(30, Math.max(0, Number(data.memorizedParts ?? 0))), target: 30 },
+            { id: 'first-exam', label: 'أول اختبار', detail: 'اجتياز اختبار واحد', earned: Number(data.examSummary?.passed ?? 0) >= 1, progress: Math.min(1, Math.max(0, Number(data.examSummary?.passed ?? 0))), target: 1 },
+            { id: 'five-exams', label: 'مثابر في الاختبارات', detail: 'اجتياز خمسة اختبارات', earned: Number(data.examSummary?.passed ?? 0) >= 5, progress: Math.min(5, Math.max(0, Number(data.examSummary?.passed ?? 0))), target: 5 },
+          ] as const).map(badge => <div key={badge.id} className={`rounded-2xl border p-4 ${badge.earned ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+            <div className="flex items-center gap-3">
+              <span aria-hidden="true" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${badge.earned ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}><IconAward size={24} /></span>
+              <div><h3 className="font-bold text-slate-800">{badge.label}</h3><p className="text-xs text-slate-600">{badge.detail}</p></div>
+            </div>
+            <p className="mt-3 text-xs font-semibold">{badge.earned ? 'تم الإنجاز ✓' : `التقدّم: ${badge.progress} من ${badge.target}`}</p>
+            {!badge.earned && <div role="progressbar" aria-label={`تقدم وسام ${badge.label}`} aria-valuenow={badge.progress} aria-valuemin={0} aria-valuemax={badge.target} className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${badge.progress / badge.target * 100}%` }} /></div>}
+          </div>)}
+        </div>
+      </Card>
       <Card title="بياناتي الدراسية">
         <div className="grid gap-3 sm:grid-cols-2">
           <Info label="رقم الطالب" value={data.code} />

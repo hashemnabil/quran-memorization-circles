@@ -7,6 +7,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { LoadingState } from '@/components/ui';
 import AppLaunchGate from '@/components/AppLaunchGate';
 import PrayerTimesPage from '@/pages/PrayerTimesPage';
+import HonorBoardsPage from '@/pages/HonorBoardsPage';
 import PrayerReminderSettingsPage from '@/pages/PrayerReminderSettingsPage';
 import NotificationSoundSettingsPage from '@/pages/NotificationSoundSettingsPage';
 import { Navigate, Route, Routes } from 'react-router-dom';
@@ -120,6 +121,7 @@ export default function App() {
         <Route path="profile-reviews/teachers" element={<RequireRole roles={['ADMIN']}><ProfileReviewsPage kind="TEACHER" /></RequireRole>} />
         <Route path="settings/offline" element={<OfflineSettingsPage />} />
         <Route path="prayer-times" element={<PrayerTimesPage />} />
+        <Route path="honor-boards" element={<HonorBoardsPage />} />
         <Route path="prayer-times/reminders" element={<PrayerReminderSettingsPage key={currentUser?.id} />} />
         <Route path="profile/settings/notifications/sound" element={<NotificationSoundSettingsPage key={currentUser?.id} />} />
         <Route path="donations" element={<DonationsPage />} />

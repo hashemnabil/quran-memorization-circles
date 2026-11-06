@@ -66,7 +66,7 @@ export class RecitationsService {
     const next = { ...await this.gradingSettings(), ...values };
     if (keys.some(key => typeof next[key] !== 'number' || !Number.isFinite(next[key]) || next[key] < 0 || next[key] > 100)
       || !(next.excellent > next.veryGood && next.veryGood > next.good && next.good > next.acceptable)) throw new BadRequestException('الخصومات بين 0 و100، وحدود التقييم تنازلية');
-    await this.prisma.schoolSettings.upsert({ where: { id: 'default' }, create: { id: 'default', recitationMistakePenalty: next.mistakePenalty, recitationWarningPenalty: next.warningPenalty, recitationTajweedPenalty: next.tajweedPenalty, recitationExcellentMin: next.excellent, recitationVeryGoodMin: next.veryGood, recitationGoodMin: next.good, recitationAcceptableMin: next.acceptable }, update: { recitationMistakePenalty: next.mistakePenalty, recitationWarningPenalty: next.warningPenalty, recitationTajweedPenalty: next.tajweedPenalty, recitationExcellentMin: next.excellent, recitationVeryGoodMin: next.veryGood, recitationGoodMin: next.good, recitationAcceptableMin: next.acceptable } });
+    await this.prisma.schoolSettings.update({ where: { id: 'default' }, data: { recitationMistakePenalty: next.mistakePenalty, recitationWarningPenalty: next.warningPenalty, recitationTajweedPenalty: next.tajweedPenalty, recitationExcellentMin: next.excellent, recitationVeryGoodMin: next.veryGood, recitationGoodMin: next.good, recitationAcceptableMin: next.acceptable } });
     await this.activity.log({ userId: actor.id, action: 'RECITATION_GRADING_SETTINGS', summary: 'تحديث خصومات وحدود تقييم التسميع' });
     return next;
   }

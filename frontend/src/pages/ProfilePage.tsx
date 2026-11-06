@@ -28,7 +28,10 @@ import { formatDate, formatDateTime, formatParts } from '@/lib/format';
 import { rememberOfflineLogin } from '@/lib/offline-login';
 
 export default function ProfilePage(props: { settings?: boolean; settingsSection?: 'identity'|'password' }) {
-  if (!props.settings) return <CommunityPage ownProfile />;
+  // Keep the existing account controls and offline workflows on /profile.
+  // The social profile is an addition, not a replacement for logout, device
+  // cleanup, curated cover selection, and student account shortcuts.
+  if (!props.settings) return <><CommunityPage ownProfile /><AccountProfilePage /></>;
   return <AccountProfilePage {...props} />;
 }
 

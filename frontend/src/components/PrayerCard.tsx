@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { calculateGazaTimes, countdown, GAZA_ZONE, gazaDateKey, nextPrayer, prayerTimeLabel, readPrayerPreferences } from '@/lib/prayer-times';
 import { useAuthStore } from '@/store/auth';
-import { IconMosque, IconMoon } from '@/components/ui/Icons';
+import { IconMoon } from '@/components/ui/Icons';
+import { DEFAULT_SCHOOL_LOGO } from '@/config/branding';
 import './prayer.css';
 
 export function PrayerTimeIcon({ id, size = 24 }: { id: string; size?: number }) {
@@ -56,7 +57,7 @@ export default function PrayerCard() {
   const onChange = useState(() => () => setRevision(v => v + 1))[0];
   return <section className={`prayer-card ${isDay ? "prayer-card-day" : "prayer-card-night"}`} dir="rtl" aria-label="مواقيت الصلاة — غزة" data-revision={revision}>
     <img className="prayer-mosque" src="/prayer-mosque.jpg" alt="" aria-hidden="true" />
-    <div className="prayer-card-heading"><div><p className="prayer-eyebrow">📍 غزة — فلسطين</p><h2>مواقيت الصلاة — غزة</h2></div><span className="prayer-brand-icon" aria-label="رمز المسجد"><IconMosque size={42} /></span></div>
+    <div className="prayer-card-heading"><div><p className="prayer-eyebrow">📍 غزة — فلسطين</p><h2>مواقيت الصلاة — غزة</h2></div><span className="prayer-brand-icon" aria-label="شعار المدرسة"><img src={DEFAULT_SCHOOL_LOGO} alt="شعار المدرسة" width={48} height={48} className="h-12 w-12 rounded-full object-contain" /></span></div>
     <NextPrayerCountdown onChange={onChange} />
     <p className="prayer-date">{new Intl.DateTimeFormat('ar', { timeZone: GAZA_ZONE, dateStyle: 'full' }).format(day)} <span> · </span>{new Intl.DateTimeFormat('ar-u-ca-islamic-civil', { timeZone: GAZA_ZONE, day: 'numeric', month: 'long', year: 'numeric' }).format(hijri)}</p>
     <div className="prayer-strip">{times.map(p => <div key={p.id} className={next.id === p.id && gazaDateKey(next.at) === date ? 'prayer-slot is-next' : 'prayer-slot'}><span className="prayer-slot-icon" aria-hidden="true"><PrayerTimeIcon id={p.id} size={24} /></span><strong>{p.label}</strong><time dir="ltr">{prayerTimeLabel(p.at)}</time></div>)}</div>

@@ -15,7 +15,8 @@ import { credentialStorage } from '@/lib/credential-storage';
 import { cacheActiveIdentity, clearActiveIdentity, readActiveIdentity } from '@/lib/active-identity';
 import { persistDataSession, restoreDataSession, lockDataSession, protectLocalAccount } from '@/lib/local-data-session';
 import { db } from '@/lib/db';
-import { forgetEncryptionMarker } from '@/lib/local-encryption';
+import { forgetEncryptionMarker, encryptedAccount, dataKey } from '@/lib/local-encryption';
+import toast from 'react-hot-toast';
 import { cacheReconnectCredentials, restoreReconnectCredentials, clearReconnectCredentials, type ReconnectCredentials } from '@/lib/reconnect-credentials';
 
 const OFFLINE_USER_KEY = 'qc.offlineUser';
@@ -97,9 +98,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStage = 'حفظ جلسة الحساب المحلية';
       await persistDataSession(data.user.id);
     } catch (cause) {
-      const name = cause instanceof Error ? cause.name : 'UnknownError';
-      const detail = cause instanceof Error && cause.name === 'Error' ? cause.message : name;
-      throw Object.assign(new Error(`نجح التحقق من الحساب، وتعذر ${localStage}: ${detail}`), { offlineLoginError: true });
+      // A server-verified password reset must not be rejected because this device
+      // still has an encrypted offline snapshot protected by the old password.
+      // Keep the old snapshot and offline credentials intact: never replace its
+      // encryption key or discard pending offline writes without user consent.
+      const oldPasswordSnapshot = localStage === 'حفظ الدخول دون إنترنت'
+        && cause instanceof Error
+        && cause.message.includes('البيانات المحلية محفوظة بكلمة مرور سابقة')
+        && encryptedAccount(data.user.id)
+        && !dataKey(data.user.id);
+      if (!oldPasswordSnapshot) {
+        const name = cause instanceof Error ? cause.name : 'UnknownError';
+        const detail = cause instanceof Error && cause.name === 'Error' ? cause.message : name;
+        throw Object.assign(new Error(`نجح التحقق من الحساب، وتعذر ${localStage}: ${detail}`), { offlineLoginError: true });
+      }
+      toast('تم الدخول عبر الإنترنت. بياناتك المحلية القديمة ما زالت مقفلة بكلمة المرور السابقة؛ لم تُحذف أو تُستبدل. للدخول دون إنترنت، افتحها بالكلمة القديمة أولًا أو احذف بيانات هذا الموقع بعد التأكد من عدم حاجتك للتعديلات المحلية.', { duration: 12000 });
     }
     const user = await adoptSession(data, set);
     await import('@/lib/local-lock').then(module => module.resetLockAfterOnlineLogin(user.id));
@@ -313,7 +326,11 @@ async function adoptSession(
   sessionStorage.removeItem('qc.localUnlocked');
   const me = await api.get('/auth/me');
   cacheOfflineUser(me.data as AuthUser);
-  await db.meta.put({ key: `${me.data.id}:identity`, value: me.data });
+  // Online authentication remains valid even when an older encrypted local
+  // snapshot is locked. Do not write into or overwrite that snapshot.
+  if (!encryptedAccount(me.data.id) || dataKey(me.data.id)) {
+    await db.meta.put({ key: `${me.data.id}:identity`, value: me.data });
+  }
   await recordServerVerification(me.data.id);
   set({ user: me.data, status: 'authenticated' });
   return me.data as AuthUser;

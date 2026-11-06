@@ -256,3 +256,32 @@ test('mobile account and chat pages keep navigation and conversation controls us
     }
   }
 });
+
+
+test('native-style settings use grouped rows, search, real details and a persistent dark switch',async({page},info)=>{
+  await page.addInitScript(()=>{if(!localStorage.getItem('qc.theme'))localStorage.setItem('qc.theme','light');});
+  await login(page,'ADMIN');await page.setViewportSize({width:390,height:844});
+  await gotoWithLocalUnlock(page,'/profile/settings');
+  await expect(page.getByRole('heading',{name:'الإعدادات',exact:true})).toBeVisible();
+  await expect(page.locator('input[type=password]')).toHaveCount(0);
+  await expect(page.locator('.settings-group')).toHaveCount(5);
+  await expect(page.getByRole('switch',{name:'الوضع الليلي'})).toHaveAttribute('aria-checked','false');
+  await expect(page.getByRole('status',{name:'بدء التطبيق',exact:true})).not.toBeVisible();
+  await page.screenshot({path:info.outputPath('settings-light.png'),fullPage:true});
+  await page.getByRole('switch',{name:'الوضع الليلي'}).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await page.reload();await unlockLocalGate(page);
+  await expect(page.getByRole('switch',{name:'الوضع الليلي'})).toHaveAttribute('aria-checked','true');
+  await expect(page.getByRole('status',{name:'بدء التطبيق',exact:true})).not.toBeVisible();
+  await page.screenshot({path:info.outputPath('settings-dark.png'),fullPage:true});
+  await page.getByRole('searchbox',{name:'البحث في الإعدادات'}).fill('كلمة المرور');
+  await expect(page.locator('.settings-group')).toHaveCount(1);
+  await page.getByRole('link',{name:'كلمة المرور',exact:true}).click();
+  await expect(page.getByLabel('كلمة المرور الحالية',{exact:true})).toBeVisible();
+  await page.getByRole('link',{name:'العودة للإعدادات'}).click();
+  await page.getByRole('searchbox',{name:'البحث في الإعدادات'}).fill('');
+  await page.getByRole('link',{name:'رمز الأمان',exact:true}).click();
+  await expect(page.locator('input[type=password]').first()).toBeVisible();
+  for(const width of [360,430]){await page.setViewportSize({width,height:844});await gotoWithLocalUnlock(page,'/profile/settings');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);}
+  for(const path of ['/community/posts/new','/community/stories/new','/chat']){await gotoWithLocalUnlock(page,path);await expect(page.locator('input[type=file]')).toHaveCount(0);}
+});

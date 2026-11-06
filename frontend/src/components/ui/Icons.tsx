@@ -6,6 +6,8 @@ import type { SVGProps } from 'react';
  */
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
+export const IconMoon = (p: IconProps) => <Base {...p}><path d="M20.9 13.1A9 9 0 0 1 10.9 3.1a9 9 0 1 0 10 10Z"/></Base>;
+
 function Base({ size = 20, children, className, ...props }: IconProps) {
   return (
     <svg

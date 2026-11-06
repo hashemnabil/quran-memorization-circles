@@ -64,6 +64,7 @@ import AnnouncementsPage from '@/pages/announcements/AnnouncementsPage';
 import SettingsPage from '@/pages/SettingsPage';
 import OfflineSettingsPage from '@/pages/OfflineSettingsPage';
 import ProfilePage from '@/pages/ProfilePage';
+import MobileSettingsPage from '@/pages/MobileSettingsPage';
 import { ForbiddenPage, NotFoundPage } from '@/pages/ErrorPages';
 import RegistryLoginPage from '@/pages/RegistryLoginPage';
 import RegistryDataPage from '@/pages/RegistryDataPage';
@@ -356,7 +357,7 @@ export default function App() {
             </RequireRole>
           }
         />
-        <Route path="profile" element={<ProfilePage />} /><Route path="profile/settings" element={<ProfilePage settings />} />
+        <Route path="profile" element={<ProfilePage />} /><Route path="profile/settings" element={<MobileSettingsPage />} />
 
         <Route path="forbidden" element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />

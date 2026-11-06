@@ -55,8 +55,6 @@ export default function ChatPage() {
   const [panel, setPanel] = useState<'members' | 'settings' | null>(null);
   const [search, setSearch] = useState('');
   const [body, setBody] = useState('');
-  const [attachment,setAttachment]=useState<string>();
-  const [uploadingAttachment,setUploadingAttachment]=useState(false);
   const [soundsEnabled,setSoundsEnabled]=useState(()=>localStorage.getItem('chat-sounds-enabled')!=='false');
   const soundContext=useRef<AudioContext|null>(null);
   const lastSound=useRef(0);
@@ -130,12 +128,10 @@ export default function ChatPage() {
   });
 
   const send = useMutation({
-    mutationFn: (text: string) => api.post(`/chat/conversations/${id}/messages`, { body: text, attachmentUrl: attachment ? 'community-media:'+attachment : undefined }),
+    mutationFn: (text: string) => api.post(`/chat/conversations/${id}/messages`, { body: text }),
     onSuccess: (response) => {
       if (response.data?.synced === 0) toast('حُفظت الرسالة على الجهاز، بانتظار تأكيد الإرسال');
-      else playSound('sent');
-      setAttachment(undefined);
-      setBody('');
+      else playSound('sent');      setBody('');
       queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
     },
@@ -174,9 +170,7 @@ export default function ChatPage() {
     markRead.mutate(id);
     setTypingUsers([]);
     setEditing(null);
-    setBody('');
-    setAttachment(undefined);
-    setPanel(null);
+    setBody('');    setPanel(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -529,7 +523,6 @@ export default function ChatPage() {
                 </p>
               ) : (
                 <form onSubmit={submit} className="chat-composer border-t border-slate-100 px-4 py-3">
-                  {!editing&&<div className="mb-2 flex flex-wrap items-center gap-2"><label className="btn-secondary cursor-pointer">{uploadingAttachment?'جارٍ الرفع…':'إرفاق صورة'}<input className="sr-only" type="file" aria-label="إرفاق صورة" accept="image/png,image/jpeg,image/webp,image/gif" disabled={uploadingAttachment||send.isPending} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;if(file.size>5*1024*1024){toast.error('الحد الأقصى للصورة 5 ميجابايت');return;}const conversation=id;const form=new FormData();form.append('file',file);setUploadingAttachment(true);void api.post<{id:string}>('/community/media',form,{headers:{'Content-Type':'multipart/form-data'}}).then(result=>{if(window.location.pathname==='/chat/'+conversation&&useAuthStore.getState().user?.id===user.id){setAttachment(result.data.id);setBody(current=>current||'صورة مرفقة');}}).catch(error=>toast.error(apiError(error))).finally(()=>setUploadingAttachment(false));}}/></label>{attachment&&<><span className="text-xs">صورة جاهزة للإرسال</span><button type="button" className="text-xs underline" onClick={()=>setAttachment(undefined)}>إزالة</button></>}</div>}
                   <label className="mb-2 flex items-center gap-2 text-xs text-slate-600 chat-sound-setting">
                     <input type="checkbox" checked={soundsEnabled} onChange={e=>{setSoundsEnabled(e.target.checked);localStorage.setItem('chat-sounds-enabled',String(e.target.checked));}}/>
                     أصوات إرسال واستقبال الرسائل
@@ -562,7 +555,7 @@ export default function ChatPage() {
                     <Button
                       type="submit"
                       loading={send.isPending || edit.isPending}
-                      disabled={!body.trim() || uploadingAttachment}
+                      disabled={!body.trim()}
                       icon={editing ? <IconCheck size={16} /> : <IconSend size={16} />}
                     >
                       {editing ? 'حفظ' : 'إرسال'}

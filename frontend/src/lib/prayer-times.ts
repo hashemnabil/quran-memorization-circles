@@ -39,7 +39,7 @@ export function nextPrayer(now = new Date()) {
     .find(prayer => prayer.id !== 'sunrise' && prayer.at.getTime() > now.getTime())!;
 }
 export function prayerTimeLabel(at: Date) {
-  return new Intl.DateTimeFormat('ar', { timeZone: GAZA_ZONE, hour: '2-digit', minute: '2-digit', hour12: false, numberingSystem: 'latn' }).format(at);
+  return new Intl.DateTimeFormat('ar', { timeZone: GAZA_ZONE, hour: '2-digit', minute: '2-digit', hour12: true, numberingSystem: 'latn' }).format(at).replace('ص', ' ص').replace('م', ' م').replace(/\s+/g, ' ').trim();
 }
 export function countdown(at: Date, now = Date.now()) {
   const seconds = Math.max(0, Math.ceil((at.getTime() - now) / 1000));

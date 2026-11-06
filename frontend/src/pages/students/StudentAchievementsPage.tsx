@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/auth';
 import { Card, PageHeader, LoadingState, ErrorState, Select } from '@/components/ui';
 import type { PaginatedResponse, Student } from '@/types';
 import { exportLocalPdf } from '@/lib/local-pdf';
-import { saveDeviceFile } from '@/lib/device-files';
+import { saveDeviceFile } from '@/lib/save-device-file';
 
 const parts = (value: unknown) => Math.max(0, Math.min(30, Number(value) || 0));
 

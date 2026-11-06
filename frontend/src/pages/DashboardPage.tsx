@@ -1,3 +1,4 @@
+import HonorBoardPreview from '@/components/HonorBoardPreview';
 import { Link } from 'react-router-dom';
 import PrayerCard from '@/components/PrayerCard';
 import DailyOverview from '@/components/DailyOverview';
@@ -114,6 +115,7 @@ export default function DashboardPage() {
       />
 
       <PrayerCard />
+      <HonorBoardPreview />
       <DailyOverview/>
 
       <section className="mb-6">

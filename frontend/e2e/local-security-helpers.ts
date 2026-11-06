@@ -11,43 +11,40 @@ export async function fillLoginCredentials(page: Page, username: string, passwor
 // session, and its form can be replaced after PIN entry. Avoid waiting for a
 // detached field or clicking a submit button that no longer exists.
 export async function unlockLocalGate(page: Page) {
-  await page.waitForFunction(() => {
-    if (document.querySelector('.login-screen button[type="submit"]:disabled')) return false;
-    const screen = document.querySelector('.security-screen');
-    return screen ? !!screen.querySelector('form') : !!document.querySelector('.app-topbar') || (location.pathname === '/login' && !!document.querySelector('.login-screen'));
-  });
+  // A hydrated app header can exist underneath the security overlay. Do not
+  // mistake its presence for an unlocked app.
   const panel = page.locator('.security-panel');
-  if (!await panel.isVisible()) {
-    if (new URL(page.url()).pathname !== '/login') {
-      await expect(page.locator('.app-topbar')).toBeVisible();
-      await expect(page.locator('[data-security-blocked]')).toHaveCount(0);
-    }
-    return;
-  }
+  for (let attempt = 0; attempt < 6; attempt++) {
+    await page.waitForFunction(() => {
+      const gate = document.querySelector('.security-panel');
+      if (gate) return Boolean(gate.querySelector('form'));
+      if (location.pathname === '/login') return Boolean(document.querySelector('.login-screen'));
+      return Boolean(document.querySelector('.app-topbar')) &&
+        !document.querySelector('[data-security-blocked]') &&
+        document.documentElement.dataset.appLocked !== '1';
+    }, undefined, { timeout: 20000 });
 
-  // React can replace the entire form during session hydration. Only retry
-  // while the security panel still exists; do not consume the whole test
-  // timeout waiting on a locator that was detached.
-  for (let attempt = 0; attempt < 4; attempt++) {
-    if (!await panel.isVisible()) return;
+    if (!await panel.isVisible()) {
+      if (new URL(page.url()).pathname !== '/login') {
+        await expect(page.locator('.app-topbar')).toBeVisible();
+        await expect(page.locator('[data-security-blocked]')).toHaveCount(0);
+      }
+      return;
+    }
+
     try {
       const fields = panel.locator('input[type="password"]');
       const count = await fields.count();
       for (let index = 0; index < count; index++) {
-        if (!await panel.isVisible()) return;
-        await fields.nth(index).fill(TEST_LOCAL_PIN, { timeout: 2500 });
+        await fields.nth(index).fill(TEST_LOCAL_PIN, { timeout: 4000 });
       }
-      if (!await panel.isVisible()) return;
-      const submit = panel.locator('button[type="submit"]');
-      if (await submit.count()) {
-        await submit.click({ timeout: 2500 });
-      }
-      await expect(page.locator('[data-security-blocked]')).toHaveCount(0, { timeout: 10000 });
+      await panel.locator('button[type="submit"]').click({ timeout: 4000 });
+      await expect(page.locator('[data-security-blocked]')).toHaveCount(0, { timeout: 12000 });
       if (new URL(page.url()).pathname !== '/login') await expect(page.locator('.app-topbar')).toBeVisible();
       return;
     } catch (error) {
-      if (!await panel.isVisible()) return;
-      if (attempt === 3) throw error;
+      if (!await panel.isVisible()) continue;
+      if (attempt === 5) throw error;
     }
   }
 }

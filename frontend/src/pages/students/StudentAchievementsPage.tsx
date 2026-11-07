@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listOfflineSnapshot } from '@/lib/offline/changeFeed';
 import { api, apiError } from '@/lib/api';
@@ -19,6 +19,7 @@ export default function StudentAchievementsPage() {
   const [search, setSearch] = useState('');
   const [circleId, setCircleId] = useState('');
   const [page, setPage] = useState(1);
+  const navigate = useNavigate();
   const { studentId } = useParams<{ studentId: string }>();
   const circles = useQuery({
     queryKey: ['achievements', 'circles'],
@@ -68,7 +69,7 @@ export default function StudentAchievementsPage() {
     {!studentId && (students.isLoading ? <LoadingState /> : students.isError ? <ErrorState message={apiError(students.error, 'تعذّر تحميل إنجازات الطلاب')} onRetry={() => void students.refetch()} /> :
       <Card><div className="space-y-2">
         {rows.length === 0 && <p className="p-6 text-center text-slate-500">لا يوجد طلاب مطابقون للبحث.</p>}
-        {rows.map(student => <button type="button" key={student.id} onClick={() => window.location.assign('/students/achievements/' + student.id)}
+        {rows.map(student => <button type="button" key={student.id} onClick={() => navigate('/students/achievements/' + student.id)}
           className={`w-full rounded-2xl border p-4 text-right transition hover:border-emerald-600 ${current?.id === student.id ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'}`}>
           <div className="flex items-center justify-between gap-3"><strong>{student.fullName}</strong><span className="text-sm font-bold text-emerald-800">{parts(student.memorizedParts)} / 30 جزءًا</span></div>
           <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-600" style={{ width: `${parts(student.memorizedParts) / 30 * 100}%` }} /></div>

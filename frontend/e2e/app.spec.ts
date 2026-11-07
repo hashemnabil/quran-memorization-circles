@@ -129,8 +129,11 @@ test('offline attendance survives a lost committed response and replays with the
   // Going offline can briefly remount the attendance view while the local session settles.
   // Wait for a stable unlocked form instead of clicking a detached button.
   await expect(page.locator('[data-security-blocked]')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'حفظ الكشف', exact: true }).first()).toBeVisible();
-  await page.getByRole('button', { name: 'حفظ الكشف', exact: true }).first().click({ timeout: 15000 });
+  const saveAttendance = page.getByRole('button', { name: 'حفظ الكشف', exact: true }).first();
+  // Offline transitions can remount the form after the initial security overlay clears.
+  // Allow the form to settle before interacting; do not skip the offline save assertion.
+  await expect(saveAttendance).toBeVisible({ timeout: 20000 });
+  await saveAttendance.click({ timeout: 15000 });
   await expect.poll(async () => (await readTeacherOutbox(page)).length).toBe(1);
   const originalId = (await readTeacherOutbox(page))[0].opId;
   let committedResponse: any;

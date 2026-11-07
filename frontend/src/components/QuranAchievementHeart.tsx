@@ -1,82 +1,50 @@
-import { useId, useMemo } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
+import heartArtwork from '@/assets/quran-achievement-heart.jpg';
 import { SURAHS } from '@/lib/quran-surahs';
-
-type Point = { x: number; y: number };
-const outline = 'M 222 181 C 193 146 157 137 124 160 C 79 194 84 264 106 322 C 131 390 170 441 197 516 C 228 601 262 661 318 691 C 368 721 416 694 450 643 C 483 592 487 537 501 482 C 515 420 553 357 553 301 C 553 245 526 213 485 201 C 456 189 437 204 416 222 C 385 177 347 171 315 190 C 278 211 252 201 222 181 Z';
-
-// Spread all 114 labels across the actual heart body, not a rectangular grid
-// that gets cut off at the edge. Irregular offsets give organic cell boundaries.
-const bands: Array<[number, number, number, number]> = [
-  [204, 155, 468, 7], [245, 115, 523, 10], [288, 108, 535, 11],
-  [331, 119, 530, 11], [374, 139, 516, 11], [417, 162, 502, 10],
-  [460, 185, 489, 10], [503, 204, 482, 10], [546, 223, 474, 9],
-  [589, 249, 461, 9], [632, 279, 433, 8], [671, 307, 394, 8],
-];
-const seeds: Point[] = bands.flatMap(([y, left, right, count], row) =>
-  Array.from({ length: count }, (_, col) => {
-    const step = (right - left) / count;
-    return { x: left + step * (col + 0.5) + Math.sin((row + 1) * 3.7 + col * 2.1) * Math.min(7, step * 0.15),
-      y: y + Math.sin(col * 2.9 + row * 1.8) * 7 };
-  }),
-).slice(0, 114);
-
-function clipCell(polygon: Point[], a: number, b: number, c: number): Point[] {
-  const inside = (p: Point) => a * p.x + b * p.y <= c + 0.001;
-  const intersection = (p: Point, q: Point): Point => {
-    const t = (c - a * p.x - b * p.y) / (a * (q.x - p.x) + b * (q.y - p.y));
-    return { x: p.x + t * (q.x - p.x), y: p.y + t * (q.y - p.y) };
-  };
-  const output: Point[] = [];
-  for (let i = 0; i < polygon.length; i++) {
-    const current = polygon[i], next = polygon[(i + 1) % polygon.length];
-    const one = inside(current), two = inside(next);
-    if (one) output.push(current);
-    if (one !== two) output.push(intersection(current, next));
-  }
-  return output;
-}
-const cells = seeds.map((seed, index) => {
-  let polygon: Point[] = [{ x: 60, y: 145 }, { x: 570, y: 145 }, { x: 570, y: 735 }, { x: 60, y: 735 }];
-  for (let j = 0; j < seeds.length && polygon.length; j++) {
-    if (index === j) continue;
-    const other = seeds[j];
-    polygon = clipCell(polygon, 2 * (other.x - seed.x), 2 * (other.y - seed.y),
-      other.x * other.x + other.y * other.y - seed.x * seed.x - seed.y * seed.y);
-  }
-  return polygon.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
-});
+import { HEART_SURAH_POINTS, heartCellPixels } from '@/lib/achievement-heart';
 
 export default function QuranAchievementHeart({ completed }: { completed: ReadonlySet<string> }) {
-  const id = useId().replace(/:/g, '');
-  const total = useMemo(() => SURAHS.filter(surah => completed.has(surah.name)).length, [completed]);
-  return <div className="mx-auto w-full max-w-[760px] space-y-3" dir="rtl">
-    <h2 className="text-center font-serif text-2xl font-bold text-emerald-950 sm:text-3xl">بسم الله الرحمن الرحيم</h2>
-    <svg viewBox="45 30 550 725" role="img" aria-label={`القلب القرآني التشريحي: ${total} سورة مكتملة من 114`} className="mx-auto h-auto w-full">
-      <defs>
-        <clipPath id={id}><path d={outline}/></clipPath>
-      </defs>
-      {/* Coronary vessels and aorta sit behind the chamber and stay separate from its cells. */}
-      <g fill="#fffdfb" stroke="#292524" strokeWidth="3.3" strokeLinejoin="round">
-        <path d="M 279 198 C 271 143 278 89 302 57 L 344 57 C 356 103 344 153 337 191 Z"/>
-        <path d="M 351 189 C 357 133 377 100 418 88 L 447 111 C 425 142 409 178 417 221 Z"/>
-        <path d="M 217 179 C 196 128 165 112 133 123 L 121 152 C 156 154 181 172 193 196 Z"/>
-        <path d="M 479 210 C 494 172 532 150 567 165 L 574 198 C 541 196 516 216 506 240 Z"/>
-      </g>
-      <path d={outline} fill="#fffdfb" stroke="#292524" strokeWidth="4"/>
-      <g clipPath={`url(#${id})`}>
-        {SURAHS.map((surah, index) => {
-          const point = seeds[index], done = completed.has(surah.name);
-          if (!point) return null;
-          return <g key={surah.number}>
-            <polygon points={cells[index]} fill={done ? '#c91e31' : '#fffdfb'} stroke="#292524" strokeWidth="1.5" strokeLinejoin="round"/>
-            <text x={point.x} y={point.y} textAnchor="middle" dominantBaseline="central" fontFamily="Tajawal, sans-serif" fontSize={surah.name.length > 10 ? 8.5 : 10} fontWeight="600" fill={done ? '#fff' : '#292524'}>{surah.name}</text>
-            <title>{surah.name} — {done ? 'مكتملة' : 'غير مكتملة'}</title>
-          </g>;
-        })}
-      </g>
-      <path d={outline} fill="none" stroke="#292524" strokeWidth="4.5"/>
-      <path d="M 222 181 C 244 219 262 246 277 282 M 416 222 C 392 252 382 276 375 306" fill="none" stroke="#292524" strokeWidth="2.3" strokeLinecap="round"/>
-    </svg>
-    <p className="text-center text-sm text-slate-600">{total} من 114 سورة مكتملة — الأحمر للمكتمل والأبيض لما لم يكتمل.</p>
-  </div>;
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [ready, setReady] = useState(false);
+  const completedKey = SURAHS.filter(surah => completed.has(surah.name)).map(surah => surah.number).join(',');
+  const total = completedKey ? completedKey.split(',').length : 0;
+
+  useEffect(() => {
+    let cancelled = false;
+    const image = new Image();
+    image.onload = () => {
+      if (cancelled) return;
+      const canvas = canvasRef.current;
+      const context = canvas?.getContext('2d');
+      if (!canvas || !context) return;
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      context.drawImage(image, 0, 0);
+      const original = context.getImageData(0, 0, canvas.width, canvas.height);
+      const coloured = new ImageData(new Uint8ClampedArray(original.data), canvas.width, canvas.height);
+      for (const number of completedKey.split(',').filter(Boolean).map(Number)) {
+        const point = HEART_SURAH_POINTS[number - 1];
+        if (!point) continue;
+        for (const index of heartCellPixels(original.data, canvas.width, canvas.height, point)) {
+          const offset = index * 4;
+          // Multiply a soft red into the paper, preserving the photographed text and shading.
+          coloured.data[offset + 1] = Math.round(original.data[offset + 1] * 0.57);
+          coloured.data[offset + 2] = Math.round(original.data[offset + 2] * 0.62);
+        }
+      }
+      context.putImageData(coloured, 0, 0);
+      setReady(true);
+    };
+    image.src = heartArtwork;
+    return () => { cancelled = true; };
+  }, [completedKey]);
+
+  return <figure className="mx-auto w-full max-w-[662px] space-y-3" dir="rtl">
+    <div className="overflow-hidden rounded-2xl bg-white">
+      {!ready && <img src={heartArtwork} alt="قلب قرآني مزخرف بالزهور ومقسّم إلى أسماء سور القرآن" width={662} height={1176} className="h-auto w-full" />}
+      <canvas ref={canvasRef} role="img" aria-label={`قلبي القرآني: ${total} سورة مكتملة من 114، المساحات الحمراء للسور المكتملة`} className={ready ? 'h-auto w-full' : 'hidden'} />
+    </div>
+    <figcaption className="text-center text-sm text-slate-600">{total} من 114 سورة مكتملة — الأحمر للمكتمل والأبيض لما لم يكتمل.</figcaption>
+    {total > 0 && <details className="rounded-xl border border-slate-200 p-3 text-sm text-slate-700"><summary className="cursor-pointer font-bold">السور المكتملة</summary><p className="mt-2 leading-7">{SURAHS.filter(surah => completed.has(surah.name)).map(surah => surah.name).join('، ')}</p></details>}
+  </figure>;
 }

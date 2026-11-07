@@ -103,7 +103,8 @@ test('offline reading confirmation survives reload and is synchronized after rec
 test('profile uses the default cover without a background picker', async ({ page }) => {
   await setup(page, [], 'TEACHER');
   await gotoWithLocalUnlock(page, '/profile');
-  await expect(page.locator('.profile-cover')).toBeVisible();
+  await expect(page).toHaveURL(/\/community\/users\/me$/);
+  await expect(page.locator('.profile-cover')).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole('button', { name: 'خلفية الصفحة', exact: true })).toHaveCount(0);
   await expect(page.getByRole('dialog', { name: 'اختيار خلفية الصفحة' })).toHaveCount(0);
 });

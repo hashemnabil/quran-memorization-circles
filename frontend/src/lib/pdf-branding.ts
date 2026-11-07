@@ -19,7 +19,8 @@ export async function drawSchoolPdfHeader(
   ctx.fillStyle = '#d8b86a';
   ctx.fillRect(canvas.width * 0.08, compact ? 106 : 166, canvas.width * 0.84, compact ? 4 : 6);
 
-  const logo = await loadLogo(branding.logoUrl || DEFAULT_SCHOOL_LOGO);
+  const logo = await loadLogo(branding.logoUrl || DEFAULT_SCHOOL_LOGO)
+    || (branding.logoUrl ? await loadLogo(DEFAULT_SCHOOL_LOGO) : null);
   if (logo) {
     const margin = compact ? 28 : 44;
     const x = canvas.width - margin - logoSize;

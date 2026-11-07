@@ -2,7 +2,7 @@ import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { FormEvent, useEffect, useState } from 'react';
 import PrayerCard from '@/components/PrayerCard';
 import { SURAHS } from '@/lib/quran-surahs';
-import { exportLocalPdf } from '@/lib/local-pdf';
+import { exportAchievementReport } from '@/lib/achievement-report';
 import { saveDeviceFile } from '@/lib/save-device-file';
 import MemorizationPlans from '@/components/MemorizationPlans';
 import DailyOverview from '@/components/DailyOverview';
@@ -136,15 +136,8 @@ export default function StudentPortalPage() {
           </div>
           <p className="mt-3 text-xs text-slate-500">الأحمر للسور المثبت إتمامها في سجلك، والرمادي للسور التي لم يُسجّل إتمامها بعد.</p>
           <Button variant="secondary" className="mt-4" onClick={async () => {
-            const completed = SURAHS.filter(surah => (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name));
             try {
-              const pdf = await exportLocalPdf('تقرير إنجازاتي القرآنية', [
-                { البيان: 'الطالب', القيمة: String(data.fullName ?? '') },
-                { البيان: 'الحلقة', القيمة: String(data.circle?.name ?? '—') },
-                { البيان: 'الأجزاء المحفوظة', القيمة: Math.max(0, Math.min(30, Number(data.memorizedParts) || 0)) + ' من 30' },
-                { البيان: 'السور المكتملة', القيمة: completed.length + ' من 114' },
-                ...completed.map(surah => ({ البيان: 'سورة مكتملة', القيمة: surah.name })),
-              ]);
+              const pdf = await exportAchievementReport(data);
               await saveDeviceFile(pdf, 'إنجازاتي-القرآنية.pdf');
             } catch { toast.error('تعذّر حفظ تقرير الإنجازات'); }
           }}>تنزيل تقرير إنجازاتي PDF</Button>

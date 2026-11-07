@@ -1,4 +1,4 @@
-import { gotoWithLocalUnlock, unlockLocalGate, fillLoginCredentials } from './local-security-helpers';
+import { gotoWithLocalUnlock, unlockLocalGate, fillLoginCredentials, waitForAuthenticatedPage } from './local-security-helpers';
 import { test, expect } from '@playwright/test';
 
 // PARENT login is explicitly disabled by the existing server. Do not enable it here.
@@ -25,7 +25,7 @@ for (const role of ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'SUPPORT
     await gotoWithLocalUnlock(page,'/login');
     await fillLoginCredentials(page, user.username, 'test-password-2026');
     await page.getByRole('button', { name: 'دخول', exact: true }).click();
-    await unlockLocalGate(page);
+    await waitForAuthenticatedPage(page);
     const card = page.getByRole('region', { name: 'مواقيت الصلاة — غزة' });
     await expect(card).toBeVisible(); await expect(card.locator('.prayer-slot')).toHaveCount(6);
     await expect(card.locator('.prayer-countdown')).toHaveText(/\d{2}:\d{2}:\d{2}/);

@@ -1,3 +1,4 @@
+import QuranAchievementHeart from '@/components/QuranAchievementHeart';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { FormEvent, useEffect, useState } from 'react';
 import PrayerCard from '@/components/PrayerCard';
@@ -111,29 +112,7 @@ export default function StudentPortalPage() {
           <ProgressBar value={Math.max(0, Math.min(30, Number(data.memorizedParts) || 0))} max={30} showLabel />
           <h3 className="mt-5 text-center text-lg font-bold text-rose-700">قلبي القرآني</h3>
           <p className="mb-3 text-center text-sm text-slate-600">{SURAHS.filter(surah => (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name)).length} من 114 سورة مكتملة</p>
-          <div className="relative mx-auto mt-5 w-full max-w-[740px] overflow-x-auto pb-2" aria-label="القلب القرآني: السور المكتملة">
-            <svg aria-hidden="true" viewBox="0 0 120 140" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full drop-shadow-xl"><path d="M60 130 C47 117 5 85 5 46 C5 8 40 1 60 31 C80 1 115 8 115 46 C115 85 73 117 60 130 Z" fill="#fff1f2" stroke="#be123c" strokeWidth="2.5" /></svg>
-            <div className="relative mx-auto grid w-full min-w-[320px] grid-cols-12 gap-1 sm:gap-1.5" dir="rtl">
-              {SURAHS.map((surah, index) => {
-                const rowWidths = [8, 10, 12, 12, 12, 12, 10, 10, 8, 8, 6, 4, 2];
-                let row = 0;
-                let offset = index;
-                while (offset >= rowWidths[row]) { offset -= rowWidths[row]; row++; }
-                const width = rowWidths[row];
-                const column = row === 0
-                  ? (offset < 4 ? offset + 1 : offset + 5)
-                  : row === 1
-                    ? (offset < 5 ? offset + 1 : offset + 3)
-                    : Math.floor((12 - width) / 2) + offset + 1;
-                const done = (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name);
-                return <div key={surah.number} title={surah.name + (done ? ' — مكتملة' : ' — غير مكتملة')}
-                  style={{ gridRow: row + 1, gridColumn: column }}
-                  className={'flex min-h-11 min-w-0 items-center justify-center rounded-lg border px-0.5 py-1 text-center text-[9px] font-semibold leading-tight sm:min-h-12 sm:text-[11px] ' + (done ? 'border-rose-600 bg-rose-600 text-white' : 'border-rose-100 bg-rose-50 text-slate-700')}>
-                  {surah.name}
-                </div>;
-              })}
-            </div>
-          </div>
+          <QuranAchievementHeart completed={new Set((data.surahCompletions ?? []).map((entry: {surah: string}) => entry.surah))} />
           <p className="mt-3 text-xs text-slate-500">الأحمر للسور المثبت إتمامها في سجلك، والرمادي للسور التي لم يُسجّل إتمامها بعد.</p>
           <Button variant="secondary" className="mt-4" onClick={async () => {
             const completed = SURAHS.filter(surah => (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name));

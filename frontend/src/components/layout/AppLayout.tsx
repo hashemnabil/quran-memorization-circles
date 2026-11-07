@@ -205,16 +205,16 @@ export default function AppLayout() {
                 const count = item.badge ? badges[item.badge] : 0;
                 return (
                   <li key={item.to}>
-                    <NavLink
+                    <Link
                       to={item.to}
-                      end={item.to === '/'}
                       title={rail ? item.label : undefined}
                       aria-label={item.label}
-                      className={({ isActive }) =>
+                      aria-current={activeItem?.to === item.to ? 'page' : undefined}
+                      className={
                         cx(
                           'sidebar-nav-item group relative flex items-center rounded-xl text-sm font-semibold transition',
                           rail ? 'justify-center px-0 py-3' : 'gap-3 px-3 py-2.5',
-                          isActive
+                          activeItem?.to === item.to
                             ? 'sidebar-nav-active text-white shadow-sm'
                             : 'text-primary-100/90 hover:bg-white/10 hover:text-white',
                         )
@@ -247,7 +247,7 @@ export default function AppLayout() {
                           {item.label}
                         </span>
                       )}
-                    </NavLink>
+                    </Link>
                   </li>
                 );
               })}

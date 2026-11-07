@@ -147,7 +147,7 @@ const SECTION_PATHS = [
   ['الرئيسية', ['/']],
   ['المتابعة اليومية', ['/attendance','/recitations','/exams','/teacher-duties','/staff/attendance']],
   ['الأذونات', ['/absence-permissions','/student-summons']],
-  ['الطلاب والحلقات', ['/students','/circles','/courses','/student-accounts','/transfers','/suspensions']],
+  ['الطلاب والحلقات', ['/students','/students/achievements','/circles','/courses','/student-accounts','/transfers','/suspensions']],
   ['ملفي الدراسي', ['/student','/my-files']],
   ['التقارير والشهادات', ['/documents/attendance','/documents/recitations','/documents/exams','/documents/student','/documents/circles','/certificates-admin','/documents/students','/documents/memorization-students','/documents/activity-students','/documents/suspended-students','/documents/course-students','/documents/courses','/documents/course-attendance']],
   ['التواصل', ['/community','/community/posts','/community/stories','/community/school','/community/users/me','/notifications','/chat','/support']],

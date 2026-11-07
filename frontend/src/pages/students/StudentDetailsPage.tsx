@@ -278,6 +278,7 @@ export default function StudentDetailsPage() {
           )
         }
       />
+      <div className="mb-5"><Link to={`/students/achievements/${student.id}`} className="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-900"><IconAward size={18} />إنجازات الطالب</Link></div>
       <MemorizationPlans studentId={student.id}/>
 
       {student.status === 'ACTIVITY' && (

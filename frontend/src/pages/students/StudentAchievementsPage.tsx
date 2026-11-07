@@ -57,7 +57,7 @@ export default function StudentAchievementsPage() {
           <input className="mt-1 w-full rounded-xl border border-slate-300 p-3" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder="اسم الطالب" />
         </label>
         <label className="text-sm font-bold text-slate-700">الحلقة
-          <Select value={circleId} onChange={event => { setCircleId(event.target.value); setPage(1); setSelected(null); }}>
+          <Select value={circleId} onChange={event => { setCircleId(event.target.value); setPage(1); }}>
             <option value="">كل الحلقات المتاحة</option>
             {(circles.data ?? []).map(circle => <option key={circle.id} value={circle.id}>{circle.name}</option>)}
           </Select>
@@ -70,7 +70,7 @@ export default function StudentAchievementsPage() {
       <Card><div className="space-y-2">
         {rows.length === 0 && <p className="p-6 text-center text-slate-500">لا يوجد طلاب مطابقون للبحث.</p>}
         {rows.map(student => <button type="button" key={student.id} onClick={() => navigate(`/students/achievements/${student.id}`)}
-          className={`w-full rounded-2xl border p-4 text-right transition hover:border-emerald-600 ${false ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'}`}>
+          className="w-full rounded-2xl border border-slate-200 p-4 text-right transition hover:border-emerald-600">
           <div className="flex items-center justify-between gap-3"><strong>{student.fullName}</strong><span className="text-sm font-bold text-emerald-800">{parts(student.memorizedParts)} / 30 جزءًا</span></div>
           <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-600" style={{ width: `${parts(student.memorizedParts) / 30 * 100}%` }} /></div>
           <span className="mt-2 block text-xs text-slate-500">{student.circle?.name ?? 'بدون حلقة'} · {Math.round(parts(student.memorizedParts) / 30 * 100)}٪ من الأجزاء</span>
@@ -88,8 +88,7 @@ export default function StudentAchievementsPage() {
       <div className="mt-6">
         <h3 className="text-center text-xl font-extrabold text-rose-700">قلبي القرآني</h3>
         <p className="mt-1 text-center text-sm text-slate-600">{completedCount} / 114 سورة مكتملة</p>
-        {detail.isLoading ? <LoadingState /> : detail.isError ? <ErrorState message="تعذّر تحميل السور المكتملة" onRetry={() => { void detail.refetch();  }} /> :
-          <div className="relative mx-auto mt-5 w-full max-w-[740px] overflow-x-auto pb-2" aria-label="القلب القرآني: السور المكتملة">
+        {<div className="relative mx-auto mt-5 w-full max-w-[740px] overflow-x-auto pb-2" aria-label="القلب القرآني: السور المكتملة">
             <svg aria-hidden="true" viewBox="0 0 120 140" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full drop-shadow-xl"><path d="M60 130 C47 117 5 85 5 46 C5 8 40 1 60 31 C80 1 115 8 115 46 C115 85 73 117 60 130 Z" fill="#fff1f2" stroke="#be123c" strokeWidth="2.5" /></svg>
             <div className="relative mx-auto grid w-full min-w-[320px] grid-cols-12 gap-1 sm:gap-1.5" dir="rtl">
               {surahs.map((item, index) => {

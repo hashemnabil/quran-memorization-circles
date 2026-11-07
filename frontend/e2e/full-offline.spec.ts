@@ -205,6 +205,7 @@ for (const width of [1280, 390]) {
     }, identity);
     await page.route('**/api/**', route => {
       const url = new URL(route.request().url());
+      if (url.pathname === '/api/auth/login') return route.fulfill({ json: { user: identity, accessToken: 'student-header-access', refreshToken: 'student-header-refresh' } });
       if (url.pathname === '/api/auth/me') return route.fulfill({ json: identity });
       if (url.pathname === '/api/settings/public') return route.fulfill({ json: { name: 'Test' } });
       if (url.pathname === '/api/profile-reviews/me') return route.fulfill({ json: review });
@@ -220,6 +221,10 @@ for (const width of [1280, 390]) {
       }
       return route.fulfill({ json: { data: [], meta: { page: 1, total: 0, totalPages: 1, hasNextPage: false } } });
     });
+    await gotoWithLocalUnlock(page,'/login');
+    await fillLoginCredentials(page, identity.username, 'test-password');
+    await page.getByRole('button', { name: 'دخول', exact: true }).click();
+    await waitForAuthenticatedPage(page);
     await gotoWithLocalUnlock(page,'/profile');
     await expect(page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true })).toBeVisible();
     await page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true }).click();

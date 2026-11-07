@@ -1,6 +1,10 @@
+import QuranAchievementHeart from '@/components/QuranAchievementHeart';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { FormEvent, useEffect, useState } from 'react';
 import PrayerCard from '@/components/PrayerCard';
+import { SURAHS } from '@/lib/quran-surahs';
+import { exportAchievementReport } from '@/lib/achievement-report';
+import { saveDeviceFile } from '@/lib/save-device-file';
 import MemorizationPlans from '@/components/MemorizationPlans';
 import DailyOverview from '@/components/DailyOverview';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -23,7 +27,8 @@ export default function StudentPortalPage() {
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
-  const { hash } = useLocation();
+  const { hash, pathname } = useLocation();
+  const achievementsOnly = pathname === '/student/achievements';
   const [attendanceLimit, setAttendanceLimit] = useState(12);
   const [recitationLimit, setRecitationLimit] = useState(12);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -93,11 +98,31 @@ export default function StudentPortalPage() {
 
   return (
     <>
-      <PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
+      {!achievementsOnly && <><PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
       <PrayerCard />
       <div className="mb-5"><StudentPhoto studentId={data.id} fullName={data.fullName} photoUrl={data.photoUrl} size={80} editable onChanged={() => { void refetch(); }} /></div>
       <StudentQuestionnaire key={data.id} profile={data} />
-      <DailyOverview/>
+      </>}
+      {achievementsOnly && <button type="button" onClick={() => navigate("/student")} className="mb-5 rounded-xl border border-emerald-300 px-4 py-2 font-bold text-emerald-800">← العودة إلى صفحتي</button>}
+      <section id="my-achievements" className="mb-5 scroll-mt-24">
+        <Card title={achievementsOnly ? "لوحة إنجازاتي القرآنية" : "إنجازاتي القرآنية"}>
+          {achievementsOnly && <><div className="mb-5 rounded-3xl bg-gradient-to-l from-emerald-900 to-teal-700 p-6 text-white"><p className="text-sm">لوحة الإنجازات الشخصية</p><h1 className="mt-2 text-3xl font-extrabold">{data.fullName}</h1><p className="mt-2">{data.circle?.name ?? "بدون حلقة"}</p></div><div className="mb-5 grid gap-3 sm:grid-cols-3"><div className="rounded-2xl bg-emerald-50 p-5"><p>الأجزاء المحفوظة</p><strong className="text-3xl text-emerald-800">{Math.max(0, Math.min(30, Number(data.memorizedParts) || 0))} / 30</strong></div><div className="rounded-2xl bg-rose-50 p-5"><p>السور المكتملة</p><strong className="text-3xl text-rose-700">{SURAHS.filter(surah => (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name)).length} / 114</strong></div><div className="rounded-2xl bg-amber-50 p-5"><p>نسبة حفظ الأجزاء</p><strong className="text-3xl text-amber-800">{Math.round(Math.max(0, Math.min(30, Number(data.memorizedParts) || 0)) / 30 * 100)}٪</strong></div></div></>}
+          {!achievementsOnly && <Button variant="secondary" className="mb-4" onClick={() => navigate("/student/achievements")}>فتح لوحة إنجازاتي الكاملة</Button>}
+          <p className="text-sm text-slate-600">الأجزاء المحفوظة: <strong>{Math.max(0, Math.min(30, Number(data.memorizedParts) || 0))} من 30</strong></p>
+          <ProgressBar value={Math.max(0, Math.min(30, Number(data.memorizedParts) || 0))} max={30} showLabel />
+          <h3 className="mt-5 text-center text-lg font-bold text-rose-700">قلبي القرآني</h3>
+          <p className="mb-3 text-center text-sm text-slate-600">{SURAHS.filter(surah => (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name)).length} من 114 سورة مكتملة</p>
+          <QuranAchievementHeart completed={new Set((data.surahCompletions ?? []).map((entry: {surah: string}) => entry.surah))} />
+          <p className="mt-3 text-xs text-slate-500">الأحمر للسور المثبت إتمامها في سجلك، والرمادي للسور التي لم يُسجّل إتمامها بعد.</p>
+          <Button variant="secondary" className="mt-4" onClick={async () => {
+            try {
+              const pdf = await exportAchievementReport(data);
+              await saveDeviceFile(pdf, 'إنجازاتي-القرآنية.pdf');
+            } catch { toast.error('تعذّر حفظ تقرير الإنجازات'); }
+          }}>تنزيل تقرير إنجازاتي PDF</Button>
+        </Card>
+      </section>
+      {!achievementsOnly && <><DailyOverview/>
       <section id="student-plans" className="scroll-mt-24"><MemorizationPlans studentId={data.id}/></section>
       {data.activeSuspension && <Card title="قرار الإيقاف أو التحويل" className="mb-5">
         <p className="whitespace-pre-wrap">{data.activeSuspension.reason}</p>
@@ -206,7 +231,7 @@ export default function StudentPortalPage() {
             {history.data.recitations.length > recitationLimit && <Button variant="secondary" onClick={()=>setRecitationLimit(limit=>limit+12)}>عرض سجلات تسميع أقدم</Button>}
           </div> : <p className="text-sm text-slate-500">لا توجد سجلات تسميع متاحة.</p>}
         </Card></section>
-      </div>
+      </div></>}
     </>
   );
 }

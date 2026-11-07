@@ -56,6 +56,7 @@ export default function ReportsPage() {
  const [evaluation,setEvaluation]=useState('');
  const [refresh,setRefresh]=useState(0);
  const [exporting,setExporting]=useState(false);
+ const [aggregatePdf,setAggregatePdf]=useState(false);
  const {data:circles=[]}=useQuery({queryKey:['reports','circles-options'],queryFn:async()=> (await api.get<any[]>('/circles/options')).data});
  const {data:courseResponse,isLoading:coursesLoading,isError:coursesIsError,error:coursesQueryError,refetch:refetchCourses}=useQuery({queryKey:['reports','courses-options'],queryFn:async()=> (await api.get<any>('/courses',{params:{limit:200}})).data, retry:1});
  const courses=(courseResponse?.data??courseResponse??[]) as any[];
@@ -79,6 +80,8 @@ export default function ReportsPage() {
    const student = data?.student;
    const selectedCircle = circles.find((c:any)=>c.id===circleId);
    const selectedCourse = courses.find((c:any)=>c.id===courseId);
+   const selectedTeacher = ((teachers?.data??teachers??[]) as any[]).find((teacher:any)=>teacher.id===teacherId);
+   const isAggregatePdf = aggregatePdf && ['attendance','recitations','exams','circles'].includes(type);
    const studentName = student?.['اسم الطالب'] ?? student?.fullName;
    const teacherNames = student?.['اسم الشيخ'] || [...new Set((data?.recitations??[]).map(r=>r.teacher??r['اسم الشيخ']).filter(Boolean))].join('، ');
    const details: Record<string,unknown> = {
@@ -86,9 +89,11 @@ export default function ReportsPage() {
     ...(type==='student'?{'اسم الطالب':studentName||'غير محدد','اسم الشيخ':teacherNames||'غير مسند','الحلقة':student?.['الحلقة']??(student?.circle as any)?.name??'غير مسجل','رقم الطالب':student?.['رقم الطالب']??student?.code??'—','تاريخ التسجيل':student?.['تاريخ التسجيل']??student?.enrollmentDate,'ولي الأمر':student?.['ولي الأمر']??student?.guardianName,'هاتف ولي الأمر':student?.['هاتف ولي الأمر']??student?.guardianPhone,'هاتف الطالب':student?.['هاتف الطالب']??student?.phone,'الأجزاء المحفوظة':student?.['الأجزاء المحفوظة']??student?.memorizedParts}:{}),
     ...(selectedCircle?{'الحلقة':selectedCircle.name,'اسم الشيخ':(selectedCircle.teachers||[]).filter((link:any)=>!link.endedAt).map((link:any)=>link.teacher?.user?.fullName||link.teacher?.fullName).filter(Boolean).join('، ')||[...new Set(rows.map(row=>row['اسم الشيخ']||row['المعلم']||row['المعلمون']).filter(Boolean))].join('، ')||'غير مسند'}:{}),
     ...(selectedCourse?{'الدورة':selectedCourse.name}:{}),
+    ...(selectedTeacher?{'اسم الشيخ':selectedTeacher.user?.fullName??selectedTeacher.fullName}:{}),
     ...Object.fromEntries(statEntries),
    };
-   await saveDeviceFile(await exportLocalPdf(reportTitle,reportRows,{details}),reportTitle+(studentName?' - '+studentName:'')+'.pdf');
+   const pdfRows = isAggregatePdf ? statEntries.map(([label,value])=>({'البيان':label,'القيمة':value})) : reportRows;
+   await saveDeviceFile(await exportLocalPdf(reportTitle,pdfRows,{details,aggregate:isAggregatePdf}),reportTitle+(studentName?' - '+studentName:'')+'.pdf');
   } catch { window.alert('تعذر إنشاء PDF على الجهاز'); }
   finally { setExporting(false); }
  };
@@ -112,6 +117,7 @@ export default function ReportsPage() {
    {type==='recitations'&&<label className="text-sm font-semibold text-slate-700">المعلم<Select value={teacherId} onChange={e=>setTeacherId(e.target.value)}><option value="">كل المعلمين</option>{((teachers?.data??teachers??[]) as any[]).map((t:any)=><option key={t.id} value={t.id}>{t.user?.fullName??t.fullName}</option>)}</Select></label>}
    {type==='student'&&<label className="text-sm font-semibold text-slate-700">الطالب<Select value={studentId} onChange={e=>setStudentId(e.target.value)}><option value="">اختر الطالب</option>{((students?.data??[]) as any[]).map((s:any)=><option key={s.id} value={s.id}>{s.fullName}</option>)}</Select></label>}
    <div className="flex flex-wrap items-end gap-2"><Button onClick={()=>setRefresh(v=>v+1)}>تحديث التقرير</Button><Button variant="secondary" onClick={exportReport} disabled={isLoading||isError||(type==='student'&&!studentId)||(['courseStudents','courseAttendance'].includes(type)&&!courseId)}>تصدير Excel</Button><Button variant="secondary" loading={exporting} disabled={isLoading||isError||(type==='student'&&!studentId)||(['courseStudents','courseAttendance'].includes(type)&&!courseId)} onClick={exportPdf}>تصدير PDF</Button></div>
+   {['attendance','recitations','exams','circles'].includes(type)&&<label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={aggregatePdf} onChange={e=>setAggregatePdf(e.target.checked)}/>تصدير PDF إجمالي دون أسماء الطلاب</label>}
   </div></Card>
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{statEntries.map(([key,value])=><StatCard key={key} label={key} value={value}/>)}</div>
   <Card><div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-bold text-slate-900">{documentPage?.title ?? (status==='SUSPENDED'?'سجل طلاب المفصولين':status==='ACTIVITY'?'سجل طلاب النشاط':track==='CIRCLE'?'سجل طلاب التحفيظ':status==='ACTIVE'?'سجل طلاب التحفيظ':reports.find(r=>r.id===type)?.title)}</h2><span className="text-sm text-slate-500">{rows.length} سجل</span></div>

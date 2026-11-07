@@ -2,7 +2,9 @@ import { PDFDocument } from 'pdf-lib';
 import { drawSchoolPdfHeader } from './pdf-branding';
 
 /** Arabic is drawn with the bundled font, in a paginated RTL table. */
-export async function exportLocalPdf(title: string, rows: Record<string, unknown>[], options: { details?: Record<string, unknown> } = {}) {
+export type ReportPdfDetails = { circle?: string; teacher?: string; student?: string; period?: string; aggregate?: boolean; details?: Record<string, unknown> };
+
+export async function exportLocalPdf(title: string, rows: Record<string, unknown>[], options: ReportPdfDetails = {}) {
   await document.fonts.load('24px Tajawal');
   await document.fonts.load('bold 24px Tajawal');
   const columns = [...new Set(rows.flatMap(Object.keys))];
@@ -73,7 +75,15 @@ export async function exportLocalPdf(title: string, rows: Record<string, unknown
     ctx.fillText(title, canvas.width - margin, 158, canvas.width - margin * 2);
     y = 195; page++;
     ctx.font = '22px Tajawal'; ctx.fillStyle = '#334155';
-    const details = { 'تاريخ إصدار التقرير': new Intl.DateTimeFormat('ar-SA', { timeZone: 'Asia/Riyadh', calendar: 'gregory' }).format(new Date()), ...options.details };
+    const details = {
+      'تاريخ إصدار التقرير': new Intl.DateTimeFormat('ar-SA', { timeZone: 'Asia/Riyadh', calendar: 'gregory' }).format(new Date()),
+      ...(options.circle ? { 'الحلقة': options.circle } : {}),
+      ...(options.teacher ? { 'اسم الشيخ': options.teacher } : {}),
+      ...(options.student ? { 'اسم الطالب': options.student } : {}),
+      ...(options.period ? { 'الفترة': options.period } : {}),
+      ...(options.aggregate ? { 'نوع التقرير': 'تقرير إجمالي دون أسماء الطلاب' } : {}),
+      ...options.details,
+    };
     const entries = Object.entries(details);
     const detailWidth = (canvas.width - margin * 2) / 2;
     for (let i = 0; i < entries.length; i += 2) {
@@ -96,6 +106,8 @@ export async function exportLocalPdf(title: string, rows: Record<string, unknown
   const flush = async () => {
     ctx.font = '18px Tajawal'; ctx.fillStyle = '#64748b'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
     ctx.fillText(`صفحة ${page}`, canvas.width / 2, 1200);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#14543f';
+    ctx.fillText('تقرير مدرسي — صادر من نظام إدارة الحلقات', canvas.width - margin, 1200, canvas.width / 2 - margin);
     const image = await pdf.embedPng(canvas.toDataURL('image/png'));
     const size = [canvas.width / 2.083, canvas.height / 2.083] as const;
     pdf.addPage([size[0], size[1]]).drawImage(image, { x: 0, y: 0, width: size[0], height: size[1] });

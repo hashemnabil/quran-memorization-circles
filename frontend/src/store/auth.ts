@@ -15,7 +15,8 @@ import { credentialStorage } from '@/lib/credential-storage';
 import { cacheActiveIdentity, clearActiveIdentity, readActiveIdentity } from '@/lib/active-identity';
 import { persistDataSession, restoreDataSession, lockDataSession, protectLocalAccount } from '@/lib/local-data-session';
 import { db } from '@/lib/db';
-import { forgetEncryptionMarker } from '@/lib/local-encryption';
+import { forgetEncryptionMarker, encryptedAccount, dataKey } from '@/lib/local-encryption';
+import toast from 'react-hot-toast';
 import { cacheReconnectCredentials, restoreReconnectCredentials, clearReconnectCredentials, type ReconnectCredentials } from '@/lib/reconnect-credentials';
 
 const OFFLINE_USER_KEY = 'qc.offlineUser';
@@ -89,6 +90,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw error;
     }
     await restoreDataSession(data.user.id).catch(() => undefined);
+    let localSnapshotLocked = false;
     let localStage = 'حفظ الدخول دون إنترنت';
     try {
       await rememberOfflineLogin(username, password, data.user, data);
@@ -97,12 +99,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStage = 'حفظ جلسة الحساب المحلية';
       await persistDataSession(data.user.id);
     } catch (cause) {
-      const name = cause instanceof Error ? cause.name : 'UnknownError';
-      const detail = cause instanceof Error && cause.name === 'Error' ? cause.message : name;
-      throw Object.assign(new Error(`نجح التحقق من الحساب، وتعذر ${localStage}: ${detail}`), { offlineLoginError: true });
+      // A server-verified password reset must not be rejected because this device
+      // still has an encrypted offline snapshot protected by the old password.
+      // Keep the old snapshot and offline credentials intact: never replace its
+      // encryption key or discard pending offline writes without user consent.
+      const oldPasswordSnapshot = localStage === 'حفظ الدخول دون إنترنت'
+        && cause instanceof Error
+        && cause.message.includes('البيانات المحلية محفوظة بكلمة مرور سابقة')
+        && encryptedAccount(data.user.id)
+        && !dataKey(data.user.id);
+      if (!oldPasswordSnapshot) {
+        const name = cause instanceof Error ? cause.name : 'UnknownError';
+        const detail = cause instanceof Error && cause.name === 'Error' ? cause.message : name;
+        throw Object.assign(new Error(`نجح التحقق من الحساب، وتعذر ${localStage}: ${detail}`), { offlineLoginError: true });
+      }
+      // Show the warning only after online authentication has actually completed.
+      localSnapshotLocked = true;
     }
     const user = await adoptSession(data, set);
-    await import('@/lib/local-lock').then(module => module.resetLockAfterOnlineLogin(user.id));
+    await import('@/lib/local-lock').then(module => module.resetLockAfterOnlineLogin(user.id)).catch(() => undefined);
+    if (localSnapshotLocked) toast('تم الدخول عبر الإنترنت. بياناتك المحلية القديمة ما زالت مقفلة بكلمة المرور السابقة؛ لم تُحذف أو تُستبدل. للدخول دون إنترنت، افتحها بالكلمة القديمة أولًا أو احذف بيانات هذا الموقع بعد التأكد من عدم حاجتك للتعديلات المحلية.', { duration: 12000 });
     reconnectCredentials = undefined;
     clearReconnectCredentials();
     return user;
@@ -311,12 +327,27 @@ async function adoptSession(
   resetQueryCache();
   await tokenStore.set(data.accessToken, data.refreshToken, data.user?.id);
   sessionStorage.removeItem('qc.localUnlocked');
-  const me = await api.get('/auth/me');
-  cacheOfflineUser(me.data as AuthUser);
-  await db.meta.put({ key: `${me.data.id}:identity`, value: me.data });
-  await recordServerVerification(me.data.id);
-  set({ user: me.data, status: 'authenticated' });
-  return me.data as AuthUser;
+  // The login endpoint has already verified the new password and returned an
+  // authenticated identity. A separate /auth/me request or a locked local
+  // IndexedDB snapshot must not turn that successful login into a failure.
+  let user = data.user;
+  try {
+    const me = await api.get<AuthUser>('/auth/me');
+    user = me.data;
+  } catch (error) {
+    // Do not bypass an explicit server-side rejection or accept an absent identity.
+    if (!user || (axios.isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0))) throw error;
+  }
+  if (!user) throw new Error('لم يرجع الخادم بيانات الحساب بعد تسجيل الدخول');
+  cacheOfflineUser(user);
+  // Keep encrypted offline data untouched when its old key is unavailable.
+  // Both IndexedDB writes are optional for an already verified online session.
+  if (!encryptedAccount(user.id) || dataKey(user.id)) {
+    await db.meta.put({ key: `${user.id}:identity`, value: user }).catch(() => undefined);
+  }
+  await recordServerVerification(user.id).catch(() => undefined);
+  set({ user, status: 'authenticated' });
+  return user;
 }
 
 window.addEventListener('qc:session-rejected', () => {

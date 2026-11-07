@@ -1,6 +1,5 @@
 import CommunityPreferences from '@/components/CommunityPreferences';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
-import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import FirstUseOnboarding from '@/components/FirstUseOnboarding';
 import { passwordError } from '@/lib/validation';
 import { Link } from 'react-router-dom';
@@ -26,8 +25,13 @@ import { EMPLOYMENT_LABELS, ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateTime, formatParts } from '@/lib/format';
 import { rememberOfflineLogin } from '@/lib/offline-login';
 
-export default function ProfilePage({ settings = false, settingsSection='identity' }: { settings?: boolean; settingsSection?: 'identity'|'password' }) {
-  const cover = useCuratedBackground('PROFILE_COVER');
+export default function ProfilePage(props: { settings?: boolean; settingsSection?: 'identity'|'password' }) {
+  // Keep /profile as the stable account route used by offline and account workflows.
+  // The social profile remains accessible through its dedicated community route.
+  return <AccountProfilePage {...props} />;
+}
+
+function AccountProfilePage({ settings = false, settingsSection='identity' }: { settings?: boolean; settingsSection?: 'identity'|'password' }) {
   const [replayIntro, setReplayIntro] = useState(false);
   const [nickname, setNickname] = useState('');
   const [savingNickname, setSavingNickname] = useState(false);
@@ -38,6 +42,9 @@ export default function ProfilePage({ settings = false, settingsSection='identit
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [passwordSaved, setPasswordSaved] = useState(false);
+  const [passwordSaveError, setPasswordSaveError] = useState('');
 
   const { data: profile } = useQuery({
     queryKey: ['auth', 'me'],
@@ -58,11 +65,16 @@ export default function ProfilePage({ settings = false, settingsSection='identit
     },
     onSuccess: async (_offlineWriteResult) => {
       notifyWriteSuccess(_offlineWriteResult, 'تم تغيير كلمة المرور، يرجى تسجيل الدخول مجدداً');
-      await logout();
-      navigate('/login', { replace: true });
+      setPasswordSaved(true);
     },
-    onError: (error) => toast.error(apiError(error)),
+    onError: (error) => { const message = apiError(error); setPasswordSaveError(message); toast.error(message); },
   });
+
+  useEffect(() => {
+    if (!passwordSaved) return;
+    const timer = window.setTimeout(() => { void logout().then(() => navigate('/login', { replace: true })).catch(error => toast.error(apiError(error))); }, 2200);
+    return () => window.clearTimeout(timer);
+  }, [passwordSaved, logout, navigate]);
 
   if (!user) return null;
 
@@ -75,56 +87,44 @@ export default function ProfilePage({ settings = false, settingsSection='identit
     if (newPassword && newPassword === currentPassword) next.newPassword = 'يجب أن تختلف عن الحالية';
     setErrors(next);
     if (Object.keys(next).length) return;
+    setPasswordSaveError('');
     changePassword.mutate();
   };
 
-  if(settings)return <div className="settings-detail"><PageHeader title={settingsSection==='password'?'تغيير كلمة المرور':'الكنية والنبذة'} action={<Link to="/profile/settings" className="btn-secondary">العودة للإعدادات</Link>}/>{settingsSection==='password'?<>          <Card title="تغيير كلمة المرور" subtitle="سيتم إنهاء جميع جلساتك بعد التغيير">
-            <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-              <Input
-                label="كلمة المرور الحالية"
-                aria-label="كلمة المرور الحالية"
-                autoComplete="current-password"
-                type="password"
-                required
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                error={errors.currentPassword}
-                className="sm:col-span-2"
-                dir="ltr"
-              />
-              <Input
-                label="كلمة المرور الجديدة"
-                type="password"
-                required
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                error={errors.newPassword}
-                hint="أي طول تختاره"
-                dir="ltr"
-              />
-              <Input
-                label="تأكيد كلمة المرور"
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                error={errors.confirmPassword}
-                dir="ltr"
-              />
-              <div className="sm:col-span-2">
-                <Button type="submit" loading={changePassword.isPending} icon={<IconLock size={16} />}>
-                  تغيير كلمة المرور
-                </Button>
-              </div>
-            </form>
-          </Card></>:<>          <Card title="الكنية"><form className="flex gap-2" onSubmit={async e => { e.preventDefault(); setSavingNickname(true); try { const result = await api.patch('/community/nickname', { nickname: nickname.trim() }); if(result.data?.synced===0) toast('حُفظت الكنية محليًا، بانتظار المزامنة'); else toast.success('تم حفظ الكنية'); } catch (error) { toast.error(apiError(error)); } finally { setSavingNickname(false); } }}><Input aria-label="الكنية" placeholder={profile?.nickname || 'أضف كنيتك'} maxLength={60} value={nickname} onChange={e => setNickname(e.target.value)} /><Button type="submit" loading={savingNickname}>حفظ</Button></form></Card><CommunityPreferences/></>}</div>;
+  if(settings)return <div className="settings-detail"><PageHeader title={settingsSection==='password'?'تغيير كلمة المرور':'الكنية والنبذة'} action={<Link to="/profile/settings" className="btn-secondary">العودة للإعدادات</Link>}/>{settingsSection==='password'?<>          <div className="mx-auto max-w-2xl overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-xl shadow-emerald-900/10" dir="rtl">
+            <div className="relative overflow-hidden bg-gradient-to-bl from-emerald-900 via-emerald-800 to-teal-700 px-6 py-9 text-center text-white sm:px-10">
+              <div className="pointer-events-none absolute -start-12 -top-12 h-40 w-40 rounded-full bg-white/10 blur-xl" />
+              <div className="mx-auto mb-4 grid h-20 w-20 place-items-center rounded-3xl border border-white/30 bg-white/15 shadow-lg motion-safe:animate-pulse"><IconLock size={34}/></div>
+              <h2 className="text-2xl font-extrabold">حماية حسابك تبدأ من هنا</h2>
+              <p className="mt-2 text-sm leading-7 text-emerald-50">غيّر كلمة المرور بأمان. بعد الحفظ سيتم تسجيل خروجك لتدخل بالكلمة الجديدة.</p>
+            </div>
+            <div className="p-5 sm:p-8">
+              {passwordSaved ? <div role="status" aria-live="polite" className="py-8 text-center motion-safe:animate-[fadeIn_.35s_ease-out]">
+                <div className="mx-auto mb-5 grid h-24 w-24 place-items-center rounded-full bg-emerald-100 text-5xl font-black text-emerald-700 shadow-lg shadow-emerald-100 motion-safe:animate-bounce">✓</div>
+                <h3 className="text-2xl font-extrabold text-emerald-800">تم تغيير كلمة المرور بنجاح!</h3>
+                <p className="mt-3 text-sm text-slate-600">جارٍ تحويلك إلى تسجيل الدخول…</p>
+                <div className="mx-auto mt-5 h-1.5 max-w-xs overflow-hidden rounded-full bg-emerald-100"><div className="h-full w-full origin-right bg-emerald-600 motion-safe:animate-[password-progress_2.2s_linear_forwards]" /></div>
+              </div> : <form onSubmit={submit} className="space-y-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-lg font-extrabold text-slate-800">تحديث كلمة المرور</h3>
+                  <button type="button" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50" aria-pressed={showPasswords} onClick={() => setShowPasswords(value => !value)}>{showPasswords ? 'إخفاء كلمات المرور' : 'إظهار كلمات المرور'}</button>
+                </div>
+                <Input label="كلمة المرور الحالية" aria-label="كلمة المرور الحالية" autoComplete="current-password" type={showPasswords ? 'text' : 'password'} required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} error={errors.currentPassword} dir="ltr" />
+                <Input label="كلمة المرور الجديدة" autoComplete="new-password" type={showPasswords ? 'text' : 'password'} required value={newPassword} onChange={e => setNewPassword(e.target.value)} error={errors.newPassword} hint="اختر كلمة مختلفة عن الحالية" dir="ltr" />
+                <Input label="تأكيد كلمة المرور الجديدة" autoComplete="new-password" type={showPasswords ? 'text' : 'password'} required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} error={errors.confirmPassword} dir="ltr" />
+                {passwordSaveError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 motion-safe:animate-pulse">{passwordSaveError}</p>}
+                <Button type="submit" loading={changePassword.isPending} disabled={changePassword.isPending} className="w-full justify-center" icon={<IconLock size={18}/>}>{changePassword.isPending ? 'جارٍ تحديث كلمة المرور…' : 'حفظ كلمة المرور الجديدة'}</Button>
+                <p className="text-center text-xs leading-6 text-slate-500">لن يتم عرض رسالة النجاح إلا بعد قبول عملية الحفظ.</p>
+              </form>}
+            </div>
+          </div></>:<>          <Card title="الكنية"><form className="flex gap-2" onSubmit={async e => { e.preventDefault(); setSavingNickname(true); try { const result = await api.patch('/community/nickname', { nickname: nickname.trim() }); if(result.data?.synced===0) toast('حُفظت الكنية محليًا، بانتظار المزامنة'); else toast.success('تم حفظ الكنية'); } catch (error) { toast.error(apiError(error)); } finally { setSavingNickname(false); } }}><Input aria-label="الكنية" placeholder={profile?.nickname || 'أضف كنيتك'} maxLength={60} value={nickname} onChange={e => setNickname(e.target.value)} /><Button type="submit" loading={savingNickname}>حفظ</Button></form></Card><CommunityPreferences/></>}</div>;
   const teacher = profile?.teacherProfile;
 
   return (
     <>
       {replayIntro && <div className="fixed inset-0 z-[200] overflow-y-auto"><FirstUseOnboarding onComplete={() => setReplayIntro(false)} /></div>}
       <PageHeader title={settings ? "إعدادات الحساب" : "الملف الشخصي"} subtitle="رحلتك مع القرآن في مكان واحد" action={<Link className="app-icon-button" aria-label={settings ? "الملف الشخصي" : "إعدادات الحساب"} to={settings ? "/profile" : "/profile/settings"}><IconSettings size={21} /></Link>} />
-      {!settings && <><div className="profile-cover" style={cover.url ? { backgroundImage: `linear-gradient(#12372d66,#12372d99),url("${cover.url}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}><div className="absolute bottom-3 end-3 z-10"><BackgroundChoice value={cover} label="خلفية الصفحة" /></div><span>رحلة نور مع القرآن</span><p>كل آية تحفظها، أثر يبقى معك</p></div></>}
+      {!settings && <div className="profile-cover"><span>رحلة نور مع القرآن</span><p>كل آية تحفظها، أثر يبقى معك</p></div>}
       <Link to="/community/users/me" className="inline-flex rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white">👤 افتح ملفي الشخصي العام ومنشوراتي</Link>
 
 

@@ -154,3 +154,39 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Sliding pill selection for the existing five-item mobile navigation. */
+.mobile-navigation-sliding { isolation: isolate; }
+.mobile-navigation-sliding .mobile-navigation-pill {
+  position: absolute;
+  top: 6px;
+  bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+  width: calc((100% - 16px) / 5);
+  border-radius: 16px;
+  background: linear-gradient(145deg, #dcfce7, #bbf7d0);
+  box-shadow: 0 3px 12px rgb(22 101 52 / 13%);
+  pointer-events: none;
+  z-index: -1;
+  transition: inset-inline-start 360ms cubic-bezier(.22, 1, .36, 1), opacity 160ms ease;
+}
+.mobile-navigation-sliding .mobile-navigation-sliding-item {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  transition: color 200ms ease, transform 220ms ease;
+}
+.mobile-navigation-sliding .mobile-navigation-active {
+  color: #166534;
+  background: transparent;
+}
+.mobile-navigation-sliding .mobile-navigation-active::before { display: none; }
+.mobile-navigation-sliding .mobile-navigation-active .app-icon { animation: none; }
+[data-theme='dark'] .mobile-navigation-sliding .mobile-navigation-pill {
+  background: linear-gradient(145deg, #22543c, #166534);
+  box-shadow: 0 3px 12px rgb(0 0 0 / 20%);
+}
+[data-theme='dark'] .mobile-navigation-sliding .mobile-navigation-active { color: #bbf7d0; background: transparent; }
+@media (prefers-reduced-motion: reduce) {
+  .mobile-navigation-sliding .mobile-navigation-pill,
+  .mobile-navigation-sliding .mobile-navigation-sliding-item { transition: none !important; }
+}

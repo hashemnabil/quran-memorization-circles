@@ -12,6 +12,9 @@ async function setup(page: Page, rows: any[], role?: string) {
     if (path === '/api/auth/me') return role ? route.fulfill({ json: user }) : route.fulfill({ status: 401, json: {} });
     if (path.includes('/auth/refresh')) return route.fulfill({ status: 401, json: {} });
     if (path === '/api/settings/public') return route.fulfill({ json: { name: 'مدرسة الاختبار' } });
+    if (path === '/api/community/users/' + user.id) return route.fulfill({ json: { ...user, bio: '', nickname: null, coverAssetId: null, avatarUrl: null } });
+    if (path === '/api/community/feed' || path === '/api/community/stories') return route.fulfill({ json: [] });
+    if (path === '/api/community/school') return route.fulfill({ json: { name: 'مدرسة الاختبار', logoUrl: null, about: null, address: null } });
     if (path === '/api/popup-announcements/public' || path === '/api/popup-announcements/active') return route.fulfill({ json: rows });
     if (path.endsWith('/event') || path.endsWith('/public-event')) { events.push(route.request().postDataJSON()); return route.fulfill({ json: { saved: true } }); }
     if (path === '/api/popup-announcements/save') { saves.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); }
@@ -84,7 +87,8 @@ test('offline reading confirmation survives reload and is synchronized after rec
   const row = popup(); row.popup.repeat = 'UNTIL_ACK'; row.popup.requireAck = true;
   const { events, user } = await setup(page, [row], 'TEACHER');
   await gotoWithLocalUnlock(page, '/prayer-times');
-  await expect(page.getByRole('dialog', { name: row.title })).toBeVisible();
+  // Popup retrieval follows authenticated-session restoration and PIN unlock.
+  await expect(page.getByRole('dialog', { name: row.title })).toBeVisible({ timeout: 15000 });
   await page.evaluate(() => navigator.serviceWorker.ready);
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await expect.poll(() => page.evaluate(async () => !!await caches.match('/'))).toBe(true);
@@ -99,16 +103,13 @@ test('offline reading confirmation survives reload and is synchronized after rec
   await expect.poll(() => events.some(event => event.kind === 'ACK')).toBe(true);
 });
 
-test('background picker contains only founder catalog choices without an image upload control', async ({ page }) => {
+test('profile uses the default cover without a background picker', async ({ page }) => {
   await setup(page, [], 'TEACHER');
-  await page.route('**/api/founder-assets', route => route.fulfill({ json: [{ id: 'asset-one', title: 'المسجد الأخضر', kind: 'PROFILE_COVER', mime: 'image/png' }] }));
   await gotoWithLocalUnlock(page, '/profile');
-  // The background picker is now a compact plus button opening a gallery dialog.
-  await page.getByRole('button', { name: 'خلفية الصفحة', exact: true }).click();
-  const gallery = page.getByRole('dialog', { name: 'اختيار خلفية الصفحة' });
-  await expect(gallery.getByRole('button', { name: 'المسجد الأخضر' })).toBeVisible();
-  await gallery.getByRole('button', { name: 'المسجد الأخضر' }).click();
-  expect(await page.evaluate(() => Object.keys(localStorage).some(key => key.includes('PROFILE_COVER') && localStorage.getItem(key) === 'asset-one'))).toBe(true);
+  await expect(page).toHaveURL(/\/community\/users\/me$/);
+  await expect(page.locator('.profile-cover')).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('button', { name: 'خلفية الصفحة', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'اختيار خلفية الصفحة' })).toHaveCount(0);
 });
 
 test('founder audio selection plays the cached recording from the web sound library', async ({ page }) => {

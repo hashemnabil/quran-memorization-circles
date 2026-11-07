@@ -39,6 +39,7 @@ import CirclesPage from '@/pages/circles/CirclesPage';
 import CircleDetailsPage from '@/pages/circles/CircleDetailsPage';
 import StudentsPage from '@/pages/students/StudentsPage';
 const StudentDetailsPage = lazy(() => import('@/pages/students/StudentDetailsPage'));
+const StudentAchievementsPage = lazy(() => import('@/pages/students/StudentAchievementsPage'));
 import TeachersPage from '@/pages/teachers/TeachersPage';
 import TeacherDetailsPage from '@/pages/teachers/TeacherDetailsPage';
 import AttendancePage from '@/pages/attendance/AttendancePage';
@@ -128,6 +129,7 @@ export default function App() {
         <Route path="admin/activity" element={<RequireRole roles={['ADMIN']}><ActivityPage /></RequireRole>} />
         <Route path="admin/password-requests" element={<RequireRole roles={['ADMIN']}><PasswordRequestsPage /></RequireRole>} />
         <Route index element={currentUser?.role === 'FOUNDER' ? <FounderPage /> : currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
+        <Route path="student/achievements" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
         <Route path="documents/:report" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
@@ -140,6 +142,8 @@ export default function App() {
         <Route path="circles" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><CirclesPage /></RequireRole>} />
         <Route path="circles/:id" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><CircleDetailsPage /></RequireRole>} />
         <Route path="students" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentsPage /></RequireRole>} />
+        <Route path="students/achievements/:studentId" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentAchievementsPage /></RequireRole>} />
+        <Route path="students/achievements" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentAchievementsPage /></RequireRole>} />
         <Route path="students/:id" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentDetailsPage /></RequireRole>} />
         <Route path="teachers" element={<RequireRole roles={['ADMIN', 'SUPERVISOR']}><TeachersPage /></RequireRole>} />
         <Route path="teachers/:id" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><TeacherDetailsPage /></RequireRole>} />
@@ -195,7 +199,7 @@ export default function App() {
             </RequireRole>
           }
         />
-        <Route path="profile" element={<ProfilePage />} /><Route path="profile/settings" element={<MobileSettingsPage />} />
+        <Route path="profile" element={<Navigate to="/community/users/me" replace />} /><Route path="profile/settings" element={<MobileSettingsPage />} />
 
         <Route path="forbidden" element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />

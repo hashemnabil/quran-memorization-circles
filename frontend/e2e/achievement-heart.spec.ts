@@ -57,12 +57,14 @@ test('student achievements open as a separate page from the study profile and fi
     if (path === '/api/auth/me') return route.fulfill({ json: user });
     if (path === '/api/students/me') return route.fulfill({ json: student });
     if (path === '/api/profile-reviews/me') return route.fulfill({ json: { profile: student, kind: 'STUDENT', requests: [] } });
+    if (path === `/api/students/${student.id}/plans` || path === '/api/recitations/surahs') return route.fulfill({ json: [] });
     if (path === '/api/students/me/history') return route.fulfill({ json: { recitations: [], attendance: [], exams: [] } });
     if (path === '/api/settings/public') return route.fulfill({ json: { name: 'مدرسة الاختبار' } });
     if (path.endsWith('/unread-count')) return route.fulfill({ json: { count: 0 } });
     if (path === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
     if (path === '/api/sync-all/delta') return route.fulfill({ json: { cursor: '0', tables: {}, changedEntities: [], hasMore: false } });
-    return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
+    if (['/api/notifications', '/api/preparations', '/api/sync-all'].includes(path)) return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
+    return route.fulfill({ json: [] });
   });
   await gotoWithLocalUnlock(page, '/student');
   await expect(page.locator('g[data-surah]')).toHaveCount(0);

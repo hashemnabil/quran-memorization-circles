@@ -1,0 +1,30 @@
+{
+	"appId": "com.abdullahschool.myapp",
+	"appName": "مدرسة عبدالله بن عمر",
+	"webDir": "dist",
+	"plugins": {
+		"PushNotifications": {
+			"presentationOptions": [
+				"badge",
+				"sound",
+				"alert"
+			]
+		}
+	},
+	"server": {
+		"androidScheme": "https"
+	},
+	"android": {
+		"allowMixedContent": false
+	},
+	"packageClassList": [
+		"SecureStorage",
+		"AppPlugin",
+		"FilesystemPlugin",
+		"LocalNotificationsPlugin",
+		"CAPNetworkPlugin",
+		"PreferencesPlugin",
+		"PushNotificationsPlugin",
+		"SharePlugin"
+	]
+}

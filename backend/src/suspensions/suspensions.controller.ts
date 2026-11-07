@@ -10,12 +10,16 @@ import {
   ReturnStudentDto,
 } from './dto/suspension.dto';
 import { SuspensionsService } from './suspensions.service';
+import { UpdatePendingReasonDto } from '../common/dto/pending-request.dto';
 
 @ApiTags('إيقاف الطلاب')
 @ApiBearerAuth()
 @Controller('suspensions')
 export class SuspensionsController {
   constructor(private readonly service: SuspensionsService) {}
+  @Patch(':id')
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
+  updateReason(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdatePendingReasonDto) { return this.service.updatePendingReason(user, id, dto); }
 
   @Get('active')
   @ApiOperation({ summary: 'قائمة الطلاب الموقوفين حالياً مع المدة المتبقية' })

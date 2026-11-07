@@ -1,4 +1,5 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { NewPassword } from '../../common/validators/password';
+import { ApiProperty, ApiPropertyOptional, PartialType, PickType } from '@nestjs/swagger';
 import { Evaluation, Gender, StudentStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -16,6 +17,7 @@ import {
   IsUUID,
   Max,
   MaxLength,
+  MinLength,
   Matches,
   Min,
 } from 'class-validator';
@@ -50,6 +52,7 @@ export class CreateStudentDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(({ value }) => value === '' ? undefined : value)
   @IsDateString({}, { message: 'تاريخ الميلاد غير صالح' })
   birthDate?: string;
 
@@ -69,6 +72,13 @@ export class CreateStudentDto {
   @IsBoolean()
   createAccount?: boolean;
 
+  @ApiPropertyOptional({ writeOnly: true })
+  @IsOptional()
+  @IsString()
+  @NewPassword()
+  @MaxLength(128)
+  accountPassword?: string;
+
   @ApiPropertyOptional({ description: 'رقم هوية الأب' })
   @IsOptional()
   @IsString()
@@ -84,10 +94,6 @@ export class CreateStudentDto {
   @PhoneField('جوال الطالب')
   phone?: string;
 
-  @ApiPropertyOptional({ description: 'ربط الطالب بحساب ولي أمر موجود' })
-  @IsOptional()
-  @IsUUID('4', { message: 'معرّف ولي الأمر غير صالح' })
-  parentId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -158,6 +164,11 @@ export class CreateStudentDto {
 
 export class UpdateStudentDto extends PartialType(CreateStudentDto) {}
 
+export class StudentQuestionnaireDto extends PartialType(PickType(CreateStudentDto, [
+  'fullName', 'birthDate', 'address', 'nationalId', 'fatherNationalId',
+  'guardianName', 'guardianPhone', 'guardianRelation',
+] as const)) {}
+
 /**
  * Which part of the school a student belongs to. The unified profile lists all
  * of them together; this narrows the same list without needing a second page.
@@ -199,10 +210,6 @@ export class QueryStudentsDto extends PaginationDto {
   @IsUUID('4')
   circleId?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsUUID('4')
-  parentId?: string;
 
   @ApiPropertyOptional({ description: 'الطلاب غير المسجلين في أي حلقة' })
   @IsOptional()

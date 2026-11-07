@@ -1,0 +1,51 @@
+/* CodewithNazia reference: compact, dark, sequential pill fields. */
+.login-screen.video-login-screen{background:#f4f7f2;color:#1e4937}
+.video-login-screen .login-panel{background:#ffffff;border:1px solid #d8e4d8;box-shadow:0 22px 80px #174c3918;color:#1e4937}
+.video-login-screen .login-brand{background:#ffffff;border-bottom:1px solid #d8e4d8}
+.video-login-screen .login-school-name,.video-login-screen .video-login-title{color:#1e4937}
+.video-login-screen .login-brand-caption,.video-login-screen .login-intro{color:#5e756a}
+.video-login-screen .video-login-form{display:grid;justify-items:center;gap:18px;margin-block:25px 12px}
+.video-login-screen .video-pill{width:min(100%,330px);height:60px;border:1px solid #8ba99a;border-radius:999px;display:flex;align-items:center;gap:9px;padding:5px 6px;background:#f8fbf7;direction:ltr;transition:border-color .25s,box-shadow .25s,width .35s cubic-bezier(.2,.8,.2,1)}
+.video-login-screen .video-pill:focus-within{border-color:#1e4937;box-shadow:0 0 0 3px #28634820}
+.video-login-screen .video-pill-icon{display:grid;place-items:center;width:46px;height:46px;flex:none;border:1px solid #286348;border-radius:50%;color:#1e4937}
+.video-login-screen .video-pill-entry{min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;gap:1px}
+.video-login-screen .video-pill-entry label{font-size:10px;line-height:1.2;color:#8ba99a;text-align:left}
+.video-login-screen .video-pill-entry input{min-width:0;width:100%;background:transparent!important;border:0!important;outline:0!important;box-shadow:none!important;color:#1e4937!important;font-size:15px!important;line-height:1.6;padding:0!important;border-radius:0!important;text-align:left;direction:ltr}
+.video-login-screen .video-pill-entry input::placeholder{color:#7c9587}
+.video-login-screen .video-pill-next,.video-login-screen .video-pill-eye{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:50%;background:#286348;color:#1e4937;transition:background .2s,transform .2s}
+.video-login-screen .video-pill-next:hover,.video-login-screen .video-pill-eye:hover{background:#39785a;transform:scale(1.04)}
+.video-login-screen .video-pill-next:disabled{opacity:.55;cursor:wait}
+.video-login-screen .video-pill-next:focus-visible,.video-login-screen .video-pill-eye:focus-visible,.video-login-screen .video-pill-back:focus-visible{outline:2px solid #1e4937;outline-offset:3px}
+.video-login-screen .video-pill-back{color:#286348;font-size:13px;text-decoration:underline;text-underline-offset:4px}
+.video-login-screen .video-remember{color:#496b58;font-size:12px}
+.video-login-screen .login-secondary-actions button,.video-login-screen .login-secondary-actions a{color:#286348}
+.video-login-screen .login-secondary-actions button:hover,.video-login-screen .login-secondary-actions a:hover{color:white;background:#286348}
+.video-login-screen .login-donation{background:#f4f8f1;border-color:#d8e4d8;color:#1e4937}
+.video-login-screen .login-donation small{color:#5e756a}
+.video-login-screen .video-login-form [role=alert]{max-width:330px;width:100%}
+@media(prefers-reduced-motion:no-preference){.video-login-screen .video-pill{animation:video-pill-in .4s cubic-bezier(.2,.8,.2,1) both}@keyframes video-pill-in{from{opacity:0;transform:scale(.82);width:115px}to{opacity:1;transform:scale(1);width:min(100%,330px)}}}
+@media(prefers-reduced-motion:reduce){.video-login-screen .video-pill,.video-login-screen .video-pill-next,.video-login-screen .video-pill-eye{animation:none!important;transition:none!important;transform:none!important}}
+
+/* Match the school's green-and-gold identity, not the dark reference backdrop. */
+.video-login-screen .video-pill-icon{background:#eaf3eb;color:#286348;border-color:#b49a5a}
+.video-login-screen .video-pill-next,.video-login-screen .video-pill-eye{color:#fff}
+.video-login-screen .video-pill-entry input{color:#1e4937!important}
+.video-login-screen .video-pill:focus-within{border-color:#b49a5a;box-shadow:0 0 0 3px #b49a5a30}
+.video-login-screen .login-school-name,.video-login-screen .video-login-title{color:#1e4937}
+
+/* Reference video: a single capsule expands from icon to active field. */
+.video-login-screen .video-pill-stage{width:100%;display:grid;justify-items:center;gap:12px}
+.video-login-screen .video-pill-sequential{animation:video-pill-expand .55s cubic-bezier(.2,.8,.2,1) both;overflow:hidden;transform-origin:center}
+.video-login-screen .video-pill-sequential .video-pill-entry{animation:video-entry-reveal .35s .2s both}
+@keyframes video-pill-expand{0%{width:60px;opacity:.75}100%{width:min(100%,330px);opacity:1}}
+@keyframes video-entry-reveal{0%{opacity:0;transform:translateX(-8px)}100%{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.video-login-screen .video-pill-sequential,.video-login-screen .video-pill-sequential .video-pill-entry{animation:none!important}}
+
+/* Brand header stays visible above the animation on all screen sizes. */
+.video-login-screen .login-brand{display:flex!important;visibility:visible!important;opacity:1!important;position:relative;z-index:2}
+.video-login-screen .login-school-name{display:block!important;visibility:visible!important;opacity:1!important;font-weight:800;line-height:1.55;text-align:center;max-width:100%;overflow-wrap:anywhere}
+/* Animate the shell once, then smoothly crossfade fields without collapsing width. */
+.video-login-screen .video-pill-sequential{width:min(100%,330px);animation:video-pill-expand .55s cubic-bezier(.22,1,.36,1) both;will-change:width,opacity}
+.video-login-screen .video-pill-sequential .video-pill-entry{animation:video-entry-reveal .32s .14s both}
+.video-login-screen .video-pill-next{transition:background .2s ease,transform .25s cubic-bezier(.22,1,.36,1)}
+@media(prefers-reduced-motion:reduce){.video-login-screen .video-pill-sequential,.video-login-screen .video-pill-sequential .video-pill-entry{animation:none!important}}

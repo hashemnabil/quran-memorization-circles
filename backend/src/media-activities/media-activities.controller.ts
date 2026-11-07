@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser, Roles } from '../common/decorators';
@@ -23,4 +23,9 @@ export class MediaActivitiesController {
 
   @Delete(':id')
   remove(@Param('id') id: string) { return this.service.remove(id); }
+
+  @Patch(':id')
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: any) {
+    return this.service.update(user, id, body);
+  }
 }

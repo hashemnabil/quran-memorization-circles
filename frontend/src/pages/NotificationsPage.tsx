@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,6 +14,7 @@ import {
   PageHeader,
   Pagination,
   Tabs,
+  Select,
   cx,
 } from '@/components/ui';
 import { IconBell, IconCheck, IconTrash } from '@/components/ui/Icons';
@@ -29,19 +31,21 @@ export default function NotificationsPage() {
 
   const [tab, setTab] = useState('all');
   const [page, setPage] = useState(1);
+  const [type, setType] = useState('');
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['notifications', { tab, page }],
+    queryKey: ['notifications', { tab, page, type }],
     queryFn: async () =>
       (
         await api.get<PaginatedResponse<AppNotification> & { unreadCount: number }>('/notifications', {
-          params: { page, limit: 25, unreadOnly: tab === 'unread' ? true : undefined },
+          params: { page, limit: 25, unreadOnly: tab === 'unread' ? true : undefined, type: type || undefined },
         })
       ).data,
   });
 
   const markRead = useMutation({
     mutationFn: (id: string) => api.patch(`/notifications/${id}/read`),
+    onError: (error) => toast.error(apiError(error)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
@@ -49,8 +53,8 @@ export default function NotificationsPage() {
 
   const markAll = useMutation({
     mutationFn: () => api.patch('/notifications/read-all'),
-    onSuccess: () => {
-      toast.success('تم تعليم جميع الإشعارات كمقروءة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تعليم جميع الإشعارات كمقروءة');
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -58,6 +62,7 @@ export default function NotificationsPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/notifications/${id}`),
+    onError: (error) => toast.error(apiError(error)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
@@ -80,6 +85,7 @@ export default function NotificationsPage() {
       return;
     }
     if (canOpenPath(role, notification.link)) navigate(notification.link);
+    else toast.error('هذا الإشعار لا يرتبط بصفحة متاحة لحسابك');
   };
 
   /** Whether the row should look clickable at all. */
@@ -113,10 +119,11 @@ export default function NotificationsPage() {
         }}
       />
 
+      <div className="mb-5 max-w-sm"><Select label="تصنيف الإشعارات" value={type} onChange={event=>{setType(event.target.value);setPage(1);}}><option value="">جميع الأنواع</option>{Object.entries({ATTENDANCE:'الحضور والغياب',EXAM_REQUEST:'طلبات الاختبار',EXAM_SCHEDULED:'مواعيد الاختبارات',EXAM_RESULT:'نتائج الاختبارات',CHAT_MESSAGE:'الرسائل',ANNOUNCEMENT:'الإعلانات',PREPARATION:'التحضير',COURSE:'الدورات',TRANSFER_REQUEST:'طلبات النقل',TRANSFER_DECISION:'قرارات النقل',SUSPENSION_REQUEST:'طلبات الإيقاف',SUSPENSION_DECISION:'قرارات الإيقاف',SUPPORT_TICKET:'طلبات الدعم',SUPPORT_REPLY:'ردود الدعم',SYSTEM:'النظام'}).map(([key,label])=><option key={key} value={key}>{label}</option>)}</Select></div>
       <Card padded={false}>
         {isLoading ? (
           <LoadingState />
-        ) : isError ? (
+        ) : isError && !data ? (
           <ErrorState message="تعذر تحميل الإشعارات" onRetry={() => refetch()} />
         ) : !data?.data.length ? (
           <EmptyState
@@ -126,11 +133,11 @@ export default function NotificationsPage() {
           />
         ) : (
           <>
-            <ul className="divide-y divide-slate-100">
+            <ul className="notification-list divide-y divide-slate-100">
               {data.data.map((notification) => (
                 <li
                   key={notification.id}
-                  className={cx('flex items-start gap-3 px-5 py-4 transition', !notification.isRead && 'bg-primary-50/40')}
+                  className={cx('notification-item flex items-start gap-3 px-5 py-4 transition', !notification.isRead && 'notification-unread bg-primary-50/40')}
                 >
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-lg">
                     {NOTIFICATION_ICONS[notification.type] ?? '🔔'}

@@ -12,6 +12,7 @@ import { RecitationsService } from './recitations.service';
 @ApiTags('التسميع اليومي')
 @ApiBearerAuth()
 @Controller('recitations')
+@Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT)
 export class RecitationsController {
   constructor(private readonly service: RecitationsService) {}
 
@@ -19,6 +20,15 @@ export class RecitationsController {
   @ApiOperation({ summary: 'قائمة سور القرآن الكريم وعدد آياتها' })
   surahs() {
     return this.service.surahs();
+  }
+
+  @Get('grading-settings')
+  gradingSettings() { return this.service.gradingSettings(); }
+
+  @Patch('grading-settings')
+  @Roles(Role.ADMIN)
+  updateGradingSettings(@CurrentUser() user: AuthUser, @Body() values: Record<string, number>) {
+    return this.service.updateGradingSettings(user, values);
   }
 
   @Get('student/:studentId/progress')

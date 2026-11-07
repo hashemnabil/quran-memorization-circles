@@ -86,6 +86,14 @@ export class CreateRecitationDto {
   @Max(9999)
   warnings?: number;
 
+  @ApiPropertyOptional({ description: 'عدد أخطاء أحكام التجويد' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(9999)
+  tajweedErrors?: number;
+
   @ApiPropertyOptional({ description: 'عدد الآيات — يُحتسب تلقائياً من النطاق إذا تُرك فارغاً' })
   @IsOptional()
   @Type(() => Number)
@@ -94,12 +102,13 @@ export class CreateRecitationDto {
   @Max(6236)
   versesCount?: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     enum: Evaluation,
-    description: 'التقييم العام للتسميع — لا توجد درجة رقمية في التسميع اليومي',
+    description: 'حقل قديم؛ يحسب الخادم التقييم تلقائياً وفق إعدادات المدرسة',
   })
+  @IsOptional()
   @IsEnum(Evaluation, { message: 'التقييم المحدد غير صالح' })
-  evaluation: Evaluation;
+  evaluation?: Evaluation;
 
   @ApiPropertyOptional()
   @IsOptional()

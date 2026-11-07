@@ -1,0 +1,8 @@
+Azan.ogg by Andrewler, 3 September 2022.
+Source: https://commons.wikimedia.org/wiki/File:Azan.ogg
+Original: https://upload.wikimedia.org/wikipedia/commons/8/86/Azan.ogg
+License: Creative Commons Attribution-ShareAlike 4.0 International.
+https://creativecommons.org/licenses/by-sa/4.0/
+Unmodified original recording. No endorsement by the author is implied.
+SHA-1: ada13592b01c12b0128af40035ed7a803e08b563
+Bundled copies: /sounds/adhan.ogg and Android raw/school_adhan.ogg.

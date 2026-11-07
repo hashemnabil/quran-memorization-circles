@@ -1,4 +1,12 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
+import { ExamResultDialog as ResultModal } from '@/components/ExamResultDialog';
+import CommitteesTab, {type Committee} from './CommitteesTab';
+import CombinedTab from './CombinedTab';
+import { ExamPlanTable } from '@/components/ExamPlanTable';
+import { combinedPlan } from '@/lib/combined-plan';
 import { useState } from 'react';
+import NotificationRecord from '@/components/NotificationRecord';
+import { canOpenPath } from '@/config/navigation';
 import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -51,8 +59,17 @@ interface Examiner {
   fullName: string;
 }
 
+function ExamStudentName({ student }: { student: { id: string; fullName: string } }) {
+  const role = useAuthStore(state => state.user?.role);
+  const path = `/students/${student.id}`;
+  return role && canOpenPath(role, path)
+    ? <Link to={path} className="font-bold text-slate-800 hover:text-primary-700">{student.fullName}</Link>
+    : <span className="font-bold text-slate-800">{student.fullName}</span>;
+}
+
 /** Show the exact sections selected in a request, especially combined requests. */
 function describeRequest(r: ExamRequest): string {
+  if(r.combinedStage)return combinedPlan().find(row=>row.code===r.combinedStage)?.label||'مجتمعة';
   const parts: string[] = [];
   if (r.requestedHizb != null) parts.push(`حزب ${r.requestedHizb}`);
   if (r.requestedJuz != null) parts.push(`جزء ${r.requestedJuz}`);
@@ -78,7 +95,7 @@ export default function ExamsPage() {
   const canManage = user.role === 'ADMIN' || user.role === 'EXAM_COMMITTEE';
   const canRequest = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(user.role);
 
-  const [tab, setTab] = useState<'requests' | 'scheduled' | 'history' | 'progression'>('requests');
+  const [tab, setTab] = useState<'requests' | 'scheduled' | 'history' | 'progression' | 'combined' | 'committees'>('requests');
   const [creating, setCreating] = useState(!!requestStudent);
   const [progressSearch, setProgressSearch] = useState('');
   const debouncedProgressSearch = useDebounce(progressSearch);
@@ -109,14 +126,9 @@ export default function ExamsPage() {
       <PageHeader
         title="الاختبارات"
         subtitle={canManage ? 'جدولة الاختبارات ورصد نتائج الطلاب' : 'متابعة طلبات اختبار الطلاب ونتائجهم'}
-        action={
-          canRequest && (
-            <Button icon={<IconPlus size={16} />} onClick={() => setCreating(true)}>
-              طلب اختبار
-            </Button>
-          )
-        }
       />
+
+      <NotificationRecord />
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="طلبات بالانتظار" value={stats.data?.pendingRequests ?? 0} icon={<IconClock size={20} />} tone="amber" />
@@ -127,9 +139,12 @@ export default function ExamsPage() {
 
       <Tabs
         tabs={[
-          { key: 'requests', label: 'طلبات الاختبار', badge: stats.data?.pendingRequests },
+
           { key: 'scheduled', label: 'الاختبارات المجدولة', badge: stats.data?.scheduled },
           { key: 'history', label: 'سجل الاختبارات' },
+          { key: 'combined', label: 'مجتمعة' },
+          { key: 'requests', label: 'طلبات الاختبار', badge: stats.data?.pendingRequests },
+          { key: 'committees', label: 'اللجان' },
           { key: 'progression', label: 'تسلسل الأحزاب والأجزاء' },
         ]}
         active={tab}
@@ -139,6 +154,8 @@ export default function ExamsPage() {
       {tab === 'requests' && <RequestsTab canManage={canManage} />}
       {tab === 'scheduled' && <ExamsTab mode="scheduled" canManage={canManage} />}
       {tab === 'history' && <ExamsTab mode="history" canManage={canManage} />}
+      {tab === 'combined' && <CombinedTab canRequest={canRequest}/>}
+      {tab === 'committees' && <CommitteesTab/>}
       {tab === 'progression' && (
         <div className="mt-5 space-y-4">
           <Card title="متابعة تسلسل الاختبارات">
@@ -158,7 +175,7 @@ export default function ExamsPage() {
               </div>
             )}
           </Card>
-          {progressStudent && <ExamProgressionTable studentId={progressStudent.id} canEditMilestones={user.role === 'ADMIN'} eligibility={progressEligibility.data} exams={progressExams.data?.data ?? []} loading={progressEligibility.isLoading || progressExams.isLoading} />}
+          {progressStudent && <ExamProgressionTable studentId={progressStudent.id} canRequest={canRequest} canEditMilestones={user.role === 'ADMIN'} eligibility={progressEligibility.data} exams={progressExams.data?.data ?? []} loading={progressEligibility.isLoading || progressExams.isLoading} />}
         </div>
       )}
 
@@ -191,8 +208,8 @@ function RequestsTab({ canManage }: { canManage: boolean }) {
 
   const cancel = useMutation({
     mutationFn: (id: string) => api.patch(`/exams/requests/${id}/cancel`),
-    onSuccess: () => {
-      toast.success('تم إلغاء الطلب');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إلغاء الطلب');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -258,9 +275,7 @@ function RequestsTab({ canManage }: { canManage: boolean }) {
                   {data.data.map((r) => (
                     <tr key={r.id}>
                       <td>
-                        <Link to={`/students/${r.student.id}`} className="font-bold text-slate-800 hover:text-primary-700">
-                          {r.student.fullName}
-                        </Link>
+                        <ExamStudentName student={r.student} />
                         <span className="block text-[11px] text-slate-400">{r.student.circle?.name ?? '—'}</span>
                       </td>
                       <td className="text-sm">
@@ -319,6 +334,7 @@ function RequestsTab({ canManage }: { canManage: boolean }) {
 // ============================================================================
 
 function ExamsTab({ mode, canManage }: { mode: 'scheduled' | 'history'; canManage: boolean }) {
+  const canCorrect = useAuthStore(state => state.user?.role === 'ADMIN');
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [historyStatus, setHistoryStatus] = useState('COMPLETED');
@@ -342,8 +358,8 @@ function ExamsTab({ mode, canManage }: { mode: 'scheduled' | 'history'; canManag
 
   const absent = useMutation({
     mutationFn: (id: string) => api.patch(`/exams/${id}/absent`),
-    onSuccess: () => {
-      toast.success('تم تسجيل الغياب');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تسجيل الغياب');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -411,6 +427,7 @@ function ExamsTab({ mode, canManage }: { mode: 'scheduled' | 'history'; canManag
                     <th>الممتحن</th>
                     <th>{mode === 'scheduled' ? 'المكان' : 'النتيجة'}</th>
                     <th>الحالة</th>
+                    {mode === 'history' && <><th>الأخطاء</th><th>التنبيهات</th><th>الأحكام / 10</th>{canCorrect && <th>تعديل النتيجة</th>}</>}
                     {mode === 'scheduled' && canManage && <th className="text-center">إجراءات</th>}
                   </tr>
                 </thead>
@@ -418,9 +435,7 @@ function ExamsTab({ mode, canManage }: { mode: 'scheduled' | 'history'; canManag
                   {data.data.map((exam) => (
                     <tr key={exam.id}>
                       <td>
-                        <Link to={`/students/${exam.student.id}`} className="font-bold text-slate-800 hover:text-primary-700">
-                          {exam.student.fullName}
-                        </Link>
+                        <ExamStudentName student={exam.student} />
                         <span className="block text-[11px] text-slate-400">{exam.student.circle?.name ?? '—'}</span>
                       </td>
                       <td className="text-sm">{describeExamSections(exam.section, exam.sections)}</td>
@@ -447,10 +462,16 @@ function ExamsTab({ mode, canManage }: { mode: 'scheduled' | 'history'; canManag
                         <Badge className={EXAM_STATUS_COLORS[exam.status]}>{EXAM_STATUS_LABELS[exam.status]}</Badge>
                         {exam.result && (
                           <span className={`block text-[11px] font-bold ${exam.result === 'PASSED' ? 'text-emerald-600' : 'text-red-600'}`}>
-                            {exam.result === 'PASSED' ? 'ناجح' : 'راسب'}
+                            {exam.result === 'PASSED' ? 'مجتاز' : 'غير مجتاز'}
                           </span>
                         )}
                       </td>
+                      {mode === 'history' && <>
+                        <td className="numeric">{exam.grading?.mistakes ?? exam.mistakes ?? '—'}</td>
+                        <td className="numeric">{exam.grading?.alerts ?? '—'}</td>
+                        <td className="numeric">{exam.grading?.tajweed ?? '—'}</td>
+                        {canCorrect && <td>{exam.status === 'COMPLETED' && <Button size="sm" variant="secondary" onClick={() => setGrading(exam)}>تعديل العلامة</Button>}</td>}
+                      </>}
                       {mode === 'scheduled' && canManage && (
                         <td>
                           <div className="flex justify-center gap-1.5">
@@ -500,17 +521,20 @@ function ScheduleModal({ request, onClose }: { request: ExamRequest; onClose: ()
   const [examinerId, setExaminerId] = useState('');
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
+  const [committeeId,setCommitteeId]=useState('');
+  const committees=useQuery({queryKey:['examCommittees'],queryFn:async()=>(await api.get<Committee[]>('/examCommittees')).data});
 
   const mutation = useMutation({
     mutationFn: () =>
       api.post(`/exams/requests/${request.id}/schedule`, {
+        committeeId,
         scheduledAt: new Date(scheduledAt).toISOString(),
         examinerId: examinerId || undefined,
         location: location || undefined,
         notes: notes || undefined,
       }),
-    onSuccess: () => {
-      toast.success('تمت جدولة الاختبار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت جدولة الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
       onClose();
     },
@@ -527,7 +551,7 @@ function ScheduleModal({ request, onClose }: { request: ExamRequest; onClose: ()
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
-          <Button loading={mutation.isPending} disabled={!scheduledAt} onClick={() => mutation.mutate()}>
+          <Button loading={mutation.isPending} disabled={!committeeId || !scheduledAt || committees.isLoading} onClick={() => mutation.mutate()}>
             جدولة
           </Button>
         </>
@@ -535,7 +559,8 @@ function ScheduleModal({ request, onClose }: { request: ExamRequest; onClose: ()
     >
       <div className="space-y-3">
         <p className="text-sm text-slate-500">المطلوب: {describeRequest(request)}</p>
-        <Input label="موعد الاختبار" type="datetime-local" required value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+        <Select label="اللجنة" required value={committeeId} onChange={e=>{setCommitteeId(e.target.value);const row=committees.data?.find(row=>row.id===e.target.value);setScheduledAt(row?toInputDateTime(row.heldAt):'');setLocation(row?.location||'');}}><option value="">اختر اللجنة</option>{committees.data?.map(row=><option key={row.id} value={row.id}>لجنة {row.number} · {row.heldAt.slice(0,10)} · {row.location}</option>)}</Select>
+        {committeeId&&<p className="text-xs text-slate-500">موعد الاختبار ومكانه حسب بيانات اللجنة المختارة.</p>}
         <Select label="الممتحن" value={examinerId} onChange={(e) => setExaminerId(e.target.value)}>
           <option value="">غير محدد</option>
           {examiners.data?.map((u) => (
@@ -544,7 +569,7 @@ function ScheduleModal({ request, onClose }: { request: ExamRequest; onClose: ()
             </option>
           ))}
         </Select>
-        <Input label="المكان" placeholder="قاعة الاختبارات" value={location} onChange={(e) => setLocation(e.target.value)} />
+        <Input label="المكان" placeholder="قاعة الاختبارات" value={location} readOnly />
         <Textarea label="ملاحظات" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </div>
     </Modal>
@@ -557,8 +582,8 @@ function RejectModal({ request, onClose }: { request: ExamRequest; onClose: () =
 
   const mutation = useMutation({
     mutationFn: () => api.patch(`/exams/requests/${request.id}/reject`, { reviewNote: reviewNote || undefined }),
-    onSuccess: () => {
-      toast.success('تم رفض الطلب');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم رفض الطلب');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
       onClose();
     },
@@ -587,90 +612,6 @@ function RejectModal({ request, onClose }: { request: ExamRequest; onClose: () =
   );
 }
 
-function ResultModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [score, setScore] = useState('');
-  const [sectionScores, setSectionScores] = useState<Record<string, string>>({});
-  const [mistakes, setMistakes] = useState('');
-  const [notes, setNotes] = useState('');
-  const sections = exam.sections?.length ? exam.sections.map((entry) => entry.section) : [exam.section];
-  const grouped = sections.length > 1;
-  const values = sections.map((section) => {
-    const raw = sectionScores[section.id] ?? '';
-    const value = raw === '' ? null : Number(raw);
-    return { section, raw, value, valid: value !== null && Number.isInteger(value) && value >= 0 && value <= 100 };
-  });
-  const numeric = score === '' ? null : Number(score);
-  const overallScore = grouped
-    ? values.every((entry) => entry.valid)
-      ? Math.round(values.reduce((sum, entry) => sum + (entry.value ?? 0), 0) / values.length)
-      : null
-    : numeric;
-  const valid = grouped
-    ? values.every((entry) => entry.valid)
-    : numeric !== null && Number.isInteger(numeric) && numeric >= 0 && numeric <= 100;
-  const preview = overallScore !== null && Number.isInteger(overallScore) ? scoreEvaluation(overallScore) : null;
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      api.patch(`/exams/${exam.id}/result`, {
-        score: overallScore,
-        sectionScores: grouped ? values.map((entry) => ({ sectionId: entry.section.id, score: entry.value })) : undefined,
-        mistakes: mistakes === '' ? undefined : Number(mistakes),
-        notes: notes || undefined,
-      }),
-    onSuccess: () => {
-      toast.success('تم رصد النتائج المستقلة لكل مقرر');
-      queryClient.invalidateQueries({ queryKey: ['exams'] });
-      queryClient.invalidateQueries({ queryKey: ['exams', 'milestones', exam.student.id] });
-      queryClient.invalidateQueries({ queryKey: ['exams', 'eligibility', exam.student.id] });
-      onClose();
-    },
-    onError: (error) => toast.error(apiError(error)),
-  });
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title={`نتيجة ${exam.student.fullName}`}
-      size="sm"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>إلغاء</Button>
-          <Button loading={mutation.isPending} disabled={!valid} onClick={() => mutation.mutate()}>حفظ النتيجة</Button>
-        </>
-      }
-    >
-      <div className="space-y-3">
-        {grouped ? (
-          <>
-            <p className="text-sm text-slate-500">أدخل علامة مستقلة لكل حزب أو جزء ضمن هذا الاختبار المجمع.</p>
-            {values.map(({ section, raw }) => (
-              <Input
-                key={section.id}
-                label={section.name}
-                type="number"
-                min={0}
-                max={100}
-                required
-                value={raw}
-                onChange={(e) => setSectionScores((current) => ({ ...current, [section.id]: e.target.value }))}
-              />
-            ))}
-            {overallScore !== null && <p className="text-xs text-slate-500">المتوسط العام: {overallScore} من 100</p>}
-          </>
-        ) : (
-          <Input label="الدرجة من 100" type="number" min={0} max={100} required value={score} onChange={(e) => setScore(e.target.value)} />
-        )}
-        {preview && <p className="text-sm">التقدير العام: <Badge className={EVALUATION_COLORS[preview]}>{EVALUATION_LABELS[preview]}</Badge></p>}
-        <Input label="عدد الأخطاء (اختياري)" type="number" min={0} value={mistakes} onChange={(e) => setMistakes(e.target.value)} />
-        <Textarea label="ملاحظات" value={notes} onChange={(e) => setNotes(e.target.value)} />
-      </div>
-    </Modal>
-  );
-}
-
 function EditExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
   const queryClient = useQueryClient();
   const examiners = useExaminers();
@@ -685,8 +626,8 @@ function EditExamModal({ exam, onClose }: { exam: Exam; onClose: () => void }) {
         examinerId: examinerId || undefined,
         location: location || undefined,
       }),
-    onSuccess: () => {
-      toast.success('تم تعديل الاختبار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تعديل الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
       onClose();
     },
@@ -731,6 +672,7 @@ function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Stud
   const debounced = useDebounce(search);
   const [student, setStudent] = useState<Student | null>(initialStudent ?? null);
   const [sectionIds, setSectionIds] = useState<string[]>([]);
+  const [planCode, setPlanCode] = useState('');
   const [note, setNote] = useState('');
 
   const students = useQuery({
@@ -755,10 +697,11 @@ function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Stud
       api.post('/exams/requests', {
         studentId: student!.id,
         sectionIds,
+        combinedStage: combinedPlan().some(stage => stage.code === planCode) ? planCode : undefined,
         note: note || undefined,
       }),
-    onSuccess: () => {
-      toast.success('تم تقديم طلب الاختبار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تقديم طلب الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
       onClose();
     },
@@ -773,19 +716,25 @@ function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Stud
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>إلغاء</Button>
-          <Button loading={mutation.isPending} disabled={!student || !sectionIds.length || eligibility.isLoading} onClick={() => mutation.mutate()}>
+          <Button loading={mutation.isPending} disabled={!student || (!sectionIds.length && !combinedPlan().some(stage => stage.code === planCode)) || eligibility.isLoading} onClick={() => mutation.mutate()}>
             تقديم الطلب ({sectionIds.length})
           </Button>
         </>
       }
     >
       <div className="space-y-3">
+        <ExamPlanTable selected={planCode} onSelect={student ? code => {
+          if (combinedPlan().some(stage => stage.code === code)) { setPlanCode(code); setSectionIds([]); return; }
+          const item = progression.find(item => item.code === code);
+          if (!item?.eligible) { toast.error('هذا المقرر غير متاح للطالب؛ يجب إكمال المتطلبات السابقة'); return; }
+          setPlanCode(code); setSectionIds([item.id]);
+        } : undefined} />
         {student ? (
           <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
             <span className="text-sm font-bold text-slate-800">
               {student.fullName} <span className="numeric text-xs font-normal text-slate-400">{student.code}</span>
             </span>
-            <button className="text-xs text-primary-700" onClick={() => { setStudent(null); setSectionIds([]); }}>تغيير</button>
+            <button className="text-xs text-primary-700" onClick={() => { setStudent(null); setSectionIds([]); setPlanCode(''); }}>تغيير</button>
           </div>
         ) : (
           <div>
@@ -815,7 +764,7 @@ function CreateRequestModal({ initialStudent, onClose }: { initialStudent?: Stud
                     <input
                       type="checkbox"
                       checked={sectionIds.includes(item.id)}
-                      onChange={(event) => setSectionIds((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))}
+                      onChange={(event) => { setPlanCode(''); setSectionIds((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id)); }}
                     />
                     <span>{item.name}</span>
                     <span className="mr-auto text-xs text-slate-400">{item.kind === 'HIZB' ? 'حزب' : 'جزء'}</span>

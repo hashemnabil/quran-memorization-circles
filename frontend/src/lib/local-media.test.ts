@@ -1,0 +1,30 @@
+import 'fake-indexeddb/auto';
+import assert from 'node:assert/strict';
+import { beforeEach, test } from 'node:test';
+import { db } from './db';
+import { configureOffline } from './offline-engine';
+import { localRead, localWrite, rememberRead } from './local-api';
+let role='SUPERVISOR';const account='11111111-1111-4111-8111-111111111111';
+Object.assign(globalThis,{window:new EventTarget(),localStorage:{getItem:()=>JSON.stringify({id:account,role})}});
+Object.defineProperty(globalThis,'navigator',{configurable:true,value:{onLine:false}});
+beforeEach(async()=>{role='SUPERVISOR';for(const table of db.tables)await table.clear();configureOffline(async()=>{throw new Error('offline');},()=>account);});
+test('activities can be created, edited and removed offline with durable original snapshots',async()=>{
+ const activity=await localWrite('post','/media-activities',{type:'DESIGN',title:'Original',description:'Details',activityDate:'2026-10-28'});
+ const edited=await localWrite('patch','/media-activities/'+activity.id,{type:'DESIGN',title:'Edited',description:'New details',activityDate:'2026-10-29'});
+ assert.equal(edited.synced,0);db.close();await db.open();
+ assert.equal((await localRead('/media-activities',{from:'2026-10-29',to:'2026-10-29'}))[0].title,'Edited');
+ const update=(await db.queue.toArray()).find(op=>op.action==='update')!;assert.equal(update.data.previous.title,'Original');
+ await localWrite('delete','/media-activities/'+activity.id,undefined);
+ assert.equal((await localRead('/media-activities',{})).length,0);
+ const deletion=(await db.queue.toArray()).find(op=>op.action==='delete')!;assert.equal(deletion.data.previous.title,'Edited');
+ assert.equal(await db.queue.count(),3);
+});
+test('a server list is cached before editing, preserving a stale editor baseline for server conflict detection',async()=>{
+ const id='22222222-2222-4222-8222-222222222222';
+ const original={id,type:'PHOTOGRAPHY',title:'Original',description:'Details',activityDate:'2026-10-28T00:00:00.000Z',workUrl:null};
+ await rememberRead('/media-activities',{},[original]);
+ await rememberRead('/media-activities',{},[{...original,title:'Another device'}]);
+ await localWrite('patch','/media-activities/'+id,{...original,title:'My draft',previous:original});
+ assert.equal((await db.queue.toArray())[0].data.previous.title,'Original');
+ role='STUDENT';await assert.rejects(localWrite('patch','/media-activities/'+id,{...original,title:'Forbidden'}));
+});

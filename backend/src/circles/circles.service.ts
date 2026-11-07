@@ -142,7 +142,7 @@ export class CirclesService {
         isActive: true,
         ...(allowed !== null ? { id: { in: allowed } } : {}),
       },
-      select: { id: true, name: true, code: true },
+      select: { id: true, name: true, code: true, teachers: { where: { endedAt: null }, select: { teacher: { select: { user: { select: { fullName: true } } } } } } },
       orderBy: { name: 'asc' },
     });
   }

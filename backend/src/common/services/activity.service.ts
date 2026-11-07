@@ -29,7 +29,7 @@ export class ActivityService {
       });
     } catch (error) {
       // Never let auditing break the business operation.
-      this.logger.warn(`تعذر تسجيل النشاط: ${(error as Error).message}`);
+      this.logger.warn('Activity audit write unavailable');
     }
   }
 }

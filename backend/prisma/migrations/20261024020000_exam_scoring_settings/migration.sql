@@ -1,0 +1,2 @@
+ALTER TABLE "school_settings" ADD COLUMN "examMistakePenalty" DOUBLE PRECISION NOT NULL DEFAULT 1;
+ALTER TABLE "school_settings" ADD COLUMN "examAlertPenalty" DOUBLE PRECISION NOT NULL DEFAULT 0.5;

@@ -1,4 +1,4 @@
-import { gotoWithLocalUnlock, unlockLocalGate, fillLoginCredentials } from './local-security-helpers';
+import { gotoWithLocalUnlock, unlockLocalGate, fillLoginCredentials, waitForAuthenticatedPage } from './local-security-helpers';
 import { test, expect, chromium, type BrowserContext } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -63,7 +63,7 @@ for (const rejected of [false, true]) {
       await gotoWithLocalUnlock(page,`${origin}/login`);
       await fillLoginCredentials(page, user.username, password);
       await page.getByRole('button', { name: 'دخول', exact: true }).click();
-    await unlockLocalGate(page);
+    await waitForAuthenticatedPage(page);
       await expect(page).not.toHaveURL(/\/login$/);
     };
     const queue = (page: Awaited<ReturnType<typeof start>>) => page.evaluate(() => new Promise<any[]>(resolve => {
@@ -158,7 +158,7 @@ test('student first password change preserves offline login with the new passwor
   await gotoWithLocalUnlock(page,'/login');
   await fillLoginCredentials(page, user.username, initialPassword);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
-    await unlockLocalGate(page);
+    await waitForAuthenticatedPage(page);
   await page.getByLabel(/^كلمة المرور المؤقتة/).fill(initialPassword);
   await expect.poll(() => page.evaluate(account => new Promise<boolean>(resolve => {
     const open = indexedDB.open('halaqatFull'); open.onsuccess = () => { const database = open.result; const read = database.transaction('students').objectStore('students').getAll(); read.onsuccess = () => { database.close(); resolve(read.result.some(row => row.accountId === account && row.__sealedLocal)); }; };
@@ -170,7 +170,7 @@ test('student first password change preserves offline login with the new passwor
   offlineMode = true; await context.setOffline(true);
   await fillLoginCredentials(page, user.username, newPassword);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
-    await unlockLocalGate(page);
+    await waitForAuthenticatedPage(page);
   await expect(page).toHaveURL(url => url.pathname === '/' || url.pathname === '/student');
   // Offline login is successful when routing leaves the login screen; the student home
   // layout can render different headings while its cached records hydrate.
@@ -535,7 +535,7 @@ test('online reads use the server and persist the fresh record for the next offl
   await gotoWithLocalUnlock(page,'/login');
   await fillLoginCredentials(page, user.username, password);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
-    await unlockLocalGate(page);
+    await waitForAuthenticatedPage(page);
   await expect(page).not.toHaveURL(/\/login$/);
   await gotoWithLocalUnlock(page,'/students'); await expect(page.getByText(name, { exact: true }).filter({ visible: true })).toBeVisible();
   await expect.poll(() => page.evaluate(account => new Promise(resolve => { const request = indexedDB.open('halaqatFull'); request.onsuccess = () => { const db = request.result; const read = db.transaction('meta').objectStore('meta').get(`${account}:downloadedAt`); read.onsuccess = () => { resolve(Boolean(read.result)); db.close(); }; }; }), account)).toBe(true);
@@ -550,7 +550,7 @@ test('online reads use the server and persist the fresh record for the next offl
   await expect(page).toHaveURL(/\/login$/);
   await fillLoginCredentials(page, user.username, password);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
-    await unlockLocalGate(page);
+    await waitForAuthenticatedPage(page);
   await expect(page).not.toHaveURL(/\/login$/);
   await gotoWithLocalUnlock(page,'/students'); await expect(page.getByText(name, { exact: true }).filter({ visible: true })).toBeVisible();
   // Reconnect while staying on the same screen: fresh server data must replace

@@ -24,7 +24,7 @@ import {
 import { IconBook, IconPlus, IconTrash } from '@/components/ui/Icons';
 import { EVALUATION_COLORS, EVALUATION_LABELS, RECITATION_TYPE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateShort, todayInput } from '@/lib/format';
-import type { Circle, PaginatedResponse, Recitation, RecitationDayDetail, RecitationDaySummary, Student } from '@/types';
+import type { Circle, PaginatedResponse, Recitation, RecitationType, RecitationDayDetail, RecitationDaySummary, Student } from '@/types';
 
 interface SurahInfo {
   number: number;
@@ -390,13 +390,13 @@ export default function RecitationsPage() {
   );
 }
 
-export function RecitationFormModal({ defaultCircleId, student, onClose }: { defaultCircleId?: string; student?: Student; onClose: () => void }) {
+export function RecitationFormModal({ defaultCircleId, student, defaultType = 'MEMORIZATION', onClose }: { defaultCircleId?: string; student?: Student; defaultType?: RecitationType; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [circleId, setCircleId] = useState(student?.circleId ?? defaultCircleId ?? '');
   const [form, setForm] = useState({
     studentId: student?.id ?? '',
     date: todayInput(),
-    type: 'MEMORIZATION',
+    type: defaultType,
     fromSurah: 'النبأ',
     fromAyah: 1,
     toSurah: 'النبأ',

@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/auth';
 import { StudentPhoto } from '@/components/StudentPhoto';
 import { RecitationFormModal } from '@/pages/recitations/RecitationsPage';
 import { StudentAttendanceEditor } from './StudentAttendanceEditor';
+import { StudentReviewSection } from './StudentReviewSection';
 import { ExamResultDialog } from '@/components/ExamResultDialog';
 import { ExamProgressionTable } from '@/pages/exams/ExamProgressionTable';
 import {
@@ -221,6 +222,7 @@ export default function StudentDetailsPage() {
     { key: 'overview', label: 'نظرة عامة' },
     { key: 'attendance', label: 'الحضور' },
     { key: 'recitations', label: 'التسميع' },
+    { key: 'review-consolidation', label: 'المراجعة والتثبيت' },
     { key: 'exams', label: 'الاختبارات' },
     { key: 'points', label: 'النقاط' },
     { key: 'courses', label: 'الدورات' },
@@ -364,6 +366,7 @@ export default function StudentDetailsPage() {
       </div>
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
+      {tab === 'review-consolidation' && <StudentReviewSection student={student} canManage={canManage} />}
 
       {tab === 'overview' && <OverviewTab student={student} progress={progress} />}
       {tab === 'attendance' && <AttendanceTab records={attendance?.data ?? []} summary={student.attendanceSummary} student={student} canManage={canManage} />}

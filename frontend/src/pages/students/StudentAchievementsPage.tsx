@@ -57,7 +57,7 @@ export default function StudentAchievementsPage() {
           <input className="mt-1 w-full rounded-xl border border-slate-300 p-3" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder="اسم الطالب" />
         </label>
         <label className="text-sm font-bold text-slate-700">الحلقة
-          <Select value={circleId} onChange={event => { setCircleId(event.target.value); setPage(1); setSelected(null); }}>
+          <Select value={circleId} onChange={event => { setCircleId(event.target.value); setPage(1); }}>
             <option value="">كل الحلقات المتاحة</option>
             {(circles.data ?? []).map(circle => <option key={circle.id} value={circle.id}>{circle.name}</option>)}
           </Select>
@@ -65,7 +65,7 @@ export default function StudentAchievementsPage() {
       </div>
       {!navigator.onLine && <p role="status" className="mt-3 text-sm font-semibold text-amber-700">وضع دون إنترنت: البيانات المحفوظة على الجهاز فقط. افتح تفاصيل الطالب مرة أثناء الاتصال لحفظ السور.</p>}
       <p className="mt-4 text-sm text-slate-500">الطلاب في نتائج البحث: {count}. التقدم المعروض يعتمد على الأجزاء المحفوظة المسجلة، ولا يحتسب سورًا مكتملة دون سجل يؤكد ذلك.</p>
-    </Card>
+    </Card>}
     {!studentId && (students.isLoading ? <LoadingState /> : students.isError ? <ErrorState message={apiError(students.error, 'تعذّر تحميل إنجازات الطلاب')} onRetry={() => void students.refetch()} /> :
       <Card><div className="space-y-2">
         {rows.length === 0 && <p className="p-6 text-center text-slate-500">لا يوجد طلاب مطابقون للبحث.</p>}

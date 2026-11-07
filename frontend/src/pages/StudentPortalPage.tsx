@@ -259,7 +259,7 @@ export default function StudentPortalPage() {
             {history.data.recitations.length > recitationLimit && <Button variant="secondary" onClick={()=>setRecitationLimit(limit=>limit+12)}>عرض سجلات تسميع أقدم</Button>}
           </div> : <p className="text-sm text-slate-500">لا توجد سجلات تسميع متاحة.</p>}
         </Card></section>
-      </div>
+      </div></>}
     </>
   );
 }

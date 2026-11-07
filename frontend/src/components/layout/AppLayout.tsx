@@ -124,8 +124,9 @@ export default function AppLayout() {
   const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').trim();
   const searchTerm = normalizeSearch(navSearch);
   const groups = allGroups.map(group => ({ ...group, items: group.items.filter(item => !searchTerm || normalizeSearch(group.title + ' ' + item.label).includes(searchTerm)) })).filter(group => group.items.length);
-  const activeGroup = allGroups.find(group => group.items.some(item => item.to === location.pathname || item.to !== '/' && location.pathname.startsWith(item.to + '/')));
-  const activeItem = activeGroup?.items.filter(item => item.to === location.pathname || item.to !== '/' && location.pathname.startsWith(item.to + '/')).sort((a,b) => b.to.length - a.to.length)[0];
+  const activeItem = allGroups.flatMap(group => group.items).filter(item => item.to === location.pathname || item.to !== '/' && location.pathname.startsWith(item.to + '/')).sort((a, b) => b.to.length - a.to.length)[0];
+
+  const activeGroup = allGroups.find(group => group.items.some(item => item.to === activeItem?.to));
 
   const handleLogout = async () => {
     try { await logout(); navigate('/login', { replace: true }); }

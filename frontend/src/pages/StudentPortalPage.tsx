@@ -106,11 +106,27 @@ export default function StudentPortalPage() {
           <ProgressBar value={Math.max(0, Math.min(30, Number(data.memorizedParts) || 0))} max={30} showLabel />
           <h3 className="mt-5 text-center text-lg font-bold text-rose-700">قلبي القرآني</h3>
           <p className="mb-3 text-center text-sm text-slate-600">{SURAHS.filter(surah => (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name)).length} من 114 سورة مكتملة</p>
-          <div className="mx-auto grid max-w-2xl grid-cols-4 gap-1.5 sm:grid-cols-7 md:grid-cols-9" aria-label="السور القرآنية وحالة إتمامها">
-            {SURAHS.map(surah => {
-              const done = (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name);
-              return <div key={surah.number} title={surah.name + (done ? ' — مكتملة' : ' — غير مكتملة')} className={'flex min-h-12 items-center justify-center rounded-lg border p-1 text-center text-xs ' + (done ? 'border-rose-600 bg-rose-600 font-bold text-white' : 'border-slate-200 bg-slate-100 text-slate-600')}>{surah.name}</div>;
-            })}
+          <div className="mx-auto mt-5 w-full max-w-[740px] overflow-x-auto pb-2" aria-label="القلب القرآني: السور المكتملة">
+            <div className="mx-auto grid w-full min-w-[320px] grid-cols-12 gap-1 sm:gap-1.5" dir="rtl">
+              {SURAHS.map((surah, index) => {
+                const rowWidths = [8, 10, 12, 12, 12, 12, 10, 10, 8, 8, 6, 4, 2];
+                let row = 0;
+                let offset = index;
+                while (offset >= rowWidths[row]) { offset -= rowWidths[row]; row++; }
+                const width = rowWidths[row];
+                const column = row === 0
+                  ? (offset < 4 ? offset + 1 : offset + 5)
+                  : row === 1
+                    ? (offset < 5 ? offset + 1 : offset + 3)
+                    : Math.floor((12 - width) / 2) + offset + 1;
+                const done = (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name);
+                return <div key={surah.number} title={surah.name + (done ? ' — مكتملة' : ' — غير مكتملة')}
+                  style={{ gridRow: row + 1, gridColumn: column }}
+                  className={'flex min-h-11 min-w-0 items-center justify-center rounded-lg border px-0.5 py-1 text-center text-[9px] font-semibold leading-tight sm:min-h-12 sm:text-[11px] ' + (done ? 'border-rose-600 bg-rose-600 text-white' : 'border-rose-100 bg-rose-50 text-slate-700')}>
+                  {surah.name}
+                </div>;
+              })}
+            </div>
           </div>
           <p className="mt-3 text-xs text-slate-500">الأحمر للسور المثبت إتمامها في سجلك، والرمادي للسور التي لم يُسجّل إتمامها بعد.</p>
           <Button variant="secondary" className="mt-4" onClick={async () => {

@@ -2,9 +2,9 @@ import { PDFDocument } from 'pdf-lib';
 import { drawSchoolPdfHeader } from './pdf-branding';
 
 /** Arabic is drawn with the bundled font, in a paginated RTL table. */
-export type ReportPdfDetails = { circle?: string; teacher?: string; student?: string; period?: string; aggregate?: boolean };
+export type ReportPdfDetails = { circle?: string; teacher?: string; student?: string; period?: string; aggregate?: boolean; details?: Record<string, unknown> };
 
-export async function exportLocalPdf(title: string, rows: Record<string, unknown>[], details: ReportPdfDetails = {}) {
+export async function exportLocalPdf(title: string, rows: Record<string, unknown>[], options: ReportPdfDetails = {}) {
   await document.fonts.load('24px Tajawal');
   await document.fonts.load('bold 24px Tajawal');
   const columns = [...new Set(rows.flatMap(Object.keys))];
@@ -73,23 +73,32 @@ export async function exportLocalPdf(title: string, rows: Record<string, unknown
     await drawSchoolPdfHeader(ctx, canvas, { compact: true });
     ctx.font = 'bold 28px Tajawal'; ctx.textAlign = 'right'; ctx.direction = 'rtl'; ctx.fillStyle = '#14543f';
     ctx.fillText(title, canvas.width - margin, 158, canvas.width - margin * 2);
-    const metadata = [
-      details.circle && `الحلقة: ${details.circle}`,
-      details.teacher && `الشيخ / المحفّظ: ${details.teacher}`,
-      details.student && `الطالب: ${details.student}`,
-      details.period && `الفترة: ${details.period}`,
-      details.aggregate && 'تقرير إجمالي دون أسماء الطلاب',
-    ].filter((item): item is string => Boolean(item));
-    ctx.font = '20px Tajawal'; ctx.fillStyle = '#475569';
-    let metadataY = 194;
-    for (const line of metadata) {
-      ctx.fillText(line, canvas.width - margin, metadataY, canvas.width - margin * 2);
-      metadataY += 30;
+    y = 195; page++;
+    ctx.font = '22px Tajawal'; ctx.fillStyle = '#334155';
+    const details = {
+      'تاريخ إصدار التقرير': new Intl.DateTimeFormat('ar-SA', { timeZone: 'Asia/Riyadh', calendar: 'gregory' }).format(new Date()),
+      ...(options.circle ? { 'الحلقة': options.circle } : {}),
+      ...(options.teacher ? { 'اسم الشيخ': options.teacher } : {}),
+      ...(options.student ? { 'اسم الطالب': options.student } : {}),
+      ...(options.period ? { 'الفترة': options.period } : {}),
+      ...(options.aggregate ? { 'نوع التقرير': 'تقرير إجمالي دون أسماء الطلاب' } : {}),
+      ...options.details,
+    };
+    const entries = Object.entries(details);
+    const detailWidth = (canvas.width - margin * 2) / 2;
+    for (let i = 0; i < entries.length; i += 2) {
+      let height = 0;
+      entries.slice(i, i + 2).forEach(([label, value], column) => {
+        const lines = wrap(`${label}: ${text(value)}`, detailWidth - 24);
+        lines.forEach((line, index) => ctx.fillText(line, canvas.width - margin - column * detailWidth, y + index * lineHeight));
+        height = Math.max(height, lines.length * lineHeight);
+      });
+      y += height + 8;
     }
-    y = metadataY + 12; page++;
+    y += 12;
     if (columns.length) {
       ctx.font = 'bold 24px Tajawal';
-      const headers = columns.map((column, index) => wrap(column, widths[index] - 24));
+      const headers = columns.map((column, index) => wrap(text(column), widths[index] - 24));
       drawRow(headers, 0, Math.max(...headers.map(lines => lines.length)), true);
     }
     ctx.font = '24px Tajawal';

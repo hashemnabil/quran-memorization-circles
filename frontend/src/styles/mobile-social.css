@@ -10,13 +10,13 @@
 .composer-swatch[aria-pressed="true"] { outline: 3px solid #10b981; outline-offset: 3px; }
 .composer-story-preview { min-height: 24rem; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; padding: 2rem; white-space: pre-wrap; overflow-wrap: anywhere; text-align: center; border-radius: 1.5rem; }
 .composer-launch { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; padding: 1rem; border-radius: 1rem; background: #10b9810c; }
-.composer-launch span { flex: 1; min-width: 9rem; color: #64748b; }
+.composer-launch .composer-launch-copy { flex: 1; min-width: 9rem; color: #64748b; }
 .composer-launch strong { color: #047857; }
 .chat-layout > .chat-conversation-list { position: relative; }
 .chat-layout .chat-create-actions { position: absolute; inset-inline-end: 1rem; bottom: max(1.25rem, env(safe-area-inset-bottom)); z-index: 15; display: grid; gap: .75rem; height: auto; }
 .chat-create-actions button { min-width: 3.5rem; min-height: 3.5rem; border-radius: 2rem; box-shadow: 0 8px 24px #123c3026; }
 [data-theme="dark"] .composer-toolbar { background: #14231f; }
-[data-theme="dark"] .composer-launch span { color: #b7c9c1; }
+[data-theme="dark"] .composer-launch .composer-launch-copy { color: #b7c9c1; }
 [data-theme="dark"] .composer-launch strong { color: #6ee7b7; }
 @media (max-width: 767px) {
   .community-composer { margin: -.5rem; }

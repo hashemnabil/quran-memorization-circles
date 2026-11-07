@@ -728,6 +728,8 @@ test('student edits remain pending offline and online until administrative appro
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/auth/me') return route.fulfill({ json: identity });
+    if (url.pathname === '/api/community/users/' + account) return route.fulfill({ json: { ...identity, bio: '', nickname: null, coverAssetId: null, avatarUrl: null } });
+    if (url.pathname === '/api/community/feed' || url.pathname === '/api/community/stories') return route.fulfill({ json: [] });
     // Simulate an older profile read completing after the sync acknowledgement.
     // The accepted request remains available through the sync replica below.
     if (url.pathname === '/api/profile-reviews/me') return route.fulfill({ json: { id: student.id, kind: 'STUDENT', profile: student, requests: [] } });
@@ -760,7 +762,8 @@ test('student edits remain pending offline and online until administrative appro
   // Back navigation must restore the actual departure position after that action.
   const departureScroll = await page.evaluate(() => window.scrollY);
   await page.getByRole('link', { name: 'الملف الشخصي', exact: true }).click();
-  await expect(page).toHaveURL(/\/profile$/);
+  await expect(page).toHaveURL(/\/community\/users\/me$/);
+  await expect(page.getByRole('heading', { name: identity.fullName, exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'الرجوع للصفحة السابقة', exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(departureScroll);

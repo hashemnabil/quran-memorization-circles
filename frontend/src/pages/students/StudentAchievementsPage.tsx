@@ -82,7 +82,7 @@ export default function StudentAchievementsPage() {
         <h3 className="text-center text-xl font-extrabold text-rose-700">قلبي القرآني</h3>
         <p className="mt-1 text-center text-sm text-slate-600">{completedCount} / 114 سورة مكتملة</p>
         <QuranAchievementHeart completed={completed} />
-        <p className="mt-3 text-center text-xs text-slate-500">الأحمر للسور المثبت إتمامها في سجل الطالب، والرمادي للسور الأخرى.</p>
+        <p className="mt-3 text-center text-xs text-slate-500">الأحمر للسور المثبت إتمامها في سجل الطالب، والأبيض للسور الأخرى.</p>
       </div>
       <button type="button" onClick={() => void exportReport()} disabled={!detail.data} className="mt-4 rounded-xl bg-emerald-800 px-4 py-2 font-bold text-white disabled:opacity-50">تصدير تقرير الإنجاز PDF</button>
       <Link className="mt-4 inline-flex rounded-xl bg-emerald-800 px-4 py-2 font-bold text-white" to={`/students/${studentId}`}>فتح ملف الطالب</Link>

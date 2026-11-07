@@ -44,7 +44,7 @@ export class MemorizationPlansController {
   @Get()
   async list(@CurrentUser() user: AuthUser, @Param('studentId') studentId: string) {
     await this.acl.assertStudentAccess(user, studentId);
-    const plans = await this.prisma.$queryRaw<Plan[]>`SELECT * FROM "memorization_plans" WHERE "studentId" = ${studentId} ORDER BY "archived", "createdAt" DESC LIMIT 200`;
+    const plans = await this.prisma.$queryRaw<Plan[]>`SELECT "id", "studentId", "createdById", "title", "unit", "period", "target", "completed", "archived", "dueAt", "createdAt", "scope" FROM "memorization_plans" WHERE "studentId" = ${studentId} ORDER BY "archived", "createdAt" DESC LIMIT 200`;
     const logs = await this.prisma.$queryRaw<Array<{id: string; planId: string; amount: number; itemIds: number[]; versesCount: number; note: string; createdAt: Date; recorderName: string}>>`SELECT p."id", p."planId", p."amount", p."itemIds", p."versesCount", p."note", p."createdAt", u."fullName" AS "recorderName" FROM "memorization_progress" p JOIN "memorization_plans" m ON m."id" = p."planId" JOIN "users" u ON u."id" = p."recordedById" WHERE m."studentId" = ${studentId} ORDER BY p."createdAt" DESC LIMIT 500`;
     return plans.map(plan => ({...plan, logs: logs.filter(log => log.planId === plan.id)}));
   }
@@ -52,7 +52,7 @@ export class MemorizationPlansController {
   async create(@CurrentUser() user: AuthUser, @Param('studentId') studentId: string, @Body() body: Record<string, unknown>) {
     await this.canWrite(user, studentId);
     const input = planInput(body), id = randomUUID();
-    const rows = await this.prisma.$queryRaw<Plan[]>`INSERT INTO "memorization_plans" ("id", "studentId", "createdById", "title", "unit", "period", "target", "dueAt", "scope") VALUES (${id}, ${studentId}, ${user.id}, ${input.title}, ${input.unit}, ${input.period}, ${input.target}, ${input.dueAt}, ${input.scope ? JSON.stringify(input.scope) : null}::jsonb) RETURNING *`;
+    const rows = await this.prisma.$queryRaw<Plan[]>`INSERT INTO "memorization_plans" ("id", "studentId", "createdById", "title", "unit", "period", "target", "dueAt", "scope") VALUES (${id}, ${studentId}, ${user.id}, ${input.title}, ${input.unit}, ${input.period}, ${input.target}, ${input.dueAt}, ${input.scope ? JSON.stringify(input.scope) : null}::jsonb) RETURNING "id", "studentId", "createdById", "title", "unit", "period", "target", "completed", "archived", "dueAt", "createdAt", "scope"`;
     return rows[0];
   }
   @Patch(':id')
@@ -61,12 +61,12 @@ export class MemorizationPlansController {
     const input = planInput(body);
     if (body.archived !== undefined && typeof body.archived !== 'boolean') throw new BadRequestException('حالة الأرشفة غير صالحة');
     return this.prisma.$transaction(async tx => {
-      const [plan] = await tx.$queryRaw<Plan[]>`SELECT * FROM "memorization_plans" WHERE "id" = ${id} AND "studentId" = ${studentId} FOR UPDATE`;
+      const [plan] = await tx.$queryRaw<Plan[]>`SELECT "id", "studentId", "createdById", "title", "unit", "period", "target", "completed", "archived", "dueAt", "createdAt", "scope" FROM "memorization_plans" WHERE "id" = ${id} AND "studentId" = ${studentId} FOR UPDATE`;
       if (!plan) throw new NotFoundException('الخطة غير موجودة');
       if (input.target < plan.completed) throw new BadRequestException('الهدف أقل من الإنجاز المسجل');
       if (plan.completed > 0 && input.unit !== plan.unit) throw new BadRequestException('لا يمكن تغيير وحدة القياس بعد تسجيل الإنجاز');
       if (plan.completed > 0 && JSON.stringify(input.scope) !== JSON.stringify(plan.scope)) throw new BadRequestException('لا يمكن تغيير النطاق بعد تسجيل الإنجاز');
-      const [updated] = await tx.$queryRaw<Plan[]>`UPDATE "memorization_plans" SET "title" = ${input.title}, "unit" = ${input.unit}, "period" = ${input.period}, "target" = ${input.target}, "dueAt" = ${input.dueAt}, "scope" = ${input.scope ? JSON.stringify(input.scope) : null}::jsonb, "archived" = ${body.archived === undefined ? plan.archived : body.archived as boolean} WHERE "id" = ${id} RETURNING *`;
+      const [updated] = await tx.$queryRaw<Plan[]>`UPDATE "memorization_plans" SET "title" = ${input.title}, "unit" = ${input.unit}, "period" = ${input.period}, "target" = ${input.target}, "dueAt" = ${input.dueAt}, "scope" = ${input.scope ? JSON.stringify(input.scope) : null}::jsonb, "archived" = ${body.archived === undefined ? plan.archived : body.archived as boolean} WHERE "id" = ${id} RETURNING "id", "studentId", "createdById", "title", "unit", "period", "target", "completed", "archived", "dueAt", "createdAt", "scope"`;
       return updated;
     });
   }
@@ -75,7 +75,7 @@ export class MemorizationPlansController {
     await this.canWrite(user, studentId);
     if (!body || typeof body.requestId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestId) || (body.note !== undefined && (typeof body.note !== 'string' || body.note.length > 500)) || body.versesCount !== undefined && (!Number.isInteger(body.versesCount) || body.versesCount < 0 || body.versesCount > 6236)) throw new BadRequestException('بيانات الإنجاز غير صالحة');
     return this.prisma.$transaction(async tx => {
-      const [plan] = await tx.$queryRaw<Plan[]>`SELECT * FROM "memorization_plans" WHERE "id" = ${id} AND "studentId" = ${studentId} FOR UPDATE`;
+      const [plan] = await tx.$queryRaw<Plan[]>`SELECT "id", "studentId", "createdById", "title", "unit", "period", "target", "completed", "archived", "dueAt", "createdAt", "scope" FROM "memorization_plans" WHERE "id" = ${id} AND "studentId" = ${studentId} FOR UPDATE`;
       if (!plan) throw new NotFoundException('الخطة غير موجودة');
       const existing = await tx.$queryRaw<Array<{id: string}>>`SELECT "id" FROM "memorization_progress" WHERE "id" = ${body.requestId} AND "planId" = ${id} AND "recordedById" = ${user.id}`;
       if (existing.length) return plan;
@@ -91,7 +91,7 @@ export class MemorizationPlansController {
       if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > 1_000_000 || (scope?.surah && !Number.isInteger(amount))) throw new BadRequestException('الكمية المنجزة غير صالحة');
       if (plan.archived || plan.completed + amount > plan.target) throw new BadRequestException('الإنجاز يتجاوز المتبقي أو الخطة مؤرشفة');
       await tx.$executeRaw`INSERT INTO "memorization_progress" ("id", "planId", "recordedById", "amount", "itemIds", "versesCount", "note") VALUES (${body.requestId}, ${id}, ${user.id}, ${amount}, ${items}, ${body.versesCount ?? (plan.unit === 'VERSES' ? amount : 0)}, ${body.note?.trim() || ''})`;
-      const [updated] = await tx.$queryRaw<Plan[]>`UPDATE "memorization_plans" SET "completed" = "completed" + ${amount} WHERE "id" = ${id} RETURNING *`;
+      const [updated] = await tx.$queryRaw<Plan[]>`UPDATE "memorization_plans" SET "completed" = "completed" + ${amount} WHERE "id" = ${id} RETURNING "id", "studentId", "createdById", "title", "unit", "period", "target", "completed", "archived", "dueAt", "createdAt", "scope"`;
       return updated;
     });
   }

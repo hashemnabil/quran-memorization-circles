@@ -12,6 +12,9 @@ async function setup(page: Page, rows: any[], role?: string) {
     if (path === '/api/auth/me') return role ? route.fulfill({ json: user }) : route.fulfill({ status: 401, json: {} });
     if (path.includes('/auth/refresh')) return route.fulfill({ status: 401, json: {} });
     if (path === '/api/settings/public') return route.fulfill({ json: { name: 'مدرسة الاختبار' } });
+    if (path === '/api/community/users/' + user.id) return route.fulfill({ json: { ...user, bio: '', nickname: null, coverAssetId: null, avatarUrl: null } });
+    if (path === '/api/community/feed' || path === '/api/community/stories') return route.fulfill({ json: [] });
+    if (path === '/api/community/school') return route.fulfill({ json: { name: 'مدرسة الاختبار', logoUrl: null, about: null, address: null } });
     if (path === '/api/popup-announcements/public' || path === '/api/popup-announcements/active') return route.fulfill({ json: rows });
     if (path.endsWith('/event') || path.endsWith('/public-event')) { events.push(route.request().postDataJSON()); return route.fulfill({ json: { saved: true } }); }
     if (path === '/api/popup-announcements/save') { saves.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); }

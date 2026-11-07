@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { listOfflineSnapshot } from '@/lib/offline/changeFeed';
@@ -31,10 +31,9 @@ export default function StudentAchievementsPage() {
     queryFn: async () => { try { return (await api.get<PaginatedResponse<Student>>('/students', { params: {page,limit:20,search:search||undefined,circleId:circleId||undefined} })).data; } catch(error) { if (!user || (error as {response?: unknown})?.response) throw error; const local = (await listOfflineSnapshot(user.id, 'student')) as unknown as Student[]; if (!local.length) throw error; const filtered = local.filter(student => (!circleId || student.circleId === circleId) && (!search || student.fullName.includes(search))); const start = (page-1)*20; return {data:filtered.slice(start,start+20),meta:{total:filtered.length,page,limit:20,totalPages:Math.max(1,Math.ceil(filtered.length/20)),hasNextPage:start+20<filtered.length,hasPreviousPage:page>1}} as PaginatedResponse<Student>; } },
   });
   const rows = students.data?.data ?? [];
-  const current = useMemo(() => studentId ? rows.find(row => row.id === studentId) ?? null : null, [studentId, rows]);
   const count = students.data?.meta?.total ?? rows.length;
   const surahs = SURAHS;
-  const detail = useQuery({ queryKey: ['achievements','student',studentId], queryFn: async () => { try { return (await api.get<Student>('/students/'+studentId!)).data; } catch(error) { if ((error as {response?: unknown})?.response) throw error; const cached = queryClient.getQueryData<Student>(['students',current!.id]) ?? queryClient.getQueryData<Student>(['achievements','student',current!.id]); if (cached?.id === current!.id) return cached; throw error; } }, enabled: !!current?.id });
+  const detail = useQuery({ queryKey: ['achievements','student',studentId], queryFn: async () => { try { return (await api.get<Student>('/students/'+studentId!)).data; } catch(error) { if ((error as {response?: unknown})?.response) throw error; const cached = queryClient.getQueryData<Student>(['students',studentId!]) ?? queryClient.getQueryData<Student>(['achievements','student',studentId!]); if (cached?.id === studentId!) return cached; throw error; } }, enabled: !!studentId });
   const completed = new Set((detail.data?.surahCompletions ?? []).map(item => item.surah));
   const completedCount = surahs.filter(item => completed.has(item.name)).length ?? 0;
   const exportReport = async () => {
@@ -71,7 +70,7 @@ export default function StudentAchievementsPage() {
       <Card><div className="space-y-2">
         {rows.length === 0 && <p className="p-6 text-center text-slate-500">لا يوجد طلاب مطابقون للبحث.</p>}
         {rows.map(student => <button type="button" key={student.id} onClick={() => navigate(`/students/achievements/${student.id}`)}
-          className={`w-full rounded-2xl border p-4 text-right transition hover:border-emerald-600 ${current?.id === student.id ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'}`}>
+          className={`w-full rounded-2xl border p-4 text-right transition hover:border-emerald-600 ${false ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'}`}>
           <div className="flex items-center justify-between gap-3"><strong>{student.fullName}</strong><span className="text-sm font-bold text-emerald-800">{parts(student.memorizedParts)} / 30 جزءًا</span></div>
           <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-600" style={{ width: `${parts(student.memorizedParts) / 30 * 100}%` }} /></div>
           <span className="mt-2 block text-xs text-slate-500">{student.circle?.name ?? 'بدون حلقة'} · {Math.round(parts(student.memorizedParts) / 30 * 100)}٪ من الأجزاء</span>
@@ -85,7 +84,7 @@ export default function StudentAchievementsPage() {
       <div className="rounded-3xl bg-gradient-to-l from-emerald-900 to-teal-700 p-6 text-white"><p>لوحة الإنجازات القرآنية</p><h1 className="mt-2 text-3xl font-extrabold">{detail.data.fullName}</h1><p className="mt-2">{detail.data.circle?.name ?? "بدون حلقة"}</p></div>
       <div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-2xl bg-emerald-50 p-5">الأجزاء المحفوظة<strong className="block text-3xl text-emerald-800">{parts(detail.data.memorizedParts)} / 30</strong></div><div className="rounded-2xl bg-rose-50 p-5">السور المكتملة<strong className="block text-3xl text-rose-700">{completedCount} / 114</strong></div><div className="rounded-2xl bg-amber-50 p-5">نسبة حفظ الأجزاء<strong className="block text-3xl text-amber-800">{Math.round(parts(detail.data.memorizedParts) / 30 * 100)}٪</strong></div></div>
       <p className="mt-2 text-slate-600">الأجزاء المحفوظة: <strong>{parts(detail.data.memorizedParts)} من 30</strong></p>
-      <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-600" style={{ width: `${parts(current.memorizedParts) / 30 * 100}%` }} /></div>
+      <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-600" style={{ width: `${parts(detail.data.memorizedParts) / 30 * 100}%` }} /></div>
       <div className="mt-6">
         <h3 className="text-center text-xl font-extrabold text-rose-700">قلبي القرآني</h3>
         <p className="mt-1 text-center text-sm text-slate-600">{completedCount} / 114 سورة مكتملة</p>

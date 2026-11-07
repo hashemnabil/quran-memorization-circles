@@ -85,14 +85,30 @@ export default function StudentAchievementsPage() {
         <h3 className="text-center text-xl font-extrabold text-rose-700">قلبي القرآني</h3>
         <p className="mt-1 text-center text-sm text-slate-600">{completedCount} / 114 سورة مكتملة</p>
         {detail.isLoading ? <LoadingState /> : detail.isError ? <ErrorState message="تعذّر تحميل السور المكتملة" onRetry={() => { void detail.refetch();  }} /> :
-          <div className="mx-auto mt-4 grid max-w-xl grid-cols-9 gap-1.5" style={{ clipPath: "polygon(50% 12%, 62% 1%, 80% 1%, 96% 12%, 100% 30%, 96% 48%, 83% 66%, 50% 100%, 17% 66%, 4% 48%, 0% 30%, 4% 12%, 20% 1%, 38% 1%)" }} aria-label="القلب القرآني: السور المكتملة">
-            {surahs.map((item, index) => {
-              const done = completed.has(item.name);
-              const x = (index % 9 - 4) / 4.5;
-              const y = (Math.floor(index / 9) - 5.8) / 6.5;
-              const inside = Math.pow(x*x+y*y-1, 3)-x*x*Math.pow(y,3) <= 0;
-              return <div key={item.number} title={item.name + ' — ' + (done ? 'مكتملة' : 'غير مكتملة')} className={'flex aspect-square min-w-0 items-center justify-center rounded-md border text-[9px] leading-tight sm:text-[11px] ' + (done ? 'border-rose-600 bg-rose-600 text-white' : 'border-slate-200 bg-slate-100 text-slate-600')} style={{ opacity: inside ? 1 : .55 }}>{item.name}</div>;
-            })}
+          <div className="mx-auto mt-5 w-full max-w-[740px] overflow-x-auto pb-2" aria-label="القلب القرآني: السور المكتملة">
+            <div className="mx-auto grid w-full min-w-[320px] grid-cols-12 gap-1 sm:gap-1.5" dir="rtl">
+              {surahs.map((item, index) => {
+                // Exactly 114 tiles, positioned as two upper lobes and a tapered
+                // point. No clip-path: every surah stays fully visible and readable.
+                const rowWidths = [8, 10, 12, 12, 12, 12, 10, 10, 8, 8, 6, 4, 2];
+                let row = 0;
+                let offset = index;
+                while (offset >= rowWidths[row]) { offset -= rowWidths[row]; row++; }
+                const width = rowWidths[row];
+                const column = row === 0
+                  ? (offset < 4 ? offset + 1 : offset + 5)
+                  : row === 1
+                    ? (offset < 5 ? offset + 1 : offset + 3)
+                    : Math.floor((12 - width) / 2) + offset + 1;
+                const done = completed.has(item.name);
+                return <div key={item.number}
+                  title={item.name + ' — ' + (done ? 'مكتملة' : 'غير مكتملة')}
+                  style={{ gridRow: row + 1, gridColumn: column }}
+                  className={'flex min-h-11 min-w-0 items-center justify-center rounded-lg border px-0.5 py-1 text-center text-[9px] font-semibold leading-tight sm:min-h-12 sm:text-[11px] ' + (done ? 'border-rose-600 bg-rose-600 text-white' : 'border-rose-100 bg-rose-50 text-slate-700')}>
+                  {item.name}
+                </div>;
+              })}
+            </div>
           </div>}
         <p className="mt-3 text-center text-xs text-slate-500">الأحمر للسور المثبت إتمامها في سجل الطالب، والرمادي للسور الأخرى.</p>
       </div>

@@ -49,6 +49,15 @@ export async function unlockLocalGate(page: Page) {
   }
 }
 
+/** Wait for asynchronous password verification and encrypted local setup before
+ * checking authenticated UI. The unlock helper alone also accepts /login. */
+export async function waitForAuthenticatedPage(page: Page) {
+  await expect(page).not.toHaveURL(/\\/login(?:[?#].*)?$/, { timeout: 30000 });
+  await unlockLocalGate(page);
+  await expect(page.locator('.login-screen')).toHaveCount(0, { timeout: 15000 });
+  await expect(page.locator('[data-security-blocked]')).toHaveCount(0);
+}
+
 export async function gotoWithLocalUnlock(page: Page, url: string) {
   await page.addInitScript(() => localStorage.setItem('qc.onboarding.completed', '1'));
   const response = await page.goto(url);

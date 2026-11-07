@@ -26,7 +26,8 @@ export default function StudentPortalPage() {
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
-  const { hash } = useLocation();
+  const { hash, pathname } = useLocation();
+  const achievementsOnly = pathname === '/student/achievements';
   const [attendanceLimit, setAttendanceLimit] = useState(12);
   const [recitationLimit, setRecitationLimit] = useState(12);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -96,18 +97,23 @@ export default function StudentPortalPage() {
 
   return (
     <>
-      <PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
+      {!achievementsOnly && <><PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
       <PrayerCard />
       <div className="mb-5"><StudentPhoto studentId={data.id} fullName={data.fullName} photoUrl={data.photoUrl} size={80} editable onChanged={() => { void refetch(); }} /></div>
       <StudentQuestionnaire key={data.id} profile={data} />
+      </>}
+      {achievementsOnly && <button type="button" onClick={() => navigate("/student")} className="mb-5 rounded-xl border border-emerald-300 px-4 py-2 font-bold text-emerald-800">← العودة إلى صفحتي</button>}
       <section id="my-achievements" className="mb-5 scroll-mt-24">
-        <Card title="إنجازاتي القرآنية">
+        <Card title={achievementsOnly ? "لوحة إنجازاتي القرآنية" : "إنجازاتي القرآنية"}>
+          {achievementsOnly && <><div className="mb-5 rounded-3xl bg-gradient-to-l from-emerald-900 to-teal-700 p-6 text-white"><p className="text-sm">لوحة الإنجازات الشخصية</p><h1 className="mt-2 text-3xl font-extrabold">{data.fullName}</h1><p className="mt-2">{data.circle?.name ?? "بدون حلقة"}</p></div><div className="mb-5 grid gap-3 sm:grid-cols-3"><div className="rounded-2xl bg-emerald-50 p-5"><p>الأجزاء المحفوظة</p><strong className="text-3xl text-emerald-800">{Math.max(0, Math.min(30, Number(data.memorizedParts) || 0))} / 30</strong></div><div className="rounded-2xl bg-rose-50 p-5"><p>السور المكتملة</p><strong className="text-3xl text-rose-700">{SURAHS.filter(surah => (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name)).length} / 114</strong></div><div className="rounded-2xl bg-amber-50 p-5"><p>نسبة حفظ الأجزاء</p><strong className="text-3xl text-amber-800">{Math.round(Math.max(0, Math.min(30, Number(data.memorizedParts) || 0)) / 30 * 100)}٪</strong></div></div></>}
+          {!achievementsOnly && <Button variant="secondary" className="mb-4" onClick={() => navigate("/student/achievements")}>فتح لوحة إنجازاتي الكاملة</Button>}
           <p className="text-sm text-slate-600">الأجزاء المحفوظة: <strong>{Math.max(0, Math.min(30, Number(data.memorizedParts) || 0))} من 30</strong></p>
           <ProgressBar value={Math.max(0, Math.min(30, Number(data.memorizedParts) || 0))} max={30} showLabel />
           <h3 className="mt-5 text-center text-lg font-bold text-rose-700">قلبي القرآني</h3>
           <p className="mb-3 text-center text-sm text-slate-600">{SURAHS.filter(surah => (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name)).length} من 114 سورة مكتملة</p>
-          <div className="mx-auto mt-5 w-full max-w-[740px] overflow-x-auto pb-2" aria-label="القلب القرآني: السور المكتملة">
-            <div className="mx-auto grid w-full min-w-[320px] grid-cols-12 gap-1 sm:gap-1.5" dir="rtl">
+          <div className="relative mx-auto mt-5 w-full max-w-[740px] overflow-x-auto pb-2" aria-label="القلب القرآني: السور المكتملة">
+            <svg aria-hidden="true" viewBox="0 0 120 140" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full drop-shadow-xl"><path d="M60 130 C47 117 5 85 5 46 C5 8 40 1 60 31 C80 1 115 8 115 46 C115 85 73 117 60 130 Z" fill="#fff1f2" stroke="#be123c" strokeWidth="2.5" /></svg>
+            <div className="relative mx-auto grid w-full min-w-[320px] grid-cols-12 gap-1 sm:gap-1.5" dir="rtl">
               {SURAHS.map((surah, index) => {
                 const rowWidths = [8, 10, 12, 12, 12, 12, 10, 10, 8, 8, 6, 4, 2];
                 let row = 0;
@@ -144,7 +150,7 @@ export default function StudentPortalPage() {
           }}>تنزيل تقرير إنجازاتي PDF</Button>
         </Card>
       </section>
-      <DailyOverview/>
+      {!achievementsOnly && <><DailyOverview/>
       <section id="student-plans" className="scroll-mt-24"><MemorizationPlans studentId={data.id}/></section>
       {data.activeSuspension && <Card title="قرار الإيقاف أو التحويل" className="mb-5">
         <p className="whitespace-pre-wrap">{data.activeSuspension.reason}</p>

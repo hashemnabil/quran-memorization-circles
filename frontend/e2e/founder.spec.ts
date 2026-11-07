@@ -103,10 +103,6 @@ test('offline reading confirmation survives reload and is synchronized after rec
 test('background picker contains only founder catalog choices without an image upload control', async ({ page }) => {
   await setup(page, [], 'TEACHER');
   await page.route('**/api/founder-assets', route => route.fulfill({ json: [{ id: 'asset-one', title: 'المسجد الأخضر', kind: 'PROFILE_COVER', mime: 'image/png' }] }));
-  await gotoWithLocalUnlock(page, '/login');
-  await fillLoginCredentials(page, 'founder-test', 'test-password');
-  await page.getByRole('button', { name: 'دخول', exact: true }).click();
-  await waitForAuthenticatedPage(page);
   await gotoWithLocalUnlock(page, '/profile');
   // The background picker is now a compact plus button opening a gallery dialog.
   await page.getByRole('button', { name: 'خلفية الصفحة', exact: true }).click();

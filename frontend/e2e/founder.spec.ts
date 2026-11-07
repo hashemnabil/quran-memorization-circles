@@ -100,16 +100,12 @@ test('offline reading confirmation survives reload and is synchronized after rec
   await expect.poll(() => events.some(event => event.kind === 'ACK')).toBe(true);
 });
 
-test('background picker contains only founder catalog choices without an image upload control', async ({ page }) => {
+test('profile uses the default cover without a background picker', async ({ page }) => {
   await setup(page, [], 'TEACHER');
-  await page.route('**/api/founder-assets', route => route.fulfill({ json: [{ id: 'asset-one', title: 'المسجد الأخضر', kind: 'PROFILE_COVER', mime: 'image/png' }] }));
   await gotoWithLocalUnlock(page, '/profile');
-  // The background picker is now a compact plus button opening a gallery dialog.
-  await page.getByRole('button', { name: 'خلفية الصفحة', exact: true }).click();
-  const gallery = page.getByRole('dialog', { name: 'اختيار خلفية الصفحة' });
-  await expect(gallery.getByRole('button', { name: 'المسجد الأخضر' })).toBeVisible();
-  await gallery.getByRole('button', { name: 'المسجد الأخضر' }).click();
-  expect(await page.evaluate(() => Object.keys(localStorage).some(key => key.includes('PROFILE_COVER') && localStorage.getItem(key) === 'asset-one'))).toBe(true);
+  await expect(page.locator('.profile-cover')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'خلفية الصفحة', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'اختيار خلفية الصفحة' })).toHaveCount(0);
 });
 
 test('founder audio selection plays the cached recording from the web sound library', async ({ page }) => {

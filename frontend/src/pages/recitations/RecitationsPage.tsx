@@ -106,6 +106,9 @@ export default function RecitationsPage() {
     onSuccess: (_offlineWriteResult) => {
       notifyWriteSuccess(_offlineWriteResult, 'تم حذف السجل');
       queryClient.invalidateQueries({ queryKey: ['recitations'] });
+      queryClient.invalidateQueries({ queryKey: ['achievements'] });
+      queryClient.invalidateQueries({ queryKey: ['student', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
     },
     onError: (error) => toast.error(apiError(error)),
   });
@@ -125,7 +128,7 @@ export default function RecitationsPage() {
     <>
       <PageHeader
         title="التسميع اليومي"
-        subtitle="سجل الحفظ والمراجعة — حسب اليوم ثم الحلقة ثم الطالب"
+        subtitle="سجل الحفظ والمراجعة والتثبيت — حسب اليوم ثم الحلقة ثم الطالب"
         action={
           canRecord && (
             <Button icon={<IconPlus size={17} />} onClick={() => setShowForm(true)}>
@@ -437,6 +440,8 @@ export function RecitationFormModal({ defaultCircleId, student, onClose }: { def
     onSuccess: (_offlineWriteResult) => {
       notifyWriteSuccess(_offlineWriteResult, 'تم تسجيل التسميع');
       queryClient.invalidateQueries({ queryKey: ['recitations'] });
+      queryClient.invalidateQueries({ queryKey: ['achievements'] });
+      queryClient.invalidateQueries({ queryKey: ['student', 'me'] });
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       onClose();
@@ -536,6 +541,7 @@ export function RecitationFormModal({ defaultCircleId, student, onClose }: { def
           ))}
         </Select>
 
+        <p className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-7 text-amber-900">يتلوّن القلب بعد إتمام السورة كاملة بتقدير ممتاز: الحفظ أصفر، ثم المراجعة أحمر، ثم التثبيت أخضر. يمكن إتمام كل مرحلة على عدة جلسات دون تكرار احتساب الآيات.</p>
         <Select label="من سورة" required value={form.fromSurah} onChange={(e) => set('fromSurah', e.target.value)}>
           {surahs?.map((s) => (
             <option key={s.number} value={s.name}>

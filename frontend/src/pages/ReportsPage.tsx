@@ -5,6 +5,7 @@ import { api, apiError } from '@/lib/api';
 import { localReport } from '@/lib/local-analytics';
 import { exportLocalWorkbook } from '@/lib/local-xlsx';
 import { exportLocalPdf } from '@/lib/local-pdf';
+import { RECITATION_TYPE_LABELS } from '@/lib/labels';
 import { saveDeviceFile } from '@/lib/save-device-file';
 import { useAuthStore } from '@/store/auth';
 import { Button, Card, PageHeader, Select, StatCard } from '@/components/ui';
@@ -70,7 +71,7 @@ export default function ReportsPage() {
  const statEntries=Object.entries(data?.stats??{}).map(([key,value])=>[statLabels[key]??key,value] as [string,number]);
  const rows: Record<string, unknown>[] = type==='student' ? (data?.attendance??[]).map(r=>({المجموعة:'الحضور',...r})).concat((data?.recitations??[]).map(r=>({المجموعة:'التسميع',...r})),(data?.exams??[]).map(r=>({المجموعة:'الاختبارات',...r}))) : (data?.rows??[]);
  const fieldLabels: Record<string,string> = {date:'التاريخ',circle:'الحلقة',status:'الحالة',note:'ملاحظة',teacher:'اسم الشيخ',type:'نوع التسميع',from:'من سورة وآية',to:'إلى سورة وآية',pages:'عدد الصفحات',verses:'عدد الآيات',points:'النقاط',evaluation:'التقييم',section:'المقرر',examiner:'الممتحن',score:'العلامة',result:'النتيجة'};
- const valueLabels: Record<string,string> = {PRESENT:'حاضر',ABSENT:'غائب',EXCUSED:'غائب بعذر',PASSED:'ناجح',FAILED:'راسب',SCHEDULED:'مجدول',COMPLETED:'مكتمل',CANCELLED:'ملغى',MEMORIZATION:'حفظ',REVISION:'مراجعة',EXCELLENT:'ممتاز',VERY_GOOD:'جيد جداً',GOOD:'جيد',ACCEPTABLE:'مقبول',UNSATISFACTORY:'غير مرضٍ'};
+ const valueLabels: Record<string,string> = {...RECITATION_TYPE_LABELS,PRESENT:'حاضر',ABSENT:'غائب',EXCUSED:'غائب بعذر',PASSED:'ناجح',FAILED:'راسب',SCHEDULED:'مجدول',COMPLETED:'مكتمل',CANCELLED:'ملغى',MEMORIZATION:'حفظ',REVISION:'مراجعة',EXCELLENT:'ممتاز',VERY_GOOD:'جيد جداً',GOOD:'جيد',ACCEPTABLE:'مقبول',UNSATISFACTORY:'غير مرضٍ'};
  const reportRows = rows.map(row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[fieldLabels[key]??key,typeof value==='string'?(valueLabels[value]??value):value])));
  const columns=[...new Set(reportRows.flatMap(Object.keys))];
  const reportTitle = documentPage?.title || (type==='students' && status==='SUSPENDED'?'سجل الطلاب المفصولين':type==='students' && status==='ACTIVITY'?'سجل طلاب النشاط':type==='students' && (track==='CIRCLE'||status==='ACTIVE')?'سجل طلاب التحفيظ':reports.find(r=>r.id===type)?.title) || 'تقرير';

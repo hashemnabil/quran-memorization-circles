@@ -1,12 +1,12 @@
 import { exportLocalPdf } from './local-pdf';
 import { SURAHS } from './quran-surahs';
-import type { SurahCompletion } from '@/types';
+import type { SurahAchievement } from './surah-achievements';
 
 type AchievementStudent = {
   fullName: string;
   memorizedParts?: number | string | null;
   circle?: { name: string } | null;
-  surahCompletions?: SurahCompletion[];
+  surahAchievements?: SurahAchievement[];
 };
 
 const dateLabel = (value?: string | null) => {
@@ -16,7 +16,7 @@ const dateLabel = (value?: string | null) => {
 };
 
 export async function exportAchievementReport(student: AchievementStudent) {
-  const completions = student.surahCompletions ?? [];
+  const completions = student.surahAchievements ?? [];
   const completedByName = new Map(completions.map(item => [item.surah, item]));
   const completed = SURAHS.filter(surah => completedByName.has(surah.name));
   const parts = Math.max(0, Math.min(30, Number(student.memorizedParts) || 0));
@@ -28,8 +28,8 @@ export async function exportAchievementReport(student: AchievementStudent) {
     ...completed.map((surah, index) => ({
       'الرقم': index + 1,
       'السورة / البيان': surah.name,
-      'الحالة / القيمة': 'مكتملة',
-      'تاريخ الإكمال': dateLabel(completedByName.get(surah.name)?.completedAt),
+      'الحالة / القيمة': ({MEMORIZED:'حفظ بممتاز',REVIEWED:'مراجعة بممتاز',CONSOLIDATED:'تثبيت بممتاز'} as const)[completedByName.get(surah.name)!.stage],
+      'تاريخ الإكمال': dateLabel(completedByName.get(surah.name)?.consolidatedAt ?? completedByName.get(surah.name)?.reviewedAt ?? completedByName.get(surah.name)?.memorizedAt),
     })),
   ];
   return exportLocalPdf('تقرير الإنجازات القرآنية', rows, { student: student.fullName, circle: student.circle?.name ?? 'غير محددة', period: 'تاريخ الإصدار: ' + issuedAt });

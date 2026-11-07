@@ -110,6 +110,7 @@ enum RecitationType {
   MEMORIZATION // تسميع جديد
   MINOR_REVIEW // مراجعة صغرى
   MAJOR_REVIEW // مراجعة كبرى
+  CONSOLIDATION // تثبيت
   TAJWEED      // تجويد
 }
 

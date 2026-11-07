@@ -6,6 +6,20 @@ import { readLocalSupport, writeLocalSupport } from './local-support';
 import { localConversation, createLocalConversation } from './local-conversations';
 import { cacheConversations } from './conversation-cache';
 import { queueCertificateDraft } from './local-certificates';
+import { calculateSurahAchievements } from './surah-achievements';
+
+async function withLocalAchievements(student: any) {
+  if (!student) return student;
+  // Server evidence makes a cached profile complete even before bulk download finishes.
+  const records = new Map<string, any>((student.achievementRecitations || []).map((record: any) => [record.id, record]));
+  const local = await db.table('recitations').where('accountId').equals(accountId()).filter(row => row.studentId === student.id).toArray();
+  for (const record of local) {
+    const server = records.get(record.id);
+    if (!server || record.synced === 0 || new Date(record.updatedAt || record.createdAt || 0).getTime() >= new Date(server.updatedAt || server.createdAt || 0).getTime()) records.set(record.id, record);
+  }
+  if (!records.size && !student.achievementRecitations) return student;
+  return { ...student, surahAchievements: calculateSurahAchievements([...records.values()]) };
+}
 
 export async function cancelRejectedMessageChange(messageId: string) {
   const account = accountId();
@@ -126,7 +140,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   if (url.pathname === '/suspensions/active') return (await get('suspensions')).filter(row => row.status === 'APPROVED' && !row.returnedAt);
   if (['/meetings','/examCommittees'].includes(url.pathname)) return (await get(segments[0] as EntityTable)).sort((a,b) => String(b.heldAt).localeCompare(String(a.heldAt)));
   if (url.pathname === '/students/me/history') return (await get('students')).find(row => row.selfAccountId === accountId())?._offline?.history;
-  if (url.pathname === '/students/me') return (await get('students')).find(row => row.selfAccountId === accountId());
+  if (url.pathname === '/students/me') return withLocalAchievements((await get('students')).find(row => row.selfAccountId === accountId()));
   if (url.pathname === '/students/accounts') return get('studentAccounts');
   if (url.pathname === '/users/stats') {
     const users = await get('users');
@@ -143,7 +157,10 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   if (segments[0] === 'students' && segments[2] === 'history') return (await get('students')).find((row) => row.id === segments[1])?._offline?.history;
   if (segments[0] === 'students' && segments[2] === 'notes') return (await get('behaviors')).filter((row) => row.studentId === segments[1]);
   if (segments[0] === 'exams' && ['eligibility', 'milestones'].includes(segments[1])) return (await get('students')).find((row) => row.id === segments[2])?._offline?.[segments[1]];
-  if (segments[0] === 'recitations' && segments[1] === 'student' && segments[3] === 'progress') return (await get('students')).find((row) => row.id === segments[2])?._offline?.progress;
+  if (segments[0] === 'recitations' && segments[1] === 'student' && segments[3] === 'progress') {
+    const student = await withLocalAchievements((await get('students')).find(row => row.id === segments[2]));
+    return student?._offline?.progress ? { ...student._offline.progress, surahAchievements: student.surahAchievements } : undefined;
+  }
   if (segments[0] === 'notifications' && segments[1] === 'unread-count') return { count: (await get('notifications')).filter((row) => !row.isRead).length };
   if (segments[0] === 'exams' && segments[1] === 'stats') {
     const exams = await get('exams'); const requests = await get('examRequests');
@@ -198,7 +215,10 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   const id = table === 'examRequests' ? segments[2] : segments[1];
   if (id && id !== 'options' && !/^[0-9a-f-]{36}$/i.test(id)) return undefined;
   const rows = await get(table);
-  if (id && id !== 'options') return rows.find((row) => row.id === id);
+  if (id && id !== 'options') {
+    const row = rows.find(row => row.id === id);
+    return table === 'students' ? withLocalAchievements(row) : row;
+  }
   if (id === 'options') return rows.map((row) => ({ id: row.id, name: row.name, code: row.code }));
   let filtered = rows.filter((row) => {
     if (params.search && ![row.fullName, row.name, row.username, row.email, row.code, row.nationalId, row.guardianName, row.guardianPhone, row.phone, row.user?.fullName].filter(Boolean).join(' ').toLocaleLowerCase().includes(String(params.search).toLocaleLowerCase())) return false;
@@ -227,6 +247,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
 }
 export async function rememberRead(path: string, params: any, data: any) {
   const account = accountId();
+  if (path === '/recitations/grading-settings') await db.meta.put({ key: `${account}:reference:/recitations/grading-settings`, value: data });
   await db.responses.put({ key: responseKey(account, path, params), accountId: account, data });
   if (path.split('?')[0] === '/media-activities' && Array.isArray(data)) await mergeRows('mediaActivities', data, account);
   if (path === '/chat/conversations' && Array.isArray(data)) await cacheConversations(account, data, true);

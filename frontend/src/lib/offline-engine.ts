@@ -2,6 +2,7 @@ import { db, entityTables, type EntityTable, type LocalRow, type QueuedWrite } f
 import { startSyncProgress, reportSyncProgress, finishSyncProgress } from './sync-progress';
 import { openCredentials, sealCredentials } from './queued-credentials';
 import { calculateExamGrade } from './exam-scoring';
+import { SURAHS } from './quran-surahs';
 
 type Transport = (method: string, path: string, data?: any) => Promise<any>;
 let transport: Transport;
@@ -96,11 +97,17 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     const student = await db.students.get([account, row.studentId]);
     row.circleId ||= student?.circleId || student?.circle?.id;
     row.student = student ? { id: student.id, fullName: student.fullName, code: student.code } : row.student;
-    const surahs = (await db.meta.get(`${account}:reference:/recitations/surahs`))?.value || [];
+    const surahs = (await db.meta.get(`${account}:reference:/recitations/surahs`))?.value || SURAHS;
     const from = surahs.findIndex((surah: any) => surah.name === row.fromSurah);
     const to = surahs.findIndex((surah: any) => surah.name === row.toSurah);
     if (data.versesCount === undefined && from >= 0 && to >= from) row.versesCount = surahs.slice(from, to + 1).reduce((sum: number, surah: any, index: number) => sum + (index === to - from ? row.toAyah : surah.ayahs) - (index === 0 ? row.fromAyah - 1 : 0), 0);
-    row.points = Math.round(Math.max(0, Number(row.versesCount || 0) - Number(row.mistakes || 0) - Number(row.warnings || 0) * 0.25) * 100) / 100;
+    const rules = (await db.meta.get(`${account}:reference:/recitations/grading-settings`))?.value
+      || (await db.responses.get(JSON.stringify([account, '/recitations/grading-settings', []])))?.data || {};
+    const verses = Number(row.versesCount || 0);
+    row.points = Math.round(Math.max(0, verses - Number(row.mistakes || 0) * (rules.mistakePenalty ?? 1) - Number(row.warnings || 0) * (rules.warningPenalty ?? 0.25) - Number(row.tajweedErrors || 0) * (rules.tajweedPenalty ?? 0.5)) * 100) / 100;
+    const percent = verses ? row.points / verses * 100 : 0;
+    row.evaluation = percent >= (rules.excellent ?? 90) ? 'EXCELLENT' : percent >= (rules.veryGood ?? 80) ? 'VERY_GOOD' : percent >= (rules.good ?? 70) ? 'GOOD' : percent >= (rules.acceptable ?? 60) ? 'ACCEPTABLE' : 'UNSATISFACTORY';
+    row.type ||= 'MEMORIZATION';
   }
   const opId = crypto.randomUUID();
   const { credentialPending: _pendingCredential, activationPending: _pendingActivation, _localPreviewUrl: _preview, ...wireData } = data;

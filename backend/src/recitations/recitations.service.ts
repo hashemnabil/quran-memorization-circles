@@ -13,6 +13,7 @@ import { paginate } from '../common/dto/pagination.dto';
 import { SURAHS, countVerses, findSurah } from '../common/quran';
 import { calculatePoints, pointsBreakdown } from '../common/points';
 import { recitationEvaluation } from '../common/grading';
+import { calculateSurahAchievements } from '../common/surah-achievements';
 import { StudentsService } from '../students/students.service';
 import {
   CreateRecitationDto,
@@ -457,7 +458,7 @@ export class RecitationsService {
       monthMap.set(key, row);
     });
 
-    const [student, surahs] = await Promise.all([
+    const [student, surahs, achievementRecitations] = await Promise.all([
       this.prisma.student.findUnique({
         where: { id: studentId },
         select: { totalPoints: true },
@@ -465,6 +466,10 @@ export class RecitationsService {
       this.prisma.surahCompletion.findMany({
         where: { studentId },
         orderBy: { completedAt: 'desc' },
+      }),
+      this.prisma.recitation.findMany({
+        where: { studentId, deletedAt: null, evaluation: 'EXCELLENT' },
+        select: { id: true, type: true, fromSurah: true, fromAyah: true, toSurah: true, toAyah: true, evaluation: true, date: true, createdAt: true, updatedAt: true },
       }),
     ]);
 
@@ -481,6 +486,8 @@ export class RecitationsService {
         warnings: aggregate._sum.warnings ?? 0,
       },
       surahCompletions: surahs,
+      surahAchievements: calculateSurahAchievements(achievementRecitations),
+      achievementRecitations,
       // Daily recitation is graded by evaluation, so the summary counts each
       // grade instead of averaging a score that no longer exists.
       byEvaluation: byEvaluation.map((e) => ({

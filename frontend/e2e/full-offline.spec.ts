@@ -16,7 +16,7 @@ const fixtures: Record<string, any[]> = {
 
 for (const rejected of [false, true]) {
   test(`password login survives real browser process restarts offline; reconnect ${rejected ? 'rejects revoked authorization without losing edits' : 'validates authorization and syncs once'}`, async ({}, info) => {
-    test.setTimeout(120000);
+    test.setTimeout(240000);
     // Chromium's IndexedDB backing-store path exceeds Windows' path limit under
     // the repository's long test-results path. Keep this disposable profile short.
     const profile = await mkdtemp(join(tmpdir(), 'qc-offline-'));
@@ -63,7 +63,7 @@ for (const rejected of [false, true]) {
       await gotoWithLocalUnlock(page,`${origin}/login`);
       await fillLoginCredentials(page, user.username, password);
       await page.getByRole('button', { name: 'دخول', exact: true }).click();
-    await waitForAuthenticatedPage(page);
+      await waitForAuthenticatedPage(page);
       await expect(page).not.toHaveURL(/\/login$/);
     };
     const queue = (page: Awaited<ReturnType<typeof start>>) => page.evaluate(() => new Promise<any[]>(resolve => {

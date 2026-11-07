@@ -6,7 +6,7 @@ import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { Card, PageHeader, LoadingState, ErrorState, Select } from '@/components/ui';
 import type { PaginatedResponse, Student } from '@/types';
-import { exportLocalPdf } from '@/lib/local-pdf';
+import { exportAchievementReport } from '@/lib/achievement-report';
 import { saveDeviceFile } from '@/lib/save-device-file';
 import { SURAHS } from '@/lib/quran-surahs';
 import toast from 'react-hot-toast';
@@ -39,15 +39,7 @@ export default function StudentAchievementsPage() {
   const exportReport = async () => {
     const student = detail.data;
     if (!student) return;
-    const title = 'تقرير إنجاز الطالب';
-    const report = [
-      { البيان: 'الطالب', القيمة: student.fullName },
-      { البيان: 'الحلقة', القيمة: student.circle?.name ?? '—' },
-      { البيان: 'الأجزاء المحفوظة', القيمة: parts(student.memorizedParts) + ' من 30' },
-      { البيان: 'السور المكتملة', القيمة: completedCount + ' من 114' },
-      ...surahs.filter(item => completed.has(item.name)).map(item => ({ البيان: 'سورة مكتملة', القيمة: item.name })),
-    ];
-    try { await saveDeviceFile(await exportLocalPdf(title, report), 'تقرير-إنجاز-' + student.fullName + '.pdf'); } catch { toast.error('تعذّر حفظ تقرير الإنجاز على الجهاز'); }
+    try { await saveDeviceFile(await exportAchievementReport(student), 'تقرير-إنجاز-' + student.fullName + '.pdf'); } catch { toast.error('تعذّر حفظ تقرير الإنجاز على الجهاز'); }
   };
   return <div dir="rtl" className="space-y-5">
     {!studentId && <PageHeader title="إنجازات الطلاب" subtitle={user?.role === 'TEACHER' ? 'متابعة إنجازات طلاب حلقاتك' : 'متابعة إنجازات طلاب المدرسة حسب الحلقة والطالب'} />}

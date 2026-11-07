@@ -1,3 +1,4 @@
+import QuranAchievementHeart from '@/components/QuranAchievementHeart';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -88,32 +89,7 @@ export default function StudentAchievementsPage() {
       <div className="mt-6">
         <h3 className="text-center text-xl font-extrabold text-rose-700">قلبي القرآني</h3>
         <p className="mt-1 text-center text-sm text-slate-600">{completedCount} / 114 سورة مكتملة</p>
-        {<div className="relative mx-auto mt-5 w-full max-w-[740px] overflow-x-auto pb-2" aria-label="القلب القرآني: السور المكتملة">
-            <svg aria-hidden="true" viewBox="0 0 120 140" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full drop-shadow-xl"><path d="M60 130 C47 117 5 85 5 46 C5 8 40 1 60 31 C80 1 115 8 115 46 C115 85 73 117 60 130 Z" fill="#fff1f2" stroke="#be123c" strokeWidth="2.5" /></svg>
-            <div className="relative mx-auto grid w-full min-w-[320px] grid-cols-12 gap-1 sm:gap-1.5" dir="rtl">
-              {surahs.map((item, index) => {
-                // Exactly 114 tiles, positioned as two upper lobes and a tapered
-                // point. No clip-path: every surah stays fully visible and readable.
-                const rowWidths = [8, 10, 12, 12, 12, 12, 10, 10, 8, 8, 6, 4, 2];
-                let row = 0;
-                let offset = index;
-                while (offset >= rowWidths[row]) { offset -= rowWidths[row]; row++; }
-                const width = rowWidths[row];
-                const column = row === 0
-                  ? (offset < 4 ? offset + 1 : offset + 5)
-                  : row === 1
-                    ? (offset < 5 ? offset + 1 : offset + 3)
-                    : Math.floor((12 - width) / 2) + offset + 1;
-                const done = completed.has(item.name);
-                return <div key={item.number}
-                  title={item.name + ' — ' + (done ? 'مكتملة' : 'غير مكتملة')}
-                  style={{ gridRow: row + 1, gridColumn: column }}
-                  className={'flex min-h-11 min-w-0 items-center justify-center rounded-lg border px-0.5 py-1 text-center text-[9px] font-semibold leading-tight sm:min-h-12 sm:text-[11px] ' + (done ? 'border-rose-600 bg-rose-600 text-white' : 'border-rose-100 bg-rose-50 text-slate-700')}>
-                  {item.name}
-                </div>;
-              })}
-            </div>
-          </div>}
+        <QuranAchievementHeart completed={completed} />
         <p className="mt-3 text-center text-xs text-slate-500">الأحمر للسور المثبت إتمامها في سجل الطالب، والرمادي للسور الأخرى.</p>
       </div>
       <button type="button" onClick={() => void exportReport()} disabled={!detail.data} className="mt-4 rounded-xl bg-emerald-800 px-4 py-2 font-bold text-white disabled:opacity-50">تصدير تقرير الإنجاز PDF</button>

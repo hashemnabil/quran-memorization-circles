@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useParams, useLocation } from 'react-router-dom';
+import { Link, useParams, useLocation, useNavigate } from 'react-router-dom';
+import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import CommunityImage from './CommunityImage';
@@ -17,7 +18,7 @@ type Comment={synced?:number;id:string;body:string;parentId?:string|null;user:Pe
 type Story={mediaIds?:string[];background?:string;textColor?:string;fontSize?:number;bold?:boolean;mentions?:Mention[];id:string;schoolStory:boolean;body:string;authorId:string;author:Person;views:{liked:boolean;user:Person}[]};
 type Post=CommunityPost;
 export default function CommunityPage({ ownProfile = false }: { ownProfile?: boolean }){
- const {userId:rawUserId}=useParams();const user=useAuthStore(s=>s.user)!;const location=useLocation();const userId=ownProfile||rawUserId==='me'?user.id:rawUserId;const qc=useQueryClient();
+ const {userId:rawUserId}=useParams();const user=useAuthStore(s=>s.user)!;const location=useLocation();const userId=ownProfile||rawUserId==='me'?user.id:rawUserId;const qc=useQueryClient();const navigate=useNavigate();const logout=useAuthStore(state=>state.logout);const cover=useCuratedBackground('PROFILE_COVER');const [accountMenuOpen,setAccountMenuOpen]=useState(false);
  const [storyReply,setStoryReply]=useState('');const [showStoryViewers,setShowStoryViewers]=useState(false);const [selectedStory,setSelectedStory]=useState<string|null>(null);const [storyProgress,setStoryProgress]=useState(0);const [storyPaused,setStoryPaused]=useState(false);const [replyTo,setReplyTo]=useState<string|null>(null);const [showLikers,setShowLikers]=useState<Record<string,boolean>>({});const [showAllComments,setShowAllComments]=useState<Record<string,boolean>>({});const [comment,setComment]=useState<Record<string,string>>({});const [nickname,setNickname]=useState('');
  const [showFollowers,setShowFollowers]=useState(false);
  const followers=useInfiniteQuery({
@@ -27,6 +28,7 @@ export default function CommunityPage({ ownProfile = false }: { ownProfile?: boo
   enabled:showFollowers,
  });
  const profile=useQuery({queryKey:['community','profile',userId],queryFn:async()=>(await api.get<Person>('/community/users/'+userId)).data,enabled:!!userId});
+ const person: Person | undefined = userId === user.id ? { ...user, ...(profile.data && typeof profile.data.id === 'string' ? profile.data : {}) } : profile.data;
  const isStories=location.pathname==='/community/stories';const showSchool=location.pathname==='/community/school';
  const feed=useQuery({queryKey:['community','feed',userId,showSchool],queryFn:async()=>(await api.get<Post[]>('/community/feed',{params:{...(userId?{userId}:{}),...(!userId&&showSchool?{school:'true'}:{})}})).data});
  const school=useQuery({queryKey:['community','school'],queryFn:async()=>(await api.get<School>('/community/school')).data});
@@ -61,7 +63,7 @@ export default function CommunityPage({ ownProfile = false }: { ownProfile?: boo
  useEffect(()=>{if(storyProgress>=100&&selectedStory&&selectedStory!=='new')navigateStory(1);},[storyProgress]);
  const follow=useQuery({queryKey:['community','follow'],queryFn:async()=>(await api.get<{following:boolean;count:number}>('/community/school/follow')).data});
  const action=useMutation({mutationFn:async({path,data,method='post'}:{path:string;data?:unknown;method?:'post'|'patch'|'delete'})=>method==='delete'?api.delete(path):method==='patch'?api.patch(path,data):api.post(path,data),onSuccess:(response,variables)=>{void qc.invalidateQueries({queryKey:['community']});if(variables.path==='/community/posts'){response.data?.synced===0?toast('حُفظ المنشور محليًا، بانتظار المزامنة'):toast.success('تم نشر المنشور');}if(/\/(comments|replies)$/.test(variables.path)){const key=variables.path.split('/')[3];setComment(previous=>({...previous,[key]:''}));setReplyTo(null);if(response.data?.synced===0)toast('حُفظ التعليق على الجهاز، بانتظار المزامنة');}if(variables.path.endsWith('/direct-reply')){setStoryReply('');toast.success('تم إرسال الرد في المحادثة الخاصة');}if(variables.path==='/community/stories'){setSelectedStory(null);toast.success('تم نشر القصة');}},onError:e=>toast.error(apiError(e,'تعذر النشر. بقي النص محفوظاً؛ حاول مرة أخرى.'))});
- if(userId&&profile.isLoading)return <LoadingState/>;
+ if(userId&&userId!==user.id&&profile.isLoading)return <LoadingState/>;
  return <div className="community-page space-y-5">
   <Modal open={showFollowers} onClose={()=>setShowFollowers(false)} title="متابعو المدرسة" size="sm">
    {followers.isPending?<LoadingState/>:followers.isError?<div role="alert"><p>تعذر تحميل المتابعين. تحقق من الاتصال وحاول مجدداً.</p><Button onClick={()=>void followers.refetch()}>إعادة المحاولة</Button></div>:<div className="space-y-2">
@@ -70,34 +72,36 @@ export default function CommunityPage({ ownProfile = false }: { ownProfile?: boo
     {followers.hasNextPage&&<Button disabled={followers.isFetchingNextPage} onClick={()=>void followers.fetchNextPage()}>{followers.isFetchingNextPage?'جارٍ التحميل…':'عرض المزيد'}</Button>}
    </div>}
   </Modal>
-  <PageHeader title={userId?(profile.data?.fullName??'الملف الشخصي'):(showSchool?'صفحة المدرسة':'المنشورات')} subtitle={undefined}/>
+  <PageHeader title={userId?(person?.fullName??'الملف الشخصي'):(showSchool?'صفحة المدرسة':'المنشورات')} subtitle={undefined}/>
   <nav aria-label="صفحات المجتمع" className="hidden">
     <Link className="rounded-xl bg-slate-100 px-4 py-3 font-bold hover:bg-slate-200" to="/community/posts">📰 المنشورات</Link>
     <Link className="rounded-xl bg-slate-100 px-4 py-3 font-bold hover:bg-slate-200" to="/community/school">🏫 صفحة المدرسة</Link>
     <Link className="rounded-xl bg-slate-100 px-4 py-3 font-bold hover:bg-slate-200" to="/community/users/me">👤 ملفي الشخصي</Link>
     <Link className="rounded-xl bg-slate-100 px-4 py-3 font-bold hover:bg-slate-200" to="/notifications">🔔 الإشعارات</Link>
   </nav>
-  {userId&&profile.data&&<section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" dir="rtl">
-    <div className="profile-cover relative min-h-48 sm:min-h-64" style={profile.data.coverAssetId ? {backgroundImage: `linear-gradient(#12372d33,#12372d66),url("${String(api.defaults.baseURL).replace(/\/$/, "")}/founder-assets/${encodeURIComponent(profile.data.coverAssetId)}/content")`,backgroundSize:"cover",backgroundPosition:"center"}:undefined}>
+  {userId&&person&&<section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" dir="rtl">
+    <div className="profile-cover relative min-h-48 sm:min-h-64" style={userId===user.id&&cover.url ? {backgroundImage: `linear-gradient(#12372d33,#12372d66),url("${cover.url}")`,backgroundSize:"cover",backgroundPosition:"center"} : person.coverAssetId ? {backgroundImage: `linear-gradient(#12372d33,#12372d66),url("${String(api.defaults.baseURL).replace(/\/$/, "")}/founder-assets/${encodeURIComponent(person.coverAssetId)}/content")`,backgroundSize:"cover",backgroundPosition:"center"}:undefined}>
       <span className="sr-only">غلاف الملف الشخصي</span>
+       {userId===user.id&&<div className="absolute bottom-3 end-3 z-10"><BackgroundChoice value={cover} label="خلفية الصفحة" /></div>}
     </div>
     <div className="relative px-4 pb-6 sm:px-7">
       <div className="-mt-12 flex items-end justify-between gap-3">
-        <div className="rounded-full border-4 border-white bg-white shadow-md"><Avatar name={profile.data.fullName} src={profile.data.avatarUrl} size={96}/></div>
-        {userId===user.id&&<Link to="/profile/settings" className="mb-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm" aria-label="إعدادات الملف الشخصي">⚙ الإعدادات</Link>}
+        <div className="rounded-full border-4 border-white bg-white shadow-md"><Avatar name={person.fullName} src={person.avatarUrl} size={96}/></div>
+        {userId===user.id&&<button type="button" onClick={()=>setAccountMenuOpen(open=>!open)} aria-label="خيارات الملف الشخصي" aria-expanded={accountMenuOpen} className="mb-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm">⚙ قائمة الحساب</button>}
       </div>
+      {userId===user.id&&accountMenuOpen&&<div className="mb-3 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3"><Link to="/notifications" onClick={()=>setAccountMenuOpen(false)} className="btn-secondary">الإشعارات</Link><Link to="/chat" onClick={()=>setAccountMenuOpen(false)} className="btn-secondary">المحادثات</Link><Link to="/profile/account" onClick={()=>setAccountMenuOpen(false)} className="btn-secondary">إعدادات الحساب</Link></div>}
       <div className="mt-3 space-y-1">
-        <h1 className="text-2xl font-extrabold text-slate-900">{profile.data.fullName}</h1>
-        <p className="text-sm font-semibold text-slate-600">{profile.data.nickname||'بدون كنية'} · {ROLE_LABELS[profile.data.role as keyof typeof ROLE_LABELS]??profile.data.role}</p>
-        {profile.data.bio&&<p className="whitespace-pre-wrap break-words pt-2 text-sm leading-7 text-slate-700">{profile.data.bio}</p>}
-        {profile.data.username&&<p className="text-sm text-slate-500" dir="ltr">@{profile.data.username}</p>}
+        <h1 className="text-2xl font-extrabold text-slate-900">{person.fullName}</h1>
+        <p className="text-sm font-semibold text-slate-600">{person.nickname||'بدون كنية'} · {ROLE_LABELS[person.role as keyof typeof ROLE_LABELS]??person.role}</p>
+        {person.bio&&<p className="whitespace-pre-wrap break-words pt-2 text-sm leading-7 text-slate-700">{person.bio}</p>}
+        {person.username&&<p className="text-sm text-slate-500" dir="ltr">@{person.username}</p>}
       </div>
-      {userId===user.id&&<div className="mt-4 flex flex-wrap items-center gap-2"><Link className="btn-secondary inline-flex" to="/profile/settings">تعديل الملف الشخصي</Link><Link className="btn-secondary inline-flex" to="/community/posts/new">إنشاء منشور ＋</Link></div>}
-      {userId===user.id&&<div className="mt-4 flex flex-wrap gap-2"><input className="input min-w-0 flex-1" aria-label="الكنية" maxLength={60} value={nickname} onChange={e=>setNickname(e.target.value)} placeholder={profile.data.nickname||'أضف كنيتك'}/><Button onClick={()=>action.mutate({path:'/community/nickname',data:{nickname},method:'patch'})}>حفظ الكنية</Button></div>}
+      {userId===user.id&&<div className="mt-4 flex flex-wrap items-center gap-2"><button type="button" className="btn-secondary" onClick={async()=>{try{await logout();navigate("/login",{replace:true});}catch(error){toast.error(error instanceof Error?error.message:"تعذر تسجيل الخروج");}}}>تسجيل الخروج</button><Link className="btn-secondary inline-flex" to="/profile/settings">تعديل الملف الشخصي</Link><Link className="btn-secondary inline-flex" to="/community/posts/new">إنشاء منشور ＋</Link></div>}
+      {userId===user.id&&<div className="mt-4 flex flex-wrap gap-2"><input className="input min-w-0 flex-1" aria-label="الكنية" maxLength={60} value={nickname} onChange={e=>setNickname(e.target.value)} placeholder={person.nickname||'أضف كنيتك'}/><Button onClick={()=>action.mutate({path:'/community/nickname',data:{nickname},method:'patch'})}>حفظ الكنية</Button></div>}
     </div>
   </section>}
   {userId===user.id&&<Card><Link to="/community/posts/new" className="composer-launch"><Avatar name={user.fullName} src={user.avatarUrl} size={40}/><span>بماذا تفكر؟ يمكنك الإشارة إلى @المدرسة في منشورك</span><strong>إنشاء منشور ＋</strong></Link></Card>}
-  {userId&&<h2 className="text-lg font-bold">منشورات {userId===user.id?'ملفي':profile.data?.fullName}</h2>}
+  {userId&&<h2 className="text-lg font-bold">منشورات {userId===user.id?'ملفي':person?.fullName}</h2>}
 
   {!userId&&<Card><div className="mb-4 flex gap-4 overflow-x-auto pb-2" dir="rtl">
     <Link className="flex shrink-0 flex-col items-center gap-1" to="/community/stories/new"><span className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-dashed border-primary-400 text-3xl">＋</span><span className="text-xs">قصتك</span></Link>

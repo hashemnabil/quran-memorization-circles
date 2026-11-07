@@ -197,7 +197,7 @@ export default function App() {
             </RequireRole>
           }
         />
-        <Route path="profile" element={<ProfilePage />} /><Route path="profile/settings" element={<MobileSettingsPage />} />
+        <Route path="profile" element={<CommunityPage ownProfile />} /><Route path="profile/account" element={<ProfilePage />} /><Route path="profile/settings" element={<MobileSettingsPage />} />
 
         <Route path="forbidden" element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { gotoWithLocalUnlock } from './local-security-helpers';
+import { gotoWithLocalUnlock, fillLoginCredentials, waitForAuthenticatedPage } from './local-security-helpers';
 const id = '00000000-0000-4000-8000-000000000031';
 const popup = (changes: Record<string, unknown> = {}) => ({ id, title: 'إعلان الاختبار العام', body: 'التسجيل للفصل الجديد', audience: [], isActive: true, publishedAt: '2020-01-01T00:00:00Z', expiresAt: '2099-01-01T00:00:00Z', popup: { placement: 'BOTH', repeat: 'ONCE_DEVICE', state: 'PUBLISHED', priority: 1, requireAck: false, important: false, buttonText: '', imageAssetId: '' }, ...changes });
 async function setup(page: Page, rows: any[], role?: string) {
@@ -9,6 +9,7 @@ async function setup(page: Page, rows: any[], role?: string) {
   const events: any[] = [], saves: any[] = [];
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
+    if (path === '/api/auth/login') return route.fulfill({ json: { user, accessToken: 'founder-test-access', refreshToken: 'founder-test-refresh' } });
     if (path === '/api/auth/me') return role ? route.fulfill({ json: user }) : route.fulfill({ status: 401, json: {} });
     if (path.includes('/auth/refresh')) return route.fulfill({ status: 401, json: {} });
     if (path === '/api/settings/public') return route.fulfill({ json: { name: 'مدرسة الاختبار' } });

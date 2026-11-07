@@ -11,38 +11,51 @@ export async function fillLoginCredentials(page: Page, username: string, passwor
 // session, and its form can be replaced after PIN entry. Avoid waiting for a
 // detached field or clicking a submit button that no longer exists.
 export async function unlockLocalGate(page: Page) {
-  await page.waitForFunction(() => {
-    if (document.querySelector('.login-screen button[type="submit"]:disabled')) return false;
-    const screen = document.querySelector('.security-screen');
-    return screen ? !!screen.querySelector('form') : !!document.querySelector('.login-screen, .app-topbar');
-  });
   const panel = page.locator('.security-panel');
-  if (!await panel.isVisible()) return;
-
-  // React can replace the entire form during session hydration. Only retry
-  // while the security panel still exists; do not consume the whole test
-  // timeout waiting on a locator that was detached.
+  // Account restoration is asynchronous. Wait for the real gate to settle;
+  // a mounted topbar can be hidden/inert beneath the security screen.
   for (let attempt = 0; attempt < 4; attempt++) {
-    if (!await panel.isVisible()) return;
-    try {
-      const fields = panel.locator('input[type="password"]');
-      const count = await fields.count();
-      for (let index = 0; index < count; index++) {
-        if (!await panel.isVisible()) return;
-        await fields.nth(index).fill(TEST_LOCAL_PIN, { timeout: 2500 });
-      }
-      if (!await panel.isVisible()) return;
-      const submit = panel.locator('button[type="submit"]');
-      if (await submit.count()) {
-        await submit.click({ timeout: 2500 });
-      }
+    await page.waitForFunction(() => {
+      const gate = document.querySelector('.security-panel');
+      if (gate) return !!gate.querySelector('form');
+      if (document.documentElement.dataset.appLocked === '1') return false;
+      if (document.querySelector('[data-security-blocked]')) return false;
+      return !!document.querySelector('.login-screen') ||
+        !!document.querySelector('.app-topbar') ||
+        !!document.querySelector('main');
+    }, undefined, { timeout: 30000 });
+
+    if (!await panel.isVisible()) {
+      // Don't return merely because the underlying layout exists.
       await expect(page.locator('[data-security-blocked]')).toHaveCount(0);
       return;
+    }
+    const fields = panel.locator('input[type="password"], input[inputmode="numeric"]');
+    const count = await fields.count();
+    if (!count) continue;
+    for (let index = 0; index < count; index++) {
+      await fields.nth(index).fill(TEST_LOCAL_PIN);
+    }
+    await panel.locator('button[type="submit"]').click();
+    // Verification intentionally animates for 1.25s. Only continue when
+    // the overlay is actually gone and the protected subtree is interactive.
+    try {
+      await expect(page.locator('[data-security-blocked]')).toHaveCount(0, { timeout: 15000 });
+      await expect.poll(() => page.evaluate(() => document.documentElement.dataset.appLocked !== '1')).toBe(true);
+      return;
     } catch (error) {
-      if (!await panel.isVisible()) return;
       if (attempt === 3) throw error;
     }
   }
+}
+
+/** Wait for asynchronous password verification and encrypted local setup before
+ * checking authenticated UI. The unlock helper alone also accepts /login. */
+export async function waitForAuthenticatedPage(page: Page) {
+  await expect(page).not.toHaveURL(/\/login(?:[?#].*)?$/, { timeout: 30000 });
+  await unlockLocalGate(page);
+  await expect(page.locator('.login-screen')).toHaveCount(0, { timeout: 15000 });
+  await expect(page.locator('[data-security-blocked]')).toHaveCount(0);
 }
 
 export async function gotoWithLocalUnlock(page: Page, url: string) {

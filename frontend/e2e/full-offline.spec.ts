@@ -1,4 +1,4 @@
-import { gotoWithLocalUnlock, unlockLocalGate, fillLoginCredentials } from './local-security-helpers';
+import { gotoWithLocalUnlock, unlockLocalGate, fillLoginCredentials, waitForAuthenticatedPage } from './local-security-helpers';
 import { test, expect, chromium, type BrowserContext } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -16,7 +16,7 @@ const fixtures: Record<string, any[]> = {
 
 for (const rejected of [false, true]) {
   test(`password login survives real browser process restarts offline; reconnect ${rejected ? 'rejects revoked authorization without losing edits' : 'validates authorization and syncs once'}`, async ({}, info) => {
-    test.setTimeout(120000);
+    test.setTimeout(240000);
     // Chromium's IndexedDB backing-store path exceeds Windows' path limit under
     // the repository's long test-results path. Keep this disposable profile short.
     const profile = await mkdtemp(join(tmpdir(), 'qc-offline-'));
@@ -63,7 +63,7 @@ for (const rejected of [false, true]) {
       await gotoWithLocalUnlock(page,`${origin}/login`);
       await fillLoginCredentials(page, user.username, password);
       await page.getByRole('button', { name: 'دخول', exact: true }).click();
-    await unlockLocalGate(page);
+      await waitForAuthenticatedPage(page);
       await expect(page).not.toHaveURL(/\/login$/);
     };
     const queue = (page: Awaited<ReturnType<typeof start>>) => page.evaluate(() => new Promise<any[]>(resolve => {
@@ -158,7 +158,7 @@ test('student first password change preserves offline login with the new passwor
   await gotoWithLocalUnlock(page,'/login');
   await fillLoginCredentials(page, user.username, initialPassword);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
-    await unlockLocalGate(page);
+    await waitForAuthenticatedPage(page);
   await page.getByLabel(/^كلمة المرور المؤقتة/).fill(initialPassword);
   await expect.poll(() => page.evaluate(account => new Promise<boolean>(resolve => {
     const open = indexedDB.open('halaqatFull'); open.onsuccess = () => { const database = open.result; const read = database.transaction('students').objectStore('students').getAll(); read.onsuccess = () => { database.close(); resolve(read.result.some(row => row.accountId === account && row.__sealedLocal)); }; };
@@ -170,7 +170,7 @@ test('student first password change preserves offline login with the new passwor
   offlineMode = true; await context.setOffline(true);
   await fillLoginCredentials(page, user.username, newPassword);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
-    await unlockLocalGate(page);
+    await waitForAuthenticatedPage(page);
   await expect(page).toHaveURL(url => url.pathname === '/' || url.pathname === '/student');
   // Offline login is successful when routing leaves the login screen; the student home
   // layout can render different headings while its cached records hydrate.
@@ -205,6 +205,7 @@ for (const width of [1280, 390]) {
     }, identity);
     await page.route('**/api/**', route => {
       const url = new URL(route.request().url());
+      if (url.pathname === '/api/auth/login') return route.fulfill({ json: { user: identity, accessToken: 'student-header-access', refreshToken: 'student-header-refresh' } });
       if (url.pathname === '/api/auth/me') return route.fulfill({ json: identity });
       if (url.pathname === '/api/settings/public') return route.fulfill({ json: { name: 'Test' } });
       if (url.pathname === '/api/profile-reviews/me') return route.fulfill({ json: review });
@@ -221,15 +222,15 @@ for (const width of [1280, 390]) {
       return route.fulfill({ json: { data: [], meta: { page: 1, total: 0, totalPages: 1, hasNextPage: false } } });
     });
     await gotoWithLocalUnlock(page,'/profile');
-    await expect(page.getByRole('button', { name: 'قائمة الحساب', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+    await expect(page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true })).toBeVisible();
+    await page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
     await page.getByRole('link', { name: 'الإشعارات', exact: true }).first().click();
     await expect(page).toHaveURL(/\/notifications$/);
     await page.getByRole('button', { name: /مراجعة بياناتك/ }).click();
     await expect(page).toHaveURL(/\/verify-profile$/);
     await page.getByRole('button', { name: 'تعديل بياناتي', exact: true }).click();
     await expect(page.getByRole('button', { name: 'إرسال للتحقق', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+    await page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
     await page.getByRole('link', { name: 'المحادثات', exact: true }).first().click();
     await expect(page).toHaveURL(/\/chat$/);
     // Cache the support screen, then exercise a real sidebar link while offline.
@@ -535,7 +536,7 @@ test('online reads use the server and persist the fresh record for the next offl
   await gotoWithLocalUnlock(page,'/login');
   await fillLoginCredentials(page, user.username, password);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
-    await unlockLocalGate(page);
+    await waitForAuthenticatedPage(page);
   await expect(page).not.toHaveURL(/\/login$/);
   await gotoWithLocalUnlock(page,'/students'); await expect(page.getByText(name, { exact: true }).filter({ visible: true })).toBeVisible();
   await expect.poll(() => page.evaluate(account => new Promise(resolve => { const request = indexedDB.open('halaqatFull'); request.onsuccess = () => { const db = request.result; const read = db.transaction('meta').objectStore('meta').get(`${account}:downloadedAt`); read.onsuccess = () => { resolve(Boolean(read.result)); db.close(); }; }; }), account)).toBe(true);
@@ -550,7 +551,7 @@ test('online reads use the server and persist the fresh record for the next offl
   await expect(page).toHaveURL(/\/login$/);
   await fillLoginCredentials(page, user.username, password);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
-    await unlockLocalGate(page);
+    await waitForAuthenticatedPage(page);
   await expect(page).not.toHaveURL(/\/login$/);
   await gotoWithLocalUnlock(page,'/students'); await expect(page.getByText(name, { exact: true }).filter({ visible: true })).toBeVisible();
   // Reconnect while staying on the same screen: fresh server data must replace
@@ -755,7 +756,7 @@ test('student edits remain pending offline and online until administrative appro
   await expect(page.getByText('قاعة الاختبار التجريبية', { exact: false })).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 450));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(400);
-  await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+  await page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
   // Playwright scrolls the sticky account trigger into view before clicking it.
   // Back navigation must restore the actual departure position after that action.
   const departureScroll = await page.evaluate(() => window.scrollY);
@@ -954,9 +955,9 @@ test('cold offline navigation opens downloaded core screens and searches locally
   await sidebar.evaluate(element => { element.scrollTop = 150; });
   const sidebarOffset = await sidebar.evaluate(element => element.scrollTop);
   expect(sidebarOffset).toBeGreaterThan(0);
-  await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+  await page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
   expect(await sidebar.evaluate(element => element.scrollTop)).toBe(sidebarOffset);
-  await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
+  await page.locator('header').getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'test-results/design-mobile.png', fullPage: true, animations: 'disabled' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

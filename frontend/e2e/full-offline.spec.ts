@@ -78,8 +78,8 @@ for (const rejected of [false, true]) {
       }), account), { timeout: 20000 }).toBe(true);
       await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
       // Ordinary logout must preserve the encrypted verifier and local work.
-      await gotoWithLocalUnlock(page,`${origin}/profile`);
-      await page.locator('main').getByRole('button', { name: 'تسجيل الخروج', exact: true }).click();
+      await gotoWithLocalUnlock(page,`${origin}/profile/settings`);
+      await page.getByText('تسجيل الخروج', { exact: true }).last().click();
       await expect(page).toHaveURL(/\/login$/);
       await context!.close(); context = undefined;
 
@@ -91,8 +91,8 @@ for (const rejected of [false, true]) {
       await page.getByRole('button', { name: 'حفظ الكشف', exact: true }).first().click();
       await expect.poll(async () => (await queue(page)).length).toBe(1);
       const pending = (await queue(page))[0]; expect(pending.__sealedLocal).toBeTruthy(); expect(JSON.stringify(pending)).not.toContain(fixtures.students[0].fullName);
-      await gotoWithLocalUnlock(page,`${origin}/profile`);
-      await page.locator('main').getByRole('button', { name: 'تسجيل الخروج', exact: true }).click();
+      await gotoWithLocalUnlock(page,`${origin}/profile/settings`);
+      await page.getByText('تسجيل الخروج', { exact: true }).last().click();
       await expect(page).toHaveURL(/\/login$/);
       expect((await queue(page))[0].opId).toBe(pending.opId);
       await context!.close(); context = undefined;
@@ -220,7 +220,7 @@ for (const width of [1280, 390]) {
       }
       return route.fulfill({ json: { data: [], meta: { page: 1, total: 0, totalPages: 1, hasNextPage: false } } });
     });
-    await gotoWithLocalUnlock(page,'/profile');
+    await gotoWithLocalUnlock(page,'/dashboard');
     await expect(page.getByRole('button', { name: 'قائمة الحساب', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'قائمة الحساب', exact: true }).click();
     await page.getByRole('link', { name: 'الإشعارات', exact: true }).first().click();
@@ -545,8 +545,8 @@ test('online reads use the server and persist the fresh record for the next offl
   disconnected = true; await context.setOffline(true); await page.reload(); await unlockLocalGate(page); await expect(page.getByText(name, { exact: true }).filter({ visible: true })).toBeVisible();
   // Enter a real password-unlocked local session with no server tokens. An
   // ordinary online-manager refetch alone still reads locally in this mode.
-  await gotoWithLocalUnlock(page,'/profile');
-  await page.locator('main').getByRole('button', { name: 'تسجيل الخروج', exact: true }).click();
+  await gotoWithLocalUnlock(page,'/profile/settings');
+  await page.getByText('تسجيل الخروج', { exact: true }).last().click();
   await expect(page).toHaveURL(/\/login$/);
   await fillLoginCredentials(page, user.username, password);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();

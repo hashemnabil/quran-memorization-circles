@@ -1,6 +1,9 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { FormEvent, useEffect, useState } from 'react';
 import PrayerCard from '@/components/PrayerCard';
+import { SURAHS } from '@/lib/quran-surahs';
+import { exportLocalPdf } from '@/lib/local-pdf';
+import { saveDeviceFile } from '@/lib/save-device-file';
 import MemorizationPlans from '@/components/MemorizationPlans';
 import DailyOverview from '@/components/DailyOverview';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -97,6 +100,34 @@ export default function StudentPortalPage() {
       <PrayerCard />
       <div className="mb-5"><StudentPhoto studentId={data.id} fullName={data.fullName} photoUrl={data.photoUrl} size={80} editable onChanged={() => { void refetch(); }} /></div>
       <StudentQuestionnaire key={data.id} profile={data} />
+      <section id="my-achievements" className="mb-5 scroll-mt-24">
+        <Card title="إنجازاتي القرآنية">
+          <p className="text-sm text-slate-600">الأجزاء المحفوظة: <strong>{Math.max(0, Math.min(30, Number(data.memorizedParts) || 0))} من 30</strong></p>
+          <ProgressBar value={Math.max(0, Math.min(30, Number(data.memorizedParts) || 0))} max={30} showLabel />
+          <h3 className="mt-5 text-center text-lg font-bold text-rose-700">قلبي القرآني</h3>
+          <p className="mb-3 text-center text-sm text-slate-600">{SURAHS.filter(surah => (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name)).length} من 114 سورة مكتملة</p>
+          <div className="mx-auto grid max-w-2xl grid-cols-4 gap-1.5 sm:grid-cols-7 md:grid-cols-9" aria-label="السور القرآنية وحالة إتمامها">
+            {SURAHS.map(surah => {
+              const done = (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name);
+              return <div key={surah.number} title={surah.name + (done ? ' — مكتملة' : ' — غير مكتملة')} className={'flex min-h-12 items-center justify-center rounded-lg border p-1 text-center text-xs ' + (done ? 'border-rose-600 bg-rose-600 font-bold text-white' : 'border-slate-200 bg-slate-100 text-slate-600')}>{surah.name}</div>;
+            })}
+          </div>
+          <p className="mt-3 text-xs text-slate-500">الأحمر للسور المثبت إتمامها في سجلك، والرمادي للسور التي لم يُسجّل إتمامها بعد.</p>
+          <Button variant="secondary" className="mt-4" onClick={async () => {
+            const completed = SURAHS.filter(surah => (data.surahCompletions ?? []).some((entry: {surah: string}) => entry.surah === surah.name));
+            try {
+              const pdf = await exportLocalPdf('تقرير إنجازاتي القرآنية', [
+                { البيان: 'الطالب', القيمة: String(data.fullName ?? '') },
+                { البيان: 'الحلقة', القيمة: String(data.circle?.name ?? '—') },
+                { البيان: 'الأجزاء المحفوظة', القيمة: Math.max(0, Math.min(30, Number(data.memorizedParts) || 0)) + ' من 30' },
+                { البيان: 'السور المكتملة', القيمة: completed.length + ' من 114' },
+                ...completed.map(surah => ({ البيان: 'سورة مكتملة', القيمة: surah.name })),
+              ]);
+              await saveDeviceFile(pdf, 'إنجازاتي-القرآنية.pdf');
+            } catch { toast.error('تعذّر حفظ تقرير الإنجازات'); }
+          }}>تنزيل تقرير إنجازاتي PDF</Button>
+        </Card>
+      </section>
       <DailyOverview/>
       <section id="student-plans" className="scroll-mt-24"><MemorizationPlans studentId={data.id}/></section>
       {data.activeSuspension && <Card title="قرار الإيقاف أو التحويل" className="mb-5">

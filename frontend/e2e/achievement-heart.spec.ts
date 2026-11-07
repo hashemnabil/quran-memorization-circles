@@ -56,6 +56,7 @@ test('student achievements open as a separate page from the study profile and fi
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/auth/me') return route.fulfill({ json: user });
     if (path === '/api/students/me') return route.fulfill({ json: student });
+    if (path === '/api/profile-reviews/me') return route.fulfill({ json: { profile: student, kind: 'STUDENT', requests: [] } });
     if (path === '/api/students/me/history') return route.fulfill({ json: { recitations: [], attendance: [], exams: [] } });
     if (path === '/api/settings/public') return route.fulfill({ json: { name: 'مدرسة الاختبار' } });
     if (path.endsWith('/unread-count')) return route.fulfill({ json: { count: 0 } });

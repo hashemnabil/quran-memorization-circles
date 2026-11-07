@@ -17,6 +17,7 @@ import { UploadsService } from '../uploads/uploads.service';
 import { AuthUser } from '../common/decorators';
 import { paginate } from '../common/dto/pagination.dto';
 import { SURAH_COMPLETION_POINTS } from '../common/points';
+import { calculateSurahAchievements } from '../common/surah-achievements';
 import {
   AddNoteDto,
   BulkStudentIdsDto,
@@ -218,6 +219,7 @@ export class StudentsService {
       preparations,
       surahCompletions,
       pointsAgg,
+      achievementRecitations,
     ] = await Promise.all([
       this.prisma.attendance.groupBy({
         by: ['status'],
@@ -290,6 +292,11 @@ export class StudentsService {
         _sum: { points: true, mistakes: true, warnings: true, versesCount: true },
         _count: { _all: true },
       }),
+      this.prisma.recitation.findMany({
+        where: { studentId: id, deletedAt: null, evaluation: 'EXCELLENT' },
+        select: { id: true, type: true, fromSurah: true, fromAyah: true, toSurah: true, toAyah: true, evaluation: true, date: true, createdAt: true, updatedAt: true },
+        orderBy: [{ date: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+      }),
     ]);
 
     const totalAttendance = attendanceSummary.reduce((s, a) => s + a._count._all, 0);
@@ -328,6 +335,8 @@ export class StudentsService {
       })),
       preparations,
       surahCompletions,
+      surahAchievements: calculateSurahAchievements(achievementRecitations),
+      achievementRecitations,
       points: {
         total: student.totalPoints,
         fromRecitations: Math.round((pointsAgg._sum.points ?? 0) * 100) / 100,

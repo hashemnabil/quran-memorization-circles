@@ -269,3 +269,15 @@ test('offline Excel export produces a valid workbook archive with escaped text',
   assert.match(sheet, /&lt;طالب &amp; اسم&gt;/); assert.match(sheet, /<v>90<\/v>/);
   assert.ok(archive.file('[Content_Types].xml')); assert.ok(archive.file('xl/workbook.xml'));
 });
+
+test('offline recitation stages use complete server evidence and retract a pending deletion', async () => {
+  const evidence = (id: string, type: string, day: string) => ({id, type, studentId: student, fromSurah:'الفاتحة',fromAyah:1,toSurah:'الفاتحة',toAyah:7,evaluation:'EXCELLENT',date:`2026-10-${day}`,createdAt:`2026-10-${day}T10:00:00Z`});
+  const memory=evidence('memory','MEMORIZATION','01'), review=evidence('review','MINOR_REVIEW','02'), fixed=evidence('fixed','CONSOLIDATION','03');
+  await mergeRows('students',[{id:student,selfAccountId:'account',achievementRecitations:[memory,review,fixed]}],'account');
+  assert.equal((await localRead('/students/'+student)).surahAchievements[0].stage,'CONSOLIDATED');
+  await db.table('recitations').put({...review,accountId:'account',synced:0,pendingDelete:1});
+  assert.equal((await localRead('/students/'+student)).surahAchievements[0].stage,'MEMORIZED');
+  assert.equal((await localRead('/students/me')).surahAchievements[0].stage,'MEMORIZED');
+  await db.table('recitations').put({...memory,accountId:'account',synced:0,evaluation:'GOOD'});
+  assert.equal((await localRead('/students/'+student)).surahAchievements.length,0);
+});

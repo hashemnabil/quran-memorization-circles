@@ -24,7 +24,7 @@ import {
 import { IconBook, IconPlus, IconTrash } from '@/components/ui/Icons';
 import { EVALUATION_COLORS, EVALUATION_LABELS, RECITATION_TYPE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateShort, todayInput } from '@/lib/format';
-import type { Circle, PaginatedResponse, Recitation, RecitationDayDetail, RecitationDaySummary, Student } from '@/types';
+import type { Circle, PaginatedResponse, Recitation, RecitationType, RecitationDayDetail, RecitationDaySummary, Student } from '@/types';
 
 interface SurahInfo {
   number: number;
@@ -106,6 +106,9 @@ export default function RecitationsPage() {
     onSuccess: (_offlineWriteResult) => {
       notifyWriteSuccess(_offlineWriteResult, 'تم حذف السجل');
       queryClient.invalidateQueries({ queryKey: ['recitations'] });
+      queryClient.invalidateQueries({ queryKey: ['achievements'] });
+      queryClient.invalidateQueries({ queryKey: ['student', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
     },
     onError: (error) => toast.error(apiError(error)),
   });
@@ -125,7 +128,7 @@ export default function RecitationsPage() {
     <>
       <PageHeader
         title="التسميع اليومي"
-        subtitle="سجل الحفظ والمراجعة — حسب اليوم ثم الحلقة ثم الطالب"
+        subtitle="سجل الحفظ والمراجعة والتثبيت — حسب اليوم ثم الحلقة ثم الطالب"
         action={
           canRecord && (
             <Button icon={<IconPlus size={17} />} onClick={() => setShowForm(true)}>
@@ -387,13 +390,13 @@ export default function RecitationsPage() {
   );
 }
 
-export function RecitationFormModal({ defaultCircleId, student, onClose }: { defaultCircleId?: string; student?: Student; onClose: () => void }) {
+export function RecitationFormModal({ defaultCircleId, student, defaultType = 'MEMORIZATION', allowedTypes, onClose }: { defaultCircleId?: string; student?: Student; defaultType?: RecitationType; allowedTypes?: readonly RecitationType[]; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [circleId, setCircleId] = useState(student?.circleId ?? defaultCircleId ?? '');
   const [form, setForm] = useState({
     studentId: student?.id ?? '',
     date: todayInput(),
-    type: 'MEMORIZATION',
+    type: defaultType,
     fromSurah: 'النبأ',
     fromAyah: 1,
     toSurah: 'النبأ',
@@ -437,6 +440,8 @@ export function RecitationFormModal({ defaultCircleId, student, onClose }: { def
     onSuccess: (_offlineWriteResult) => {
       notifyWriteSuccess(_offlineWriteResult, 'تم تسجيل التسميع');
       queryClient.invalidateQueries({ queryKey: ['recitations'] });
+      queryClient.invalidateQueries({ queryKey: ['achievements'] });
+      queryClient.invalidateQueries({ queryKey: ['student', 'me'] });
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       onClose();
@@ -529,13 +534,14 @@ export function RecitationFormModal({ defaultCircleId, student, onClose }: { def
         </>}
         <Input label="التاريخ" type="date" required max={todayInput()} value={form.date} onChange={(e) => set('date', e.target.value)} />
         <Select label="نوع التسميع" value={form.type} onChange={(e) => set('type', e.target.value)}>
-          {Object.entries(RECITATION_TYPE_LABELS).map(([key, label]) => (
+          {Object.entries(RECITATION_TYPE_LABELS).filter(([key]) => !allowedTypes || allowedTypes.includes(key as RecitationType)).map(([key, label]) => (
             <option key={key} value={key}>
               {label}
             </option>
           ))}
         </Select>
 
+        <p className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-7 text-amber-900">يتلوّن القلب بعد إتمام السورة كاملة بتقدير ممتاز: الحفظ أصفر، ثم المراجعة أحمر، ثم التثبيت أخضر. يمكن إتمام كل مرحلة على عدة جلسات دون تكرار احتساب الآيات.</p>
         <Select label="من سورة" required value={form.fromSurah} onChange={(e) => set('fromSurah', e.target.value)}>
           {surahs?.map((s) => (
             <option key={s.number} value={s.name}>

@@ -147,8 +147,9 @@ export const ATTENDANCE_ORDER: AttendanceStatus[] = ['PRESENT', 'EXCUSED', 'ABSE
 
 export const RECITATION_TYPE_LABELS: Record<RecitationType, string> = {
   MEMORIZATION: 'حفظ جديد',
-  MINOR_REVIEW: 'مراجعة صغرى',
+  MINOR_REVIEW: 'مراجعة',
   MAJOR_REVIEW: 'مراجعة كبرى',
+  CONSOLIDATION: 'تثبيت',
   TAJWEED: 'تجويد',
 };
 

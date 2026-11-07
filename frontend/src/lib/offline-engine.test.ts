@@ -490,3 +490,14 @@ test('JSON backup restores cached photo blobs and reference metadata', async () 
   assert.equal(await cached!.data.text(), 'image-data');
   assert.equal((await db.meta.get('account-a:reference:/exams/sections'))?.value[0].id, 'section1');
 });
+
+test('offline consolidation uses the cached grading rules and includes tajweed deductions', async () => {
+  const studentId='00000000-0000-4000-8000-000000000073';
+  await mergeRows('students',[{id:studentId,circleId:'circle',fullName:'طالب التثبيت'}],account);
+  await db.meta.put({key:account+':reference:/recitations/grading-settings',value:{mistakePenalty:1,warningPenalty:0.25,tajweedPenalty:2,excellent:90,veryGood:80,good:70,acceptable:60}});
+  const row=await save('recitations',{studentId,type:'CONSOLIDATION',fromSurah:'الفاتحة',fromAyah:1,toSurah:'الفاتحة',toAyah:7,date:'2026-10-01',mistakes:0,warnings:0,tajweedErrors:1});
+  assert.equal(row.versesCount,7);
+  assert.equal(row.points,5);
+  assert.equal(row.evaluation,'GOOD');
+  assert.equal(row.type,'CONSOLIDATION');
+});

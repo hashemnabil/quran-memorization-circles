@@ -20,7 +20,7 @@ export interface ExamChain {
 export type StudentTrack = 'CIRCLE' | 'COURSE' | 'ACTIVITY' | 'SUSPENDED';
 /** حاضر / غياب بدون عذر / غياب بعذر */
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'EXCUSED';
-export type RecitationType = 'MEMORIZATION' | 'MINOR_REVIEW' | 'MAJOR_REVIEW' | 'TAJWEED';
+export type RecitationType = 'MEMORIZATION' | 'MINOR_REVIEW' | 'MAJOR_REVIEW' | 'CONSOLIDATION' | 'TAJWEED';
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export type TransferKind =
   | 'STUDENT_TRANSFER'
@@ -219,6 +219,8 @@ export interface Student {
   /** Points balance with the breakdown that produced it. */
   points?: PointsSummary;
   surahCompletions?: SurahCompletion[];
+  surahAchievements?: import('../lib/surah-achievements').SurahAchievement[];
+  achievementRecitations?: import('../lib/surah-achievements').AchievementRecitation[];
   /** Both tracks on one record: the circle above, the courses here. */
   courses?: StudentCourse[];
   preparations?: PreparationAssignment[];

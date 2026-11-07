@@ -35,7 +35,8 @@ export default function StudentAchievementsPage() {
   const count = students.data?.meta?.total ?? rows.length;
   const surahs = SURAHS;
   const detail = useQuery({ queryKey: ['achievements','student',studentId], queryFn: async () => { try { return (await api.get<Student>('/students/'+studentId!)).data; } catch(error) { if ((error as {response?: unknown})?.response) throw error; const cached = queryClient.getQueryData<Student>(['students',studentId!]) ?? queryClient.getQueryData<Student>(['achievements','student',studentId!]); if (cached?.id === studentId!) return cached; throw error; } }, enabled: !!studentId });
-  const completed = new Set((detail.data?.surahCompletions ?? []).map(item => item.surah));
+  const achievements = detail.data?.surahAchievements ?? [];
+  const completed = new Set(achievements.map(item => item.surah));
   const completedCount = surahs.filter(item => completed.has(item.name)).length ?? 0;
   const exportReport = async () => {
     const student = detail.data;
@@ -75,14 +76,14 @@ export default function StudentAchievementsPage() {
       <button type="button" onClick={() => navigate("/students/achievements")} className="mb-5 rounded-xl border border-emerald-300 px-4 py-2 font-bold text-emerald-800">← العودة إلى قائمة الطلاب</button>
       {detail.isLoading ? <LoadingState /> : detail.isError ? <ErrorState message="تعذّر تحميل إنجازات الطالب" onRetry={() => void detail.refetch()} /> : detail.data && <>
       <div className="rounded-3xl bg-gradient-to-l from-emerald-900 to-teal-700 p-6 text-white"><p>لوحة الإنجازات القرآنية</p><h1 className="mt-2 text-3xl font-extrabold">{detail.data.fullName}</h1><p className="mt-2">{detail.data.circle?.name ?? "بدون حلقة"}</p></div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-2xl bg-emerald-50 p-5">الأجزاء المحفوظة<strong className="block text-3xl text-emerald-800">{parts(detail.data.memorizedParts)} / 30</strong></div><div className="rounded-2xl bg-rose-50 p-5">السور المكتملة<strong className="block text-3xl text-rose-700">{completedCount} / 114</strong></div><div className="rounded-2xl bg-amber-50 p-5">نسبة حفظ الأجزاء<strong className="block text-3xl text-amber-800">{Math.round(parts(detail.data.memorizedParts) / 30 * 100)}٪</strong></div></div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-2xl bg-emerald-50 p-5">الأجزاء المحفوظة<strong className="block text-3xl text-emerald-800">{parts(detail.data.memorizedParts)} / 30</strong></div><div className="rounded-2xl bg-rose-50 p-5">السور المكتملة بممتاز<strong className="block text-3xl text-rose-700">{completedCount} / 114</strong></div><div className="rounded-2xl bg-amber-50 p-5">نسبة حفظ الأجزاء<strong className="block text-3xl text-amber-800">{Math.round(parts(detail.data.memorizedParts) / 30 * 100)}٪</strong></div></div>
       <p className="mt-2 text-slate-600">الأجزاء المحفوظة: <strong>{parts(detail.data.memorizedParts)} من 30</strong></p>
       <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-600" style={{ width: `${parts(detail.data.memorizedParts) / 30 * 100}%` }} /></div>
       <div className="mt-6">
         <h3 className="text-center text-xl font-extrabold text-rose-700">قلبي القرآني</h3>
         <p className="mt-1 text-center text-sm text-slate-600">{completedCount} / 114 سورة مكتملة</p>
-        <QuranAchievementHeart completed={completed} />
-        <p className="mt-3 text-center text-xs text-slate-500">الأحمر للسور المثبت إتمامها في سجل الطالب، والأبيض للسور الأخرى.</p>
+        <QuranAchievementHeart achievements={achievements} />
+        <p className="mt-3 text-center text-xs text-slate-500">يُحتسب الإنجاز من سجلات التسميع بتقدير ممتاز، وتبقى السورة بيضاء حتى إتمام جميع آياتها.</p>
       </div>
       <button type="button" onClick={() => void exportReport()} disabled={!detail.data} className="mt-4 rounded-xl bg-emerald-800 px-4 py-2 font-bold text-white disabled:opacity-50">تصدير تقرير الإنجاز PDF</button>
       <Link className="mt-4 inline-flex rounded-xl bg-emerald-800 px-4 py-2 font-bold text-white" to={`/students/${studentId}`}>فتح ملف الطالب</Link>

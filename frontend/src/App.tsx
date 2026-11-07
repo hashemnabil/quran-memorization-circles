@@ -141,6 +141,7 @@ export default function App() {
         <Route path="circles" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><CirclesPage /></RequireRole>} />
         <Route path="circles/:id" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><CircleDetailsPage /></RequireRole>} />
         <Route path="students" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentsPage /></RequireRole>} />
+        <Route path="students/achievements/:studentId" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentAchievementsPage /></RequireRole>} />
         <Route path="students/achievements" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentAchievementsPage /></RequireRole>} />
         <Route path="students/:id" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'TEACHER']}><StudentDetailsPage /></RequireRole>} />
         <Route path="teachers" element={<RequireRole roles={['ADMIN', 'SUPERVISOR']}><TeachersPage /></RequireRole>} />

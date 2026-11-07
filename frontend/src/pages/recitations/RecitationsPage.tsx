@@ -390,7 +390,7 @@ export default function RecitationsPage() {
   );
 }
 
-export function RecitationFormModal({ defaultCircleId, student, defaultType = 'MEMORIZATION', onClose }: { defaultCircleId?: string; student?: Student; defaultType?: RecitationType; onClose: () => void }) {
+export function RecitationFormModal({ defaultCircleId, student, defaultType = 'MEMORIZATION', allowedTypes, onClose }: { defaultCircleId?: string; student?: Student; defaultType?: RecitationType; allowedTypes?: readonly RecitationType[]; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [circleId, setCircleId] = useState(student?.circleId ?? defaultCircleId ?? '');
   const [form, setForm] = useState({
@@ -534,7 +534,7 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
         </>}
         <Input label="التاريخ" type="date" required max={todayInput()} value={form.date} onChange={(e) => set('date', e.target.value)} />
         <Select label="نوع التسميع" value={form.type} onChange={(e) => set('type', e.target.value)}>
-          {Object.entries(RECITATION_TYPE_LABELS).map(([key, label]) => (
+          {Object.entries(RECITATION_TYPE_LABELS).filter(([key]) => !allowedTypes || allowedTypes.includes(key as RecitationType)).map(([key, label]) => (
             <option key={key} value={key}>
               {label}
             </option>

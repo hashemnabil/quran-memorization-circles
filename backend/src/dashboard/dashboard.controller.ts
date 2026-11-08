@@ -22,6 +22,18 @@ export class DashboardController {
     return this.service.honorRoll(query);
   }
 
+  @Get('honor-roll/circles')
+  @ApiOperation({ summary: 'الحلقات المتاحة للوحة الشرف حسب صلاحيات المستخدم' })
+  honorCircles(@CurrentUser() user: AuthUser) {
+    return this.service.honorCircles(user);
+  }
+
+  @Get('honor-roll/circle')
+  @ApiOperation({ summary: 'لوحة شرف الحلقة حسب صلاحيات المستخدم' })
+  circleHonorRoll(@CurrentUser() user: AuthUser, @Query('circleId') circleId?: string) {
+    return this.service.circleHonorRoll(user, circleId);
+  }
+
   @Get('student-ranking')
   @ApiOperation({ summary: 'ترتيب جميع الطلاب بالنقاط من الأول إلى الأخير' })
   studentRanking(@Query() query: RankingQueryDto) {

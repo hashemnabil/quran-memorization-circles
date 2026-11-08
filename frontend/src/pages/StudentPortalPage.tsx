@@ -2,7 +2,7 @@ import {RecitationMushafHistory} from '@/components/RecitationMushafHistory';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { FormEvent, useEffect, useState } from 'react';
 import PrayerCard from '@/components/PrayerCard';
-import HonorRoll from '@/components/HonorRoll';
+import HonorRoll, { CircleHonorRoll } from '@/components/HonorRoll';
 import MemorizationPlans from '@/components/MemorizationPlans';
 import DailyOverview from '@/components/DailyOverview';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -97,6 +97,7 @@ export default function StudentPortalPage() {
     <>
       <><PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
       <HonorRoll />
+      <CircleHonorRoll />
       <PrayerCard />
       <div className="mb-5"><StudentPhoto studentId={data.id} fullName={data.fullName} photoUrl={data.photoUrl} size={80} editable onChanged={() => { void refetch(); }} /></div>
       <StudentQuestionnaire key={data.id} profile={data} />

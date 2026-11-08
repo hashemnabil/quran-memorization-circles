@@ -56,3 +56,41 @@ test('full ranking includes every registered student beyond the top ten, includi
   assert.equal(result.students[12].circleName, 'غير مسجل في حلقة');
   assert.equal(result.students[12].teacherName, null);
 });
+
+test('teacher may rank only assigned circles while school ranking remains shared', async () => {
+  const queries: any[] = [];
+  const prisma = {
+    student: { findMany: async (args: any) => { queries.push(args); return [student('a', 50)]; } },
+    circle: { findFirst: async () => ({ id: 'circle-a' }) },
+    recitation: { groupBy: async () => [{ studentId: 'a', _sum: { points: 50 } }] },
+    attendance: { groupBy: async () => [] },
+    surahCompletion: { groupBy: async () => [] },
+  };
+  const acl = { ownCircleIds: async () => ['circle-a'] };
+  const service = new DashboardService(prisma as any, acl as any, {} as any);
+  const user = { id: 'teacher-1', role: 'TEACHER' } as any;
+  await assert.rejects(() => service.circleHonorRoll(user, 'circle-b'), /صلاحية/);
+  assert.equal(queries.length, 0);
+  const result = await service.circleHonorRoll(user, 'circle-a');
+  assert.equal(result.students[0].id, 'a');
+  assert.equal(queries[0].where.circleId, 'circle-a');
+  await service.honorRoll();
+  assert.equal(queries[1].where.circleId, undefined);
+});
+
+test('student circle is resolved from their account and cannot be overridden', async () => {
+  const prisma = {
+    student: {
+      findFirst: async () => ({ circleId: 'own-circle' }),
+      findMany: async () => [],
+    },
+    circle: { findFirst: async () => ({ id: 'own-circle' }) },
+    recitation: { groupBy: async () => [] },
+    attendance: { groupBy: async () => [] },
+    surahCompletion: { groupBy: async () => [] },
+  };
+  const service = new DashboardService(prisma as any, {} as any, {} as any);
+  const user = { id: 'student-user', role: 'STUDENT' } as any;
+  await assert.rejects(() => service.circleHonorRoll(user, 'other-circle'), /صلاحية/);
+  assert.deepEqual((await service.circleHonorRoll(user)).students, []);
+});

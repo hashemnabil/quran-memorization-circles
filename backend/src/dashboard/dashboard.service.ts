@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ExamResult, ExamStatus, Prisma, RequestStatus, Role, StudentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
@@ -18,12 +18,48 @@ export class DashboardService {
     return this.rankedStudents(10, query);
   }
 
+  private async honorCircleIds(user: AuthUser): Promise<string[] | null> {
+    if (user.role === Role.ADMIN) return null;
+    if (user.role === Role.TEACHER || user.role === Role.SUPERVISOR) return this.acl.ownCircleIds(user);
+    if (user.role === Role.STUDENT) {
+      const student = await this.prisma.student.findFirst({
+        where: { userId: user.id, deletedAt: null },
+        select: { circleId: true },
+      });
+      return student?.circleId ? [student.circleId] : [];
+    }
+    return [];
+  }
+
+  async honorCircles(user: AuthUser) {
+    const ids = await this.honorCircleIds(user);
+    return this.prisma.circle.findMany({
+      where: { deletedAt: null, isActive: true, ...(ids === null ? {} : { id: { in: ids } }) },
+      select: { id: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  async circleHonorRoll(user: AuthUser, circleId?: string) {
+    const allowed = await this.honorCircleIds(user);
+    const selected = circleId || (allowed?.length === 1 ? allowed[0] : undefined);
+    if (!selected) return { updatedAt: new Date().toISOString(), students: [] };
+    if (allowed !== null && !allowed.includes(selected)) {
+      throw new ForbiddenException('لا تملك صلاحية عرض لوحة شرف هذه الحلقة');
+    }
+    const circle = await this.prisma.circle.findFirst({
+      where: { id: selected, deletedAt: null, isActive: true }, select: { id: true },
+    });
+    if (!circle) return { updatedAt: new Date().toISOString(), students: [] };
+    return this.rankedStudents(10, { circleId: selected, period: 'all' });
+  }
+
   async studentRanking(query: {circleId?:string;period?:string} = {}) {
     return this.rankedStudents(undefined, query);
   }
 
   private async rankedStudents(limit?: number, query: {circleId?:string;period?:string} = {}) {
-    if(query.circleId || query.period)return this.filteredRanking(limit,query);
+    if (query.circleId || query.period) return this.filteredRanking(limit, query);
     const students = await this.prisma.student.findMany({
       where: limit ? { deletedAt: null, status: StudentStatus.ACTIVE, totalPoints: { gt: 0 }, circle: { is: { deletedAt: null, isActive: true } } } : { deletedAt: null },
       orderBy: [{ totalPoints: 'desc' }, { fullName: 'asc' }, { id: 'asc' }],

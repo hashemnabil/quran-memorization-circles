@@ -54,7 +54,7 @@ test('comment likes and replies also require visibility of the parent post',asyn
   await assert.rejects(()=>controller.reply(actor,'comment','text'),/غير متاح/);
 });
 test('private image access fails before loading bytes, even for an administrator',async()=>{
-  const controller=new CommunityController({message:{count:async()=>0},communityMedia:{count:async()=>0},communityPost:{count:async()=>0},communityStory:{count:async()=>0}} as any);
+  const controller=new CommunityController({message:{count:async()=>0},presentationChoice:{findFirst:async()=>null},communityMedia:{count:async()=>0},communityPost:{count:async()=>0},communityStory:{count:async()=>0}} as any);
   await assert.rejects(()=>controller.media(actor,'image',{} as any),/غير متاحة/);
 });
 test('school impersonation is rejected before creating a post or a story',async()=>{

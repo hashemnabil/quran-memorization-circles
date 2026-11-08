@@ -19,6 +19,7 @@ type Row = {title: string; icon: ComponentType<{size?: number}>; to?: string; ac
 const groups: {title:string; rows:Row[]}[] = [
   {title:'الحساب', rows:[
     {title:'الملف الشخصي',icon:IconUser,to:'/profile'},
+    {title:'الصورة الشخصية والغلاف',icon:IconUser,to:'/community/users/me'},
     {title:'الكنية والنبذة',icon:IconBook,to:'?section=identity'},
     {title:'كلمة المرور',icon:IconLock,to:'?section=password'},
     {title:'رمز الأمان',icon:IconLock,to:'?section=pin'},

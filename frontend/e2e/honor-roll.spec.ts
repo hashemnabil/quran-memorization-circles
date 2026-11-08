@@ -35,13 +35,19 @@ test('honor roll shows ten students from different circles and refreshes the win
     await expect.poll(() => board.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
     const positions = await board.locator('li[data-student-id]').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().top));
     expect(positions.every((top, index) => index === 0 || top > positions[index - 1])).toBe(true);
+    const first = board.locator('li[data-student-id]').first();
+    const nameBox = await first.locator('h3').boundingBox();
+    const teacherBox = await first.getByText('الشيخ: الشيخ 1', { exact: true }).boundingBox();
+    const pointsBox = await first.locator('strong').boundingBox();
+    expect(nameBox!.x).toBeGreaterThan(teacherBox!.x);
+    expect(teacherBox!.x).toBeGreaterThan(pointsBox!.x);
   }
   students = [students[1], students[0], ...students.slice(2)].map((entry, i) => ({ ...entry, rank: i + 1, points: i === 0 ? 110 : entry.points }));
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await expect(board.getByRole('list', { name: 'ترتيب لوحة الشرف' }).locator('li').first()).toHaveAttribute('data-student-id', 'honor-1');
   await expect(board.getByText(/^(110|١١٠)$/)).toBeVisible();
-  await page.getByRole('link', { name: 'عرض ترتيب جميع الطلاب ←', exact: true }).click();
+  await page.getByRole('link', { name: 'عرض جميع الطلاب', exact: true }).click();
   await expect(page).toHaveURL(/\/student-ranking$/);
   const allRanks = page.getByRole('list', { name: 'ترتيب جميع الطلاب' });
   await expect(allRanks.locator('li')).toHaveCount(50);

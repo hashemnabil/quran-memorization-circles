@@ -5,7 +5,7 @@ import { initOffline, refreshOffline } from '@/lib/offline-engine';
 import { useAuthStore } from '@/store/auth';
 import { queryClient } from '@/lib/queryClient';
 import { getSyncProgress } from '@/lib/sync-progress';
-import { tokenStore, syncQueuedAvatar, syncQueuedStudentPhotos } from '@/lib/api';
+import { tokenStore, syncQueuedAvatar, syncQueuedCover, syncQueuedStudentPhotos } from '@/lib/api';
 import { studentPhotoCount } from '@/lib/pending-student-photos';
 import { localDomainLabels } from '@/lib/local-domain-labels';
 
@@ -19,7 +19,7 @@ export default function OfflineSystem() {
   const refresh = async () => {
     if (!account) return;
     const operations = await db.queue.where('accountId').equals(account).toArray();
-    const count = operations.length + ((await db.meta.get(`${account}:pendingAvatar`)) ? 1 : 0) + await studentPhotoCount(account);
+    const count = operations.length + ((await db.meta.get(`${account}:pendingAvatar`)) ? 1 : 0) + ((await db.meta.get(`${account}:pendingCover`)) ? 1 : 0) + await studentPhotoCount(account);
     const lastSync = (await db.meta.get(`${account}:lastSync`))?.value || '';
     if (useAuthStore.getState().user?.id !== account) return;
     setPending(count); setLast(lastSync);
@@ -50,7 +50,7 @@ export default function OfflineSystem() {
         if (refreshReads || wasLocal) await queryClient.invalidateQueries();
         await (initial ? initOffline() : refreshOffline({ checkDelta: refreshReads }));
         if (active && useAuthStore.getState().user?.id === account) {
-          const results = await Promise.allSettled([syncQueuedAvatar(), syncQueuedStudentPhotos()]);
+          const results = await Promise.allSettled([syncQueuedAvatar(), syncQueuedCover(), syncQueuedStudentPhotos()]);
           const rejected = results.find(result => result.status === 'rejected');
           if (rejected?.status === 'rejected') throw rejected.reason;
         }

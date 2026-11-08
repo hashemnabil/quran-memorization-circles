@@ -9,7 +9,19 @@ CREATE INDEX learning_audit_student ON learning_points_audit("studentId", "creat
 
 -- The old trigger used an independent settings table and overwrote server grades.
 DROP TRIGGER IF EXISTS recitations_calculate_daily_grade ON recitations;
-UPDATE recitations SET "tajweedErrors"=tajweed WHERE "tajweedErrors"=0 AND tajweed>0;
+-- Some existing schools never had the legacy `tajweed` column. Preserve it
+-- when present, and leave already recorded tajweedErrors unchanged otherwise.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'recitations'
+      AND column_name = 'tajweed'
+  ) THEN
+    EXECUTE 'UPDATE recitations SET "tajweedErrors"=tajweed WHERE "tajweedErrors"=0 AND tajweed>0';
+  END IF;
+END $$;
 CREATE OR REPLACE FUNCTION refresh_learning_total(student_id TEXT) RETURNS DOUBLE PRECISION AS $$
 DECLARE total DOUBLE PRECISION;
 BEGIN

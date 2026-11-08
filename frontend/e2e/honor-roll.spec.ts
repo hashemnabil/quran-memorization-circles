@@ -3,7 +3,7 @@ import { gotoWithLocalUnlock } from './local-security-helpers';
 
 test('honor roll shows ten students from different circles and refreshes the winner', async ({ page }) => {
   const user = { id: '00000000-0000-4000-8000-000000000091', username: 'honor-student', fullName: 'طالب لوحة الشرف', role: 'STUDENT', isActive: true, mustChangePassword: false };
-  const student = { id: '00000000-0000-4000-8000-000000000092', fullName: user.fullName, code: 'ST-92', status: 'ACTIVE', memorizedParts: 0, surahAchievements: [] };
+  const student = { id: '00000000-0000-4000-8000-000000000092', fullName: user.fullName, code: 'ST-92', status: 'ACTIVE', circleId: 'circle-1', circle: { id: 'circle-1', name: 'حلقة 1' }, memorizedParts: 0, surahAchievements: [] };
   let students = Array.from({ length: 10 }, (_, i) => ({ id: `honor-${i}`, rank: i + 1, fullName: `نجم المدرسة ${i + 1}`, circleName: `حلقة ${i + 1}`, teacherName: `الشيخ ${i + 1}`, points: 100 - i }));
   const fullRanking = Array.from({ length: 63 }, (_, i) => ({ id: `rank-${i}`, rank: i + 1, fullName: `طالب الترتيب ${i + 1}`, circleName: `حلقة ${i + 1}`, teacherName: `الشيخ ${i + 1}`, points: 62 - i }));
   await page.addInitScript(user => {

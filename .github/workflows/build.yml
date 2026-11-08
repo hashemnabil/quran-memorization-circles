@@ -56,6 +56,7 @@ jobs:
       - run: npm --prefix frontend run test:adhan
       - run: backend/node_modules/.bin/prisma generate --schema backend/prisma/schema.prisma
       - run: npm --prefix backend run test:achievements
+      - run: npm --prefix backend run test:honor-roll
       - run: npm --prefix backend run test:founder
       - run: npm --prefix backend run test:founder-audit
       - name: Test UI domain and contact policies

@@ -13,6 +13,12 @@ class ActivityQueryDto extends PaginationDto { limit = 200; }
 export class DashboardController {
   constructor(private readonly service: DashboardService) {}
 
+  @Get('honor-roll')
+  @ApiOperation({ summary: 'أعلى عشرة طلاب بالنقاط من جميع الحلقات' })
+  honorRoll() {
+    return this.service.honorRoll();
+  }
+
   @Get('overview')
   @ApiOperation({ summary: 'ملخص لوحة المعلومات حسب دور المستخدم' })
   overview(@CurrentUser() user: AuthUser) {

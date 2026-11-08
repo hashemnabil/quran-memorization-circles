@@ -117,6 +117,7 @@ export const WEEKDAY_LABELS: Record<string, string> = {
 };
 
 export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
+  LATE: 'متأخر',
   PRESENT: 'حاضر',
   EXCUSED: 'غياب بعذر',
   ABSENT: 'غياب بدون عذر',
@@ -124,12 +125,14 @@ export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
 
 /** Short forms for tight spots such as table cells and chart legends. */
 export const ATTENDANCE_SHORT: Record<AttendanceStatus, string> = {
+  LATE: 'متأخر',
   PRESENT: 'حاضر',
   EXCUSED: 'بعذر',
   ABSENT: 'بدون عذر',
 };
 
 export const ATTENDANCE_COLORS: Record<AttendanceStatus, string> = {
+  LATE: 'bg-orange-100 text-orange-800',
   PRESENT: 'bg-emerald-100 text-emerald-800',
   EXCUSED: 'bg-amber-100 text-amber-800',
   ABSENT: 'bg-red-100 text-red-800',
@@ -137,13 +140,14 @@ export const ATTENDANCE_COLORS: Record<AttendanceStatus, string> = {
 
 /** Solid variants used by the attendance picker buttons. */
 export const ATTENDANCE_ACTIVE: Record<AttendanceStatus, string> = {
+  LATE: 'bg-orange-500 text-white border-orange-500',
   PRESENT: 'bg-emerald-600 text-white border-emerald-600',
   EXCUSED: 'bg-amber-500 text-white border-amber-500',
   ABSENT: 'bg-red-600 text-white border-red-600',
 };
 
 /** The order the three states are offered in, from best to worst. */
-export const ATTENDANCE_ORDER: AttendanceStatus[] = ['PRESENT', 'EXCUSED', 'ABSENT'];
+export const ATTENDANCE_ORDER: AttendanceStatus[] = ['PRESENT', 'LATE', 'EXCUSED', 'ABSENT'];
 
 export const RECITATION_TYPE_LABELS: Record<RecitationType, string> = {
   MEMORIZATION: 'حفظ جديد',
@@ -332,3 +336,5 @@ export function describeExamSections(
   }
   return sorted.map((s) => s.name).join('، ');
 }
+
+export function attendanceRecordLabel(record:{status:AttendanceStatus;customStatus?:string|null;scoringSnapshot?:{label?:string}|null}){return record.customStatus?(record.scoringSnapshot?.label??'حالة إضافية'):ATTENDANCE_SHORT[record.status];}

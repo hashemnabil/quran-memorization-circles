@@ -281,3 +281,5 @@ test('offline recitation stages use complete server evidence and retract a pendi
   await db.table('recitations').put({...memory,accountId:'account',synced:0,evaluation:'GOOD'});
   assert.equal((await localRead('/students/'+student)).surahAchievements.length,0);
 });
+
+test('device cleanup preserves an unfinished recitation until it is explicitly discarded',async()=>{await db.meta.put({key:'account:recitationDraft:MEMORIZATION:s1',value:{dirty:true,form:{studentId:'s1',notes:'draft'},wordErrors:[{id:'one',wordId:'78:1:1',typeId:'word'}]}});await assert.rejects(()=>clearAccountData('account'));assert.ok(await db.meta.get('account:recitationDraft:MEMORIZATION:s1'));await db.meta.delete('account:recitationDraft:MEMORIZATION:s1');await clearAccountData('account');});

@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Evaluation, RecitationType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
-  IsDateString,
+  IsDateString, IsArray, ArrayMaxSize, ValidateNested, Matches,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -16,7 +16,18 @@ import {
 } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
+export class WordErrorDto {
+ @IsUUID('4') id:string;
+ @IsString() @Matches(/^\d{1,3}:\d{1,3}:\d{1,3}$/) wordId:string;
+ @IsString() @Matches(/^[-a-zA-Z0-9_]{1,60}$/) typeId:string;
+ @IsOptional() @IsString() @MaxLength(500) note?:string;
+}
+export class TypeCounterDto { @IsString() @Matches(/^[-a-zA-Z0-9_]{1,60}$/) typeId:string; @IsInt() @Min(0) @Max(9999) count:number; }
 export class CreateRecitationDto {
+ @IsOptional() @IsDateString() baseUpdatedAt?:string;
+ @IsOptional() @IsArray() @ArrayMaxSize(60) @ValidateNested({each:true}) @Type(()=>TypeCounterDto) typeCounters?:TypeCounterDto[];
+ @IsOptional() @IsString() @MaxLength(60) rulesRevision?:string;
+ @IsOptional() @IsArray() @ArrayMaxSize(2000) @ValidateNested({each:true}) @Type(()=>WordErrorDto) wordErrors?:WordErrorDto[];
   @ApiProperty()
   @IsUUID('4', { message: 'معرّف الطالب غير صالح' })
   studentId: string;

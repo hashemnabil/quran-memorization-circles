@@ -21,7 +21,8 @@ function keys(value: Record<string, unknown>, allowed: string[]) {
 function validId(value: unknown): value is string { return typeof value === 'string' && uuid.test(value); }
 function entry(value: unknown, withStudent: boolean) {
   if (!object(value)) throw new BadRequestException('صيغة سجل الحضور غير صالحة');
-  keys(value, withStudent ? ['studentId', 'status', 'note'] : ['id', 'status', 'note']);
+  keys(value, withStudent ? ['studentId', 'status', 'note', 'customStatus'] : ['id', 'status', 'note', 'customStatus']);
+  if(value.customStatus!==undefined && value.customStatus!==null && (typeof value.customStatus!=='string'||!/^[-a-zA-Z0-9_]{1,60}$/.test(value.customStatus)))throw new BadRequestException('حالة حضور غير صالحة');
   if (!validId(withStudent ? value.studentId : value.id) || !Object.values(AttendanceStatus).includes(value.status as AttendanceStatus) ||
       (value.note !== undefined && value.note !== null && (typeof value.note !== 'string' || value.note.length > 300))) {
     throw new BadRequestException('بيانات سجل الحضور غير صالحة');
@@ -103,7 +104,7 @@ async function apply(tx: Prisma.TransactionClient, user: AuthUser, op: Operation
   }
   const updated = await tx.attendance.updateMany({
     where: { id: current.id, updatedAt: new Date(op.baseUpdatedAt as string) },
-    data: { status: payload.status as AttendanceStatus, note: payload.status === AttendanceStatus.EXCUSED ? (payload.note as string | undefined) ?? null : null, recordedById: user.id },
+    data: { status: payload.status as AttendanceStatus, customStatus: (payload.customStatus as string|undefined)??null, note: payload.status === AttendanceStatus.EXCUSED ? (payload.note as string | undefined) ?? null : null, recordedById: user.id },
   });
   if (updated.count !== 1) return { opId: op.opId, status: 'conflict', code: 'STALE_VERSION' };
   if (payload.status === AttendanceStatus.ABSENT && current.status !== AttendanceStatus.ABSENT) {

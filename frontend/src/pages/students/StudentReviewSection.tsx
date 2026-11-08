@@ -1,3 +1,4 @@
+import {RecitationMushafHistory} from '@/components/RecitationMushafHistory';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, Select } from '@/components/ui';
@@ -39,7 +40,7 @@ export function StudentReviewSection({ student, canManage, mode }: { student: St
           <thead><tr><th>التاريخ</th><th>النوع</th><th>المدى</th><th>الشيخ</th><th>التقدير</th><th>الأخطاء</th><th>التنبيهات</th></tr></thead>
           <tbody>{records.data.data.map(record => <tr key={record.id}>
             <td>{formatDateShort(record.date)}</td><td>{RECITATION_TYPE_LABELS[record.type]}</td><td>{record.fromSurah} ({record.fromAyah}) — {record.toSurah} ({record.toAyah})</td><td>{record.teacher?.user.fullName ?? '—'}</td>
-            <td>{record.evaluation ? <Badge className={EVALUATION_COLORS[record.evaluation]}>{EVALUATION_LABELS[record.evaluation]}</Badge> : '—'}</td><td>{record.mistakes ?? 0}</td><td>{record.warnings ?? 0}</td>
+            <td>{record.evaluation ? <Badge className={EVALUATION_COLORS[record.evaluation]}>{EVALUATION_LABELS[record.evaluation]}</Badge> : '—'}</td><td>{record.mistakes ?? 0}<RecitationMushafHistory record={record}/></td><td>{record.warnings ?? 0}</td>
           </tr>)}</tbody>
         </table></div>
         <div className="mt-4 flex items-center justify-between gap-3"><Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>السابق</Button><span className="text-sm text-slate-500">صفحة {page} من {records.data.meta.totalPages}</span><Button variant="secondary" size="sm" disabled={!records.data.meta.hasNextPage} onClick={() => setPage(value => value + 1)}>التالي</Button></div>

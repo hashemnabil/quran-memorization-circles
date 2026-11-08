@@ -14,8 +14,8 @@ export class DashboardService {
     private readonly suspensions: SuspensionsService,
   ) {}
 
-  async honorRoll() {
-    return this.rankedStudents(10);
+  async honorRoll(query: {circleId?:string;period?:string} = {}) {
+    return this.rankedStudents(10, query);
   }
 
   private async honorCircleIds(user: AuthUser): Promise<string[] | null> {
@@ -51,16 +51,17 @@ export class DashboardService {
       where: { id: selected, deletedAt: null, isActive: true }, select: { id: true },
     });
     if (!circle) return { updatedAt: new Date().toISOString(), students: [] };
-    return this.rankedStudents(10, selected);
+    return this.rankedStudents(10, { circleId: selected, period: 'all' });
   }
 
-  async studentRanking() {
-    return this.rankedStudents();
+  async studentRanking(query: {circleId?:string;period?:string} = {}) {
+    return this.rankedStudents(undefined, query);
   }
 
-  private async rankedStudents(limit?: number, circleId?: string) {
+  private async rankedStudents(limit?: number, query: {circleId?:string;period?:string} = {}) {
+    if (query.circleId || query.period) return this.filteredRanking(limit, query);
     const students = await this.prisma.student.findMany({
-      where: limit ? { deletedAt: null, status: StudentStatus.ACTIVE, totalPoints: { gt: 0 }, circle: { is: { deletedAt: null, isActive: true } }, ...(circleId ? { circleId } : {}) } : { deletedAt: null },
+      where: limit ? { deletedAt: null, status: StudentStatus.ACTIVE, totalPoints: { gt: 0 }, circle: { is: { deletedAt: null, isActive: true } } } : { deletedAt: null },
       orderBy: [{ totalPoints: 'desc' }, { fullName: 'asc' }, { id: 'asc' }],
       take: limit,
       select: {
@@ -82,6 +83,22 @@ export class DashboardService {
           teacherName: [...new Set((student.circle?.teachers ?? []).map(item => item.teacher.user.fullName))].join('، ') || null };
       }),
     };
+  }
+
+  private async filteredRanking(limit:number|undefined,query:{circleId?:string;period?:string}){
+    const now=new Date();const local=new Date(now.getTime()+3*3600000);const start=query.period==='month'?new Date(Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),1)-3*3600000):query.period==='week'?new Date(Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),local.getUTCDate()-local.getUTCDay())-3*3600000):undefined;
+    const students=await this.prisma.student.findMany({
+      where:{deletedAt:null,...(limit?{status:StudentStatus.ACTIVE,circle:{is:{deletedAt:null,isActive:true}}}:{}),...(query.circleId?{circleId:query.circleId}:{})},
+      select:{id:true,fullName:true,circle:{select:{name:true,teachers:{
+        where:{endedAt:null,teacher:{is:{deletedAt:null,isActive:true,user:{is:{deletedAt:null,isActive:true}}}}},
+        orderBy:[{role:'asc'},{startedAt:'asc'},{id:'asc'}],
+        select:{teacher:{select:{user:{select:{fullName:true}}}}}
+      }}}}
+    });
+    const ids=students.map(s=>s.id);const studentId={in:ids};const date=start?{gte:start,lte:now}:undefined;
+    const [recitations,attendance,achievements]=await Promise.all([this.prisma.recitation.groupBy({by:['studentId'],where:{studentId,deletedAt:null,date,...(query.circleId?{circleId:query.circleId}:{})},_sum:{points:true}}),this.prisma.attendance.groupBy({by:['studentId'],where:{studentId,date,...(query.circleId?{circleId:query.circleId}:{})},_sum:{points:true}}),this.prisma.surahCompletion.groupBy({by:['studentId'],where:{studentId,completedAt:date},_sum:{points:true}})]);
+    const map=(rows:{studentId:string;_sum:{points:number|null}}[])=>new Map(rows.map(r=>[r.studentId,r._sum.points??0]));const rec=map(recitations),att=map(attendance),ach=map(achievements);
+    const rows=students.map(s=>{const sources={recitation:rec.get(s.id)??0,attendance:att.get(s.id)??0,achievement:ach.get(s.id)??0};return {id:s.id,fullName:s.fullName,points:Math.round(Object.values(sources).reduce((a,b)=>a+b,0)*100)/100,sources,circleName:s.circle?.name??'غير مسجل في حلقة',teacherName:[...new Set(s.circle?.teachers.map(t=>t.teacher.user.fullName))].join('، ')||null,rank:0}}).filter(s=>!limit||s.points>0).sort((a,b)=>b.points-a.points||a.fullName.localeCompare(b.fullName,'ar')||a.id.localeCompare(b.id));let rank=0;rows.forEach((r,i)=>{if(i===0||r.points!==rows[i-1].points)rank=i+1;r.rank=rank});return {updatedAt:now.toISOString(),period:query.period??'all',students:limit?rows.slice(0,limit):rows};
   }
 
   /** One entry point; the payload adapts to the caller's role. */
@@ -468,14 +485,14 @@ export class DashboardService {
       _count: { _all: true },
     });
 
-    const counts = { PRESENT: 0, ABSENT: 0, EXCUSED: 0 };
+    const counts = { PRESENT: 0, LATE:0, ABSENT: 0, EXCUSED: 0 };
     grouped.forEach((g) => (counts[g.status] = g._count._all));
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
     return {
       ...counts,
       total,
-      rate: total ? Math.round((counts.PRESENT / total) * 100) : 0,
+      rate: total ? Math.round(((counts.PRESENT+counts.LATE) / total) * 100) : 0,
     };
   }
 
@@ -490,7 +507,7 @@ export class DashboardService {
     const map = new Map<string, Record<string, number>>();
     rows.forEach((r) => {
       const key = r.date.toISOString().slice(0, 10);
-      const row = map.get(key) ?? { PRESENT: 0, ABSENT: 0, EXCUSED: 0 };
+      const row = map.get(key) ?? { PRESENT: 0, LATE:0, ABSENT: 0, EXCUSED: 0 };
       row[r.status] = r._count._all;
       map.set(key, row);
     });

@@ -55,6 +55,11 @@ jobs:
       - run: npm --prefix frontend run test:sound-channels
       - run: npm --prefix frontend run test:adhan
       - run: backend/node_modules/.bin/prisma generate --schema backend/prisma/schema.prisma
+      - name: Verify Mushaf assets and scoring rules
+        run: |
+          node scripts/verify-mushaf.mjs
+          cd backend
+          node --test -r ts-node/register src/common/learning-rules.test.ts
       - run: npm --prefix backend run test:achievements
       - run: npm --prefix backend run test:honor-roll
       - run: npm --prefix backend run test:founder
@@ -72,6 +77,9 @@ jobs:
       - run: npm --prefix backend run test:sync-protocol
       - run: npm --prefix backend run test:attendance-replay
       - run: npm --prefix backend run prisma:deploy
+      - name: Verify learning snapshots and points on PostgreSQL
+        working-directory: backend
+        run: node --test -r ts-node/register src/recitations/learning.integration.test.ts
       - name: Verify parent retirement on disposable PostgreSQL
         run: node scripts/student-transfer.integration.mjs
         working-directory: backend

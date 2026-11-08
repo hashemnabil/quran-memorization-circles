@@ -101,6 +101,7 @@ enum CircleTeacherRole {
 
 /// Three practical states only: present, absent with an excuse, absent without one.
 enum AttendanceStatus {
+  LATE
   PRESENT
   ABSENT  // غياب بدون عذر
   EXCUSED // غياب بعذر
@@ -537,6 +538,9 @@ model StudentNote {
 // ---------------------------------------------------------------------------
 
 model Attendance {
+  customStatus String?
+  points Float @default(0)
+  scoringSnapshot Json?
   id         String           @id @default(uuid())
   studentId  String
   circleId   String
@@ -601,6 +605,10 @@ model GuardianSummons {
 }
 
 model Recitation {
+  typeCounters Json?
+  wordErrors Json?
+  gradingSnapshot Json?
+  errorRatio Float?
   id         String         @id @default(uuid())
   studentId  String
   circleId   String
@@ -1730,4 +1738,25 @@ model MemorizationProgress {
   recordedBy User @relation(fields: [recordedById], references: [id], onDelete: Restrict)
   @@index([planId])
   @@map("memorization_progress")
+}
+
+model LearningRuleSet {
+ id String @id
+ scopeId String
+ rules Json
+ createdById String
+ createdAt DateTime @default(now())
+ @@index([scopeId,createdAt(sort:Desc)],map:"learning_rule_scope")
+ @@map("learning_rule_sets")
+}
+model LearningPointsAudit {
+ id BigInt @id @default(autoincrement())
+ studentId String
+ source String
+ sourceId String
+ beforePoints Float @map("before_points")
+ afterPoints Float @map("after_points")
+ createdAt DateTime @default(now())
+ @@index([studentId,createdAt(sort:Desc)],map:"learning_audit_student")
+ @@map("learning_points_audit")
 }

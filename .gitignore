@@ -31,3 +31,8 @@ keystore.properties
 **/student-transfer*.enc
 /backend/transfer-mapping*.json
 /backend/student-transfer-mapping*.json
+
+# Isolated local working checkouts
+/.worktrees/
+/.verify-mushaf-preview/
+/.verify-prisma-client/

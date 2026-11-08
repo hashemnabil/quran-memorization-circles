@@ -30,7 +30,8 @@
     "review:notification-sounds": "node scripts/review-notification-sounds.mjs",
     "generate:notification-sounds": "node scripts/generate-notification-sounds.mjs",
     "generate:audio-logo-samples": "node scripts/generate-audio-logo-samples.mjs",
-    "review:theme": "node --import ./scripts/register-test-loader.mjs scripts/review-theme-transition.mjs"
+    "review:theme": "node --import ./scripts/register-test-loader.mjs scripts/review-theme-transition.mjs",
+    "test:e2e:mushaf": "playwright test e2e/mushaf.spec.ts"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "6.0.1",

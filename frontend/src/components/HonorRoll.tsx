@@ -1,3 +1,4 @@
+import {RankingFilters} from '@/components/RankingFilters';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -5,7 +6,7 @@ import { api } from '@/lib/api';
 import { Button, EmptyState, LoadingState } from '@/components/ui';
 import { IconAward, IconUsers } from '@/components/ui/Icons';
 
-export interface HonorStudent { id: string; fullName: string; points: number; rank: number; circleName: string; teacherName: string | null }
+export interface HonorStudent { id: string; fullName: string; points: number; rank: number; circleName: string; teacherName: string | null; sources?:{recitation:number;attendance:number;achievement:number} }
 export interface HonorRollData { updatedAt: string; students: HonorStudent[] }
 const number = new Intl.NumberFormat('ar', { maximumFractionDigits: 2 });
 
@@ -20,6 +21,7 @@ function Medal({ rank, large = false }: { rank: number; large?: boolean }) {
 }
 
 export default function HonorRoll() {
+  const [period,setPeriod]=useState('all');const [rankingCircle,setRankingCircle]=useState('');
   const [online, setOnline] = useState(() => navigator.onLine);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
@@ -27,9 +29,9 @@ export default function HonorRoll() {
     return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
   }, []);
   const query = useQuery({
-    queryKey: ['dashboard', 'honor-roll'],
+    queryKey: ['dashboard', 'honor-roll', period, rankingCircle],
     queryFn: async () => {
-      const { data } = await api.get<HonorRollData>('/dashboard/honor-roll');
+      const { data } = await api.get<HonorRollData>('/dashboard/honor-roll',{params:{period,circleId:rankingCircle||undefined}});
       if (!Array.isArray(data?.students)) throw new Error('تعذر تحميل لوحة الشرف');
       return data;
     },
@@ -42,6 +44,7 @@ export default function HonorRoll() {
       <div className="relative flex items-center gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl border border-[#d3ba73]/40 bg-[#d3ba73]/10 text-[#ead494]"><IconAward size={21} /></span><div className="min-w-0 flex-1"><h2 id="honor-roll-title" className="text-base font-extrabold sm:text-lg">لوحة شرف المدرسة</h2></div><span className="rounded-full border border-white/15 px-3 py-1.5 text-xs text-emerald-50">أفضل ١٠ طلاب</span></div>
     </header>
     <div className="p-3 sm:p-4">
+      <RankingFilters period={period} circleId={rankingCircle} onChange={(p,c)=>{setPeriod(p);setRankingCircle(c)}}/>
       {query.isLoading ? <LoadingState rows={3} /> : !query.data && query.isError ? <div role="status" className="space-y-3 py-4 text-center"><p className="text-sm text-slate-600">تعذر تحميل لوحة الشرف</p><Button variant="secondary" size="sm" onClick={() => void query.refetch()}>إعادة المحاولة</Button></div> : !students.length ? <EmptyState title="ننتظر نجوم لوحة الشرف" message="تظهر أسماء الطلاب عند حصولهم على النقاط." icon={<IconAward size={28} />} /> : <>
         <HonorRollRows students={students} />
       </>}
@@ -54,7 +57,7 @@ export default function HonorRoll() {
 export function HonorRollRows({ students, label = 'ترتيب لوحة الشرف' }: { students: readonly HonorStudent[]; label?: string }) {
   return <ol aria-label={label} className="space-y-1.5">
     {students.map(student => <li key={student.id} data-student-id={student.id} className={`flex items-center gap-3 rounded-xl border px-3 py-2 sm:gap-4 sm:px-5 ${student.rank === 1 ? 'border-[#d3b76c] bg-[#fff7de]' : student.rank === 2 ? 'border-slate-300 bg-slate-50' : student.rank === 3 ? 'border-[#e3cbb6] bg-[#fffaf5]' : 'border-[#e6e6db] bg-white'}`}>
-      <Medal rank={student.rank} /><div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 sm:gap-5"><div className="min-w-0"><h3 className="break-words text-xs font-extrabold text-[#173e32] sm:text-base">{student.fullName}</h3><p className="mt-1 text-[10px] leading-5 text-slate-500 sm:text-xs">{student.circleName}</p></div><p className="min-w-0 break-words text-[11px] leading-6 text-slate-600 sm:text-sm">الشيخ: {student.teacherName ?? 'لم يُحدد بعد'}</p><div className="shrink-0 text-center"><strong className="block text-sm font-extrabold tabular-nums text-[#17634b] sm:text-xl">{number.format(student.points)}</strong><span className="text-[10px] text-slate-500">نقطة</span></div></div>
+      <Medal rank={student.rank} /><div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 sm:gap-5"><div className="min-w-0"><h3 className="break-words text-xs font-extrabold text-[#173e32] sm:text-base">{student.fullName}</h3><p className="mt-1 text-[10px] leading-5 text-slate-500 sm:text-xs">{student.circleName}</p></div><p className="min-w-0 break-words text-[11px] leading-6 text-slate-600 sm:text-sm">الشيخ: {student.teacherName ?? 'لم يُحدد بعد'}</p><div className="shrink-0 text-center"><strong className="block text-sm font-extrabold tabular-nums text-[#17634b] sm:text-xl">{number.format(student.points)}</strong><span className="text-[10px] text-slate-500">نقطة</span>{student.sources&&<details className="mt-1 text-[10px]"><summary>تفاصيل النقاط</summary><p>تسميع {number.format(student.sources.recitation)} · حضور {number.format(student.sources.attendance)} · إنجاز {number.format(student.sources.achievement)}</p></details>}</div></div>
     </li>)}
   </ol>;
 }

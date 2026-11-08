@@ -1,3 +1,4 @@
+import {resolveRules} from './learning-rules';
 import 'fake-indexeddb/auto';
 import assert from 'node:assert/strict';
 import { beforeEach, after, test } from 'node:test';
@@ -500,4 +501,14 @@ test('offline consolidation uses the cached grading rules and includes tajweed d
   assert.equal(row.points,5);
   assert.equal(row.evaluation,'GOOD');
   assert.equal(row.type,'CONSOLIDATION');
+});
+
+test('offline Mushaf marks and late/custom attendance preserve payload and one-time scoring',async()=>{
+ const rules=resolveRules({revision:'saved-rules',types:resolveRules().types.map(t=>t.id==='word'?{...t,penalty:2}:t)});await db.meta.put({key:account+':learning-rule:saved-rules',value:rules});
+ const record=await save('recitations',{studentId:'s1',date:'2026-01-01',fromSurah:'النبأ',fromAyah:1,toSurah:'النبأ',toAyah:10,mistakes:1,warnings:0,tajweedErrors:0,rulesRevision:rules.revision,wordErrors:[{id:'mark1',wordId:'78:1:1',typeId:'word'}]});
+ assert.equal(record.points,8);assert.equal(record.wordErrors[0].wordId,'78:1:1');assert.equal(record.gradingSnapshot.revision,'saved-rules');
+ await db.meta.put({key:account+':reference:/recitations/learning-settings',value:resolveRules({mistakePenalty:9})});
+ const edited=await update('recitations',record.id,{notes:'ملاحظة دون تعديل التقييم'});assert.equal(edited.points,8);
+ const queued=await db.queue.toArray();assert.equal(queued[0].data.rulesRevision,'saved-rules');assert.equal(queued[0].data.wordErrors[0].wordId,'78:1:1');
+ await save('attendance',{circleId:'c1',date:'2026-01-01',entries:[{studentId:'s1',status:'LATE'},{studentId:'s2',status:'PRESENT',customStatus:'special'}]});const rows=await get('attendance');assert.equal(rows.find(r=>r.studentId==='s1')?.status,'LATE');assert.equal(rows.find(r=>r.studentId==='s2')?.customStatus,'special');
 });

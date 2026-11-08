@@ -62,6 +62,9 @@ test('teacher may rank only assigned circles while school ranking remains shared
   const prisma = {
     student: { findMany: async (args: any) => { queries.push(args); return [student('a', 50)]; } },
     circle: { findFirst: async () => ({ id: 'circle-a' }) },
+    recitation: { groupBy: async () => [{ studentId: 'a', _sum: { points: 50 } }] },
+    attendance: { groupBy: async () => [] },
+    surahCompletion: { groupBy: async () => [] },
   };
   const acl = { ownCircleIds: async () => ['circle-a'] };
   const service = new DashboardService(prisma as any, acl as any, {} as any);
@@ -82,6 +85,9 @@ test('student circle is resolved from their account and cannot be overridden', a
       findMany: async () => [],
     },
     circle: { findFirst: async () => ({ id: 'own-circle' }) },
+    recitation: { groupBy: async () => [] },
+    attendance: { groupBy: async () => [] },
+    surahCompletion: { groupBy: async () => [] },
   };
   const service = new DashboardService(prisma as any, {} as any, {} as any);
   const user = { id: 'student-user', role: 'STUDENT' } as any;

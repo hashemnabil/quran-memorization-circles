@@ -1,3 +1,10 @@
+import {fetchLearningSettings} from '@/lib/learning-settings';
+import {RecitationMushafHistory} from '@/components/RecitationMushafHistory';
+import {MushafReader} from '@/components/MushafReader';
+import {LearningSettingsModal} from '@/components/LearningSettingsModal';
+import {db} from '@/lib/db';
+import {dataKey} from '@/lib/local-encryption';
+import {resolveRules,scoreSession,type LearningRules,type WordError,type TypeCounter} from '@/lib/learning-rules';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -33,16 +40,6 @@ interface SurahInfo {
 }
 type GradingRules = { mistakePenalty: number; warningPenalty: number; tajweedPenalty: number; excellent: number; veryGood: number; good: number; acceptable: number };
 const DEFAULT_RULES: GradingRules = { mistakePenalty: 1, warningPenalty: 0.25, tajweedPenalty: 0.5, excellent: 90, veryGood: 80, good: 70, acceptable: 60 };
-
-function RecitationRulesModal({ onClose }: { onClose: () => void }) {
-  const qc = useQueryClient();
-  const { data, isLoading } = useQuery({ queryKey: ['recitations', 'grading-settings'], queryFn: async () => (await api.get<GradingRules>('/recitations/grading-settings')).data });
-  const [draft, setDraft] = useState<GradingRules | null>(null);
-  const values = draft ?? data ?? DEFAULT_RULES;
-  const save = useMutation({ mutationFn: async () => api.patch('/recitations/grading-settings', values), onSuccess: () => { void qc.invalidateQueries({ queryKey: ['recitations', 'grading-settings'] }); toast.success('حُفظت قواعد التقييم للتسميع الجديد'); onClose(); }, onError: error => toast.error(apiError(error)) });
-  const fields: [keyof GradingRules, string][] = [['mistakePenalty','خصم الخطأ'],['warningPenalty','خصم التنبيه'],['tajweedPenalty','خصم خطأ الأحكام'],['excellent','ممتاز من ٪'],['veryGood','جيد جداً من ٪'],['good','جيد من ٪'],['acceptable','مقبول من ٪']];
-  return <Modal open onClose={onClose} title="قواعد تقييم التسميع"><p className="mb-3 text-sm">تُطبق القواعد على التسميع الجديد والتعديل، وتبقى درجات السجلات السابقة محفوظة.</p>{isLoading?<LoadingState/>:<form className="grid gap-3 sm:grid-cols-2" onSubmit={event=>{event.preventDefault();save.mutate();}}>{fields.map(([key,label])=><Input key={key} label={label} type="number" min={0} max={100} step="0.01" required value={values[key]} onChange={event=>setDraft({...values,[key]:Number(event.target.value)})}/>)}<Button className="sm:col-span-2" type="submit" loading={save.isPending}>حفظ القواعد</Button></form>}</Modal>;
-}
 
 /**
  * The daily recitation log, read by day → circle → student.
@@ -138,7 +135,7 @@ export default function RecitationsPage() {
         }
       />
       {user.role === 'ADMIN' && <Button variant="secondary" className="mb-4" onClick={() => setEditingRules(true)}>ضبط خصومات وتقييم التسميع</Button>}
-      {editingRules && <RecitationRulesModal onClose={() => setEditingRules(false)} />}
+      {editingRules && <LearningSettingsModal onClose={() => setEditingRules(false)} />}
 
       <Card className="mb-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -330,6 +327,7 @@ export default function RecitationsPage() {
                                                   </span>
                                                   <span className="numeric text-red-600">
                                                     {rec.mistakes ?? 0} خطأ
+                                                    <RecitationMushafHistory record={rec}/>
                                                   </span>
                                                   <span className="numeric text-amber-600">
                                                     {rec.warnings ?? 0} تنبيه · {rec.tajweedErrors ?? 0} أحكام
@@ -392,6 +390,10 @@ export default function RecitationsPage() {
 
 export function RecitationFormModal({ defaultCircleId, student, defaultType = 'MEMORIZATION', allowedTypes, onClose }: { defaultCircleId?: string; student?: Student; defaultType?: RecitationType; allowedTypes?: readonly RecitationType[]; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const accountId=useAuthStore(s=>s.user?.id??'');
+  const draftKey=accountId+':recitationDraft:'+defaultType+':'+(student?.id??defaultCircleId??'new');
+  const confirmDraft=useConfirm();const [dirty,setDirty]=useState(false);
+  const [restored,setRestored]=useState(false);const [draftRules,setDraftRules]=useState<LearningRules>();const [wordErrors,setWordErrors]=useState<WordError[]>([]);const [showMushaf,setShowMushaf]=useState(false);
   const [circleId, setCircleId] = useState(student?.circleId ?? defaultCircleId ?? '');
   const [form, setForm] = useState({
     studentId: student?.id ?? '',
@@ -406,6 +408,7 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
     warnings: 0,
     tajweedErrors: 0,
     notes: '',
+    typeCounters: [] as TypeCounter[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -420,6 +423,7 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
     queryFn: async () => (await api.get<SurahInfo[]>('/recitations/surahs')).data,
     staleTime: Infinity,
   });
+  const {data: learningData}=useQuery({queryKey:['recitations','learning-settings',circleId],queryFn:()=>fetchLearningSettings(circleId)});
   const { data: rules = DEFAULT_RULES } = useQuery({ queryKey: ['recitations', 'grading-settings'], queryFn: async () => (await api.get<GradingRules>('/recitations/grading-settings')).data });
 
   const { data: students } = useQuery({
@@ -434,10 +438,14 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
     if (!student && !circleId && circles?.length) setCircleId(circles[0].id);
   }, [circles, circleId, student]);
 
+  useEffect(()=>{let active=true;db.meta.get(draftKey).then(row=>{if(!active)return;if(row?.value?.form){setForm(f=>({...f,...row.value.form}));setDirty(true);setCircleId(row.value.circleId);setWordErrors(row.value.wordErrors??[]);if(row.value.rules){setDraftRules(row.value.rules);void db.meta.put({key:accountId+':learning-rule:'+row.value.rules.revision,value:row.value.rules});}toast('تمت استعادة مسودة التسميع');}setRestored(true)}).catch(()=>setRestored(true));return()=>{active=false}},[draftKey]);
+  useEffect(()=>{if(!restored||!dirty||!dataKey(accountId))return;void db.meta.put({key:draftKey,value:{dirty,form,circleId,wordErrors,rules:draftRules??learningData}}).catch(()=>toast.error('تعذر حفظ مسودة التسميع على الجهاز'))},[form,circleId,wordErrors,restored,draftKey,accountId,draftRules,learningData,dirty]);
+
   const create = useMutation({
     networkMode: 'always',
     mutationFn: (payload: Record<string, unknown>) => api.post('/recitations', payload),
-    onSuccess: (_offlineWriteResult) => {
+    onSuccess: async (_offlineWriteResult) => {
+      await db.meta.delete(draftKey);
       notifyWriteSuccess(_offlineWriteResult, 'تم تسجيل التسميع');
       queryClient.invalidateQueries({ queryKey: ['recitations'] });
       queryClient.invalidateQueries({ queryKey: ['achievements'] });
@@ -471,10 +479,16 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
     return total + Math.max(0, Math.min(form.toAyah, toSurah.ayahs));
   })();
 
-  const earnedPoints = Math.round(Math.max(0, versesCount - form.mistakes * rules.mistakePenalty - form.warnings * rules.warningPenalty - form.tajweedErrors * rules.tajweedPenalty) * 100) / 100;
-  const percent = versesCount ? earnedPoints / versesCount * 100 : 0;
-  const evaluation = percent >= rules.excellent ? 'EXCELLENT' : percent >= rules.veryGood ? 'VERY_GOOD' : percent >= rules.good ? 'GOOD' : percent >= rules.acceptable ? 'ACCEPTABLE' : 'UNSATISFACTORY';
+  const learning=resolveRules(draftRules??learningData??rules);
+  useEffect(()=>{if(learningData&&accountId&&dataKey(accountId))void Promise.all([db.meta.put({key:accountId+':learning-policy:'+circleId,value:learningData}),db.meta.put({key:accountId+':learning-rule:'+learningData.revision,value:learningData})]).catch(()=>undefined)},[learningData,accountId,circleId]);
+  let result:ReturnType<typeof scoreSession>|undefined;
+  try {result=scoreSession({...form,versesCount,wordErrors},learning)}catch{/* Invalid range/counts are shown on submit. */}
+  const earnedPoints=Math.round((result?.points??0)*learning.weights.recitation*100)/100;
+  const percent=result?.percent??0;
+  const evaluation=result?.evaluation??'UNSATISFACTORY';
+  const changeWordErrors=(next:WordError[])=>{setDirty(true);const count=(list:WordError[],category:string)=>list.filter(e=>learning.types.find(t=>t.id===e.typeId)?.category===category).length;setForm(f=>({...f,mistakes:Math.max(0,f.mistakes-count(wordErrors,'mistake'))+count(next,'mistake'),warnings:Math.max(0,f.warnings-count(wordErrors,'warning'))+count(next,'warning'),tajweedErrors:Math.max(0,f.tajweedErrors-count(wordErrors,'tajweed'))+count(next,'tajweed')}));setWordErrors(next)};
 
+  const changeTypeCounter=(typeId:string,count:number)=>{setDirty(true);const type=learning.types.find(t=>t.id===typeId)!;setForm(f=>{const previous=f.typeCounters?.find(t=>t.typeId===typeId)?.count??0;const key=type.category==='mistake'?'mistakes':type.category==='warning'?'warnings':'tajweedErrors';return {...f,[key]:Math.max(0,f[key]-previous)+count,typeCounters:[...(f.typeCounters??[]).filter(t=>t.typeId!==typeId),{typeId,count}]}})};
   const submit = () => {
     const next: Record<string, string> = {};
     if (!form.studentId) next.studentId = 'اختر الطالب';
@@ -484,13 +498,15 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    create.mutate({ ...form, notes: form.notes || undefined });
+    try{scoreSession({...form,versesCount,wordErrors},learning)}catch(error){toast.error((error as Error).message);return;}
+    if((wordErrors.length||form.typeCounters.length)&&!learningData&&!draftRules){toast.error('نزّل قواعد المصحف قبل التسجيل');return;}
+    create.mutate({ ...form, wordErrors, rulesRevision:learning.revision, notes: form.notes || undefined });
   };
 
-  const set = (key: string, value: unknown) => setForm((f) => ({ ...f, [key]: value }));
+  const set = (key: string, value: unknown) => {setDirty(true);setForm((f) => ({ ...f, [key]: value }));};
 
   return (
-    <Modal
+    <><Modal
       open
       onClose={onClose}
       title={student?`إضافة تسميع — ${student.fullName}`:"تسجيل تسميع"}
@@ -500,6 +516,7 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
+          {dirty&&<Button variant="danger" onClick={async()=>{if(await confirmDraft({title:'حذف مسودة التسميع',message:'ستُحذف المسودة المحفوظة على هذا الجهاز.',confirmLabel:'حذف المسودة'})){await db.meta.delete(draftKey);onClose();}}}>حذف المسودة</Button>}
           <Button onClick={submit} loading={create.isPending}>
             حفظ
           </Button>
@@ -512,7 +529,7 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
           value={circleId}
           onChange={(e) => {
             setCircleId(e.target.value);
-            set('studentId', '');
+            set('studentId', '');setDraftRules(undefined);
           }}
         >
           <option value="">اختر الحلقة</option>
@@ -595,7 +612,7 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
           min={0}
           value={form.mistakes}
           onChange={(e) => set('mistakes', Number(e.target.value))}
-          hint={`الخصم لكل خطأ: ${rules.mistakePenalty}`}
+          hint={`الخصم لكل خطأ: ${learning.mistakePenalty}`}
         />
         <Input
           label="عدد التنبيهات"
@@ -603,23 +620,25 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
           min={0}
           value={form.warnings}
           onChange={(e) => set('warnings', Number(e.target.value))}
-          hint={`الخصم لكل تنبيه: ${rules.warningPenalty}`}
+          hint={`الخصم لكل تنبيه: ${learning.warningPenalty}`}
         />
-        <Input label="أخطاء الأحكام والتجويد" type="number" min={0} value={form.tajweedErrors} onChange={(e) => set('tajweedErrors', Number(e.target.value))} hint={`الخصم لكل خطأ أحكام: ${rules.tajweedPenalty}`}/>
+        <Input label="أخطاء الأحكام والتجويد" type="number" min={0} value={form.tajweedErrors} onChange={(e) => set('tajweedErrors', Number(e.target.value))} hint={`الخصم لكل خطأ أحكام: ${learning.tajweedPenalty}`}/>
 
+        <details className="sm:col-span-2 rounded-xl border p-3"><summary className="cursor-pointer font-bold">تفصيل العدادات حسب نوع الخطأ</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{learning.types.filter(t=>t.enabled&&t.mode!=='mushaf').map(t=><Input key={t.id} label={t.label+' · خصم '+t.penalty} type="number" min={0} max={9999} value={form.typeCounters?.find(c=>c.typeId===t.id)?.count??0} onChange={e=>changeTypeCounter(t.id,Math.max(0,Math.trunc(Number(e.target.value))))}/>)}</div></details>
+        <div className="sm:col-span-2"><Button variant="secondary" onClick={()=>setShowMushaf(true)}>الأخطاء على المصحف ({wordErrors.length})</Button><p className="mt-2 text-xs text-slate-500">العدادات تشمل أخطاء المصحف؛ لا تُحتسب مرتين. المسودة تُحفظ على هذا الجهاز.</p></div>
         <div className="sm:col-span-2 rounded-xl bg-gold-50 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-bold text-gold-900">النقاط المكتسبة</span>
             <span className="numeric text-2xl font-extrabold text-gold-700">{earnedPoints}</span>
           </div>
           <p className="numeric mt-1 text-xs text-gold-800/80">
-            {versesCount} آية − ({form.mistakes} × {rules.mistakePenalty}) أخطاء − ({form.warnings} × {rules.warningPenalty}) تنبيهات − ({form.tajweedErrors} × {rules.tajweedPenalty}) أحكام
+            أساس التقييم {result?.base??0} − مجموع الخصومات {result?.deducted??0} · وزن النقاط {learning.weights.recitation}
           </p>
         </div>
 
         <p className="sm:col-span-2 text-sm font-bold">التقييم التلقائي: {EVALUATION_LABELS[evaluation as keyof typeof EVALUATION_LABELS]} ({Math.round(percent)}٪)</p>
         <Textarea label="ملاحظات" value={form.notes} onChange={(e) => set('notes', e.target.value)} className="sm:col-span-2" />
       </div>
-    </Modal>
+    </Modal>{showMushaf&&<MushafReader rules={learning} errors={wordErrors} onChange={changeWordErrors} onClose={()=>setShowMushaf(false)} range={{from:fromSurah?.number??78,fromAyah:form.fromAyah,to:toSurah?.number??78,toAyah:form.toAyah}}/>}</>
   );
 }

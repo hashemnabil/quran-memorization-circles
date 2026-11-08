@@ -1,3 +1,4 @@
+import {RecitationMushafHistory} from '@/components/RecitationMushafHistory';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { FormEvent, useEffect, useState } from 'react';
 import PrayerCard from '@/components/PrayerCard';
@@ -203,7 +204,7 @@ export default function StudentPortalPage() {
         </Card></section>
         <section id="student-recitations" className="scroll-mt-24"><Card title="سجل التسميع">
           {history.isLoading ? <LoadingState rows={2}/> : history.isError ? <ErrorState message="تعذر تحميل سجل التسميع" onRetry={()=>void history.refetch()}/> : history.data?.recitations?.length ? <div className="space-y-2">
-            {history.data.recitations.slice(0, recitationLimit).map((item: any) => <div key={item.id} className="border-b border-slate-100 py-2 text-sm">
+            {history.data.recitations.slice(0, recitationLimit).map((item: any) => <div key={item.id} className="border-b border-slate-100 py-2 text-sm"><RecitationMushafHistory record={item}/>
               <div className="flex items-center justify-between gap-3"><strong>{item.fromSurah} ({item.fromAyah}) — {item.toSurah} ({item.toAyah})</strong><span className="text-xs text-slate-500">{formatDateShort(item.date)}</span></div>
               <p className="mt-1 text-xs text-slate-500">النقاط: {item.points ?? 0} · الأخطاء: {item.mistakes ?? 0} · التنبيهات: {item.warnings ?? 0}</p>
               {item.evaluation && <p className="text-sm">{EVALUATION_LABELS[item.evaluation as Evaluation] || item.evaluation}</p>}

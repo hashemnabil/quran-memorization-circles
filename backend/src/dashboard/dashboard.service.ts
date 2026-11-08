@@ -14,6 +14,32 @@ export class DashboardService {
     private readonly suspensions: SuspensionsService,
   ) {}
 
+  async honorRoll() {
+    const students = await this.prisma.student.findMany({
+      where: { deletedAt: null, status: StudentStatus.ACTIVE, totalPoints: { gt: 0 }, circle: { is: { deletedAt: null, isActive: true } } },
+      orderBy: [{ totalPoints: 'desc' }, { fullName: 'asc' }, { id: 'asc' }],
+      take: 10,
+      select: {
+        id: true, fullName: true, totalPoints: true,
+        circle: { select: { name: true, teachers: {
+          where: { endedAt: null, teacher: { is: { deletedAt: null, isActive: true, user: { is: { deletedAt: null, isActive: true } } } } },
+          orderBy: [{ role: 'asc' }, { startedAt: 'asc' }, { id: 'asc' }],
+          select: { teacher: { select: { user: { select: { fullName: true } } } } },
+        } } },
+      },
+    });
+    let rank = 0;
+    return {
+      updatedAt: new Date().toISOString(),
+      students: students.map((student, index) => {
+        if (index === 0 || student.totalPoints !== students[index - 1].totalPoints) rank = index + 1;
+        return { id: student.id, fullName: student.fullName, points: student.totalPoints, rank,
+          circleName: student.circle.name,
+          teacherName: [...new Set(student.circle.teachers.map(item => item.teacher.user.fullName))].join('، ') || null };
+      }),
+    };
+  }
+
   /** One entry point; the payload adapts to the caller's role. */
   async overview(user: AuthUser) {
     // Cheap housekeeping: bring back students whose suspension has elapsed.

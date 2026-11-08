@@ -7,8 +7,8 @@ import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { api, apiError, syncQueuedAvatar } from '@/lib/api';
-import { queueAvatar, readPendingAvatar } from '@/lib/pending-avatar';
+import { api, apiError, tokenStore } from '@/lib/api';
+import { readPendingAvatar } from '@/lib/pending-avatar';
 import { useAuthStore } from '@/store/auth';
 import { Avatar, Badge, Button, Card, Input, Modal, PageHeader, Spinner, StatCard, Textarea } from '@/components/ui';
 import { PHONE_HINT, emailError, phoneError } from '@/lib/validation';
@@ -297,20 +297,22 @@ export function AvatarUploader({
       ctx.drawImage(image,(size/2-w/2+position.x)*512/size,(size/2-h/2+position.y)*512/size,w*512/size,h*512/size);
       const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Crop failed')),'image/jpeg',0.9));
       if (!account) throw new Error('يلزم تسجيل الدخول');
-      await queueAvatar(account, blob);
+      if (!navigator.onLine || tokenStore.isLocal()) throw new Error('يلزم الاتصال بالإنترنت لرفع الصورة الشخصية');
+      const body = new FormData();
+      body.append('file', blob, 'avatar.jpg');
+      const uploaded = await api.post('/uploads/avatar', body, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (!uploaded.data?.url) throw new Error('لم يؤكد الخادم رفع الصورة');
+      await api.patch('/auth/profile', { avatarUrl: uploaded.data.url });
+      const fresh = await api.get('/auth/me');
+      onUpdated(fresh.data);
       setCropUrl(null);
-      toast('حُفظت الصورة على الجهاز، بانتظار تأكيد الخادم');
-      try {
-        await syncQueuedAvatar();
-        if (!(await readPendingAvatar(account)) && useAuthStore.getState().user?.id === account) {
-          const fresh=await api.get('/auth/me');onUpdated(fresh.data);toast.success('تم تحديث الصورة الشخصية');
-        }
-      } catch { toast('الصورة محفوظة؛ ستُعاد محاولة رفعها عند الاتصال'); }
+      toast.success('تم تحديث الصورة الشخصية');
     }catch(error){toast.error(apiError(error,'تعذر رفع الصورة'));}finally{setUploading(false);}
   };
 
   const pick=(e:ChangeEvent<HTMLInputElement>)=>{
     const file=e.target.files?.[0];e.target.value='';if(!file)return;
+    if (!navigator.onLine || tokenStore.isLocal()) { toast.error('يلزم الاتصال بالإنترنت لرفع الصورة الشخصية'); return; }
     if(!file.type.startsWith('image/')){toast.error('اختر صورة صالحة');return;}
     setZoom(1);setPosition({x:0,y:0});setDimensions({w:1,h:1});setCropUrl(URL.createObjectURL(file));
   };
@@ -338,7 +340,7 @@ export function AvatarUploader({
         <Avatar name={user.fullName} src={pendingPreview || user.avatarUrl} size={88} preview />
         <button
           type="button"
-          onClick={() => inputRef.current?.click()}
+          onClick={() => { if (!navigator.onLine || tokenStore.isLocal()) { toast.error('يلزم الاتصال بالإنترنت لرفع الصورة الشخصية'); return; } inputRef.current?.click(); }}
           disabled={uploading || !!pendingPreview}
           className="absolute -bottom-0.5 -left-0.5 grid h-8 w-8 place-items-center rounded-full bg-primary-600 text-white shadow-md ring-2 ring-white transition hover:bg-primary-700 disabled:opacity-60"
           title="تغيير الصورة الشخصية"

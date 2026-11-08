@@ -31,7 +31,6 @@ export default function ProfileCover({ mediaId, editable }: { mediaId?: string |
   }, [account, editable, client]);
   const retry = async () => {
     throw new Error('رفع الأغلفة المعلّقة غير متاح؛ اختر صورة جديدة أثناء الاتصال بالإنترنت');
-    if (account && !await readPendingCover(account)) void client.invalidateQueries({ queryKey: ['community', 'profile'] });
   };
   const pick = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = ''; if (!file || !account) return;

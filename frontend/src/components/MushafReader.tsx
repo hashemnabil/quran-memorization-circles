@@ -23,7 +23,7 @@ export function MushafReader({ rules, errors, onChange, onClose, range, readOnly
 }) {
     const [jumpSurah, setJumpSurah] = useState(range.from);
     const [jumpAyah, setJumpAyah] = useState(range.fromAyah);
-    const [page, setPage] = useState(582);
+    const [page, setPage] = useState(browsing ? 1 : 582);
     const [data, setData] = useState<MushafPage>();
     const [failure, setFailure] = useState('');
     const [selected, setSelected] = useState<MushafWord>();
@@ -37,7 +37,7 @@ export function MushafReader({ rules, errors, onChange, onClose, range, readOnly
         setData(p);
         setReady(true);
     } }).catch(e => active && setFailure(e.message)); return () => { active = false; }; }, [page]);
-    useEffect(() => { let active = true; mushafAsset('/mushaf/verse-pages.json').then(r => r.json()).then(p => active && setPage(p[range.from + ':' + range.fromAyah] ?? 582)).catch(() => { }); return () => { active = false; }; }, [range.from, range.fromAyah]);
+    useEffect(() => { if (browsing) return; let active = true; mushafAsset('/mushaf/verse-pages.json').then(r => r.json()).then(p => active && setPage(p[range.from + ':' + range.fromAyah] ?? 582)).catch(() => { }); return () => { active = false; }; }, [range.from, range.fromAyah, browsing]);
     useEffect(() => { const listener = (e: KeyboardEvent) => { if (e.key === 'Escape') {
         if (selected)
             setSelected(undefined);

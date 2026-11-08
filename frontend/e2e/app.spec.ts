@@ -45,6 +45,10 @@ for (const [role, paths] of Object.entries(destinations)) {
         await expect(reader).toBeVisible();
         await expect(reader.getByRole('article', { name: 'صفحة 1', exact: true })).toBeVisible();
         await expect(reader).not.toContainText('تعذر تحميل');
+        // The full-screen modal intercepts subsequent sidebar clicks.
+        // Close it before continuing the shared navigation smoke test.
+        await reader.getByRole('button', { name: 'العودة للرئيسية', exact: true }).click();
+        await expect(reader).toHaveCount(0);
       } else {
         await expect(page.locator('main h1').first()).toBeVisible();
         await expect(page.locator('main')).not.toContainText('تعذر تحميل');

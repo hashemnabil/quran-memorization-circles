@@ -7,7 +7,6 @@ import { api } from '@/lib/api';
 import { AvatarUploader } from '@/pages/ProfilePage';
 import { useAuthStore } from '@/store/auth';
 import { useQueryClient } from '@tanstack/react-query';
-import ProfileCover from '@/components/ProfileCover';
 import './community-profile.css';
 
 type Profile = { fullName: string; nickname?: string | null; username?: string; bio?: string | null; role: string; avatarUrl?: string | null; coverAssetId?: string | null; coverMediaId?: string | null };
@@ -25,7 +24,6 @@ export default function CommunityProfileHeader({ profile, own, schoolName, savin
   };
   return <section className="community-profile-card" aria-label="بطاقة الملف الشخصي" dir="rtl">
     <div className="profile-cover community-profile-cover" style={profile.coverAssetId ? { backgroundImage: `linear-gradient(90deg,#102f29cc,#102f2955),url("${String(api.defaults.baseURL).replace(/\/$/, '')}/founder-assets/${encodeURIComponent(profile.coverAssetId)}/content")` } : undefined}>
-      <ProfileCover mediaId={profile.coverMediaId} editable={own} />
       <div className="community-profile-school"><IconBook size={20}/><span>{schoolName}</span></div>
       <span className="sr-only">غلاف الملف الشخصي</span>
     </div>

@@ -138,7 +138,14 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   if (url.pathname === '/attendance/absence-permissions') return (await get('absencePermissions')).filter(row => readActiveIdentity()?.role === 'ADMIN' || row.requesterId === accountId()).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   if (url.pathname === '/attendance/summons') return (await get('guardianSummons')).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   if (url.pathname === '/suspensions/active') return (await get('suspensions')).filter(row => row.status === 'APPROVED' && !row.returnedAt);
-  if (['/meetings','/examCommittees'].includes(url.pathname)) return (await get(segments[0] as EntityTable)).sort((a,b) => String(b.heldAt).localeCompare(String(a.heldAt)));
+  if (['meetings', 'examCommittees'].includes(segments[0])) {
+    const table = segments[0] as EntityTable;
+    if (segments.length === 1) return (await get(table)).filter(row => !row.pendingDelete).sort((a,b) => String(b.heldAt || b.date || b.createdAt || '').localeCompare(String(a.heldAt || a.date || a.createdAt || '')));
+    if (segments.length === 2) {
+      const id = (await db.meta.get(`${accountId()}:id:${segments[1]}`))?.value || segments[1];
+      return (await get(table)).find(row => row.id === id && !row.pendingDelete);
+    }
+  }
   if (url.pathname === '/students/me/history') return (await get('students')).find(row => row.selfAccountId === accountId())?._offline?.history;
   if (url.pathname === '/students/me') return withLocalAchievements((await get('students')).find(row => row.selfAccountId === accountId()));
   if (url.pathname === '/students/accounts') return get('studentAccounts');

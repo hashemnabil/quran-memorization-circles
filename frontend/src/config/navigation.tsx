@@ -50,6 +50,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/', label: 'الرئيسية', icon: <IconDashboard size={19} />, roles: ALL },
       { to: '/student-ranking', label: 'ترتيب الطلاب', icon: <IconAward size={19} />, roles: ALL },
+      { to: '/mushaf', label: 'المصحف الشريف', icon: <IconBook size={19} />, roles: ALL },
       
     ],
   },
@@ -146,7 +147,7 @@ export const NAV_GROUPS: NavGroup[] = [
 ];
 NAV_GROUPS.push({ title: 'المشاركة', items: [{ to: '/donations', label: 'التبرعات', icon: <IconHeart size={19} />, roles: ALL }] });
 const SECTION_PATHS = [
-  ['الرئيسية', ['/','/student-ranking']],
+  ['الرئيسية', ['/','/student-ranking','/mushaf']],
   ['المتابعة اليومية', ['/attendance','/recitations','/exams','/teacher-duties','/staff/attendance']],
   ['الأذونات', ['/absence-permissions','/student-summons']],
   ['الطلاب والحلقات', ['/students','/students/achievements','/circles','/courses','/student-accounts','/transfers','/suspensions']],

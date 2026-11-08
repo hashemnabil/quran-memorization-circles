@@ -56,3 +56,29 @@ test('Mushaf uses selectable words, two-tap errors, undo and encrypted draft res
     await page.getByRole('button', { name: /الأخطاء على المصحف/ }).click();
     await expect(page.locator('.marked-warning')).toHaveCount(1);
 });
+
+test('standalone mushaf is available from navigation for students and supports page browsing', async ({ page }) => {
+  const user = { id: '00000000-0000-4000-8000-000000000161', username: 'reader', fullName: 'قارئ المصحف', role: 'STUDENT', isActive: true, mustChangePassword: false };
+  await page.addInitScript(u => {
+    localStorage.setItem('qc.onboarding.completed', '1');
+    localStorage.setItem('qc.accessToken', 'reader-token');
+    localStorage.setItem('qc.offlineUser', JSON.stringify(u));
+  }, user);
+  await page.routeWebSocket('**/socket.io/**', socket => socket.close());
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/auth/me') return route.fulfill({ json: user });
+    if (path === '/api/settings/public') return route.fulfill({ json: { name: 'مدرسة المصحف' } });
+    if (path.endsWith('/unread-count')) return route.fulfill({ json: { count: 0 } });
+    return route.fulfill({ json: [] });
+  });
+  await gotoWithLocalUnlock(page, '/mushaf');
+  const reader = page.getByRole('dialog', { name: 'المصحف الشريف' });
+  await expect(reader).toBeVisible();
+  await expect(reader.getByRole('article', { name: 'صفحة 1' })).toBeVisible();
+  await expect(reader.getByRole('button', { name: 'تفاصيل الأخطاء' })).toHaveCount(0);
+  await reader.getByRole('button', { name: 'التالية' }).click();
+  await expect(reader.getByRole('article', { name: 'صفحة 2' })).toBeVisible();
+  await reader.getByRole('button', { name: 'العودة للرئيسية' }).click();
+  await expect(page).toHaveURL(url => url.pathname === '/');
+});

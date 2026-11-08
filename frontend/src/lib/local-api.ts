@@ -48,6 +48,13 @@ export async function localRead(path: string, params: Record<string, any> = {}):
     if (segments[2]) segments[2] = (await db.meta.get(`${accountId()}:id:${segments[2]}`))?.value || segments[2];
     if (segments.length <= 3) return localConversation(url.pathname);
   }
+  if (url.pathname === '/notifications/recipients') {
+    // Recipient eligibility is server-authorized. Never reconstruct a global directory from
+    // locally cached users, which may be incomplete or have different permissions.
+    if (readActiveIdentity()?.role !== 'ADMIN') return undefined;
+    const cached = await db.responses.get(responseKey(accountId(), '/notifications/recipients', {}));
+    return cached?.data;
+  }
   if (url.pathname === '/settings' || url.pathname === '/settings/public') {
     const rows = await get('schoolSettings');
     if (rows.length) return rows.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
@@ -567,8 +574,13 @@ export async function localWrite(method: string, path: string, data: any): Promi
     if (readActiveIdentity()?.role !== 'ADMIN') throw Object.assign(new Error('الإضافة والتعديل للإدارة فقط'), { localWriteRejected: true });
     const table = route[0] as EntityTable;
     if (method === 'post' && route.length === 1) return save(table, data);
-    if (method === 'patch' && route.length === 2) return update(table, route[1], data);
-    if (method === 'delete' && route.length === 2) return remove(table, route[1]);
+    if (['patch', 'delete'].includes(method) && route.length === 2) {
+      const resolvedId = (await db.meta.get(`${accountId()}:id:${route[1]}`))?.value || route[1];
+      const existing = (await get(table)).find(row => row.id === resolvedId);
+      if (!existing) throw Object.assign(new Error('حمّل السجل قبل تعديله أو حذفه بدون إنترنت'), { localWriteRejected: true });
+      if (existing.synced === 0) throw Object.assign(new Error('انتظر مزامنة التعديل السابق على هذا السجل'), { localWriteRejected: true });
+      return method === 'patch' ? update(table, resolvedId, data) : remove(table, resolvedId);
+    }
   }
   if (path === '/notifications/broadcast' && method === 'post') {
     const actor = readActiveIdentity();

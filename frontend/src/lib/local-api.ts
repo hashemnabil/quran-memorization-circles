@@ -566,7 +566,20 @@ export async function localWrite(method: string, path: string, data: any): Promi
   if (path === '/notifications/broadcast' && method === 'post') {
     const actor = readActiveIdentity();
     if (actor?.role !== 'ADMIN') throw Object.assign(new Error('إرسال الإشعارات متاح للإدارة فقط'), { localWriteRejected: true });
-    return save('notifications', { ...data, pendingDelete: 1 }, 'broadcast');
+    // Validate before queuing: a rejected offline broadcast must not silently appear as sent.
+    const invalid = (message: string) => { throw Object.assign(new Error(message), { localWriteRejected: true }); };
+    const title = typeof data?.title === 'string' ? data.title.trim() : '';
+    const body = typeof data?.body === 'string' ? data.body.trim() : '';
+    if (!title || title.length > 160 || !body || body.length > 3000) invalid('أدخل عنوانًا ونصًا صالحين للإشعار');
+    if (!['ALL', 'STAFF', 'ADMIN', 'TEACHER', 'STUDENT', 'CIRCLE'].includes(data?.audience)) invalid('فئة الإشعار غير صالحة');
+    if (!['ALL', 'SELECTED'].includes(data?.selection)) invalid('اختر جميع المستلمين أو أشخاصًا محددين');
+    if (!Array.isArray(data?.userIds) || data.userIds.length > 5000 ||
+        data.userIds.some((id: unknown) => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) ||
+        new Set(data.userIds).size !== data.userIds.length) invalid('قائمة المستلمين غير صالحة');
+    if (data.selection === 'SELECTED' && !data.userIds.length || data.selection === 'ALL' && data.userIds.length) invalid('راجع اختيار المستلمين');
+    if (data.audience === 'CIRCLE' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(data.circleId || '') ||
+        data.audience !== 'CIRCLE' && data.circleId) invalid('اختيار الحلقة غير صالح');
+    return save('notifications', { ...data, title, body, pendingDelete: 1 }, 'broadcast');
   }
   const parts = path.split('/').filter(Boolean);
   if (method === 'post' && path === '/profile-reviews' || method === 'patch' && path === '/students/me/questionnaire' || method === 'patch' && parts[0] === 'teachers' && readActiveIdentity()?.role === 'TEACHER') {

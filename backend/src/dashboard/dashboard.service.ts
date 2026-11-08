@@ -15,10 +15,18 @@ export class DashboardService {
   ) {}
 
   async honorRoll() {
+    return this.rankedStudents(10);
+  }
+
+  async studentRanking() {
+    return this.rankedStudents();
+  }
+
+  private async rankedStudents(limit?: number) {
     const students = await this.prisma.student.findMany({
-      where: { deletedAt: null, status: StudentStatus.ACTIVE, totalPoints: { gt: 0 }, circle: { is: { deletedAt: null, isActive: true } } },
+      where: limit ? { deletedAt: null, status: StudentStatus.ACTIVE, totalPoints: { gt: 0 }, circle: { is: { deletedAt: null, isActive: true } } } : { deletedAt: null },
       orderBy: [{ totalPoints: 'desc' }, { fullName: 'asc' }, { id: 'asc' }],
-      take: 10,
+      take: limit,
       select: {
         id: true, fullName: true, totalPoints: true,
         circle: { select: { name: true, teachers: {
@@ -34,8 +42,8 @@ export class DashboardService {
       students: students.map((student, index) => {
         if (index === 0 || student.totalPoints !== students[index - 1].totalPoints) rank = index + 1;
         return { id: student.id, fullName: student.fullName, points: student.totalPoints, rank,
-          circleName: student.circle.name,
-          teacherName: [...new Set(student.circle.teachers.map(item => item.teacher.user.fullName))].join('، ') || null };
+          circleName: student.circle?.name ?? 'غير مسجل في حلقة',
+          teacherName: [...new Set((student.circle?.teachers ?? []).map(item => item.teacher.user.fullName))].join('، ') || null };
       }),
     };
   }

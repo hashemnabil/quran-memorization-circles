@@ -19,6 +19,12 @@ export class DashboardController {
     return this.service.honorRoll();
   }
 
+  @Get('student-ranking')
+  @ApiOperation({ summary: 'ترتيب جميع الطلاب بالنقاط من الأول إلى الأخير' })
+  studentRanking() {
+    return this.service.studentRanking();
+  }
+
   @Get('overview')
   @ApiOperation({ summary: 'ملخص لوحة المعلومات حسب دور المستخدم' })
   overview(@CurrentUser() user: AuthUser) {

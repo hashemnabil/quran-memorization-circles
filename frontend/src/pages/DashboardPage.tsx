@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import PrayerCard from '@/components/PrayerCard';
-import HonorRoll from '@/components/HonorRoll';
+import HonorRoll, { CircleHonorRoll } from '@/components/HonorRoll';
 import DailyOverview from '@/components/DailyOverview';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -87,6 +87,7 @@ export default function DashboardPage() {
       <>
         <PageHeader title="الرئيسية" subtitle="جارٍ تجهيز ملخص اليوم..." />
         <HonorRoll />
+        <CircleHonorRoll />
         <PrayerCard />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -98,7 +99,7 @@ export default function DashboardPage() {
   }
 
   if (!data) {
-    return <><HonorRoll /><PrayerCard /><ErrorState message="تعذر تحميل لوحة المعلومات" onRetry={() => refetch()} /></>;
+    return <><HonorRoll /><CircleHonorRoll /><PrayerCard /><ErrorState message="تعذر تحميل لوحة المعلومات" onRetry={() => refetch()} /></>;
   }
 
   const greeting = `أهلًا بك، ${user.fullName} · ${ROLE_LABELS[user.role]}`;
@@ -116,6 +117,7 @@ export default function DashboardPage() {
       />
 
       <HonorRoll />
+      <CircleHonorRoll />
       <PrayerCard />
       <DailyOverview/>
 

@@ -248,6 +248,7 @@ export interface AttendanceRecord {
   date: string;
   status: AttendanceStatus;
   customStatus?:string|null;
+  scoringSnapshot?:{label?:string}|null;
   note?: string | null;
   student: { id: string; code: string; fullName: string };
   circle: { id: string; name: string; code: string };
@@ -272,6 +273,7 @@ export interface AttendanceSheet {
       studentId: string;
       status: AttendanceStatus;
       customStatus?:string|null;
+  scoringSnapshot?:{label?:string}|null;
       note?: string | null;
     } | null;
   }[];
@@ -727,6 +729,7 @@ export interface StaffAttendanceRecord {
   date: string;
   status: AttendanceStatus;
   customStatus?:string|null;
+  scoringSnapshot?:{label?:string}|null;
   note?: string | null;
   user: { id: string; fullName: string; role: Role; jobTitle?: string | null };
   recordedBy?: { id: string; fullName: string } | null;

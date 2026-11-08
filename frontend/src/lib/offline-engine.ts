@@ -110,7 +110,7 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     const rules=resolveRules(row.gradingSnapshot??historical??policy??legacy);
     const result=scoreSession({versesCount:Number(row.versesCount||0),mistakes:Number(row.mistakes||0),warnings:Number(row.warnings||0),tajweedErrors:Number(row.tajweedErrors||0),wordErrors:row.wordErrors??[],typeCounters:row.typeCounters??[]},rules);
     row.points=Math.round(result.points*rules.weights.recitation*100)/100;
-    row.evaluation=result.evaluation;row.gradingSnapshot=rules;row.errorRatio=result.errorRatio;
+    row.evaluation=result.evaluation;row.gradingSnapshot={...rules,result:{mark:result.points,percent:result.percent,base:result.base,deducted:result.deducted}};row.errorRatio=result.errorRatio;
     row.type ||= 'MEMORIZATION';
   }
   const opId = crypto.randomUUID();

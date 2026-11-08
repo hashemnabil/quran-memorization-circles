@@ -1,3 +1,4 @@
+import {attendanceRecordLabel} from '@/lib/labels';
 import {RecitationMushafHistory} from '@/components/RecitationMushafHistory';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import MemorizationPlans from '@/components/MemorizationPlans';
@@ -591,7 +592,7 @@ function AttendanceTab({ records, summary, student, canManage }: { records: Atte
                   <tr key={rec.id}>
                     <td className="numeric">{formatDateShort(rec.date)}</td>
                     <td>
-                      <Badge className={ATTENDANCE_COLORS[rec.status]}>{ATTENDANCE_SHORT[rec.status]}</Badge>
+                      <Badge className={ATTENDANCE_COLORS[rec.status]}>{attendanceRecordLabel(rec)}</Badge>
                     </td>
                     <td className="text-xs text-slate-500">{rec.circle?.name}</td>
                     <td className="text-xs text-slate-500">{rec.note ?? '—'}</td>

@@ -176,7 +176,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
     const circles = await get('circles'); const students = await get('students');
     const enriched = all.map((row: any) => ({ ...row, student: students.find((student) => student.id === row.studentId) || row.student }));
     const totals = (rows: any[]) => kind === 'attendance' ? {
-      present: rows.filter((row) => row.status === 'PRESENT').length, absent: rows.filter((row) => row.status === 'ABSENT').length,
+      present: rows.filter((row) => (row.status === 'PRESENT'||row.status === 'LATE')).length, absent: rows.filter((row) => row.status === 'ABSENT').length,
       excused: rows.filter((row) => row.status === 'EXCUSED').length, total: rows.length,
       attendanceRate: rows.length ? Math.round(rows.filter((row) => row.status === 'PRESENT').length * 100 / rows.length) : 0,
     } : { sessions: rows.length, students: new Set(rows.map((row) => row.studentId)).size,

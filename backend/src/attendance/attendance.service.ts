@@ -171,6 +171,7 @@ export class AttendanceService {
         select: {
           studentId: true,
           status: true,
+          customStatus:true,scoringSnapshot:true,
           note: true,
           createdAt: true,
           recordedBy: { select: { id: true, fullName: true } },

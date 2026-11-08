@@ -1,10 +1,6 @@
-import { useState } from 'react';
-import { MushafReader } from './MushafReader';
-import { Button } from '@/components/ui';
-import { resolveRules } from '@/lib/learning-rules';
-import { SURAHS } from '@/lib/quran-surahs';
-import type { Recitation } from '@/types';
-export function RecitationMushafHistory({ record }: {
-    record: Recitation;
-}) { const [open, setOpen] = useState(false); if (!record.wordErrors?.length)
-    return null; return <><span className="mx-2 text-xs text-slate-500">نسبة الأخطاء {record.errorRatio ?? 0}٪ · النقاط {record.points}</span><Button size="sm" variant="secondary" onClick={() => setOpen(true)}>أخطاء المصحف ({record.wordErrors.length})</Button>{open && <MushafReader readOnly rules={resolveRules(record.gradingSnapshot)} errors={record.wordErrors} range={{ from: SURAHS.find(s => s.name === record.fromSurah)?.number ?? 1, fromAyah: record.fromAyah, to: SURAHS.find(s => s.name === record.toSurah)?.number ?? 114, toAyah: record.toAyah }} onClose={() => setOpen(false)}/>}</>; }
+import {useState} from 'react';import {MushafReader} from './MushafReader';import {Button} from '@/components/ui';import {resolveRules} from '@/lib/learning-rules';import {SURAHS} from '@/lib/quran-surahs';import type {Recitation} from '@/types';
+export function RecitationMushafHistory({record}:{record:Recitation}){
+ const [open,setOpen]=useState(false);const errors=record.wordErrors??[];const grade=record.gradingSnapshot?.result;const rules=resolveRules(record.gradingSnapshot);
+ if(!errors.length&&!grade)return null;
+ return <><details className="my-2 text-xs text-slate-600"><summary className="cursor-pointer">تفاصيل التقييم</summary><p className="mt-2 leading-6">أخطاء {record.mistakes??0} · تنبيهات {record.warnings??0} · أحكام {record.tajweedErrors??0} · نسبة الأخطاء {record.errorRatio??0}٪ · النقاط {record.points}</p>{grade&&<p className="leading-6">الدرجة {grade.mark}/{grade.base} ({grade.percent}٪) · الخصم {grade.deducted}</p>}{record.typeCounters?.filter(c=>c.count>0).map(c=><p key={c.typeId}>{rules.types.find(t=>t.id===c.typeId)?.label??c.typeId}: {c.count}</p>)}{record.notes&&<p className="leading-6">ملاحظة الشيخ: {record.notes}</p>}</details>{!!errors.length&&<Button size="sm" variant="secondary" onClick={()=>setOpen(true)}>أخطاء المصحف ({errors.length})</Button>}{open&&<MushafReader readOnly context={(record.student?.fullName??'')+' · '+new Date(record.date).toLocaleDateString('ar')+' · الشيخ '+(record.teacher?.user.fullName??'—')} rules={rules} errors={errors} range={{from:SURAHS.find(s=>s.name===record.fromSurah)?.number??1,fromAyah:record.fromAyah,to:SURAHS.find(s=>s.name===record.toSurah)?.number??114,toAyah:record.toAyah}} onClose={()=>setOpen(false)}/>}</>
+}

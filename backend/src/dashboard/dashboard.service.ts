@@ -449,14 +449,14 @@ export class DashboardService {
       _count: { _all: true },
     });
 
-    const counts = { PRESENT: 0, ABSENT: 0, EXCUSED: 0 };
+    const counts = { PRESENT: 0, LATE:0, ABSENT: 0, EXCUSED: 0 };
     grouped.forEach((g) => (counts[g.status] = g._count._all));
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
     return {
       ...counts,
       total,
-      rate: total ? Math.round((counts.PRESENT / total) * 100) : 0,
+      rate: total ? Math.round(((counts.PRESENT+counts.LATE) / total) * 100) : 0,
     };
   }
 
@@ -471,7 +471,7 @@ export class DashboardService {
     const map = new Map<string, Record<string, number>>();
     rows.forEach((r) => {
       const key = r.date.toISOString().slice(0, 10);
-      const row = map.get(key) ?? { PRESENT: 0, ABSENT: 0, EXCUSED: 0 };
+      const row = map.get(key) ?? { PRESENT: 0, LATE:0, ABSENT: 0, EXCUSED: 0 };
       row[r.status] = r._count._all;
       map.set(key, row);
     });

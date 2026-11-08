@@ -34,3 +34,5 @@ keystore.properties
 
 # Isolated local working checkouts
 /.worktrees/
+/.verify-mushaf-preview/
+/.verify-prisma-client/

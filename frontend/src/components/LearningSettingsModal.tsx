@@ -1,3 +1,4 @@
+import {fetchCircleOptions,fetchLearningSettings} from '@/lib/learning-settings';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiError } from '@/lib/api';
@@ -9,22 +10,10 @@ export function LearningSettingsModal({ onClose }: {
 }) {
     const [showAudit, setShowAudit] = useState(false);
     const [auditPage, setAuditPage] = useState(1);
-    const audit = useQuery({ queryKey: ['learning-points-audit', auditPage], enabled: showAudit, queryFn: async () => (await api.get<{
-            id: string;
-            fullName: string;
-            source: string;
-            before_points: number;
-            after_points: number;
-            createdAt: string;
-        }[]>('/recitations/points-audit', { params: { page: auditPage, limit: 25 } })).data });
-    const qc = useQueryClient();
-    const [circleId, setCircleId] = useState('');
-    const [draft, setDraft] = useState<LearningRules>();
-    const circles = useQuery({ queryKey: ['circles', 'options'], queryFn: async () => (await api.get<{
-            id: string;
-            name: string;
-        }[]>('/circles/options')).data });
-    const query = useQuery({ queryKey: ['recitations', 'learning-settings', circleId], queryFn: async () => (await api.get<LearningRules>('/recitations/learning-settings', { params: { circleId: circleId || undefined } })).data });
+    const audit=useQuery({queryKey:['learning-points-audit',auditPage],enabled:showAudit,queryFn:async()=>(await api.get<{id:string;fullName:string;source:string;before_points:number;after_points:number;createdAt:string}[]>('/recitations/points-audit',{params:{page:auditPage,limit:25}})).data});
+    const qc=useQueryClient();const [circleId,setCircleId]=useState('');const [draft,setDraft]=useState<LearningRules>();
+    const circles=useQuery({queryKey:['circles','options'],queryFn:fetchCircleOptions});
+    const query = useQuery({ queryKey: ['recitations', 'learning-settings', circleId], queryFn: ()=>fetchLearningSettings(circleId) });
     useEffect(() => { setDraft(undefined); }, [circleId]);
     const value = draft ?? query.data;
     const update = (patch: Partial<LearningRules>) => setDraft({ ...resolveRules(value), ...patch });

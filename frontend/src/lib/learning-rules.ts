@@ -20,6 +20,7 @@ export interface WordError {
     note?: string;
 }
 export interface LearningRules {
+    result?:{mark:number;percent:number;base:number;deducted:number};
     revision: string;
     base: 'verses' | 'fixed';
     baseMark: number;

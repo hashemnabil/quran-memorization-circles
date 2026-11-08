@@ -1,3 +1,5 @@
+import {attendanceRecordLabel} from '@/lib/labels';
+import {fetchLearningSettings} from '@/lib/learning-settings';
 import type {LearningRules} from '@/lib/learning-rules';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -415,7 +417,7 @@ function StatusPicker({
   onChange: (status: AttendanceStatus) => void;
   size?: 'md' | 'sm';
 }) {
-  const policy=useQuery({queryKey:['recitations','learning-settings',circleId??''],queryFn:async()=>(await api.get<LearningRules>('/recitations/learning-settings',{params:{circleId:circleId||undefined}})).data});
+  const policy=useQuery({queryKey:['recitations','learning-settings',circleId??''],queryFn:()=>fetchLearningSettings(circleId)});
   const extras=policy.data?.attendance.filter(s=>s.enabled&&!ATTENDANCE_ORDER.includes(s.id as AttendanceStatus))??[];
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -678,6 +680,7 @@ function AttendanceHistory({ circles }: { circles: Pick<Circle, 'id' | 'name' | 
                                               {rec.note && (
                                                 <span className="text-[11px] text-slate-400">{rec.note}</span>
                                               )}
+                                              {canEdit&&rec.customStatus&&<Badge className="bg-slate-100 text-slate-700">{attendanceRecordLabel(rec)}</Badge>}
                                               {canEdit ? (
                                                 /* This is where a recorded day is corrected: the
                                                    sheet closes on save, the record stays editable. */
@@ -699,7 +702,7 @@ function AttendanceHistory({ circles }: { circles: Pick<Circle, 'id' | 'name' | 
                                                 />
                                               ) : (
                                                 <Badge className={ATTENDANCE_COLORS[rec.status]}>
-                                                  {ATTENDANCE_SHORT[rec.status]}
+                                                  {attendanceRecordLabel(rec)}
                                                 </Badge>
                                               )}
                                             </span>

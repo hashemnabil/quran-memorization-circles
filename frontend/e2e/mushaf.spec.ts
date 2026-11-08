@@ -32,7 +32,7 @@ test('Mushaf uses selectable words, two-tap errors, undo and encrypted draft res
     await unlockLocalGate(page);
     await gotoWithLocalUnlock(page, '/recitations');
     await page.getByRole('button', { name: 'تسجيل تسميع', exact: true }).click();
-    await page.getByLabel('الطالب', { exact: true }).selectOption(student.id);
+    await page.getByRole('dialog', {name:'تسجيل تسميع',exact:true}).getByRole('combobox',{name:/الطالب/}).selectOption(student.id);
     await page.getByRole('button', { name: /الأخطاء على المصحف/ }).click();
     const reader = page.getByRole('dialog', { name: 'الأخطاء على المصحف', exact: true });
     await expect(reader.locator('.mushaf-paper')).toBeVisible();

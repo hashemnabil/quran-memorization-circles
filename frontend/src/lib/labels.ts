@@ -336,3 +336,5 @@ export function describeExamSections(
   }
   return sorted.map((s) => s.name).join('، ');
 }
+
+export function attendanceRecordLabel(record:{status:AttendanceStatus;customStatus?:string|null;scoringSnapshot?:{label?:string}|null}){return record.customStatus?(record.scoringSnapshot?.label??'حالة إضافية'):ATTENDANCE_SHORT[record.status];}

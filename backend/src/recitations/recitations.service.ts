@@ -52,10 +52,10 @@ export class RecitationsService {
 
   async pointsAudit(query:QueryRecitationsDto){return this.prisma.$queryRaw`SELECT a.id::text,a."studentId",a.source,a."sourceId",a.before_points,a.after_points,a."createdAt",s."fullName" FROM learning_points_audit a JOIN students s ON s.id=a."studentId" WHERE (${query.studentId??null}::text IS NULL OR a."studentId"=${query.studentId??null}) ORDER BY a.id DESC LIMIT ${query.take} OFFSET ${query.skip}`;}
   async offlineLearningPolicies(user:AuthUser){const school=await this.learningSettings();const ids=await this.acl.accessibleCircleIds(user);const circles=await this.prisma.circle.findMany({where:{deletedAt:null,...(ids?{id:{in:ids}}:{})},select:{id:true}});return Object.fromEntries(await Promise.all(circles.map(async c=>[c.id,await learningPolicy(this.prisma,c.id,undefined,school)])));}
-  async learningSettings(circleId?: string) { const rules=await learningPolicy(this.prisma,circleId,undefined,await this.gradingSettings());return rules.revision==='legacy'?savePolicy(this.prisma,'system',undefined,rules):rules; }
+  async learningSettings(circleId?: string) { const rules=await learningPolicy(this.prisma,circleId,undefined,await this.baseGradingSettings());return rules.revision==='legacy'?savePolicy(this.prisma,'system',undefined,rules):rules; }
   async updateLearningSettings(actor:AuthUser, circleId:string|undefined, rules:LearningRules) { if(actor.role!==Role.ADMIN) throw new ForbiddenException(); if(circleId) await this.acl.assertCircleAccess(actor,circleId); const result=await savePolicy(this.prisma,actor.id,circleId,rules); await this.activity.log({userId:actor.id,action:"LEARNING_RULES_UPDATE",summary:"تحديث أنواع الأخطاء ونقاط الحضور وأوزان لوحة الشرف",entityId:result.revision}); return result; }
 
-  async gradingSettings() {
+  private async baseGradingSettings() {
     const row = await this.prisma.schoolSettings.findUnique({ where: { id: 'default' } });
     return {
       mistakePenalty: row?.recitationMistakePenalty ?? 1,
@@ -66,6 +66,11 @@ export class RecitationsService {
       good: row?.recitationGoodMin ?? 70,
       acceptable: row?.recitationAcceptableMin ?? 60,
     };
+  }
+
+  async gradingSettings() {
+    const base=await this.baseGradingSettings();const rules=await learningPolicy(this.prisma,undefined,undefined,base);
+    return {...base,mistakePenalty:rules.mistakePenalty,warningPenalty:rules.warningPenalty,tajweedPenalty:rules.tajweedPenalty,excellent:rules.excellent,veryGood:rules.veryGood,good:rules.good,acceptable:rules.acceptable};
   }
 
   async updateGradingSettings(actor: AuthUser, values: Record<string, number>) {
@@ -318,7 +323,7 @@ export class RecitationsService {
         notes: dto.notes,
         typeCounters: (dto.typeCounters??[]) as unknown as Prisma.InputJsonValue,
         wordErrors: scored.details as unknown as Prisma.InputJsonValue,
-        gradingSnapshot: rules as unknown as Prisma.InputJsonValue,
+        gradingSnapshot: {...rules,result:{mark:scored.points,percent:scored.percent,base:scored.base,deducted:scored.deducted}} as unknown as Prisma.InputJsonValue,
         errorRatio: scored.errorRatio,
       },
       include: RECITATION_INCLUDE,
@@ -407,7 +412,7 @@ export class RecitationsService {
         typeCounters: (dto.typeCounters??recitation.typeCounters??[]) as Prisma.InputJsonValue,
         notes: dto.notes,
         wordErrors: scored.details as unknown as Prisma.InputJsonValue,
-        gradingSnapshot: scoreChanged?rules as unknown as Prisma.InputJsonValue:recitation.gradingSnapshot??Prisma.DbNull,
+        gradingSnapshot: scoreChanged?{...rules,result:{mark:scored.points,percent:scored.percent,base:scored.base,deducted:scored.deducted}} as unknown as Prisma.InputJsonValue:recitation.gradingSnapshot??Prisma.DbNull,
         errorRatio: scoreChanged?scored.errorRatio:recitation.errorRatio,
       },
       include: RECITATION_INCLUDE,

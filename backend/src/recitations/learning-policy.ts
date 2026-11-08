@@ -17,13 +17,15 @@ export async function learningPolicy(prisma: PrismaService, circleId?: string, r
     return rows[0] ? resolveRules({ ...rows[0].rules, revision: rows[0].id }) : resolveRules({ ...fallback, revision: 'legacy' });
 }
 export function validatePolicy(raw: LearningRules): LearningRules {
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new BadRequestException('قواعد التقييم غير صالحة');
     const rules = resolveRules(raw);
+    delete rules.result;
     const number = (n: unknown, max = 100) => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= max;
     if (!['verses', 'fixed'].includes(rules.base) || !number(rules.baseMark, 6236) || !number(rules.mistakePenalty) || !number(rules.warningPenalty) || !number(rules.tajweedPenalty) || ![rules.excellent, rules.veryGood, rules.good, rules.acceptable].every(n => number(n)) || !(rules.excellent > rules.veryGood && rules.veryGood > rules.good && rules.good > rules.acceptable))
         throw new BadRequestException('قواعد التقييم غير صالحة');
-    if (!Array.isArray(rules.types) || rules.types.length > 60 || new Set(rules.types.map(t => t.id)).size !== rules.types.length || rules.types.some(t => !/^[-a-zA-Z0-9_]{1,60}$/.test(t.id) || typeof t.label !== 'string' || !t.label.trim() || t.label.length > 100 || !['mistake', 'warning', 'tajweed'].includes(t.category) || !['counter', 'mushaf', 'both'].includes(t.mode) || typeof t.enabled !== 'boolean' || typeof t.freeFirst !== 'boolean' || !number(t.penalty)))
+    if (!Array.isArray(rules.types) || rules.types.length > 60 || rules.types.some(t=>!t||typeof t!=='object') || new Set(rules.types.map(t => t.id)).size !== rules.types.length || rules.types.some(t => !/^[-a-zA-Z0-9_]{1,60}$/.test(t.id) || typeof t.label !== 'string' || !t.label.trim() || t.label.length > 100 || !['mistake', 'warning', 'tajweed'].includes(t.category) || !['counter', 'mushaf', 'both'].includes(t.mode) || typeof t.enabled !== 'boolean' || typeof t.freeFirst !== 'boolean' || !number(t.penalty)))
         throw new BadRequestException('أنواع الأخطاء غير صالحة');
-    if (!Array.isArray(rules.attendance) || rules.attendance.length > 30 || new Set(rules.attendance.map(t => t.id)).size !== rules.attendance.length || rules.attendance.some(t => !/^[-a-zA-Z0-9_]{1,60}$/.test(t.id) || typeof t.label !== 'string' || !t.label.trim() || t.label.length > 100 || typeof t.enabled !== 'boolean' || !number(Math.abs(t.points), 1000)) || DEFAULT_LEARNING_RULES.attendance.some(t => !rules.attendance.find(a => a.id === t.id)))
+    if (!Array.isArray(rules.attendance) || rules.attendance.length > 30 || rules.attendance.some(t=>!t||typeof t!=='object') || new Set(rules.attendance.map(t => t.id)).size !== rules.attendance.length || rules.attendance.some(t => !/^[-a-zA-Z0-9_]{1,60}$/.test(t.id) || typeof t.label !== 'string' || !t.label.trim() || t.label.length > 100 || typeof t.enabled !== 'boolean' || !number(Math.abs(t.points), 1000)) || DEFAULT_LEARNING_RULES.attendance.some(t => !rules.attendance.find(a => a.id === t.id)))
         throw new BadRequestException('حالات الحضور غير صالحة');
     if (!Object.values(rules.weights).every(n => number(n, 10)))
         throw new BadRequestException('أوزان النقاط بين صفر وعشرة');

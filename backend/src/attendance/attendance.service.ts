@@ -298,6 +298,7 @@ export class AttendanceService {
       where: { id },
       data: {
         status: dto.status,
+        customStatus: dto.customStatus ?? null,
         note: dto.status === AttendanceStatus.EXCUSED ? dto.note ?? null : null,
         recordedById: actor.id,
       },
@@ -442,7 +443,7 @@ export class AttendanceService {
       const byCircle = [...new Set(rows.map((r) => r.circleId))].map((circleId) => {
         const own = rows.filter((r) => r.circleId === circleId);
         const get = (s: AttendanceStatus) => own.find((r) => r.status === s)?._count._all ?? 0;
-        const present = get(AttendanceStatus.PRESENT);
+        const present = get(AttendanceStatus.PRESENT)+get(AttendanceStatus.LATE);
         const absent = get(AttendanceStatus.ABSENT);
         const excused = get(AttendanceStatus.EXCUSED);
         const total = present + absent + excused;
@@ -501,7 +502,7 @@ export class AttendanceService {
     });
 
     const count = (s: AttendanceStatus) => records.filter((r) => r.status === s).length;
-    const present = count(AttendanceStatus.PRESENT);
+    const present = count(AttendanceStatus.PRESENT)+count(AttendanceStatus.LATE);
 
     return {
       date,
@@ -547,6 +548,7 @@ export class AttendanceService {
 
     const counts = {
       PRESENT: 0,
+      LATE: 0,
       ABSENT: 0,
       EXCUSED: 0,
     } as Record<AttendanceStatus, number>;
@@ -566,7 +568,7 @@ export class AttendanceService {
     const trendMap = new Map<string, Record<string, number>>();
     daily.forEach((d) => {
       const key = d.date.toISOString().slice(0, 10);
-      const row = trendMap.get(key) ?? { PRESENT: 0, ABSENT: 0, EXCUSED: 0 };
+      const row = trendMap.get(key) ?? { PRESENT: 0, LATE:0, ABSENT: 0, EXCUSED: 0 };
       row[d.status] = d._count._all;
       trendMap.set(key, row);
     });
@@ -574,7 +576,7 @@ export class AttendanceService {
     return {
       total,
       counts,
-      attendanceRate: total ? Math.round((counts.PRESENT / total) * 100) : 0,
+      attendanceRate: total ? Math.round(((counts.PRESENT+counts.LATE) / total) * 100) : 0,
       absenceRate: total ? Math.round(((counts.ABSENT + counts.EXCUSED) / total) * 100) : 0,
       trend: [...trendMap.entries()]
         .sort((a, b) => a[0].localeCompare(b[0]))

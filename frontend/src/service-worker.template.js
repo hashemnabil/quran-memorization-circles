@@ -115,14 +115,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/sounds/') || url.pathname === '/prayer-mosque.jpg' || url.pathname === '/manifest.webmanifest' || url.pathname === '/favicon.ico' || url.pathname.startsWith('/icons/')) {
+  if (url.pathname.startsWith('/mushaf/') || url.pathname.startsWith('/assets/') || url.pathname.startsWith('/sounds/') || url.pathname === '/prayer-mosque.jpg' || url.pathname === '/manifest.webmanifest' || url.pathname === '/favicon.ico' || url.pathname.startsWith('/icons/')) {
     event.respondWith((async () => {
       // Vite can add Vary: Origin. Module-script requests carry Origin while
       // worker precache requests do not; immutable public assets are identical.
       const cached = await caches.match(request, { ignoreVary: true });
       if (cached) return cached;
       const response = await fetch(request);
-      if (response.ok) (await caches.open(CACHE_NAME)).put(request, response.clone());
+      if (response.ok) (await caches.open(url.pathname.startsWith('/mushaf/')?'halaqat-mushaf-v2-1':CACHE_NAME)).put(request, response.clone());
       return response;
     })());
   }

@@ -152,6 +152,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
     const table = { media: 'mediaPlans', duties: 'teacherDuties', teachers: 'dutyTeachers' }[segments[1]] as EntityTable | undefined;
     if (table && segments.length === 2) return (await get(table)).sort((a, b) => String(a.date || a.fullName).localeCompare(String(b.date || b.fullName)));
   }
+  if(url.pathname==='/recitations/learning-settings'){return (await db.meta.get(accountId()+':learning-policy:'+(params.circleId??'')))?.value??(await db.meta.get(accountId()+':reference:/recitations/learning-policies'))?.value?.[params.circleId]??(params.circleId?undefined:(await db.meta.get(accountId()+':reference:/recitations/learning-settings'))?.value);}
   const reference = await db.meta.get(`${accountId()}:reference:${url.pathname}`);
   if (reference) return reference.value;
   if (segments[0] === 'students' && segments[2] === 'history') return (await get('students')).find((row) => row.id === segments[1])?._offline?.history;

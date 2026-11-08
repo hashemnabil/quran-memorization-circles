@@ -1,3 +1,4 @@
+import {RankingFilters} from '@/components/RankingFilters';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -7,12 +8,13 @@ import { Button, Card, EmptyState, ErrorState, Input, LoadingState, PageHeader }
 
 const normalize = (value: string) => value.replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').trim();
 export default function StudentRankingPage() {
+  const [period,setPeriod]=useState('all');const [rankingCircle,setRankingCircle]=useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const query = useQuery({
-    queryKey: ['dashboard', 'student-ranking'],
+    queryKey: ['dashboard', 'student-ranking', period, rankingCircle],
     queryFn: async () => {
-      const { data } = await api.get<HonorRollData>('/dashboard/student-ranking');
+      const { data } = await api.get<HonorRollData>('/dashboard/student-ranking',{params:{period,circleId:rankingCircle||undefined}});
       if (!Array.isArray(data?.students)) throw new Error('تعذر تحميل ترتيب الطلاب');
       return data;
     },
@@ -26,7 +28,7 @@ export default function StudentRankingPage() {
   const start = (currentPage - 1) * 50;
   return <div dir="rtl" className="space-y-5">
     <PageHeader title="ترتيب الطلاب" subtitle="جميع طلاب المدرسة من الأعلى نقاطًا إلى الأقل" breadcrumb={<Link to="/">الرئيسية</Link>} />
-    <Card>
+    <Card><RankingFilters period={period} circleId={rankingCircle} onChange={(p,c)=>{setPeriod(p);setRankingCircle(c);setPage(1)}}/>
       <div className="flex flex-wrap items-end justify-between gap-4"><Input label="ابحث عن طالب أو شيخ أو حلقة" placeholder="اكتب الاسم هنا" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} className="w-full sm:max-w-md" /><div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">إجمالي الطلاب: <strong>{all.length}</strong></div></div>
       <p className="mt-3 text-xs leading-6 text-slate-500">يشمل الترتيب جميع الطلاب المسجلين، حتى من لم يحصل على نقاط بعد. يتغير تلقائيًا مع النقاط، وعند التساوي يتساوى المركز وتُرتب الأسماء أبجديًا. البحث يحتفظ بمركز الطالب على مستوى المدرسة.</p>
       {!navigator.onLine && <p role="status" className="mt-2 text-xs text-amber-700">آخر ترتيب محفوظ على الجهاز؛ يتحدث عند الاتصال.</p>}

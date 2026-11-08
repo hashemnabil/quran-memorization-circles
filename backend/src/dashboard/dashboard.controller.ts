@@ -1,9 +1,12 @@
+import {IsOptional,IsIn,IsUUID} from 'class-validator';
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser, Roles } from '../common/decorators';
 import { DashboardService } from './dashboard.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
+
+class RankingQueryDto { @IsOptional() @IsUUID('4') circleId?:string; @IsOptional() @IsIn(['all','week','month']) period?:string; }
 
 class ActivityQueryDto extends PaginationDto { limit = 200; }
 
@@ -15,14 +18,14 @@ export class DashboardController {
 
   @Get('honor-roll')
   @ApiOperation({ summary: 'أعلى عشرة طلاب بالنقاط من جميع الحلقات' })
-  honorRoll() {
-    return this.service.honorRoll();
+  honorRoll(@Query() query: RankingQueryDto) {
+    return this.service.honorRoll(query);
   }
 
   @Get('student-ranking')
   @ApiOperation({ summary: 'ترتيب جميع الطلاب بالنقاط من الأول إلى الأخير' })
-  studentRanking() {
-    return this.service.studentRanking();
+  studentRanking(@Query() query: RankingQueryDto) {
+    return this.service.studentRanking(query);
   }
 
   @Get('overview')

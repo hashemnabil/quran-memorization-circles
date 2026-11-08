@@ -31,7 +31,7 @@ export async function applyAttendanceEntries(tx: Prisma.TransactionClient, actor
     if (current) {
       await tx.attendance.update({
         where: { studentId_date: { studentId: entry.studentId, date } },
-        data: { status: AttendanceStatus.PRESENT, note: null, recordedById: actor.id },
+        data: { status: AttendanceStatus.PRESENT, customStatus: entry.customStatus ?? null, note: null, recordedById: actor.id },
       });
     } else {
       await tx.attendance.create({
@@ -40,6 +40,7 @@ export async function applyAttendanceEntries(tx: Prisma.TransactionClient, actor
           circleId: dto.circleId,
           date,
           status: entry.status,
+          customStatus: entry.customStatus,
           note,
           recordedById: actor.id,
         },

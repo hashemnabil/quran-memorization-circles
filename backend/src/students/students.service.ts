@@ -1,3 +1,4 @@
+import {learningPolicy} from '../recitations/learning-policy';
 import { assertNewPassword } from '../common/validators/password';
 import { ProfileReviewsService } from '../profile-reviews/profile-reviews.service';
 import {
@@ -300,7 +301,7 @@ export class StudentsService {
     ]);
 
     const totalAttendance = attendanceSummary.reduce((s, a) => s + a._count._all, 0);
-    const present = attendanceSummary.find((a) => a.status === 'PRESENT')?._count._all ?? 0;
+    const present = attendanceSummary.filter(a=>a.status==='PRESENT'||a.status==='LATE').reduce((sum,a)=>sum+a._count._all,0);
     const surahPoints = surahCompletions.reduce((s, c) => s + c.points, 0);
 
     return {
@@ -341,6 +342,7 @@ export class StudentsService {
         total: student.totalPoints,
         fromRecitations: Math.round((pointsAgg._sum.points ?? 0) * 100) / 100,
         fromSurahs: Math.round(surahPoints * 100) / 100,
+        fromAttendance: Math.round((student.totalPoints-(pointsAgg._sum.points??0)-surahPoints)*100)/100,
         sessions: pointsAgg._count._all,
         verses: pointsAgg._sum.versesCount ?? 0,
         mistakes: pointsAgg._sum.mistakes ?? 0,
@@ -372,20 +374,8 @@ export class StudentsService {
    * incrementing means an edited or deleted session can never leave it adrift.
    */
   async recalculatePoints(studentId: string) {
-    const [recitations, surahs] = await Promise.all([
-      this.prisma.recitation.aggregate({
-        where: { studentId, deletedAt: null },
-        _sum: { points: true },
-      }),
-      this.prisma.surahCompletion.aggregate({
-        where: { studentId },
-        _sum: { points: true },
-      }),
-    ]);
-    const total =
-      Math.round(((recitations._sum.points ?? 0) + (surahs._sum.points ?? 0)) * 100) / 100;
-    await this.prisma.student.update({ where: { id: studentId }, data: { totalPoints: total } });
-    return total;
+    const rows=await this.prisma.$queryRaw<Array<{total:number}>>`SELECT refresh_learning_total(${studentId}) AS total`;
+    return rows[0]?.total??0;
   }
 
   /** Awards the surah-completion bonus. Unique per (student, surah). */
@@ -398,11 +388,12 @@ export class StudentsService {
     });
     if (existing) throw new ConflictException('تم تسجيل إتمام هذه السورة لهذا الطالب مسبقاً');
 
+    const completionRules=await learningPolicy(this.prisma,student.circleId??undefined);
     const completion = await this.prisma.surahCompletion.create({
       data: {
         studentId,
         surah: dto.surah,
-        points: dto.points ?? SURAH_COMPLETION_POINTS,
+        points: Math.round((dto.points ?? SURAH_COMPLETION_POINTS)*completionRules.weights.achievement*100)/100,
         note: dto.note || null,
         recordedById: actor.id,
       },

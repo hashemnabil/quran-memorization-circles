@@ -1,3 +1,4 @@
+import {scoreSession,resolveRules} from './learning-rules';
 import { db, entityTables, type EntityTable, type LocalRow, type QueuedWrite } from './db';
 import { startSyncProgress, reportSyncProgress, finishSyncProgress } from './sync-progress';
 import { openCredentials, sealCredentials } from './queued-credentials';
@@ -50,6 +51,7 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     return { id, accountId: account, synced: 0, updatedAt, _writeOpId: opId, _writeTable: table, message: 'تم حفظ كشف الحضور محليًا' } as LocalRow;
   }
   const existing = await db.table(table).get([account, id]);
+  if(table==='recitations'&&action==='update'&&existing?.updatedAt&&existing.synced!==0)data={...data,baseUpdatedAt:data.baseUpdatedAt??existing.updatedAt};
   const row: LocalRow = { createdAt: new Date().toISOString(), ...(table === 'behaviors' ? { author: { id: account, fullName: 'محفوظ محليًا' } } : {}), ...existing, ...data, id, accountId: account, synced: 0, updatedAt: new Date().toISOString() };
   if (typeof data._localPreviewUrl === 'string') { row.fileUrl = data._localPreviewUrl; delete row._localPreviewUrl; }
   if (table === 'profileReviews' && action === 'decision') { row.pendingDecision = data.status; row.status = existing?.status || 'PENDING'; }
@@ -101,12 +103,14 @@ export async function save(table: EntityTable, data: Record<string, any>, action
     const from = surahs.findIndex((surah: any) => surah.name === row.fromSurah);
     const to = surahs.findIndex((surah: any) => surah.name === row.toSurah);
     if (data.versesCount === undefined && from >= 0 && to >= from) row.versesCount = surahs.slice(from, to + 1).reduce((sum: number, surah: any, index: number) => sum + (index === to - from ? row.toAyah : surah.ayahs) - (index === 0 ? row.fromAyah - 1 : 0), 0);
-    const rules = (await db.meta.get(`${account}:reference:/recitations/grading-settings`))?.value
-      || (await db.responses.get(JSON.stringify([account, '/recitations/grading-settings', []])))?.data || {};
-    const verses = Number(row.versesCount || 0);
-    row.points = Math.round(Math.max(0, verses - Number(row.mistakes || 0) * (rules.mistakePenalty ?? 1) - Number(row.warnings || 0) * (rules.warningPenalty ?? 0.25) - Number(row.tajweedErrors || 0) * (rules.tajweedPenalty ?? 0.5)) * 100) / 100;
-    const percent = verses ? row.points / verses * 100 : 0;
-    row.evaluation = percent >= (rules.excellent ?? 90) ? 'EXCELLENT' : percent >= (rules.veryGood ?? 80) ? 'VERY_GOOD' : percent >= (rules.good ?? 70) ? 'GOOD' : percent >= (rules.acceptable ?? 60) ? 'ACCEPTABLE' : 'UNSATISFACTORY';
+    const url='/recitations/learning-settings';
+    const policy=(await db.meta.get(account+':learning-policy:'+row.circleId))?.value??(await db.meta.get(account+':reference:/recitations/learning-policies'))?.value?.[row.circleId]??(await db.meta.get(account+':reference:/recitations/learning-settings'))?.value??(await db.responses.get(JSON.stringify([account,url,row.circleId?[['circleId',row.circleId]]:[]])))?.data;
+    const legacy=(await db.meta.get(account+':reference:/recitations/grading-settings'))?.value || (await db.responses.get(JSON.stringify([account,'/recitations/grading-settings',[]])))?.data;
+    const historical=row.rulesRevision?(await db.meta.get(account+':learning-rule:'+row.rulesRevision))?.value:undefined;
+    const rules=resolveRules(row.gradingSnapshot??historical??policy??legacy);
+    const result=scoreSession({versesCount:Number(row.versesCount||0),mistakes:Number(row.mistakes||0),warnings:Number(row.warnings||0),tajweedErrors:Number(row.tajweedErrors||0),wordErrors:row.wordErrors??[],typeCounters:row.typeCounters??[]},rules);
+    row.points=Math.round(result.points*rules.weights.recitation*100)/100;
+    row.evaluation=result.evaluation;row.gradingSnapshot=rules;row.errorRatio=result.errorRatio;
     row.type ||= 'MEMORIZATION';
   }
   const opId = crypto.randomUUID();

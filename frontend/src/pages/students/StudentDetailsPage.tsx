@@ -1,3 +1,4 @@
+import {RecitationMushafHistory} from '@/components/RecitationMushafHistory';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import MemorizationPlans from '@/components/MemorizationPlans';
 import { useState } from 'react';
@@ -361,7 +362,7 @@ export default function StudentDetailsPage() {
           tone="amber"
           hint={
             student.points
-              ? `${student.points.fromRecitations} من التسميع + ${student.points.fromSurahs} من السور`
+              ? `${student.points.fromRecitations} من التسميع + ${student.points.fromSurahs} من السور + ${student.points.fromAttendance??0} من الحضور`
               : undefined
           }
         />
@@ -640,7 +641,7 @@ function RecitationsTabComponent({ records, progress, student, canManage }: { re
                     <td>
                       {rec.fromSurah} {rec.fromAyah} — {rec.toSurah} {rec.toAyah}
                     </td>
-                    <td className="numeric text-red-600">{rec.mistakes ?? 0}</td>
+                    <td className="numeric text-red-600">{rec.mistakes ?? 0}<RecitationMushafHistory record={rec}/></td>
                     <td className="numeric text-amber-600">{rec.warnings ?? 0}</td>
                   </tr>
                 ))}

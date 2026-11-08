@@ -1,3 +1,4 @@
+import type {LearningRules} from '@/lib/learning-rules';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,7 +40,7 @@ import type {
   PaginatedResponse,
 } from '@/types';
 
-type Draft = Record<string, { status: AttendanceStatus; note?: string }>;
+type Draft = Record<string, { status: AttendanceStatus; note?: string; customStatus?:string }>;
 
 function mayUseOfflineAttendanceFallback(error: unknown): boolean {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
@@ -151,7 +152,7 @@ export default function AttendancePage() {
     const next: Draft = {};
     sheet.students.forEach((s) => {
       next[s.id] = s.attendance
-        ? { status: s.attendance.status, note: s.attendance.note ?? undefined }
+        ? { status: s.attendance.status, customStatus:s.attendance.customStatus??undefined, note: s.attendance.note ?? undefined }
         : { status: 'PRESENT' };
     });
     const key = `${accountId}:${circleId}:${date}`;
@@ -177,6 +178,7 @@ export default function AttendancePage() {
         entries: Object.entries(draft).map(([studentId, value]) => ({
           studentId,
           status: value.status,
+          customStatus: value.customStatus,
           note: value.status === 'EXCUSED' ? value.note || undefined : undefined,
         })),
       }),
@@ -220,7 +222,7 @@ export default function AttendancePage() {
   });
 
   const counts = useMemo(() => {
-    const base: Record<AttendanceStatus, number> = { PRESENT: 0, EXCUSED: 0, ABSENT: 0 };
+    const base: Record<AttendanceStatus, number> = { PRESENT: 0, LATE: 0, EXCUSED: 0, ABSENT: 0 };
     Object.values(draft).forEach((d) => (base[d.status] += 1));
     return base;
   }, [draft]);
@@ -327,6 +329,7 @@ export default function AttendancePage() {
             <>
               <div className="mb-5 grid gap-4 sm:grid-cols-3">
                 <StatCard label="حاضر" value={counts.PRESENT} tone="emerald" />
+                <StatCard label="متأخر" value={counts.LATE} tone="amber" />
                 <StatCard label="غياب بعذر" value={counts.EXCUSED} tone="amber" />
                 <StatCard label="غياب بدون عذر" value={counts.ABSENT} tone="red" />
               </div>
@@ -359,9 +362,10 @@ export default function AttendancePage() {
                         </div>
 
                         <StatusPicker
+                          circleId={circleId} customValue={entry.customStatus} onCustomChange={customStatus=>editDraft(d=>({...d,[student.id]:{...d[student.id],status:'PRESENT',customStatus}}))}
                           value={entry.status}
                           onChange={(status) =>
-                            editDraft((prev) => ({ ...prev, [student.id]: { ...prev[student.id], status } }))
+                            editDraft((prev) => ({ ...prev, [student.id]: { ...prev[student.id], status,customStatus:undefined } }))
                           }
                         />
 
@@ -401,26 +405,30 @@ export default function AttendancePage() {
 
 /** The three-state control shared by the sheet and by a correction in the history. */
 function StatusPicker({
+  circleId, customValue, onCustomChange,
   value,
   onChange,
   size = 'md',
 }: {
+  circleId?:string;customValue?:string;onCustomChange?:(id:string)=>void;
   value: AttendanceStatus;
   onChange: (status: AttendanceStatus) => void;
   size?: 'md' | 'sm';
 }) {
+  const policy=useQuery({queryKey:['recitations','learning-settings',circleId??''],queryFn:async()=>(await api.get<LearningRules>('/recitations/learning-settings',{params:{circleId:circleId||undefined}})).data});
+  const extras=policy.data?.attendance.filter(s=>s.enabled&&!ATTENDANCE_ORDER.includes(s.id as AttendanceStatus))??[];
   return (
     <div className="flex flex-wrap gap-1.5">
-      {ATTENDANCE_ORDER.map((status) => (
+      {ATTENDANCE_ORDER.filter(status=>!policy.data||policy.data.attendance.some(s=>s.id===status&&s.enabled)).map((status) => (
         <button
           key={status}
           type="button"
-          aria-pressed={value === status}
+          aria-pressed={!customValue && value === status}
           onClick={() => onChange(status)}
           className={cx(
             'rounded-lg border font-bold transition',
             size === 'sm' ? 'px-2.5 py-1 text-[11px]' : 'px-3 py-1.5 text-xs',
-            value === status
+            !customValue && value === status
               ? ATTENDANCE_ACTIVE[status]
               : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50',
           )}
@@ -428,6 +436,7 @@ function StatusPicker({
           {size === 'sm' ? ATTENDANCE_SHORT[status] : ATTENDANCE_LABELS[status]}
         </button>
       ))}
+      {!!extras.length&&onCustomChange&&<Select aria-label="حالة حضور إضافية" value={customValue??''} onChange={e=>onCustomChange(e.target.value)}><option value="">حالة إضافية</option>{extras.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}</Select>}
     </div>
   );
 }
@@ -477,8 +486,8 @@ function AttendanceHistory({ circles }: { circles: Pick<Circle, 'id' | 'name' | 
   // A correction is made one student at a time - the sheet itself is closed
   // once it has been submitted.
   const correct = useMutation({
-    mutationFn: ({ id, status, note }: { id: string; status: AttendanceStatus; note?: string }) =>
-      api.patch(`/attendance/${id}`, { status, note }),
+    mutationFn: ({ id, status, note, customStatus }: { id: string; status: AttendanceStatus; note?: string;customStatus?:string }) =>
+      api.patch(`/attendance/${id}`, { status, note, customStatus }),
     onSuccess: (res) => {
       toast.success(res.data?.message ?? 'تم تحديث سجل الطالب');
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
@@ -674,9 +683,10 @@ function AttendanceHistory({ circles }: { circles: Pick<Circle, 'id' | 'name' | 
                                                    sheet closes on save, the record stays editable. */
                                                 <StatusPicker
                                                   size="sm"
+                                                  circleId={circleId} customValue={rec.customStatus??undefined} onCustomChange={customStatus=>correct.mutate({id:rec.id,status:'PRESENT',customStatus})}
                                                   value={rec.status}
                                                   onChange={(status) => {
-                                                    if (status === rec.status) return;
+                                                    if (status === rec.status && !rec.customStatus) return;
                                                     const note =
                                                       status === 'EXCUSED'
                                                         ? window.prompt(

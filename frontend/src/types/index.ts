@@ -19,7 +19,7 @@ export interface ExamChain {
 /** Which part of the school a student belongs to, for the unified profile. */
 export type StudentTrack = 'CIRCLE' | 'COURSE' | 'ACTIVITY' | 'SUSPENDED';
 /** حاضر / غياب بدون عذر / غياب بعذر */
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'EXCUSED';
+export type AttendanceStatus = 'LATE' | 'PRESENT' | 'ABSENT' | 'EXCUSED';
 export type RecitationType = 'MEMORIZATION' | 'MINOR_REVIEW' | 'MAJOR_REVIEW' | 'CONSOLIDATION' | 'TAJWEED';
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export type TransferKind =
@@ -247,6 +247,7 @@ export interface AttendanceRecord {
   id: string;
   date: string;
   status: AttendanceStatus;
+  customStatus?:string|null;
   note?: string | null;
   student: { id: string; code: string; fullName: string };
   circle: { id: string; name: string; code: string };
@@ -270,12 +271,17 @@ export interface AttendanceSheet {
     attendance: {
       studentId: string;
       status: AttendanceStatus;
+      customStatus?:string|null;
       note?: string | null;
     } | null;
   }[];
 }
 
 export interface Recitation {
+  typeCounters?: import('../lib/learning-rules').TypeCounter[];
+  wordErrors?: import('../lib/learning-rules').WordError[];
+  gradingSnapshot?: import('../lib/learning-rules').LearningRules;
+  errorRatio?:number;
   id: string;
   date: string;
   type: RecitationType;
@@ -668,6 +674,7 @@ export interface PointsSummary {
   total: number;
   fromRecitations: number;
   fromSurahs: number;
+  fromAttendance?:number;
   sessions?: number;
   verses: number;
   mistakes: number;
@@ -719,6 +726,7 @@ export interface StaffAttendanceRecord {
   id: string;
   date: string;
   status: AttendanceStatus;
+  customStatus?:string|null;
   note?: string | null;
   user: { id: string; fullName: string; role: Role; jobTitle?: string | null };
   recordedBy?: { id: string; fullName: string } | null;

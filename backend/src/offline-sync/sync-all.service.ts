@@ -162,7 +162,7 @@ export class FullSyncService {
         ]);
         return { data, meta: { hasNextPage: total > page * 200 } };
       }
-      case 'recitations': return staff ? { ...await s.recitations.findAll(user, plainToInstance(QueryRecitationsDto, query)), ...(page === 1 ? { references: { '/recitations/surahs': s.recitations.surahs() } } : {}) } : empty;
+      case 'recitations': return staff ? { ...await s.recitations.findAll(user, plainToInstance(QueryRecitationsDto, query)), ...(page === 1 ? { references: { '/recitations/surahs': s.recitations.surahs(), '/recitations/grading-settings': await s.recitations.gradingSettings(), '/recitations/learning-settings': await s.recitations.learningSettings(), '/recitations/learning-policies': await s.recitations.offlineLearningPolicies(user) } } : {}) } : empty;
       case 'exams': return staff || user.role === Role.EXAM_COMMITTEE ? { ...await s.exams.findExams(user, plainToInstance(QueryExamsDto, query)), ...(page === 1 ? { references: { '/exams/sections': await s.exams.sections() } } : {}) } : empty;
       case 'examRequests': return staff || user.role === Role.EXAM_COMMITTEE ? s.exams.findRequests(user, plainToInstance(QueryExamRequestsDto, query)) : empty;
       case 'courses': return staff ? this.hydratePage(await s.courses.findAll(plainToInstance(QueryCoursesDto, { ...query, ...(user.role === Role.TEACHER ? { instructorId: user.id } : {}) })), async (id) => ({ ...await s.courses.findOne(id, user), _offline: { attendance: await this.prisma.courseAttendance.findMany({ where: { courseId: id }, include: { student: { select: { id: true, fullName: true, code: true } } } }) } }), changedIds) : empty;
@@ -208,6 +208,7 @@ export class FullSyncService {
     };
     const direct: Record<string, string> = { profile_reviews: 'profileReviews', absence_permission_requests: 'absencePermissions', guardian_summons: 'guardianSummons', preparation_assignments: 'preparations', surah_completions: 'surahCompletions', announcements: 'announcements', media_activities: 'mediaActivities', school_settings: 'schoolSettings', student_file_requests: 'certificateRequests', certificate_records: 'certificates', certificate_templates: 'certificateTemplates', students: 'students', circles: 'circles', teacher_profiles: 'teachers', attendance: 'attendance', staff_attendance: 'staffAttendance', course_attendance: 'courseAttendance', recitations: 'recitations', exams: 'exams', exam_requests: 'examRequests', student_notes: 'behaviors', notifications: 'notifications', courses: 'courses', media_plans: 'mediaPlans', teacher_duties: 'teacherDuties' };
     for (const change of changes) {
+      if(change.entity==='learning_rule_sets')add('recitations');
         if (includeSupport && ['support_tickets', 'ticket_messages', 'users'].includes(change.entity)) add('supportTickets');
       if (includeCommunication && ['messages','conversation_members','users'].includes(change.entity)) add('chatMessages');
       if (includeCommunication && ['CommunityPost','CommunityComment','CommunityLike','CommunityCommentLike'].includes(change.entity)) { add('communityPosts'); add('communityComments'); }

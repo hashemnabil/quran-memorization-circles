@@ -42,7 +42,8 @@
     "restore": "node scripts/restore.mjs",
     "test:backup-restore": "node scripts/backup-restore.integration.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
-    "test:domain-safety": "node --test -r ts-node/register src/exams/exam-deletion.test.ts src/push/push.test.ts src/chat/offline-message.test.ts src/support/offline-support.test.ts"
+    "test:domain-safety": "node --test -r ts-node/register src/exams/exam-deletion.test.ts src/push/push.test.ts src/chat/offline-message.test.ts src/support/offline-support.test.ts",
+    "test:learning": "node --test -r ts-node/register src/common/learning-rules.test.ts"
   },
   "prisma": {
     "seed": "ts-node -P tsconfig.seed.json prisma/seed.ts"

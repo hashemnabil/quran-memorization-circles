@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Button, EmptyState, LoadingState } from '@/components/ui';
@@ -43,16 +44,18 @@ export default function HonorRoll() {
     </header>
     <div className="p-4 sm:p-6">
       {query.isLoading ? <LoadingState rows={3} /> : !query.data && query.isError ? <div role="status" className="space-y-3 py-4 text-center"><p className="text-sm text-slate-600">تعذر تحميل لوحة الشرف</p><Button variant="secondary" size="sm" onClick={() => void query.refetch()}>إعادة المحاولة</Button></div> : !students.length ? <EmptyState title="ننتظر نجوم لوحة الشرف" message="تظهر أسماء الطلاب عند حصولهم على النقاط." icon={<IconAward size={28} />} /> : <>
-        <ol aria-label="المراتب الأولى" className="grid gap-3 sm:grid-cols-3">
-          {students.slice(0, 3).map((student, index) => <li key={student.id} data-student-id={student.id} className={`flex min-w-0 flex-col items-center rounded-2xl border px-4 py-5 text-center ${index === 0 ? 'border-[#d3b76c] bg-[#fff7de] sm:order-2' : index === 1 ? 'border-slate-200 bg-white sm:order-1' : 'border-[#e3cbb6] bg-[#fffaf5] sm:order-3'}`}>
-            <Medal rank={student.rank} large /><h3 className="mt-2 break-words text-base font-extrabold text-[#173e32]">{student.fullName}</h3><p className="mt-1 text-xs leading-6 text-slate-500">{student.circleName}</p><p className="mt-1 text-xs leading-6 text-slate-600">الشيخ: {student.teacherName ?? 'لم يُحدد بعد'}</p><div className="mt-3 rounded-full bg-white/90 px-4 py-1.5"><strong className="text-xl font-extrabold tabular-nums text-[#17634b]">{number.format(student.points)}</strong><span className="ms-1 text-xs text-slate-500">نقطة</span></div>
-          </li>)}
-        </ol>
-        {students.length > 3 && <ol start={4} aria-label="بقية العشرة الأوائل" className="mt-4 divide-y divide-[#e6e6db] rounded-2xl border border-[#e6e6db] bg-white px-3 sm:px-5">
-          {students.slice(3).map(student => <li key={student.id} data-student-id={student.id} className="flex items-center gap-3 py-3"><Medal rank={student.rank} /><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-bold text-slate-800">{student.fullName}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{student.circleName} · الشيخ: {student.teacherName ?? 'لم يُحدد بعد'}</p></div><div className="shrink-0 text-center"><strong className="block font-extrabold tabular-nums text-[#17634b]">{number.format(student.points)}</strong><span className="text-[11px] text-slate-400">نقطة</span></div></li>)}
-        </ol>}
+        <HonorRollRows students={students} />
       </>}
+      <Link to="/student-ranking" className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-bold text-emerald-800 hover:bg-emerald-50">عرض ترتيب جميع الطلاب ←</Link>
       <footer className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#e6e6db] pt-3 text-[11px] leading-5 text-slate-500"><span>{online ? 'يتغير الترتيب تلقائيًا حسب مجموع النقاط' : 'آخر ترتيب محفوظ · يتحدث عند الاتصال'}</span>{query.data?.updatedAt && <span>آخر تحديث: {new Intl.DateTimeFormat('ar', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(new Date(query.data.updatedAt))}</span>}<span className="w-full">عند تساوي النقاط يتساوى المركز، وتُرتب الأسماء أبجديًا.</span>{query.isError && query.data && <span role="status" className="text-amber-700">تعذر تحديث الترتيب؛ المعروض آخر نسخة محفوظة.</span>}</footer>
     </div>
   </section>;
+}
+
+export function HonorRollRows({ students, label = 'ترتيب لوحة الشرف' }: { students: readonly HonorStudent[]; label?: string }) {
+  return <ol aria-label={label} className="space-y-2">
+    {students.map(student => <li key={student.id} data-student-id={student.id} className={`flex items-center gap-3 rounded-2xl border px-3 py-3 sm:gap-4 sm:px-5 ${student.rank === 1 ? 'border-[#d3b76c] bg-[#fff7de]' : student.rank === 2 ? 'border-slate-300 bg-slate-50' : student.rank === 3 ? 'border-[#e3cbb6] bg-[#fffaf5]' : 'border-[#e6e6db] bg-white'}`}>
+      <Medal rank={student.rank} /><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-extrabold text-[#173e32] sm:text-base">{student.fullName}</h3><p className="mt-1 text-xs leading-6 text-slate-500">{student.circleName}</p><p className="text-xs leading-6 text-slate-600">الشيخ: {student.teacherName ?? 'لم يُحدد بعد'}</p></div><div className="shrink-0 text-center"><strong className="block text-lg font-extrabold tabular-nums text-[#17634b] sm:text-xl">{number.format(student.points)}</strong><span className="text-[11px] text-slate-500">نقطة</span></div>
+    </li>)}
+  </ol>;
 }

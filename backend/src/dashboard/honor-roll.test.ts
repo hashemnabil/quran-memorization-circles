@@ -41,3 +41,18 @@ test('a new read reflects changed points without retaining the previous winner',
   assert.equal(next.students[0].rank, 1);
   assert.equal(next.students[0].teacherName, null);
 });
+
+test('full ranking includes every registered student beyond the top ten, including zero points and no circle', async () => {
+  let query: any;
+  const rows = Array.from({ length: 13 }, (_, i) => student(String(i), 12 - i));
+  rows[12].circle = null as any;
+  const service = new DashboardService({ student: { findMany: async (args: any) => { query = args; return rows; } } } as any, {} as any, {} as any);
+  const result = await service.studentRanking();
+  assert.equal(result.students.length, 13);
+  assert.deepEqual(query.where, { deletedAt: null });
+  assert.equal(query.take, undefined);
+  assert.equal(result.students[12].points, 0);
+  assert.equal(result.students[12].rank, 13);
+  assert.equal(result.students[12].circleName, 'غير مسجل في حلقة');
+  assert.equal(result.students[12].teacherName, null);
+});

@@ -574,10 +574,10 @@ export async function localWrite(method: string, path: string, data: any): Promi
     if (!['ALL', 'STAFF', 'TEACHER', 'STUDENT', 'CIRCLE'].includes(data?.audience)) invalid('فئة الإشعار غير صالحة');
     if (!['ALL', 'SELECTED'].includes(data?.selection)) invalid('اختر جميع المستلمين أو أشخاصًا محددين');
     if (!Array.isArray(data?.userIds) || data.userIds.length > 5000 ||
-        data.userIds.some((id: unknown) => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) ||
+        data.userIds.some((id: unknown) => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) ||
         new Set(data.userIds).size !== data.userIds.length) invalid('قائمة المستلمين غير صالحة');
     if (data.selection === 'SELECTED' && !data.userIds.length || data.selection === 'ALL' && data.userIds.length) invalid('راجع اختيار المستلمين');
-    if (data.audience === 'CIRCLE' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(data.circleId || '') ||
+    if (data.audience === 'CIRCLE' && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(data.circleId || '') ||
         data.audience !== 'CIRCLE' && data.circleId) invalid('اختيار الحلقة غير صالح');
     return save('notifications', { ...data, title, body, pendingDelete: 1 }, 'broadcast');
   }

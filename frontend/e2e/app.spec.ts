@@ -38,8 +38,17 @@ for (const [role, paths] of Object.entries(destinations)) {
       else await gotoWithLocalUnlock(page,path);
       await expect(page, `Role ${role} failed navigation to ${path}`).toHaveURL(url => url.pathname === path || (role === 'STUDENT' && url.pathname === '/student' && path !== '/student'));
       await expect(page.getByRole('status', { name: 'بدء التطبيق' })).not.toBeVisible();
-      await expect(page.locator('main h1').first()).toBeVisible();
-      await expect(page.locator('main')).not.toContainText('تعذر تحميل');
+      if (path === '/mushaf') {
+        // The standalone Mushaf is a full-screen dialog rendered in a portal,
+        // not a conventional page with a <main><h1> heading.
+        const reader = page.getByRole('dialog', { name: 'المصحف الشريف', exact: true });
+        await expect(reader).toBeVisible();
+        await expect(reader.getByRole('article', { name: 'صفحة 1', exact: true })).toBeVisible();
+        await expect(reader).not.toContainText('تعذر تحميل');
+      } else {
+        await expect(page.locator('main h1').first()).toBeVisible();
+        await expect(page.locator('main')).not.toContainText('تعذر تحميل');
+      }
     }
     // Check the account menu from a known authorized page rather than the last
     // visited destination (which may render with a different page shell).

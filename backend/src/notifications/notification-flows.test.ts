@@ -30,14 +30,18 @@ test('educational staff and circle broadcasts resolve current membership and rej
   const actor: any = { id: 'admin', role: Role.ADMIN };
   const dto: any = { title: 'Notice', body: 'Body', selection: 'ALL', userIds: [], audience: 'STAFF' };
   await service.broadcast(actor, dto);
-  assert.deepEqual(where.role.in, [Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE]);
+  assert.deepEqual(where.role.in, [Role.ADMIN, Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE]);
+  await service.broadcast(actor, { ...dto, audience: 'ADMIN' });
+  assert.equal(where.role, Role.ADMIN);
+  await service.broadcast(actor, { ...dto, audience: 'ALL' });
+  assert.deepEqual(where.role, { not: Role.PARENT });
   await service.broadcast(actor, { ...dto, audience: 'CIRCLE', circleId: 'circle' });
   assert.deepEqual(where.studentProfile, { circleId: 'circle', deletedAt: null });
   assert.equal(where.role, Role.STUDENT);
   await assert.rejects(service.broadcast(actor, { ...dto, audience: 'CIRCLE' }));
   await assert.rejects(service.broadcast(actor, { ...dto, audience: 'CIRCLE', circleId: 'missing' }));
   await assert.rejects(service.broadcast(actor, { ...dto, audience: 'CIRCLE', circleId: 'circle', selection: 'SELECTED', userIds: ['member', 'outside'] }));
-  assert.equal(calls, 2);
+  assert.equal(calls, 4);
 });
 
 test('broadcast directory returns more than one staff-list page and separates students without accounts', async () => {

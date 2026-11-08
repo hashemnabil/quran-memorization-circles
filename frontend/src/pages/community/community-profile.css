@@ -2,7 +2,7 @@
 .community-profile-card { overflow: hidden; border: 1px solid var(--line, #dce5e0); border-radius: 22px; background: var(--surface, #fff); box-shadow: 0 4px 20px #153d2e06; }
 .community-profile-card .community-profile-cover { min-height: 152px; margin: 0; padding: 24px 30px 58px; border-radius: 0; justify-content: flex-start; background: linear-gradient(115deg, #244f43, #103c30 65%); background-size: cover; background-position: center; }
 .community-profile-card .community-profile-cover::after { width: 260px; height: 260px; top: -140px; opacity: .6; }
-.community-profile-school { display: flex; align-items: center; gap: 10px; max-width: 85%; color: #e4ddc6; font-size: 13px; line-height: 1.8; }
+.community-profile-school { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; max-width: 85%; color: #e4ddc6; font-size: 13px; line-height: 1.8; }
 .community-profile-school > svg { flex: 0 0 auto; }
 .community-profile-content { padding: 0 30px; }
 .community-profile-topline { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; position: relative; margin-top: -42px; }

@@ -12,6 +12,7 @@ import { assertNoPendingWrites } from './account-cleanup';
 import { readActiveIdentity } from './active-identity';
 import { syncPendingAvatar } from './pending-avatar';
 import { syncStudentPhotos } from './pending-student-photos';
+import { syncPendingCover } from './pending-cover';
 import { localConversation } from './local-conversations';
 import { dependsOnPendingWrite, remapWriteReferences, writeReferenceIds } from './primary-write-policy';
 
@@ -66,6 +67,17 @@ export async function syncQueuedAvatar() {
       return data.url;
     },
     update: async avatarUrl => { await api.patch('/auth/profile', { avatarUrl }, { _expectedAccount: account } as any); },
+  });
+}
+export async function syncQueuedCover() {
+  const account = accountId();
+  if (!navigator.onLine || tokenStore.isLocal()) return;
+  await syncPendingCover(account, {
+    currentAccount: () => readActiveIdentity()?.id || '',
+    save: async (blob, requestId) => {
+      const body = new FormData(); body.append('file', blob, 'cover.jpg'); body.append('requestId', requestId);
+      await api.post('/community/profile-cover', body, { headers: { 'Content-Type': 'multipart/form-data' }, _expectedAccount: account } as any);
+    },
   });
 }
 configureOffline(async (method, path, data) => {

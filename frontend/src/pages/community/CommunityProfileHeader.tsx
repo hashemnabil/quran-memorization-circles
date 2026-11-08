@@ -4,13 +4,18 @@ import { Avatar, Button } from '@/components/ui';
 import { IconEdit, IconSettings, IconUser, IconBook } from '@/components/ui/Icons';
 import { ROLE_LABELS } from '@/lib/labels';
 import { api } from '@/lib/api';
+import { AvatarUploader } from '@/pages/ProfilePage';
+import { useAuthStore } from '@/store/auth';
+import { useQueryClient } from '@tanstack/react-query';
+import ProfileCover from '@/components/ProfileCover';
 import './community-profile.css';
 
-type Profile = { fullName: string; nickname?: string | null; username?: string; bio?: string | null; role: string; avatarUrl?: string | null; coverAssetId?: string | null };
+type Profile = { fullName: string; nickname?: string | null; username?: string; bio?: string | null; role: string; avatarUrl?: string | null; coverAssetId?: string | null; coverMediaId?: string | null };
 
 type Props = { profile: Profile; own: boolean; schoolName: string; saving: boolean; onSaveNickname: (nickname: string) => Promise<unknown> };
 
 export default function CommunityProfileHeader({ profile, own, schoolName, saving, onSaveNickname }: Props) {
+  const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const editNickname = () => { setDraft(profile.nickname || ''); setEditing(true); };
@@ -20,12 +25,13 @@ export default function CommunityProfileHeader({ profile, own, schoolName, savin
   };
   return <section className="community-profile-card" aria-label="بطاقة الملف الشخصي" dir="rtl">
     <div className="profile-cover community-profile-cover" style={profile.coverAssetId ? { backgroundImage: `linear-gradient(90deg,#102f29cc,#102f2955),url("${String(api.defaults.baseURL).replace(/\/$/, '')}/founder-assets/${encodeURIComponent(profile.coverAssetId)}/content")` } : undefined}>
+      <ProfileCover mediaId={profile.coverMediaId} editable={own} />
       <div className="community-profile-school"><IconBook size={20}/><span>{schoolName}</span></div>
       <span className="sr-only">غلاف الملف الشخصي</span>
     </div>
     <div className="community-profile-content">
       <div className="community-profile-topline">
-        <div className="community-profile-avatar"><Avatar name={profile.fullName} src={profile.avatarUrl} size={104} preview /></div>
+        <div className="community-profile-avatar">{own ? <AvatarUploader user={profile} onUpdated={updated => { useAuthStore.getState().setUser(updated); void queryClient.invalidateQueries({ queryKey: ['community', 'profile'] }); void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] }); }} /> : <Avatar name={profile.fullName} src={profile.avatarUrl} size={104} preview />}</div>
         {own && <Link to="/profile/settings" className="community-profile-settings" aria-label="إعدادات الملف الشخصي"><IconSettings size={17}/>تعديل الملف الشخصي</Link>}
       </div>
       <div className="community-profile-identity">

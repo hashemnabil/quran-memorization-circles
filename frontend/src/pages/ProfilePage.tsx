@@ -249,7 +249,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
  * Profile picture. The file goes to Cloudinary when the school has configured
  * it, and to local storage otherwise — the page does not need to know which.
  */
-function AvatarUploader({
+export function AvatarUploader({
   user,
   onUpdated,
 }: {
@@ -259,7 +259,8 @@ function AvatarUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const account = useAuthStore(state => state.user?.id);
-  const [pendingPreview, setPendingPreview] = useState<string>();
+  const [pendingImage, setPendingImage] = useState<{ account: string; url?: string }>({ account: '' });
+  const pendingPreview = pendingImage.account === account ? pendingImage.url : undefined;
   useEffect(() => {
     let active = true;
     let preview: string | undefined;
@@ -270,7 +271,7 @@ function AvatarUploader({
       if (!active || version !== generation) return;
       if (preview) URL.revokeObjectURL(preview);
       preview = pending ? URL.createObjectURL(pending.blob) : undefined;
-      setPendingPreview(preview);
+      setPendingImage({ account: account || '', url: preview });
     };
     const changed = () => { void refresh().catch(() => undefined); };
     changed();
@@ -350,6 +351,7 @@ function AvatarUploader({
       <input
         ref={inputRef}
         type="file"
+        aria-label="اختيار الصورة الشخصية"
         accept="image/png,image/jpeg,image/webp"
         onChange={pick}
         className="hidden"

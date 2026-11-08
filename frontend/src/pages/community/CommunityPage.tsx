@@ -14,7 +14,7 @@ import { useAuthStore } from '@/store/auth';
 import { Avatar, Button, Card, LoadingState, Modal, PageHeader } from '@/components/ui';
 
 type School={name:string;logoUrl:string|null;about:string|null;address:string|null;stats?:{circles:number;students:number;teachers:number}};
-type Person={bio?:string|null;username?:string;coverAssetId?:string|null;id:string;fullName:string;nickname?:string|null;avatarUrl?:string|null;role:string};
+type Person={bio?:string|null;username?:string;coverAssetId?:string|null;coverMediaId?:string|null;id:string;fullName:string;nickname?:string|null;avatarUrl?:string|null;role:string};
 type Comment={synced?:number;id:string;body:string;parentId?:string|null;user:Person;_count?:{likes:number}};
 type Story={mediaIds?:string[];background?:string;textColor?:string;fontSize?:number;bold?:boolean;mentions?:Mention[];id:string;schoolStory:boolean;body:string;authorId:string;author:Person;views:{liked:boolean;user:Person}[]};
 type Post=CommunityPost;

@@ -1,4 +1,7 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { assetMime } from '../founder/asset-policy';
 import { Response } from 'express';
 import { recordNotificationChange } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -11,6 +14,24 @@ import { ChatService } from '../chat/chat.service';
 @Controller('community')
 export class CommunityController {
   constructor(private readonly prisma:PrismaService, private readonly chat?:ChatService){}
+  @Post('profile-cover')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  async uploadProfileCover(@CurrentUser() user:AuthUser, @UploadedFile() file:Express.Multer.File, @Body('requestId') requestId:string) {
+    const mime = file?.buffer && assetMime('PROFILE_COVER', file.buffer);
+    if (!mime || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId || '')) throw new BadRequestException('اختر صورة JPEG أو PNG أو WebP بحجم لا يتجاوز 5 ميجابايت');
+    return this.prisma.$transaction(async tx => {
+      const existing = await tx.communityMedia.findUnique({ where: { id: requestId } });
+      if (existing && (existing.ownerId !== user.id || existing.mime !== mime || !existing.bytes.equals(file.buffer))) throw new ForbiddenException('طلب رفع الصورة لا يخص هذا الحساب');
+      const media = existing || await tx.communityMedia.create({ data: { id: requestId, ownerId: user.id, mime, bytes: file.buffer } });
+      await tx.presentationChoice.upsert({ where: { userId_kind: { userId: user.id, kind: 'PROFILE_COVER_UPLOAD' } }, create: { userId: user.id, kind: 'PROFILE_COVER_UPLOAD', assetId: media.id }, update: { assetId: media.id } });
+      return { coverMediaId: media.id };
+    });
+  }
+  @Delete('profile-cover')
+  async removeProfileCover(@CurrentUser() user:AuthUser) {
+    await this.prisma.presentationChoice.deleteMany({ where: { userId: user.id, kind: 'PROFILE_COVER_UPLOAD' } });
+    return { coverMediaId: null };
+  }
   @Get('capabilities')
   capabilities(){return {privateAudienceVersion:1,imageUploads:false};}
   @Post('media')
@@ -25,7 +46,11 @@ export class CommunityController {
       this.prisma.communityStory.count({where:{mediaIds:{has:id},expiresAt:{gt:new Date()}}}),
       this.prisma.message.count({where:{attachmentUrl:'community-media:'+id,deletedAt:null,conversation:{members:{some:{userId:user.id,leftAt:null}}}}}),
     ]);
-    if(!own&&!post&&!story&&!message)throw new ForbiddenException('الصورة غير متاحة');
+    if(!own&&!post&&!story&&!message){
+      const cover = await this.prisma.presentationChoice.findFirst({ where: { kind: 'PROFILE_COVER_UPLOAD', assetId: id }, select: { userId: true } });
+      const visibleCover = cover && await this.prisma.communityMedia.count({ where: { id, ownerId: cover.userId, owner: { is: { isActive: true, deletedAt: null, role: { not: Role.PARENT } } } } });
+      if(!visibleCover)throw new ForbiddenException('الصورة غير متاحة');
+    }
     const media=await this.prisma.communityMedia.findUnique({where:{id}});
     if(!media)throw new BadRequestException('الصورة غير موجودة');
     response.set({'Content-Type':media.mime,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Disposition':'inline'}).send(media.bytes);
@@ -100,7 +125,9 @@ export class CommunityController {
     if(!user)throw new BadRequestException('المستخدم غير موجود');
     const cover = await this.prisma.presentationChoice.findUnique({ where: { userId_kind: { userId: id, kind: 'PROFILE_COVER' } } });
     const asset = cover?.assetId ? await this.prisma.founderAsset.findFirst({ where: { id: cover.assetId, kind: 'PROFILE_COVER', isActive: true }, select: { id: true } }) : null;
-    return { ...user, coverAssetId: asset?.id || null };
+    const uploaded = await this.prisma.presentationChoice.findUnique({ where: { userId_kind: { userId: id, kind: 'PROFILE_COVER_UPLOAD' } } });
+    const coverMedia = uploaded?.assetId ? await this.prisma.communityMedia.findFirst({ where: { id: uploaded.assetId, ownerId: id }, select: { id: true } }) : null;
+    return { ...user, coverAssetId: asset?.id || null, coverMediaId: coverMedia?.id || null };
   }
   @Patch('bio')
   bio(@CurrentUser() user:AuthUser,@Body('bio') bio:string){

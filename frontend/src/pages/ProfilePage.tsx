@@ -8,7 +8,6 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError, tokenStore } from '@/lib/api';
-import { readPendingAvatar } from '@/lib/pending-avatar';
 import { useAuthStore } from '@/store/auth';
 import { Avatar, Badge, Button, Card, Input, Modal, PageHeader, Spinner, StatCard, Textarea } from '@/components/ui';
 import { PHONE_HINT, emailError, phoneError } from '@/lib/validation';
@@ -259,25 +258,6 @@ export function AvatarUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const account = useAuthStore(state => state.user?.id);
-  const [pendingImage, setPendingImage] = useState<{ account: string; url?: string }>({ account: '' });
-  const pendingPreview = pendingImage.account === account ? pendingImage.url : undefined;
-  useEffect(() => {
-    let active = true;
-    let preview: string | undefined;
-    let generation = 0;
-    const refresh = async () => {
-      const version = ++generation;
-      const pending = account ? await readPendingAvatar(account) : undefined;
-      if (!active || version !== generation) return;
-      if (preview) URL.revokeObjectURL(preview);
-      preview = pending ? URL.createObjectURL(pending.blob) : undefined;
-      setPendingImage({ account: account || '', url: preview });
-    };
-    const changed = () => { void refresh().catch(() => undefined); };
-    changed();
-    window.addEventListener('halaqat:changed', changed);
-    return () => { active = false; if (preview) URL.revokeObjectURL(preview); window.removeEventListener('halaqat:changed', changed); };
-  }, [account]);
   const [cropUrl,setCropUrl]=useState<string|null>(null);
   const [zoom,setZoom]=useState(1);
   const [position,setPosition]=useState({x:0,y:0});
@@ -337,11 +317,11 @@ export function AvatarUploader({
           on its corner replaces it. One button doing both meant you could never
           simply look at your own photo. */}
       <div className="relative">
-        <Avatar name={user.fullName} src={pendingPreview || user.avatarUrl} size={88} preview />
+        <Avatar name={user.fullName} src={user.avatarUrl} size={88} preview />
         <button
           type="button"
           onClick={() => { if (!navigator.onLine || tokenStore.isLocal()) { toast.error('يلزم الاتصال بالإنترنت لرفع الصورة الشخصية'); return; } inputRef.current?.click(); }}
-          disabled={uploading || !!pendingPreview}
+          disabled={uploading}
           className="absolute -bottom-0.5 -left-0.5 grid h-8 w-8 place-items-center rounded-full bg-primary-600 text-white shadow-md ring-2 ring-white transition hover:bg-primary-700 disabled:opacity-60"
           title="تغيير الصورة الشخصية"
           aria-label="تغيير الصورة الشخصية"
@@ -359,8 +339,7 @@ export function AvatarUploader({
         className="hidden"
       />
 
-      {pendingPreview && <div className="text-center text-xs text-amber-700" role="status">الصورة بانتظار المزامنة <button type="button" disabled={uploading} className="underline" onClick={async () => { setUploading(true); try { await syncQueuedAvatar(); if (account && !(await readPendingAvatar(account)) && useAuthStore.getState().user?.id === account) { const fresh = await api.get('/auth/me'); onUpdated(fresh.data); toast.success('تم تحديث الصورة الشخصية'); } } catch (error) { toast.error(apiError(error, 'الصورة محفوظة، تعذر رفعها الآن')); } finally { setUploading(false); } }}>إعادة المحاولة</button></div>}
-      {user.avatarUrl && !pendingPreview && (
+      {user.avatarUrl && (
         <button
           type="button"
           onClick={remove}

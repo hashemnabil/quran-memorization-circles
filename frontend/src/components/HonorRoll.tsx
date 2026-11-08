@@ -63,13 +63,21 @@ export function CircleHonorRoll() {
   const [selectedCircle, setSelectedCircle] = useState('');
   const circlesQuery = useQuery({
     queryKey: ['dashboard', 'honor-roll', 'circles'],
-    queryFn: async () => (await api.get<{ id: string; name: string }[]>('/dashboard/honor-roll/circles')).data,
+    queryFn: async () => {
+      const { data } = await api.get<{ id: string; name: string }[]>('/dashboard/honor-roll/circles');
+      if (!Array.isArray(data)) throw new Error('تعذر تحميل قائمة الحلقات');
+      return data.filter(circle => typeof circle?.id === 'string' && typeof circle?.name === 'string');
+    },
   });
   const circles = circlesQuery.data ?? [];
   const activeCircle = circles.some(circle => circle.id === selectedCircle) ? selectedCircle : circles[0]?.id;
   const ranking = useQuery({
     queryKey: ['dashboard', 'honor-roll', 'circle', activeCircle],
-    queryFn: async () => (await api.get<HonorRollData>('/dashboard/honor-roll/circle', { params: { circleId: activeCircle } })).data,
+    queryFn: async () => {
+      const { data } = await api.get<HonorRollData>('/dashboard/honor-roll/circle', { params: { circleId: activeCircle } });
+      if (!Array.isArray(data?.students)) throw new Error('تعذر تحميل ترتيب الحلقة');
+      return data;
+    },
     enabled: !!activeCircle,
     staleTime: 10_000,
     refetchInterval: 30_000,

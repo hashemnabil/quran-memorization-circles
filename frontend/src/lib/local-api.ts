@@ -571,7 +571,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
     const title = typeof data?.title === 'string' ? data.title.trim() : '';
     const body = typeof data?.body === 'string' ? data.body.trim() : '';
     if (!title || title.length > 160 || !body || body.length > 3000) invalid('أدخل عنوانًا ونصًا صالحين للإشعار');
-    if (!['ALL', 'STAFF', 'TEACHER', 'STUDENT', 'CIRCLE'].includes(data?.audience)) invalid('فئة الإشعار غير صالحة');
+    if (!['ALL', 'STAFF', 'ADMIN', 'TEACHER', 'STUDENT', 'CIRCLE'].includes(data?.audience)) invalid('فئة الإشعار غير صالحة');
     if (!['ALL', 'SELECTED'].includes(data?.selection)) invalid('اختر جميع المستلمين أو أشخاصًا محددين');
     if (!Array.isArray(data?.userIds) || data.userIds.length > 5000 ||
         data.userIds.some((id: unknown) => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) ||

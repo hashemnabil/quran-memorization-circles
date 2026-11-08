@@ -14,6 +14,8 @@ test('honor roll shows ten students from different circles and refreshes the win
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/auth/me') return route.fulfill({ json: user });
     if (path === '/api/dashboard/honor-roll') return route.fulfill({ json: { updatedAt: new Date().toISOString(), students } });
+    if (path === '/api/dashboard/honor-roll/circles') return route.fulfill({ json: [{ id: 'circle-1', name: 'حلقة 1' }] });
+    if (path === '/api/dashboard/honor-roll/circle') return route.fulfill({ json: { updatedAt: new Date().toISOString(), students: students.filter(item => item.circleName === 'حلقة 1') } });
     if (path === '/api/dashboard/student-ranking') return route.fulfill({ json: { updatedAt: new Date().toISOString(), students: fullRanking } });
     if (path === '/api/students/me') return route.fulfill({ json: student });
     if (path === '/api/students/me/history') return route.fulfill({ json: { recitations: [], attendance: [], exams: [] } });
@@ -26,8 +28,11 @@ test('honor roll shows ten students from different circles and refreshes the win
     return route.fulfill({ json: [] });
   });
   await gotoWithLocalUnlock(page, '/');
-  const board = page.getByRole('region', { name: 'لوحة الشرف', exact: true });
+  const board = page.getByRole('region', { name: 'لوحة شرف المدرسة', exact: true });
   await expect(board.locator('li[data-student-id]')).toHaveCount(10);
+  const circleBoard = page.getByRole('region', { name: 'لوحة شرف الحلقة', exact: true });
+  await expect(circleBoard.getByRole('list', { name: 'ترتيب لوحة شرف الحلقة' }).locator('li')).toHaveCount(1);
+  await expect(circleBoard.getByText('حلقة 1', { exact: true }).first()).toBeVisible();
   await expect(board.getByRole('list', { name: 'ترتيب لوحة الشرف' }).locator('li').first().getByRole('img', { name: /ميدالية المركز/ })).toBeVisible();
   await expect(board.getByText('الشيخ: الشيخ 1', { exact: true })).toBeVisible();
   for (const width of [390, 1440]) {

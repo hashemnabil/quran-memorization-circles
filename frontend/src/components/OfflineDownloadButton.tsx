@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { persistQueryCache } from '@/lib/offline/queryCache';
 import { useAuthStore } from '@/store/auth';
 import { IconDownload } from '@/components/ui/Icons';
+import { downloadMushaf } from '@/lib/mushaf';
 
 const SECTION_LABELS: Record<string, string> = {
   students: 'الطلاب',
@@ -37,6 +38,7 @@ export default function OfflineDownloadButton() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ saved: number; failed: number; total: number; bundle?: { circles: number; students: number; complete: boolean } } | null>(null);
   const [error, setError] = useState('');
+  const [mushafProgress, setMushafProgress] = useState<number | null>(null);
 
   const cachedQueries = queryClient.getQueryCache().getAll();
   const sectionStatus = useMemo(() => {
@@ -146,11 +148,16 @@ export default function OfflineDownloadButton() {
         }
       }
       await persistQueryCache(accountId);
+      // The app shell and lazy page bundles are precached by the service worker.
+      // Keep the complete 604-page Mushaf in its dedicated cache as part of the
+      // same explicit offline download, so the reading page never needs a network.
+      setMushafProgress(0);
+      await downloadMushaf(setMushafProgress);
       setResult({ saved, failed, total: queries.length, bundle: bundleSummary });
     } catch {
       setError('تعذر حفظ البيانات على هذا الجهاز. تأكد من مساحة التخزين ثم حاول مجدداً.');
     } finally {
-      setRunning(false);
+      setRunning(false); setMushafProgress(null);
     }
   };
 
@@ -217,7 +224,7 @@ export default function OfflineDownloadButton() {
             {result && <div className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-900">اكتملت العملية. استعلامات فيها بيانات بعد المحاولة: <strong>{result.saved}</strong>. استعلامات بدون بيانات: <strong>{result.failed}</strong>. إجمالي الاستعلامات التي كانت موجودة عند البدء: {result.total}. {result.bundle && <>وحُفظت حزمة الحضور المصرّح بها: <strong>{result.bundle.circles}</strong> حلقة و<strong>{result.bundle.students}</strong> طالب.</>}</div>}
             {error && <p className="mt-4 text-sm text-red-700" role="alert">{error}</p>}
             <div className="mt-5 flex gap-2">
-              <button type="button" onClick={() => void downloadAvailableData()} disabled={running} className="flex-1 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">{running ? 'جارٍ التحميل…' : 'تحديث وحفظ البيانات المتاحة'}</button>
+              <button type="button" onClick={() => void downloadAvailableData()} disabled={running} className="flex-1 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">{mushafProgress !== null ? `تنزيل المصحف ${mushafProgress}/604` : running ? 'جارٍ تحميل بيانات البرنامج…' : 'تنزيل البرنامج والمصحف دون إنترنت'}</button>
               <button type="button" onClick={() => setOpen(false)} disabled={running} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">إغلاق</button>
             </div>
           </section>

@@ -38,7 +38,7 @@ export class NotificationsService {
 
   async broadcast(actor: AuthUser, dto: BroadcastDto) {
     if (actor.role !== Role.ADMIN) throw new ForbiddenException('إرسال الإشعارات متاح للإدارة فقط');
-    if (!['ALL', 'STAFF', 'TEACHER', 'STUDENT', 'CIRCLE'].includes(dto.audience)) throw new BadRequestException('الفئة المحددة غير صالحة');
+    if (!['ALL', 'ADMIN', 'STAFF', 'TEACHER', 'STUDENT', 'CIRCLE'].includes(dto.audience)) throw new BadRequestException('الفئة المحددة غير صالحة');
     if (!dto.title.trim() || !dto.body.trim()) throw new BadRequestException('العنوان ونص الإشعار مطلوبان');
     if (dto.selection === 'SELECTED' && !dto.userIds.length) throw new BadRequestException('حدد مستلمًا واحدًا على الأقل');
     if (dto.selection === 'ALL' && dto.userIds.length) throw new BadRequestException('لا ترسل قائمة أشخاص عند اختيار الجميع');

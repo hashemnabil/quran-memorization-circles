@@ -50,6 +50,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/', label: 'الرئيسية', icon: <IconDashboard size={19} />, roles: ALL },
       { to: '/student-ranking', label: 'ترتيب الطلاب', icon: <IconAward size={19} />, roles: ALL },
+      { to: '/mushaf', label: 'المصحف للقراءة', icon: <IconBook size={19} />, roles: ALL },
       
     ],
   },
@@ -146,7 +147,7 @@ export const NAV_GROUPS: NavGroup[] = [
 ];
 NAV_GROUPS.push({ title: 'المشاركة', items: [{ to: '/donations', label: 'التبرعات', icon: <IconHeart size={19} />, roles: ALL }] });
 const SECTION_PATHS = [
-  ['الرئيسية', ['/','/student-ranking']],
+  ['الرئيسية', ['/','/student-ranking','/mushaf']],
   ['المتابعة اليومية', ['/attendance','/recitations','/exams','/teacher-duties','/staff/attendance']],
   ['الأذونات', ['/absence-permissions','/student-summons']],
   ['الطلاب والحلقات', ['/students','/students/achievements','/circles','/courses','/student-accounts','/transfers','/suspensions']],
@@ -159,7 +160,7 @@ const SECTION_PATHS = [
 ] as const;
 
 export function navigationFor(role: Role): NavGroup[] {
-  if (role === 'FOUNDER') return [{ title: 'إدارة النظام', items: [{ to: '/founder', label: 'لوحة المؤسس', icon: <IconDashboard size={19} />, roles: ['FOUNDER'] }] }];
+  if (role === 'FOUNDER') return [{ title: 'إدارة النظام', items: [{ to: '/founder', label: 'لوحة المؤسس', icon: <IconDashboard size={19} />, roles: ['FOUNDER'] }, { to: '/mushaf', label: 'المصحف للقراءة', icon: <IconBook size={19} />, roles: ['FOUNDER'] }] }];
   const items = new Map(NAV_GROUPS.flatMap(group => group.items).map(item => [item.to, item]));
   return SECTION_PATHS.map(([title, paths]) => ({ title, items: paths.flatMap(path => {
     const item = items.get(path);

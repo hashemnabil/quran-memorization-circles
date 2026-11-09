@@ -3,7 +3,7 @@ import { fillLoginCredentials, gotoWithLocalUnlock, unlockLocalGate } from './lo
 import { resolveRules } from '../src/lib/learning-rules';
 import { SURAHS } from '../src/lib/quran-surahs';
 test('Mushaf uses selectable words, two-tap errors, undo and encrypted draft restoration on mobile', async ({ page }) => {
-    test.setTimeout(90000);
+    test.setTimeout(120000);
     const user = { id: '00000000-0000-4000-8000-000000000151', username: 'mushaf-test', fullName: 'معلم المصحف', role: 'ADMIN', isActive: true, mustChangePassword: false };
     const circle = { id: '00000000-0000-4000-8000-000000000152', name: 'حلقة المصحف', code: 'M-1' };
     const student = { id: '00000000-0000-4000-8000-000000000153', fullName: 'طالب المصحف', code: 'MS-1', circleId: circle.id, status: 'ACTIVE' };
@@ -55,4 +55,14 @@ test('Mushaf uses selectable words, two-tap errors, undo and encrypted draft res
     await expect(page.getByLabel('عدد التنبيهات', { exact: true })).toHaveValue('1');
     await page.getByRole('button', { name: /الأخطاء على المصحف/ }).click();
     await expect(page.locator('.marked-warning')).toHaveCount(1);
+    await gotoWithLocalUnlock(page, '/mushaf');
+    const reading = page.getByRole('main', { name: 'المصحف للقراءة' });
+    await expect(reading.locator('.mushaf-paper')).toBeVisible();
+    await expect(reading.locator('button.mushaf-word')).toHaveCount(0);
+    await expect(reading.getByRole('button', { name: /تفاصيل الأخطاء/ })).toHaveCount(0);
+    await reading.getByRole('button', { name: 'التالي' }).click();
+    await expect(reading.getByLabel('الصفحة')).toHaveValue('2');
+    await page.reload();
+    await unlockLocalGate(page);
+    await expect(page.getByRole('main', { name: 'المصحف للقراءة' }).getByLabel('الصفحة')).toHaveValue('2');
 });

@@ -79,6 +79,10 @@ test('standalone mushaf is available from navigation for students and supports p
   await expect(reader.getByRole('button', { name: 'تفاصيل الأخطاء' })).toHaveCount(0);
   await reader.getByRole('button', { name: 'التالية' }).click();
   await expect(reader.getByRole('article', { name: 'صفحة 2' })).toBeVisible();
-  await reader.getByRole('button', { name: 'العودة للرئيسية' }).click();
+  await page.reload();
+  await unlockLocalGate(page);
+  const restored = page.getByRole('dialog', { name: 'المصحف الشريف' });
+  await expect(restored.getByRole('article', { name: 'صفحة 2' })).toBeVisible();
+  await restored.getByRole('button', { name: 'العودة للرئيسية' }).click();
   await expect(page).toHaveURL(url => url.pathname === '/');
 });

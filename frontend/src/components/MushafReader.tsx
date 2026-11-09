@@ -23,7 +23,11 @@ export function MushafReader({ rules, errors, onChange, onClose, range, readOnly
 }) {
     const [jumpSurah, setJumpSurah] = useState(range.from);
     const [jumpAyah, setJumpAyah] = useState(range.fromAyah);
-    const [page, setPage] = useState(browsing ? 1 : 582);
+    const [page, setPage] = useState(() => {
+        if (!browsing) return 582;
+        try { const saved = Number(localStorage.getItem('qc.reading.mushaf.page')); return Number.isInteger(saved) && saved >= 1 && saved <= 604 ? saved : 1; }
+        catch { return 1; }
+    });
     const [data, setData] = useState<MushafPage>();
     const [failure, setFailure] = useState('');
     const [selected, setSelected] = useState<MushafWord>();
@@ -35,9 +39,11 @@ export function MushafReader({ rules, errors, onChange, onClose, range, readOnly
     useEffect(() => () => downloader?.abort(), [downloader]);
     useEffect(() => { let active = true; setReady(false); setFailure(''); Promise.all([loadMushafPage(page), loadMushafFont(page)]).then(([p]) => { if (active) {
         setData(p);
+        if (browsing) { const first = p.words.find(word => word.kind === 'word'); if (first) { setJumpSurah(first.surah); setJumpAyah(first.ayah); } }
         setReady(true);
-    } }).catch(e => active && setFailure(e.message)); return () => { active = false; }; }, [page]);
+    } }).catch(e => active && setFailure(e.message)); return () => { active = false; }; }, [page, browsing]);
     useEffect(() => { if (browsing) return; let active = true; mushafAsset('/mushaf/verse-pages.json').then(r => r.json()).then(p => active && setPage(p[range.from + ':' + range.fromAyah] ?? 582)).catch(() => { }); return () => { active = false; }; }, [range.from, range.fromAyah, browsing]);
+    useEffect(() => { if (browsing) { try { localStorage.setItem('qc.reading.mushaf.page', String(page)); } catch { /* Reading remains available without storage. */ } } }, [page, browsing]);
     useEffect(() => { const listener = (e: KeyboardEvent) => { if (e.key === 'Escape') {
         if (selected)
             setSelected(undefined);
@@ -57,7 +63,7 @@ export function MushafReader({ rules, errors, onChange, onClose, range, readOnly
     catch {
         toast.error('تعذر فتح فهرس المصحف');
     } };
-    return createPortal(<div data-app-modal className="mushaf-overlay" dir="rtl" role="dialog" aria-modal="true" aria-label={browsing ? 'المصحف الشريف' : readOnly ? 'أخطاء التسميع المحفوظة' : 'الأخطاء على المصحف'}><header className="mushaf-toolbar"><div><strong>المصحف الشريف</strong><p className="text-xs opacity-80">{context??(browsing ? 'اقرأ وتنقّل بين صفحات المصحف والسور والآيات' : readOnly ? 'عرض سجل التسميع' : 'اضغط على الكلمة ثم اختر نوع الخطأ')}</p></div><Button onClick={onClose}>{browsing ? 'العودة للرئيسية' : readOnly ? 'إغلاق' : 'إنهاء والعودة للتسميع'}</Button></header>
+    return createPortal(<div data-app-modal className="mushaf-overlay" dir="rtl" role="dialog" aria-modal="true" aria-label={browsing ? 'المصحف الشريف' : readOnly ? 'أخطاء التسميع المحفوظة' : 'الأخطاء على المصحف'}><header className="mushaf-toolbar"><div><strong>المصحف الشريف</strong><p className="text-xs opacity-80">{context??(browsing ? 'اقرأ وتنقّل بين الصفحات؛ تُحفظ آخر صفحة على هذا الجهاز' : readOnly ? 'عرض سجل التسميع' : 'اضغط على الكلمة ثم اختر نوع الخطأ')}</p></div><Button onClick={onClose}>{browsing ? 'العودة للرئيسية' : readOnly ? 'إغلاق' : 'إنهاء والعودة للتسميع'}</Button></header>
  <div className="mushaf-controls"><Select label="السورة" value={jumpSurah} onChange={e => { setJumpSurah(Number(e.target.value)); setJumpAyah(1); void go(Number(e.target.value), 1); }}><option value="">انتقل إلى سورة</option>{SURAHS.map(s => <option key={s.number} value={s.number}>{s.name}</option>)}</Select><Input label="الآية" type="number" min={1} max={SURAHS.find(s => s.number === jumpSurah)?.ayahs ?? 286} value={jumpAyah} onChange={e => setJumpAyah(Number(e.target.value))}/><Button variant="secondary" onClick={() => void go(jumpSurah, jumpAyah)}>انتقال</Button><Input label="الصفحة" type="number" min={1} max={604} value={page} onChange={e => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n <= 604)
         setPage(n); }}/><Button variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>السابقة</Button><Button variant="secondary" disabled={page >= 604} onClick={() => setPage(page + 1)}>التالية</Button></div>
  <main className="mushaf-main">{failure ? <div role="alert" className="p-8 text-center">{failure}<Button onClick={() => { setPage(page === 604 ? 603 : page + 1); }}>صفحة أخرى</Button></div> : !ready ? <p className="p-10 text-center" role="status">جارٍ تجهيز صفحة المصحف…</p> : <article className="mushaf-paper" aria-label={'صفحة ' + page}>

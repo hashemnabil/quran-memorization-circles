@@ -56,6 +56,45 @@ jobs:
           with open(__import__('os').environ['GITHUB_STEP_SUMMARY'], 'a') as out:
               out.write(f'### PR release build (disposable signing key)\\n\\nAAB size: **{size / 1048576:.2f} MiB** ({size:,} bytes). Not for Play Store upload.\\n')
           PY
+      - name: Analyze AAB contents by compressed size
+        run: |
+          python3 - <<'PY'
+          from collections import defaultdict
+          from pathlib import Path
+          from zipfile import ZipFile
+          import os
+
+          p = Path('frontend/android/app/build/outputs/bundle/release/app-release.aab')
+          with ZipFile(p) as z:
+              entries = sorted((i for i in z.infolist() if not i.is_dir()), key=lambda i: i.compress_size, reverse=True)
+          groups = defaultdict(int)
+          for i in entries:
+              parts = i.filename.split('/')
+              group = '/'.join(parts[:3]) if len(parts) >= 3 else '/'.join(parts)
+              groups[group] += i.compress_size
+          def mib(n): return f'{n / 1048576:.2f}'
+          report = ['# Android release AAB size analysis', '',
+                    f'Total AAB: **{mib(p.stat().st_size)} MiB**', '',
+                    '## Largest compressed files', '',
+                    '| File | Compressed MiB | Original MiB |',
+                    '|---|---:|---:|']
+          for i in entries[:30]:
+              report.append(f'| `{i.filename.replace("|", "&#124;")}` | {mib(i.compress_size)} | {mib(i.file_size)} |')
+          report += ['', '## Largest groups (first three path segments)', '',
+                     '| Group | Compressed MiB |', '|---|---:|']
+          for name, size in sorted(groups.items(), key=lambda x:x[1], reverse=True)[:25]:
+              report.append(f'| `{name.replace("|", "&#124;")}` | {mib(size)} |')
+          Path('aab-size-report.md').write_text('\n'.join(report) + '\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('\n'.join(report) + '\n')
+          print('\n'.join(report))
+          PY
+      - name: Upload AAB size analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab-size-analysis
+          path: aab-size-report.md
+          retention-days: 14
       - name: Delete disposable signing key
         if: always()
         run: rm -f -- "$RUNNER_TEMP/pr-smoke.p12"

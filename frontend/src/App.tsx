@@ -29,7 +29,7 @@ import ActivityPage from '@/pages/ActivityPage';
 import PasswordRequestsPage from '@/pages/PasswordRequestsPage';
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const StudentRankingPage = lazy(() => import('@/pages/StudentRankingPage'));
-const MushafReadingPage = lazy(() => import('@/pages/MushafReadingPage'));
+const MushafPage = lazy(() => import('@/pages/MushafPage'));
 import StudentPortalPage from '@/pages/StudentPortalPage';
 const ReportsPage = lazy(() => import('@/pages/ReportsPage'));
 import StudentAccountsPage from '@/pages/students/StudentAccountsPage';
@@ -135,7 +135,7 @@ export default function App() {
         <Route path="student/achievements" element={<RequireRole roles={['STUDENT']}><StudentPersonalAchievementsPage /></RequireRole>} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="student-ranking" element={<StudentRankingPage />} />
-        <Route path="mushaf" element={<MushafReadingPage />} />
+        <Route path="mushaf" element={<MushafPage />} />
         <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
         <Route path="documents/:report" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
         <Route path="student-accounts" element={<RequireRole roles={['ADMIN']}><StudentAccountsPage /></RequireRole>} />

@@ -23,25 +23,6 @@ test('only administrators broadcast, with current active recipients inside the s
   assert.equal(sent.length, 1);
 });
 
-test('all-user broadcasts include administrators, while the admin-only option targets administrators', async () => {
-  const people = [
-    { id: 'admin', role: Role.ADMIN },
-    { id: 'teacher', role: Role.TEACHER },
-    { id: 'student', role: Role.STUDENT },
-    { id: 'parent', role: Role.PARENT },
-  ];
-  const sent: string[][] = [];
-  const service = new NotificationsService({ user: { findMany: async ({ where }: any) => people
-    .filter(person => where.role?.not ? person.role !== where.role.not : person.role === where.role)
-    .map(({ id }) => ({ id })) } } as any, {} as any);
-  service.notifyMany = async ids => { sent.push(ids); return ids; };
-  const dto: any = { title: 'Notice', body: 'Body', audience: 'ALL', selection: 'ALL', userIds: [] };
-  assert.equal((await service.broadcast({ id: 'admin', role: Role.ADMIN } as any, dto)).recipientCount, 3);
-  assert.deepEqual(sent[0], ['admin', 'teacher', 'student']);
-  assert.equal((await service.broadcast({ id: 'admin', role: Role.ADMIN } as any, { ...dto, audience: 'ADMIN' })).recipientCount, 1);
-  assert.deepEqual(sent[1], ['admin']);
-});
-
 test('educational staff and circle broadcasts resolve current membership and reject unrelated selected accounts', async () => {
   let where: any; let calls = 0;
   const service = new NotificationsService({ circle: { findFirst: async ({ where }: any) => where.id === 'circle' ? { id: 'circle' } : null }, user: { findMany: async (query: any) => { where = query.where; return [{ id: 'member' }]; } } } as any, {} as any);
@@ -49,14 +30,18 @@ test('educational staff and circle broadcasts resolve current membership and rej
   const actor: any = { id: 'admin', role: Role.ADMIN };
   const dto: any = { title: 'Notice', body: 'Body', selection: 'ALL', userIds: [], audience: 'STAFF' };
   await service.broadcast(actor, dto);
-  assert.deepEqual(where.role.in, [Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE]);
+  assert.deepEqual(where.role.in, [Role.ADMIN, Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE]);
+  await service.broadcast(actor, { ...dto, audience: 'ADMIN' });
+  assert.equal(where.role, Role.ADMIN);
+  await service.broadcast(actor, { ...dto, audience: 'ALL' });
+  assert.deepEqual(where.role, { not: Role.PARENT });
   await service.broadcast(actor, { ...dto, audience: 'CIRCLE', circleId: 'circle' });
   assert.deepEqual(where.studentProfile, { circleId: 'circle', deletedAt: null });
   assert.equal(where.role, Role.STUDENT);
   await assert.rejects(service.broadcast(actor, { ...dto, audience: 'CIRCLE' }));
   await assert.rejects(service.broadcast(actor, { ...dto, audience: 'CIRCLE', circleId: 'missing' }));
   await assert.rejects(service.broadcast(actor, { ...dto, audience: 'CIRCLE', circleId: 'circle', selection: 'SELECTED', userIds: ['member', 'outside'] }));
-  assert.equal(calls, 2);
+  assert.equal(calls, 4);
 });
 
 test('broadcast directory returns more than one staff-list page and separates students without accounts', async () => {

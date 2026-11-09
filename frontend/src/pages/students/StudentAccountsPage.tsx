@@ -13,14 +13,9 @@ export default function StudentAccountsPage() {
  const s=useQuery({queryKey:['students','account-options'],queryFn:async()=>(await api.get<{data:Student[]}>('/students',{params:{page:1,limit:100}})).data});
  const create=useMutation({mutationFn:async(id:string)=>(await api.post(`/students/${id}/account`)).data,onSuccess:(_offlineWriteResult)=>{setStudentId('');notifyWriteSuccess(_offlineWriteResult, 'تم إنشاء الحساب؛ كلمة المرور المؤقتة ظاهرة في الجدول');void qc.invalidateQueries({queryKey:['student-accounts']});},onError:e=>toast.error(apiError(e))});
  const reset=useMutation({mutationFn:async(ids:string[])=>{
-   const results: Array<{id:string;ok:boolean;error?:string;temporaryPassword?:string}> = [];
-   for(const id of ids){
-     try {
-       const response=await api.post<{studentId:string;temporaryPassword:string}>(`/students/${encodeURIComponent(id)}/account/reset-password`);
-       results.push({id,ok:true,temporaryPassword:response.data.temporaryPassword});
-     } catch(error){results.push({id,ok:false,error:apiError(error)});}
-   }
-   return {succeeded:results.filter(x=>x.ok).length,failed:results.filter(x=>!x.ok).length,results};
+   if(!navigator.onLine)throw new Error('إعادة تعيين كلمات المرور تحتاج اتصالاً بالخادم');
+   const response=await api.post<{succeeded:number;failed:number;results:Array<{id:string;ok:boolean;error?:string;temporaryPassword?:string}>}>('/students/accounts/reset-password-bulk',{studentIds:ids});
+   return response.data;
  },onSuccess:result=>{
    setResetPasswords(prev=>({...prev,...Object.fromEntries(result.results.filter(x=>x.ok&&x.temporaryPassword).map(x=>[x.id,x.temporaryPassword!]))}));
    if(result.succeeded)toast.success(`تم تغيير كلمة السر لـ ${result.succeeded} طالب؛ كلمات المرور المؤقتة ظاهرة في الجدول`);

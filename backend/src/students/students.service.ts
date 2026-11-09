@@ -678,6 +678,28 @@ export class StudentsService {
     return { studentId: id, fullName: student.fullName, username: student.user.username, temporaryPassword };
   }
 
+  /** Bound concurrency so large selections do not serialize hundreds of bcrypt calls. */
+  async resetStudentAccountPasswordsBulk(actor: AuthUser, ids: string[]) {
+    const results: Array<{ id: string; ok: boolean; temporaryPassword?: string; error?: string }> = [];
+    const concurrency = 6;
+    for (let offset = 0; offset < ids.length; offset += concurrency) {
+      const batch = await Promise.all(ids.slice(offset, offset + concurrency).map(async id => {
+        try {
+          const account = await this.resetStudentAccountPassword(actor, id);
+          return { id, ok: true, temporaryPassword: account.temporaryPassword };
+        } catch (error) {
+          // Do not leak internal database details to the client.
+          const message = error instanceof BadRequestException || error instanceof NotFoundException
+            ? error.message : 'تعذر إعادة تعيين كلمة المرور';
+          return { id, ok: false, error: message };
+        }
+      }));
+      results.push(...batch);
+    }
+    return { succeeded: results.filter(result => result.ok).length,
+      failed: results.filter(result => !result.ok).length, results };
+  }
+
   async setStudentAccountActive(actor: AuthUser, id: string, active: boolean) {
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, include: { user: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');

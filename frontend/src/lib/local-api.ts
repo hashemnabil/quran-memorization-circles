@@ -48,6 +48,13 @@ export async function localRead(path: string, params: Record<string, any> = {}):
     if (segments[2]) segments[2] = (await db.meta.get(`${accountId()}:id:${segments[2]}`))?.value || segments[2];
     if (segments.length <= 3) return localConversation(url.pathname);
   }
+  if (url.pathname === '/notifications/recipients') {
+    // Recipient eligibility is server-authorized. Never reconstruct a global directory from
+    // locally cached users, which may be incomplete or have different permissions.
+    if (readActiveIdentity()?.role !== 'ADMIN') return undefined;
+    const cached = await db.responses.get(responseKey(accountId(), '/notifications/recipients', {}));
+    return cached?.data;
+  }
   if (url.pathname === '/settings' || url.pathname === '/settings/public') {
     const rows = await get('schoolSettings');
     if (rows.length) return rows.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
@@ -138,7 +145,14 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   if (url.pathname === '/attendance/absence-permissions') return (await get('absencePermissions')).filter(row => readActiveIdentity()?.role === 'ADMIN' || row.requesterId === accountId()).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   if (url.pathname === '/attendance/summons') return (await get('guardianSummons')).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   if (url.pathname === '/suspensions/active') return (await get('suspensions')).filter(row => row.status === 'APPROVED' && !row.returnedAt);
-  if (['/meetings','/examCommittees'].includes(url.pathname)) return (await get(segments[0] as EntityTable)).sort((a,b) => String(b.heldAt).localeCompare(String(a.heldAt)));
+  if (['meetings', 'examCommittees'].includes(segments[0])) {
+    const table = segments[0] as EntityTable;
+    if (segments.length === 1) return (await get(table)).filter(row => !row.pendingDelete).sort((a,b) => String(b.heldAt || b.date || b.createdAt || '').localeCompare(String(a.heldAt || a.date || a.createdAt || '')));
+    if (segments.length === 2) {
+      const id = (await db.meta.get(`${accountId()}:id:${segments[1]}`))?.value || segments[1];
+      return (await get(table)).find(row => row.id === id && !row.pendingDelete);
+    }
+  }
   if (url.pathname === '/students/me/history') return (await get('students')).find(row => row.selfAccountId === accountId())?._offline?.history;
   if (url.pathname === '/students/me') return withLocalAchievements((await get('students')).find(row => row.selfAccountId === accountId()));
   if (url.pathname === '/students/accounts') return get('studentAccounts');
@@ -560,13 +574,31 @@ export async function localWrite(method: string, path: string, data: any): Promi
     if (readActiveIdentity()?.role !== 'ADMIN') throw Object.assign(new Error('الإضافة والتعديل للإدارة فقط'), { localWriteRejected: true });
     const table = route[0] as EntityTable;
     if (method === 'post' && route.length === 1) return save(table, data);
-    if (method === 'patch' && route.length === 2) return update(table, route[1], data);
-    if (method === 'delete' && route.length === 2) return remove(table, route[1]);
+    if (['patch', 'delete'].includes(method) && route.length === 2) {
+      const resolvedId = (await db.meta.get(`${accountId()}:id:${route[1]}`))?.value || route[1];
+      const existing = (await get(table)).find(row => row.id === resolvedId);
+      if (!existing) throw Object.assign(new Error('حمّل السجل قبل تعديله أو حذفه بدون إنترنت'), { localWriteRejected: true });
+      if (existing.synced === 0) throw Object.assign(new Error('انتظر مزامنة التعديل السابق على هذا السجل'), { localWriteRejected: true });
+      return method === 'patch' ? update(table, resolvedId, data) : remove(table, resolvedId);
+    }
   }
   if (path === '/notifications/broadcast' && method === 'post') {
     const actor = readActiveIdentity();
     if (actor?.role !== 'ADMIN') throw Object.assign(new Error('إرسال الإشعارات متاح للإدارة فقط'), { localWriteRejected: true });
-    return save('notifications', { ...data, pendingDelete: 1 }, 'broadcast');
+    // Validate before queuing: a rejected offline broadcast must not silently appear as sent.
+    const invalid = (message: string) => { throw Object.assign(new Error(message), { localWriteRejected: true }); };
+    const title = typeof data?.title === 'string' ? data.title.trim() : '';
+    const body = typeof data?.body === 'string' ? data.body.trim() : '';
+    if (!title || title.length > 160 || !body || body.length > 3000) invalid('أدخل عنوانًا ونصًا صالحين للإشعار');
+    if (!['ALL', 'STAFF', 'ADMIN', 'TEACHER', 'STUDENT', 'CIRCLE'].includes(data?.audience)) invalid('فئة الإشعار غير صالحة');
+    if (!['ALL', 'SELECTED'].includes(data?.selection)) invalid('اختر جميع المستلمين أو أشخاصًا محددين');
+    if (!Array.isArray(data?.userIds) || data.userIds.length > 5000 ||
+        data.userIds.some((id: unknown) => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) ||
+        new Set(data.userIds).size !== data.userIds.length) invalid('قائمة المستلمين غير صالحة');
+    if (data.selection === 'SELECTED' && !data.userIds.length || data.selection === 'ALL' && data.userIds.length) invalid('راجع اختيار المستلمين');
+    if (data.audience === 'CIRCLE' && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(data.circleId || '') ||
+        data.audience !== 'CIRCLE' && data.circleId) invalid('اختيار الحلقة غير صالح');
+    return save('notifications', { ...data, title, body, pendingDelete: 1 }, 'broadcast');
   }
   const parts = path.split('/').filter(Boolean);
   if (method === 'post' && path === '/profile-reviews' || method === 'patch' && path === '/students/me/questionnaire' || method === 'patch' && parts[0] === 'teachers' && readActiveIdentity()?.role === 'TEACHER') {

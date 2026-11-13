@@ -8,14 +8,16 @@ export function smsConfiguration(env: NodeJS.ProcessEnv = process.env) {
 
 /** Only for zero-recipient probes: reject secrets, contacts and long tokens. */
 export function safeProbeReason(result: any, key: string): string | undefined {
-  const value = [result?.error, result?.message, result?.detail, result?.code].find(item => typeof item === 'string');
-  if (!value || value.includes(key.trim()) || /offmsg_|bearer|https?:|@|\d{4,}|[A-Za-z0-9_\-+/=]{24,}/i.test(value)) return undefined;
-  return /^[\p{L}\d _.,:()+-]{1,180}$/u.test(value) ? value : undefined;
+  for (const value of [result?.error?.message, result?.error?.code, result?.error, result?.message, result?.detail, result?.code]) {
+    if (typeof value !== 'string' || !value || value.includes(key.trim()) || /offmsg_|bearer|https?:|@|\d{4,}|[A-Za-z0-9_\-+/=]{24,}/i.test(value)) continue;
+    if (/^[\p{L}\d _.,:()+\-\[\]/'"]{1,180}$/u.test(value)) return value;
+  }
+  return undefined;
 }
 
 /** Store a fixed classification, never arbitrary provider text from a real SMS. */
 export function providerFailureCode(result: any, httpStatus: number): string {
-  const values = [result?.error, result?.message, result?.detail, result?.code].filter(value => typeof value === 'string').join(' ').toLowerCase();
+  const values = [result?.error?.code, result?.error?.message, result?.error, result?.message, result?.detail, result?.code].filter(value => typeof value === 'string').join(' ').toLowerCase();
   if (/insufficient|not enough|balance|points|credits/.test(values)) return 'PROVIDER_BALANCE_OR_POINTS';
   if (/country|region|coverage/.test(values)) return 'PROVIDER_COUNTRY_UNSUPPORTED';
   if (/relay|gateway|sender|device/.test(values)) return 'PROVIDER_SENDER_UNAVAILABLE';
@@ -37,7 +39,7 @@ export async function checkOfflineSmsConnection(key = process.env.OFFLINESMS_API
     const authorized = await send(endpoint, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key.trim()}` }, signal: AbortSignal.timeout(10000) });
     let result: any;
     try { result = await authorized.json(); } catch { /* No raw provider body or exception enters logs. */ }
-    const acceptedSignal = result?.success === true || result?.status === 'success';
+    const acceptedSignal = result?.ok === true || result?.success === true || result?.status === 'success';
     const authenticationConfirmed = [401, 403].includes(anonymousStatus) && (authorized.ok || [400, 422].includes(authorized.status));
     return {
       outcome: authenticationConfirmed ? 'AUTHENTICATION_CONFIRMED_ZERO_RECIPIENTS' : [401, 403].includes(authorized.status) ? 'API_KEY_REJECTED' : 'AUTHENTICATION_NOT_CONFIRMED',
@@ -45,8 +47,9 @@ export async function checkOfflineSmsConnection(key = process.env.OFFLINESMS_API
       authorizedStatus: authorized.status,
       acceptedSignal,
       validationReason: safeProbeReason(result, key),
+      validationCategory: providerFailureCode(result, authorized.status),
       // Only structural booleans, never response text, identifiers or credentials.
-      responseShape: { successBoolean: typeof result?.success === 'boolean', statusString: typeof result?.status === 'string', errorsPresent: result?.errors != null, dataPresent: result?.data != null },
+      responseShape: { okBoolean: typeof result?.ok === 'boolean', nestedError: typeof result?.error?.code === 'string', successBoolean: typeof result?.success === 'boolean', statusString: typeof result?.status === 'string', errorsPresent: result?.errors != null, dataPresent: result?.data != null },
     };
   } catch { return { outcome: 'CONNECTION_FAILED' }; }
 }

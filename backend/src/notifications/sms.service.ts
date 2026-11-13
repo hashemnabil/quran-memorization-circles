@@ -206,7 +206,7 @@ export class SmsService implements OnModuleInit, OnModuleDestroy {
           // Only explicit documented rejection is retryable; HTTP 2xx is acceptance, never delivery.
           if (response.ok) {
             const result = await response.json() as any;
-            if (result?.success === true || result?.status === 'success') { status = 'ACCEPTED'; errorCode = null; }
+            if (result?.ok === true || result?.success === true || result?.status === 'success') { status = 'ACCEPTED'; errorCode = null; }
           }
           else if ([400, 401, 403, 422, 429].includes(response.status)) {
             status = 'FAILED'; errorCode = `HTTP_${response.status}`;

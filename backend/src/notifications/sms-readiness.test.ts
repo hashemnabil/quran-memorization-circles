@@ -40,10 +40,12 @@ test('readiness cannot claim safety to provision encryption when storage is unav
 test('only zero-recipient validation reasons can be exposed and secrets/contacts are rejected', () => {
   assert.equal(safeProbeReason({ error: 'messages_required' }, 'test-secret'), 'messages_required');
   for (const error of ['test-secret', 'phone 970591234567 rejected', 'user@example.com', 'offmsg_live_example', 'Bearer secret', 'abcdefghijklmnopqrstuvwxyz123456']) assert.equal(safeProbeReason({ error }, 'test-secret'), undefined);
+  assert.equal(safeProbeReason({ ok: false, error: { code: 'invalid_request', message: 'messages must be a non-empty array.' } }, 'test-secret'), 'messages must be a non-empty array.');
 });
 
 test('real-message rejection classification never retains personal provider text', () => {
   assert.equal(providerFailureCode({ error: 'Not enough points' }, 400), 'PROVIDER_BALANCE_OR_POINTS');
+  assert.equal(providerFailureCode({ ok: false, error: { code: 'insufficient_points', message: 'Not enough points' } }, 400), 'PROVIDER_BALANCE_OR_POINTS');
   assert.equal(providerFailureCode({ message: 'Phone 970591234567 invalid' }, 400), 'PROVIDER_RECIPIENT_INVALID');
   assert.equal(providerFailureCode({ error: 'No relay device available' }, 400), 'PROVIDER_SENDER_UNAVAILABLE');
   assert.equal(providerFailureCode({ error: 'Unknown failure with private text' }, 400), 'HTTP_400');

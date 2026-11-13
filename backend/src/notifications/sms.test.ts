@@ -96,6 +96,10 @@ test('worker sends mocked provider requests once and never treats acceptance as 
     assert.equal(calls, 1); assert.equal(state, 'ACCEPTED'); assert.ok(!JSON.stringify(updates).includes('رسالة اختبار'));
     state = 'QUEUED'; global.fetch = async () => { throw new Error('timeout'); };
     await service.work(); assert.equal(state, 'UNKNOWN');
+    state = 'QUEUED'; global.fetch = async () => new Response('{"ok":true,"data":{}}', { status: 200 });
+    await service.work(); assert.equal(state, 'ACCEPTED');
+    state = 'QUEUED'; global.fetch = async () => new Response('{"ok":false,"error":{"code":"insufficient_points","message":"Not enough points"}}', { status: 400 });
+    await service.work(); assert.equal(updates[updates.length - 1].errorCode, 'PROVIDER_BALANCE_OR_POINTS');
     state = 'QUEUED'; global.fetch = async () => new Response('{"unexpected":true}', { status: 200 });
     await service.work(); assert.equal(state, 'UNKNOWN');
     state = 'QUEUED'; global.fetch = async () => new Response('{}', { status: 401 });

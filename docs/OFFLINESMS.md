@@ -54,7 +54,7 @@ sandbox or provider idempotency contract was available. Tests use local mocked
 responses and **never send any real SMS**. They do not establish compatibility
 with the provider's actual responses.
 
-The conservative adapter recognizes `success: true` or `status: "success"` in a
+The conservative adapter recognizes `ok: true`, `success: true` or `status: "success"` in a
 successful JSON response as ACCEPTED, not DELIVERED. Every dispatch currently has
 one message, preventing a mixed bulk response from wrongly marking other
 recipients successful. Unknown bodies, transport timeouts, HTTP 5xx and process

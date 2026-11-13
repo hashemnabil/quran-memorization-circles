@@ -4,6 +4,7 @@ export function normalizePhone(value: unknown): string {
   let phone = String(value ?? '').replace(/[٠-٩]/g, c => String(c.charCodeAt(0) - 1632)).replace(/[۰-۹]/g, c => String(c.charCodeAt(0) - 1776)).replace(/[\s()+.-]/g, '');
   if (phone.startsWith('00')) phone = phone.slice(2);
   if (/^05[69]\d{7}$/.test(phone)) phone = '970' + phone.slice(1);
+  if (/^5[69]\d{7}$/.test(phone)) phone = '970' + phone;
   if (!/^[1-9]\d{7,14}$/.test(phone)) throw new BadRequestException('رقم هاتف غير صالح؛ استخدم الصيغة الدولية');
   if (/^970/.test(phone) && !/^9705[69]\d{7}$/.test(phone)) throw new BadRequestException('رقم فلسطيني غير صالح');
   return phone;

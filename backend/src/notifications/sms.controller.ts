@@ -7,6 +7,7 @@ import { SmsService } from './sms.service';
 @Roles(Role.ADMIN)
 export class SmsController {
   constructor(private readonly service: SmsService) {}
+  @Get('readiness') readiness() { return this.service.readiness(); }
   @Get('templates') templates() { return this.service.templates(); }
   @Patch('templates/:kind') template(@Param('kind') kind: string, @Body() body: any) { return this.service.saveTemplate(kind, body?.text); }
   @Post('import')

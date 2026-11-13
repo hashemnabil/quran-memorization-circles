@@ -7,7 +7,8 @@ import { randomBytes } from 'node:crypto';
 import * as XLSX from 'xlsx';
 
 test('Palestinian numbers normalize to the same international identity', () => {
-  for (const phone of ['0591234567', '+970 59 123 4567', '00970591234567', '٠٥٩١٢٣٤٥٦٧']) assert.equal(normalizePhone(phone), '970591234567');
+  for (const phone of ['0591234567', '591234567', '+970 59 123 4567', '00970591234567', '٠٥٩١٢٣٤٥٦٧']) assert.equal(normalizePhone(phone), '970591234567');
+  assert.equal(normalizePhone('561234567'), '970561234567');
   for (const phone of ['', '059123', '970551234567', '123x456789', '000000000']) assert.throws(() => normalizePhone(phone));
 });
 test('personalization rejects missing and empty fields', () => {

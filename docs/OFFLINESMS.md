@@ -17,6 +17,12 @@ pages; their existing forms remain available and unchanged.
      encrypted messages unreadable.
    - `OFFLINESMS_ENABLED`: leave unset/false until the provider contract has been
      independently verified. Set to `true` to enable queueing and processing.
+   - `OFFLINESMS_CONNECTION_CHECK=true`: optional startup authentication probe.
+     It posts exactly `{messages:[]}` without authorization and then with the
+     configured server key. It never supplies a phone number, message text or
+     recipient. A rejected anonymous request followed by HTTP 2xx/400/422 with
+     authorization confirms the authentication boundary, not actual delivery or
+     the response schema for a nonempty batch. Disable the probe after checking.
 3. Run `npm --prefix backend run prisma:deploy` against the intended PostgreSQL
    database and deploy both applications. No production database was modified
    during development.
@@ -57,6 +63,14 @@ automated without the provider's documented interfaces. Check UNKNOWN and final
 delivery in its dashboard; the application does not claim delivery.
 
 ## Retry and credentials
+
+The admin-only `GET /sms/readiness` endpoint and one startup log expose only
+configuration booleans, schema availability and whether encrypted payloads
+exist. They never expose API/encryption keys. Missing provider credentials,
+encryption configuration and the send toggle have separate setup errors.
+Never replace an existing encryption key when pending encrypted messages exist.
+Palestinian mobile numbers beginning with `56`/`59` after Excel removes the
+leading zero normalize to `97056`/`97059` in both preview and backend validation.
 
 A persisted request key identifies each send operation. Replaying the same key
 returns the same campaign; different content with that key is rejected. The retry

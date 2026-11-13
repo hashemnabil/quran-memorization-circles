@@ -42,12 +42,13 @@ test('SMS spreadsheet import sends multipart file bytes for XLSX, XLS and CSV wi
   await page.getByLabel('قالب الرسالة', { exact: true }).fill('مرحباً {الاسم}');
   for (const bookType of ['xlsx', 'xls', 'csv']) {
     const book = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['الاسم', 'الهاتف'], [`مستلم ${bookType}`, '0591234567']]));
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['الاسم', 'الهاتف'], [`مستلم ${bookType}`, bookType === 'xls' ? '591234567' : '0591234567']]));
     const response = page.waitForResponse(result => result.url().endsWith('/api/sms/import'));
     await page.getByLabel('ملف المستلمين', { exact: true }).setInputFiles({ name: `مستلمون (2).${bookType}`, mimeType: 'application/octet-stream', buffer: XLSX.write(book, { type: 'buffer', bookType }) });
     expect((await response).status()).toBe(200);
     await expect(page.getByLabel('الاسم', { exact: true })).toHaveValue(`مستلم ${bookType}`);
-    await expect(page.getByLabel('الهاتف', { exact: true })).toHaveValue('0591234567');
+    await expect(page.getByLabel('الهاتف', { exact: true })).toHaveValue(bookType === 'xls' ? '591234567' : '0591234567');
+    await expect(page.getByLabel('رسالة 1 — 970591234567', { exact: true })).toHaveValue(`مرحباً مستلم ${bookType}`);
     await expect(page.getByLabel(/^رسالة 1/)).toHaveValue(`مرحباً مستلم ${bookType}`);
   }
   expect(imports).toBe(3);

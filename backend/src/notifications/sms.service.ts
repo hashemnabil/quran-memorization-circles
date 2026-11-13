@@ -1,19 +1,38 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, OnModuleInit, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, OnModuleInit, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../common/decorators';
 import { normalizePhone, renderSms, smsTemplates } from './sms-policy';
 import * as XLSX from 'xlsx';
 import * as bcrypt from 'bcryptjs';
+import { checkOfflineSmsConnection, smsConfiguration } from './sms-readiness';
 
 @Injectable()
 export class SmsService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private running = false;
+  private readonly logger = new Logger('SMS');
   constructor(private readonly prisma: PrismaService) {}
   admin(user: AuthUser) { if (user.role !== 'ADMIN') throw new ForbiddenException('الإدارة فقط'); }
-  onModuleInit() { this.timer = setInterval(() => { void this.work().catch(() => undefined); }, 2000); this.timer.unref(); }
+  async onModuleInit() {
+    this.logger.log(`SMS configuration ${JSON.stringify(await this.readiness())}`);
+    if (process.env.OFFLINESMS_CONNECTION_CHECK === 'true') this.logger.log(`SMS provider check ${JSON.stringify(await checkOfflineSmsConnection())}`);
+    this.timer = setInterval(() => { void this.work().catch(() => undefined); }, 2000); this.timer.unref();
+  }
   onModuleDestroy() { clearInterval(this.timer); }
+  async readiness() {
+    const configuration = smsConfiguration();
+    let encryptedPayloadsPresent: boolean | null = null;
+    let schemaReady = false;
+    try { encryptedPayloadsPresent = (await this.prisma.smsMessage.count({ where: { encryptedText: { not: '' } } })) > 0; schemaReady = true; } catch { /* Keep other application domains available during deployment. */ }
+    return { ...configuration, schemaReady, encryptedPayloadsPresent, ready: schemaReady && configuration.apiKeyConfigured && configuration.encryptionKeyConfigured && configuration.sendingEnabled };
+  }
+  private requireSendingConfiguration() {
+    const configuration = smsConfiguration();
+    if (!configuration.apiKeyConfigured) throw new ServiceUnavailableException('مفتاح OfflineSMS غير مضبوط على الخادم');
+    if (!configuration.encryptionKeyConfigured) throw new ServiceUnavailableException('مفتاح تشفير سجل SMS غير مضبوط على الخادم');
+    if (!configuration.sendingEnabled) throw new ServiceUnavailableException('الإرسال متوقف في إعدادات الخادم؛ يلزم تفعيل OFFLINESMS_ENABLED');
+  }
   private key() {
     const key = Buffer.from(process.env.SMS_ENCRYPTION_KEY || '', 'base64');
     if (key.length !== 32) throw new ServiceUnavailableException('يلزم إعداد SMS_ENCRYPTION_KEY (32 bytes base64)');
@@ -93,7 +112,7 @@ export class SmsService implements OnModuleInit, OnModuleDestroy {
     const requestKey = user.id + ':' + body.requestKey;
     const existing = await this.prisma.smsCampaign.findUnique({ where: { requestKey } });
     if (existing) { if (existing.requestHash !== requestHash) throw new ConflictException('معرف العملية مستخدم لمحتوى مختلف'); return { id: existing.id }; }
-    if (!process.env.OFFLINESMS_API_KEY || process.env.OFFLINESMS_ENABLED !== 'true') throw new ServiceUnavailableException('الإرسال غير مفعّل على الخادم');
+    this.requireSendingConfiguration();
     this.key();
     try {
       return await this.prisma.$transaction(async tx => {
@@ -117,7 +136,7 @@ export class SmsService implements OnModuleInit, OnModuleDestroy {
     if (JSON.stringify(body.preview) !== JSON.stringify(rows)) throw new ConflictException('تغيرت بيانات المعاينة؛ أعد المعاينة قبل التأكيد');
     if (rows.some(row => row.error)) throw new BadRequestException('راجع أخطاء المعاينة');
     const sms = body.channel !== 'APP';
-    if (sms && (!process.env.OFFLINESMS_API_KEY || process.env.OFFLINESMS_ENABLED !== 'true')) throw new ServiceUnavailableException('الإرسال غير مفعّل');
+    if (sms) this.requireSendingConfiguration();
     if (sms) this.key();
     const credentials = body.kind === 'CREDENTIALS' ? rows.map(row => ({ userId: row.userId!, text: row.text })) : [];
     try {

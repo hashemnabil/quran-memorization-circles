@@ -6,7 +6,7 @@ import { Button, Card, PageHeader, Textarea } from '@/components/ui';
 type Row = Record<string, string>;
 type Message = { phone: string; title: string; text: string; error?: string; name?: string };
 const labels: Record<string,string> = { CANCELLED:'ألغيت: تغيرت بيانات الدخول', QUEUED:'في الطابور', PROCESSING:'قيد المعالجة', ACCEPTED:'قبلها المزوّد (الوصول غير مؤكد)', FAILED:'فشلت', UNKNOWN:'النتيجة غير مؤكدة؛ راجع المزوّد' };
-const phone = (s: string) => { let n = s.replace(/[٠-٩]/g,c=>String(c.charCodeAt(0)-1632)).replace(/[\s()+.-]/g,'').replace(/^00/,''); if (/^05[69]\d{7}$/.test(n)) n='970'+n.slice(1); return n; };
+const phone = (s: string) => { let n = s.replace(/[٠-٩]/g,c=>String(c.charCodeAt(0)-1632)).replace(/[\s()+.-]/g,'').replace(/^00/,''); if (/^05[69]\d{7}$/.test(n)) n='970'+n.slice(1); if (/^5[69]\d{7}$/.test(n)) n='970'+n; return n; };
 export function StudentCommunications({ initialKind = 'NOTICE' }: { initialKind?: string }) {
   const [students,setStudents] = useState<any[]>([]), [selected,setSelected] = useState<string[]>([]);
   const [recipientsError,setRecipientsError] = useState('');

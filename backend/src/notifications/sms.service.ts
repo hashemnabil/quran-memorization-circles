@@ -202,7 +202,7 @@ export class SmsService implements OnModuleInit, OnModuleDestroy {
             }
             text = credential.text;
           }
-          const response = await fetch('https://business.offlinesms.com/api/v1/org/messages/send', { method: 'POST', headers: { Authorization: `Bearer ${process.env.OFFLINESMS_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ phone: row.phone, title: row.title, text }] }), signal: AbortSignal.timeout(25000), redirect: 'error' });
+          const response = await fetch('https://business.offlinesms.com/api/v1/org/messages/send', { method: 'POST', headers: { Authorization: `Bearer ${process.env.OFFLINESMS_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ phone: row.phone, title: row.title, body: text }] }), signal: AbortSignal.timeout(25000), redirect: 'error' });
           // Only explicit documented rejection is retryable; HTTP 2xx is acceptance, never delivery.
           if (response.ok) {
             const result = await response.json() as any;

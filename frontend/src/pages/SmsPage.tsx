@@ -9,11 +9,23 @@ const labels: Record<string,string> = { CANCELLED:'ألغيت: تغيرت بيا
 const phone = (s: string) => { let n = s.replace(/[٠-٩]/g,c=>String(c.charCodeAt(0)-1632)).replace(/[\s()+.-]/g,'').replace(/^00/,''); if (/^05[69]\d{7}$/.test(n)) n='970'+n.slice(1); return n; };
 export function StudentCommunications({ initialKind = 'NOTICE' }: { initialKind?: string }) {
   const [students,setStudents] = useState<any[]>([]), [selected,setSelected] = useState<string[]>([]);
+  const [recipientsError,setRecipientsError] = useState('');
   const [kind,setKind] = useState(initialKind), [channel,setChannel] = useState('APP'), [circle,setCircle] = useState(''), [all,setAll] = useState(false);
   const [reason,setReason] = useState(''), [reasons,setReasons] = useState<Row>({}), [date,setDate] = useState(''), [time,setTime] = useState('');
   const [preview,setPreview] = useState<Message[]>([]), [busy,setBusy] = useState(false);
   const request = useRef<{ body:string; key:string }>();
-  useEffect(()=> { void api.get('/sms/recipients').then(r=>setStudents(r.data)).catch(e=>toast.error(apiError(e))); },[]);
+  useEffect(() => {
+    let active = true;
+    void api.get('/sms/recipients').then(response => {
+      if (!Array.isArray(response.data) || response.data.some(student => !student || typeof student.id !== 'string' || typeof student.fullName !== 'string')) {
+        throw new Error('Invalid SMS recipient response');
+      }
+      if (active) setStudents(response.data);
+    }).catch(() => {
+      if (active) setRecipientsError('تعذر تحميل مستلمي الرسائل. يلزم اتصال بالخادم وخدمة SMS متاحة؛ يمكنك استخدام نموذج الإشعارات المعتاد.');
+    });
+    return () => { active = false; };
+  }, []);
   const data = {kind,channel,studentIds:selected,circleId:circle || undefined,all,reason,reasons,date,time};
   const reset = () => setPreview([]);
   const send = async () => {
@@ -24,15 +36,16 @@ export function StudentCommunications({ initialKind = 'NOTICE' }: { initialKind?
     catch(e){toast.error(apiError(e));} finally{setBusy(false);}
   };
   return <Card title="إشعار أو إنذار أو استدعاء لأولياء الأمور"><div className="space-y-3" onChange={reset}>
+    {recipientsError && <p role="alert" className="text-red-700">{recipientsError}</p>}
     <div className="grid gap-3 sm:grid-cols-2"><label>النوع<select className="block w-full rounded border p-2" value={kind} onChange={e=>setKind(e.target.value)}><option value="NOTICE">إشعار</option><option value="WARNING">إنذار</option><option value="SUMMONS">استدعاء</option><option value="CREDENTIALS">إصدار وإرسال بيانات دخول مؤقتة</option></select></label>
     <label>قناة الإرسال<select className="block w-full rounded border p-2" value={channel} onChange={e=>setChannel(e.target.value)}><option value="APP">داخل التطبيق فقط</option><option value="SMS">SMS فقط لولي الأمر</option><option value="BOTH">التطبيق وSMS</option></select></label></div>
     <label className="block"><input type="checkbox" checked={all} onChange={e=>{setAll(e.target.checked);setCircle('');setSelected([]);}}/> جميع الطلاب</label>
-    {!all && <><label>الحلقة<select className="block w-full rounded border p-2" value={circle} onChange={e=>{setCircle(e.target.value);setSelected([]);}}><option value="">اختيار طلاب محددين</option>{Array.from(new Map(students.filter(s=>s.circleId).map(s=>[s.circleId,s.circle?.name||s.circleId])).entries()).map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
+    {!all && <><label>حلقة مستلمي الرسائل<select className="block w-full rounded border p-2" value={circle} onChange={e=>{setCircle(e.target.value);setSelected([]);}}><option value="">اختيار طلاب محددين</option>{Array.from(new Map(students.filter(s=>s.circleId).map(s=>[s.circleId,s.circle?.name||s.circleId])).entries()).map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
     {!circle && <label className="block">اختر طالبًا أو عدة طلاب<select multiple className="block h-44 w-full rounded border p-2" value={selected} onChange={e=>setSelected(Array.from(e.target.selectedOptions,o=>o.value))}>{students.map(s=><option key={s.id} value={s.id}>{s.fullName}</option>)}</select></label>}</>}
     <Textarea label="محتوى الإشعار أو السبب الموحد" maxLength={1000} value={reason} onChange={e=>setReason(e.target.value)}/>
     {(all ? students : circle ? students.filter(s=>s.circleId===circle) : students.filter(s=>selected.includes(s.id))).map(s=><label className="block text-sm" key={s.id}>{s.fullName} — سبب خاص (اختياري)<input className="block w-full rounded border p-2" value={reasons[s.id]||''} maxLength={1000} onChange={e=>setReasons({...reasons,[s.id]:e.target.value})}/></label>)}
     {kind==='SUMMONS' && <div className="flex gap-3"><input aria-label="تاريخ الاستدعاء" type="date" value={date} onChange={e=>setDate(e.target.value)}/><input aria-label="وقت الاستدعاء" type="time" value={time} onChange={e=>setTime(e.target.value)}/></div>}
-    <Button disabled={busy} onClick={()=>{setBusy(true); void api.post('/sms/preview',data).then(r=>setPreview(r.data)).catch(e=>toast.error(apiError(e))).finally(()=>setBusy(false));}}>معاينة جميع الرسائل</Button>
+    <Button disabled={busy || !!recipientsError || !students.length} onClick={()=>{setBusy(true); void api.post('/sms/preview',data).then(r=>setPreview(r.data)).catch(e=>toast.error(apiError(e))).finally(()=>setBusy(false));}}>معاينة جميع الرسائل</Button>
     {!!preview.length && <><p>عدد المستلمين: {preview.length}</p><div className="max-h-96 space-y-2 overflow-auto">{preview.map((m,i)=><article className="rounded border p-3" key={i}><strong>{m.name} · {m.phone}</strong><p className="whitespace-pre-wrap">{m.text}</p><p role="alert" className="text-red-700">{m.error}</p></article>)}</div><Button disabled={busy||preview.some(m=>!!m.error)} onClick={()=>void send()}>تأكيد الإرسال</Button></>}
   </div></Card>;
 }

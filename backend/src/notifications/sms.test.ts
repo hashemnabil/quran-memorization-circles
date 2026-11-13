@@ -84,7 +84,7 @@ test('worker sends mocked provider requests once and never treats acceptance as 
   process.env.OFFLINESMS_ENABLED = 'true'; process.env.OFFLINESMS_API_KEY = 'test-only'; process.env.SMS_ENCRYPTION_KEY = randomBytes(32).toString('base64');
   let state = 'QUEUED', calls = 0;
   const updates: any[] = [];
-  const row: any = { id: 'message', phone: '970591234567', title: 'اختبار' };
+  const row: any = { id: 'message', phone: normalizePhone('970591234567'), title: 'اختبار' };
   const service = new SmsService({ smsMessage: {
     findMany: async () => state === 'QUEUED' ? [row] : [],
     updateMany: async (q: any) => { if (!q.where.id) return { count: 0 }; if (state !== 'QUEUED') return { count: 0 }; state = q.data.status; return { count: 1 }; },

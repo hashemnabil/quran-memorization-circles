@@ -106,20 +106,26 @@ export class DashboardService {
     // Cheap housekeeping: bring back students whose suspension has elapsed.
     await this.suspensions.releaseExpired();
 
+    const [schoolStudents, schoolCircles] = await Promise.all([
+      this.prisma.student.count({ where: { deletedAt: null } }),
+      this.prisma.circle.count({ where: { deletedAt: null } }),
+    ]);
+    let result: any;
     switch (user.role) {
       case Role.ADMIN:
-        return this.adminOverview(user);
+        result = await this.adminOverview(user); break;
       case Role.SUPERVISOR:
-        return this.supervisorOverview(user);
+        result = await this.supervisorOverview(user); break;
       case Role.TEACHER:
-        return this.teacherOverview(user);
+        result = await this.teacherOverview(user); break;
       case Role.EXAM_COMMITTEE:
-        return this.committeeOverview(user);
+        result = await this.committeeOverview(user); break;
       case Role.SUPPORT:
-        return this.supportOverview(user);
+        result = await this.supportOverview(user); break;
       default:
-        return { role: user.role };
+        result = { role: user.role }; break;
     }
+    return { ...result, schoolStats: { students: schoolStudents, circles: schoolCircles } };
   }
 
   // --- admin ---------------------------------------------------------------

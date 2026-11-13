@@ -93,7 +93,7 @@ test('worker sends mocked provider requests once and never treats acceptance as 
   row.encryptedText = (service as any).encrypt('رسالة اختبار');
   assert.ok(!row.encryptedText.includes('رسالة اختبار'));
   try {
-    global.fetch = async (_url, options) => { calls++; const payload = JSON.parse(String(options?.body)); assert.deepEqual(Object.keys(payload.messages[0]).sort(), ['phone', 'text', 'title']); assert.equal(payload.messages[0].phone, '+970591234567'); return new Response('{"success":true}', { status: 200 }); };
+    global.fetch = async (_url, options) => { calls++; const payload = JSON.parse(String(options?.body)); assert.deepEqual(Object.keys(payload.messages[0]).sort(), ['body', 'phone', 'title']); assert.equal(payload.messages[0].phone, '+970591234567'); return new Response('{"success":true}', { status: 200 }); };
     await service.work(); await service.work();
     assert.equal(calls, 1); assert.equal(state, 'ACCEPTED'); assert.ok(!JSON.stringify(updates).includes('رسالة اختبار'));
     state = 'QUEUED'; global.fetch = async () => { throw new Error('timeout'); };
@@ -132,7 +132,7 @@ test('credential worker hashes temporary passwords, revokes sessions and encrypt
   } as any);
   row.encryptedText = (service as any).encrypt('CREDENTIALS_PENDING:' + JSON.stringify({ userId: 'student-user', text: 'اسم المستخدم: student. كلمة المرور: [ستولّد كلمة مرور مؤقتة عند التأكيد]' }));
   try {
-    global.fetch = async (_url, options) => { sentText = JSON.parse(String(options?.body)).messages[0].text; return new Response('{"success":true}'); };
+    global.fetch = async (_url, options) => { sentText = JSON.parse(String(options?.body)).messages[0].body; return new Response('{"success":true}'); };
     await service.work();
     assert.equal(state, 'ACCEPTED'); assert.equal(revoked, true); assert.equal(account.mustChangePassword, true);
     assert.match(account.passwordHash, /^\$2[aby]\$/); assert.ok(!sentText.includes('[ستولّد'));

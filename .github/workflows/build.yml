@@ -78,6 +78,9 @@ jobs:
       - run: npm --prefix backend run test:sync-protocol
       - run: npm --prefix backend run test:attendance-replay
       - run: npm --prefix backend run prisma:deploy
+      - name: Verify additive SMS schema recovery on disposable PostgreSQL
+        working-directory: backend
+        run: node --test -r ts-node/register src/notifications/sms-schema.integration.test.ts
       - name: Verify learning snapshots and points on PostgreSQL
         working-directory: backend
         run: node --test -r ts-node/register src/recitations/learning.integration.test.ts

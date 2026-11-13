@@ -20,6 +20,9 @@ pages; their existing forms remain available and unchanged.
 3. Run `npm --prefix backend run prisma:deploy` against the intended PostgreSQL
    database and deploy both applications. No production database was modified
    during development.
+   For the existing unmanaged Neon production database, use the explicit,
+   additive recovery in [SMS_SCHEMA_RECOVERY.md](SMS_SCHEMA_RECOVERY.md) instead
+   of blindly applying the historical migration chain.
 4. Keep at least one backend process running. Its worker polls every two seconds,
    processes at most 20 messages concurrently and uses atomic database claims to
    prevent different server processes sending the same row. No external Redis or

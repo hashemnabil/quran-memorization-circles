@@ -66,7 +66,6 @@ export class SmsService implements OnModuleInit, OnModuleDestroy {
       const columns = (grid.shift() || []).map(v => String(v).trim());
       if (!columns.length || columns.some(c => !c) || new Set(columns).size !== columns.length) throw new BadRequestException('الصف الأول يجب أن يحتوي أسماء أعمدة غير فارغة وغير مكررة، مثل الاسم والهاتف');
       if (columns.length > 100 || grid.length > 5000) throw new BadRequestException('الحد الأقصى للاستيراد 5000 صف و100 عمود');
-      if (columns.some(c => /كلمة (?:السر|المرور)|password/i.test(c))) throw new BadRequestException('لا تستورد كلمات المرور؛ استخدم إجراء إصدار كلمة مرور مؤقتة للحساب');
       return { columns, rows: grid.filter(row => row.some(v => String(v).trim())).map(row => Object.fromEntries(columns.map((c, i) => [c, String(row[i] ?? '')]))) };
     } catch (error) { if (error instanceof BadRequestException) throw error; throw new BadRequestException('ملف غير صالح؛ حد الاستيراد 5000 صف و100 عمود'); }
   }
@@ -103,7 +102,7 @@ export class SmsService implements OnModuleInit, OnModuleDestroy {
     const messages = body.messages.map((row: any) => {
       const phone = normalizePhone(row?.phone), text = row?.text, title = row?.title || 'رسالة من المدرسة';
       if (typeof text !== 'string' || !text.trim() || text.length > 1000 || typeof title !== 'string' || title.length > 160 || /\{[^{}]+\}/.test(text)) throw new BadRequestException('نص أو عنوان غير صالح أو متغيرات ناقصة');
-      if (/كلمة (?:السر|المرور)|password/i.test(text)) throw new BadRequestException('إرسال كلمات المرور عبر الاستيراد غير مسموح');
+      if (/كلمة (?:السر|المرور)|password/i.test(text) && body.allowImportedCredentials !== true) throw new BadRequestException('إرسال بيانات الدخول يتطلب تأكيدًا صريحًا');
       const identity = phone + '\n' + text;
       if (seen.has(identity)) throw new BadRequestException('رسالة مكررة لنفس الرقم'); seen.add(identity);
       return { phone, title, text };

@@ -23,6 +23,9 @@ pages; their existing forms remain available and unchanged.
      recipient. A rejected anonymous request followed by HTTP 2xx/400/422 with
      authorization confirms the authentication boundary, not actual delivery or
      the response schema for a nonempty batch. Disable the probe after checking.
+     A short validation reason is exposed only for that zero-recipient probe,
+     after rejecting credentials, long tokens and contact information. Real
+     message failures retain only a fixed classification or HTTP status code.
 3. Run `npm --prefix backend run prisma:deploy` against the intended PostgreSQL
    database and deploy both applications. No production database was modified
    during development.

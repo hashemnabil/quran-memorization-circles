@@ -5,7 +5,7 @@ import { AuthUser } from '../common/decorators';
 import { normalizePhone, renderSms, smsTemplates } from './sms-policy';
 import * as XLSX from 'xlsx';
 import * as bcrypt from 'bcryptjs';
-import { checkOfflineSmsConnection, smsConfiguration } from './sms-readiness';
+import { checkOfflineSmsConnection, providerFailureCode, smsConfiguration } from './sms-readiness';
 
 @Injectable()
 export class SmsService implements OnModuleInit, OnModuleDestroy {
@@ -208,7 +208,10 @@ export class SmsService implements OnModuleInit, OnModuleDestroy {
             const result = await response.json() as any;
             if (result?.success === true || result?.status === 'success') { status = 'ACCEPTED'; errorCode = null; }
           }
-          else if ([400, 401, 403, 422, 429].includes(response.status)) { status = 'FAILED'; errorCode = `HTTP_${response.status}`; }
+          else if ([400, 401, 403, 422, 429].includes(response.status)) {
+            status = 'FAILED'; errorCode = `HTTP_${response.status}`;
+            try { errorCode = providerFailureCode(await response.json(), response.status); } catch { /* Do not retain raw provider responses. */ }
+          }
           if (!response.bodyUsed) await response.body?.cancel();
         } catch { /* Do not log message contents, phone numbers, or provider bodies. */ }
         await this.prisma.smsMessage.update({ where: { id: row.id }, data: { status, errorCode } });

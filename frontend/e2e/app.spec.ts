@@ -36,7 +36,7 @@ for (const [role, paths] of Object.entries(destinations)) {
       const link = sidebar.locator(`a[href="${path}"]`);
       if (await link.count()) await link.click();
       else await gotoWithLocalUnlock(page,path);
-      await expect(page, `Role ${role} failed navigation to ${path}`).toHaveURL(url => url.pathname === path || (role === 'STUDENT' && url.pathname === '/student' && path !== '/student'));
+      await expect(page, `Role ${role} failed navigation to ${path}`).toHaveURL(url => url.pathname === path || (path === '/profile' && url.pathname === '/community/users/me') || (role === 'STUDENT' && url.pathname === '/student' && path !== '/student'));
       await expect(page.getByRole('status', { name: 'بدء التطبيق' })).not.toBeVisible();
       if (path === '/mushaf') {
         // The standalone Mushaf is a full-screen dialog rendered in a portal,

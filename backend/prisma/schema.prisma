@@ -6,6 +6,41 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model SmsCampaign {
+  id String @id @default(uuid())
+  requestKey String @unique
+  requestHash String
+  createdById String
+  createdAt DateTime @default(now())
+  messages SmsMessage[]
+  @@map("sms_campaigns")
+}
+
+model SmsMessage {
+  id String @id @default(uuid())
+  campaignId String
+  campaign SmsCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  phone String
+  title String
+  encryptedText String
+  credential Boolean @default(false)
+  status String @default("QUEUED")
+  attempts Int @default(0)
+  errorCode String?
+  claimedAt DateTime?
+  updatedAt DateTime @updatedAt
+  @@index([status, updatedAt])
+  @@index([campaignId])
+  @@map("sms_messages")
+}
+
+model SmsTemplate {
+  kind String @id
+  text String
+  updatedAt DateTime @updatedAt
+  @@map("sms_templates")
+}
+
 datasource db {
   provider = "postgresql"
   /// Runtime queries. On a hosted database this is the *pooled* endpoint.

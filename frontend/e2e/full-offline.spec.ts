@@ -630,6 +630,8 @@ test('activity archive opens records older than the former 100-record limit and 
 });
 
 test('admin broadcast targets selected accounts and stays durable offline', async ({ page, context }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
   const recipients = [{ id: fixtures.students[0].id, fullName: 'طالب التجربة', username: 'student25', role: 'STUDENT', isActive: true }, { id: fixtures.teachers[0].id, fullName: 'محفظ التجربة', username: 'teacher25', role: 'TEACHER', isActive: true }];
   await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
   await page.route('**/api/**', route => {
@@ -642,6 +644,10 @@ test('admin broadcast targets selected accounts and stays durable offline', asyn
   });
   await gotoWithLocalUnlock(page,'/admin/notifications');
   await expect(page.getByRole('heading', { name: 'إرسال الإشعارات' })).toBeVisible();
+  // The legacy/fallback response below is not an SMS recipient array. The new
+  // optional panel must show an error without breaking the existing broadcast.
+  await expect(page.getByRole('alert').filter({ hasText: 'تعذر تحميل مستلمي الرسائل' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'معاينة جميع الرسائل', exact: true })).toBeDisabled();
   await page.getByLabel(/^عنوان الإشعار/).fill('موعد اللقاء');
   await page.getByLabel(/^نص الإشعار/).fill('نلتقي غدًا بعد العصر.');
   await page.getByLabel('الفئة', { exact: true }).selectOption('STUDENT');
@@ -658,6 +664,7 @@ test('admin broadcast targets selected accounts and stays durable offline', asyn
     const rows = await new Promise<any[]>(resolve => { const request = database.transaction('queue').objectStore('queue').getAll(); request.onsuccess = () => resolve(request.result); }); database.close(); return rows;
   });
   const operation = operations.find(row => row.action === 'broadcast'); expect(operation.data.userIds).toEqual([recipients[0].id]);
+  expect(pageErrors).toEqual([]);
 });
 
 test('student save explains missing fields, confirms online creation and works offline on mobile', async ({ page, context }) => {

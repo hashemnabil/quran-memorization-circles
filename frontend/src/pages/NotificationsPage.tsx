@@ -1,3 +1,4 @@
+import { StudentCommunications } from '@/pages/SmsPage';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -107,6 +108,7 @@ export default function NotificationsPage() {
         }
       />
 
+      {role === 'ADMIN' && <StudentCommunications />}
       <Tabs
         tabs={[
           { key: 'all', label: 'الكل' },

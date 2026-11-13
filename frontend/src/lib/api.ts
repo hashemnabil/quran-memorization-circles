@@ -118,7 +118,7 @@ api.defaults.adapter = async (config) => {
     const user = readActiveIdentity();
     if (user) return { data: user, status: 200, statusText: 'Local', headers: {}, config };
   }
-  if (/^\/(auth|sync|offline-sync)(\/|\?|$)/.test(path) || path.startsWith('/sync-all') || path.startsWith('/registry') && !path.startsWith('/registry/admin/')) return networkAdapter(config);
+  if (/^\/(sms|auth|sync|offline-sync)(\/|\?|$)/.test(path) || path.startsWith('/sync-all') || path.startsWith('/registry') && !path.startsWith('/registry/admin/')) return networkAdapter(config);
   let account: string;
   try { account = accountId(); } catch { return networkAdapter(config); }
   const stillCurrent = () => {

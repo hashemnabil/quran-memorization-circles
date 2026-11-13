@@ -91,21 +91,22 @@ export class NotificationsService {
     const unique = [...new Set(userIds.filter(Boolean))];
     if (unique.length === 0) return [];
     const notifications = await this.prisma.$transaction(async tx => {
-      const saved = [];
-      for (const userId of unique) {
-      const row = await tx.notification.create({ data: {
-        userId,
-        type: input.type,
-        title: input.title,
-        body: input.body,
-        link: input.link,
-        data: input.data as any,
-      } });
-      await recordNotificationChange(tx, row);
-      saved.push(row);
-      }
+      // Lock the sync journal once per broadcast, not once for every recipient.
+      // Keep notifications and their sync records atomic so a failed send cannot
+      // leave some recipients notified and others missing.
+      await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext('quran-sync-journal'), 0)) AS locked`;
+      const saved = await tx.notification.createManyAndReturn({
+        data: unique.map(userId => ({
+          userId, type: input.type, title: input.title, body: input.body,
+          link: input.link, data: input.data as Prisma.InputJsonValue,
+        })),
+      });
+      await tx.syncChange.createMany({ data: saved.map(row => ({
+        entity: 'notifications', entityId: row.id, operation: 'UPSERT',
+        payload: { id: row.id, userId: row.userId },
+      })) });
       return saved;
-    });
+    }, { timeout: 30000 });
     for (const notification of notifications) await this.deliver(notification);
     return unique;
   }

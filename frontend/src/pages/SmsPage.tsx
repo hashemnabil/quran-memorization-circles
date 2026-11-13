@@ -10,6 +10,7 @@ const phone = (s: string) => { let n = s.replace(/[٠-٩]/g,c=>String(c.charCode
 export function StudentCommunications({ initialKind = 'NOTICE' }: { initialKind?: string }) {
   const [students,setStudents] = useState<any[]>([]), [selected,setSelected] = useState<string[]>([]);
   const [recipientsError,setRecipientsError] = useState('');
+  const [studentSearch,setStudentSearch] = useState('');
   const [kind,setKind] = useState(initialKind), [channel,setChannel] = useState('APP'), [circle,setCircle] = useState(''), [all,setAll] = useState(false);
   const [reason,setReason] = useState(''), [reasons,setReasons] = useState<Row>({}), [date,setDate] = useState(''), [time,setTime] = useState('');
   const [preview,setPreview] = useState<Message[]>([]), [busy,setBusy] = useState(false);
@@ -26,6 +27,8 @@ export function StudentCommunications({ initialKind = 'NOTICE' }: { initialKind?
     });
     return () => { active = false; };
   }, []);
+  const filteredStudents = students.filter(s => s.fullName.toLocaleLowerCase().includes(studentSearch.trim().toLocaleLowerCase()));
+  const selectedStudents = all ? students : circle ? students.filter(s=>s.circleId===circle) : students.filter(s=>selected.includes(s.id));
   const data = {kind,channel,studentIds:selected,circleId:circle || undefined,all,reason,reasons,date,time};
   const reset = () => setPreview([]);
   const send = async () => {
@@ -41,9 +44,20 @@ export function StudentCommunications({ initialKind = 'NOTICE' }: { initialKind?
     <label>قناة الإرسال<select className="block w-full rounded border p-2" value={channel} onChange={e=>setChannel(e.target.value)}><option value="APP">داخل التطبيق فقط</option><option value="SMS">SMS فقط لولي الأمر</option><option value="BOTH">التطبيق وSMS</option></select></label></div>
     <label className="block"><input type="checkbox" checked={all} onChange={e=>{setAll(e.target.checked);setCircle('');setSelected([]);}}/> جميع الطلاب</label>
     {!all && <><label>حلقة مستلمي الرسائل<select className="block w-full rounded border p-2" value={circle} onChange={e=>{setCircle(e.target.value);setSelected([]);}}><option value="">اختيار طلاب محددين</option>{Array.from(new Map(students.filter(s=>s.circleId).map(s=>[s.circleId,s.circle?.name||s.circleId])).entries()).map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
-    {!circle && <label className="block">اختر طالبًا أو عدة طلاب<select multiple className="block h-44 w-full rounded border p-2" value={selected} onChange={e=>setSelected(Array.from(e.target.selectedOptions,o=>o.value))}>{students.map(s=><option key={s.id} value={s.id}>{s.fullName}</option>)}</select></label>}</>}
+    {!circle && <div className="space-y-2">
+      <label className="block">البحث عن طالب<input type="search" className="block w-full rounded border p-2" placeholder="اكتب اسم الطالب" value={studentSearch} onChange={e=>setStudentSearch(e.target.value)}/></label>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={()=>setSelected(prev=>Array.from(new Set([...prev,...filteredStudents.map(s=>s.id)])))}>تحديد الكل {studentSearch.trim()?'في نتائج البحث':''}</Button>
+        <Button onClick={()=>setSelected(prev=>prev.filter(id=>!filteredStudents.some(s=>s.id===id)))}>إلغاء التحديد {studentSearch.trim()?'في نتائج البحث':''}</Button>
+        <span aria-live="polite">الطلاب المحددون: {selected.length}</span>
+      </div>
+      <div className="max-h-64 space-y-1 overflow-auto rounded border p-2" role="group" aria-label="اختر الطلاب">
+        {filteredStudents.map(s=><label key={s.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded p-2 hover:bg-gray-100"><input type="checkbox" className="h-5 w-5 shrink-0" checked={selected.includes(s.id)} onChange={e=>setSelected(prev=>e.target.checked?[...prev,s.id]:prev.filter(id=>id!==s.id))}/><span>{s.fullName}</span></label>)}
+        {!filteredStudents.length && <p>لا يوجد طلاب مطابقون للبحث.</p>}
+      </div>
+    </div>}</>}
     <Textarea label="محتوى الإشعار أو السبب الموحد" maxLength={1000} value={reason} onChange={e=>setReason(e.target.value)}/>
-    {(all ? students : circle ? students.filter(s=>s.circleId===circle) : students.filter(s=>selected.includes(s.id))).map(s=><label className="block text-sm" key={s.id}>{s.fullName} — سبب خاص (اختياري)<input className="block w-full rounded border p-2" value={reasons[s.id]||''} maxLength={1000} onChange={e=>setReasons({...reasons,[s.id]:e.target.value})}/></label>)}
+    {selectedStudents.map(s=><label className="block text-sm" key={s.id}>{s.fullName} — سبب خاص (اختياري)<input className="block w-full rounded border p-2" value={reasons[s.id]||''} maxLength={1000} onChange={e=>setReasons({...reasons,[s.id]:e.target.value})}/></label>)}
     {kind==='SUMMONS' && <div className="flex gap-3"><input aria-label="تاريخ الاستدعاء" type="date" value={date} onChange={e=>setDate(e.target.value)}/><input aria-label="وقت الاستدعاء" type="time" value={time} onChange={e=>setTime(e.target.value)}/></div>}
     <Button disabled={busy || !!recipientsError || !students.length} onClick={()=>{setBusy(true); void api.post('/sms/preview',data).then(r=>setPreview(r.data)).catch(e=>toast.error(apiError(e))).finally(()=>setBusy(false));}}>معاينة جميع الرسائل</Button>
     {!!preview.length && <><p>عدد المستلمين: {preview.length}</p><div className="max-h-96 space-y-2 overflow-auto">{preview.map((m,i)=><article className="rounded border p-3" key={i}><strong>{m.name} · {m.phone}</strong><p className="whitespace-pre-wrap">{m.text}</p><p role="alert" className="text-red-700">{m.error}</p></article>)}</div><Button disabled={busy||preview.some(m=>!!m.error)} onClick={()=>void send()}>تأكيد الإرسال</Button></>}

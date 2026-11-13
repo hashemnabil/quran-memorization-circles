@@ -27,9 +27,10 @@ test('all spreadsheet formats preserve headers and leading zeroes', () => {
     assert.equal(result.rows[0]['الهاتف'], '0591234567');
   }
 });
-test('permanent passwords cannot be imported', () => {
+test('password columns import for explicitly confirmed temporary credential delivery', () => {
   const service = new SmsService({} as any);
-  assert.throws(() => service.import({ originalname: 'x.csv', buffer: Buffer.from('password,phone\nsecret,0591234567') } as any));
+  const result = service.import({ originalname: 'x.csv', buffer: Buffer.from('password,phone\ntemporary123,0591234567') } as any);
+  assert.equal(result.rows[0].password, 'temporary123');
 });
 test('non-admin cannot enqueue and duplicate recipients fail before DB calls', async () => {
   const service = new SmsService({} as any);

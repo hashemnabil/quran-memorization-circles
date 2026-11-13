@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { checkOfflineSmsConnection, smsConfiguration } from './sms-readiness';
+import { checkOfflineSmsConnection, providerFailureCode, safeProbeReason, smsConfiguration } from './sms-readiness';
 import { SmsService } from './sms.service';
 
 test('SMS configuration exposes only booleans and distinguishes missing settings', () => {
@@ -35,4 +35,16 @@ test('readiness cannot claim safety to provision encryption when storage is unav
   const service = new SmsService({ smsMessage: { count: async () => { throw new Error('database unavailable'); } } } as any);
   const result = await service.readiness();
   assert.equal(result.schemaReady, false); assert.equal(result.encryptedPayloadsPresent, null); assert.equal(result.ready, false);
+});
+
+test('only zero-recipient validation reasons can be exposed and secrets/contacts are rejected', () => {
+  assert.equal(safeProbeReason({ error: 'messages_required' }, 'test-secret'), 'messages_required');
+  for (const error of ['test-secret', 'phone 970591234567 rejected', 'user@example.com', 'offmsg_live_example', 'Bearer secret', 'abcdefghijklmnopqrstuvwxyz123456']) assert.equal(safeProbeReason({ error }, 'test-secret'), undefined);
+});
+
+test('real-message rejection classification never retains personal provider text', () => {
+  assert.equal(providerFailureCode({ error: 'Not enough points' }, 400), 'PROVIDER_BALANCE_OR_POINTS');
+  assert.equal(providerFailureCode({ message: 'Phone 970591234567 invalid' }, 400), 'PROVIDER_RECIPIENT_INVALID');
+  assert.equal(providerFailureCode({ error: 'No relay device available' }, 400), 'PROVIDER_SENDER_UNAVAILABLE');
+  assert.equal(providerFailureCode({ error: 'Unknown failure with private text' }, 400), 'HTTP_400');
 });

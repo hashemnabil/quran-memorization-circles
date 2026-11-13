@@ -6,6 +6,25 @@ export function smsConfiguration(env: NodeJS.ProcessEnv = process.env) {
   };
 }
 
+/** Only for zero-recipient probes: reject secrets, contacts and long tokens. */
+export function safeProbeReason(result: any, key: string): string | undefined {
+  const value = [result?.error, result?.message, result?.detail, result?.code].find(item => typeof item === 'string');
+  if (!value || value.includes(key.trim()) || /offmsg_|bearer|https?:|@|\d{4,}|[A-Za-z0-9_\-+/=]{24,}/i.test(value)) return undefined;
+  return /^[\p{L}\d _.,:()+-]{1,180}$/u.test(value) ? value : undefined;
+}
+
+/** Store a fixed classification, never arbitrary provider text from a real SMS. */
+export function providerFailureCode(result: any, httpStatus: number): string {
+  const values = [result?.error, result?.message, result?.detail, result?.code].filter(value => typeof value === 'string').join(' ').toLowerCase();
+  if (/insufficient|not enough|balance|points|credits/.test(values)) return 'PROVIDER_BALANCE_OR_POINTS';
+  if (/country|region|coverage/.test(values)) return 'PROVIDER_COUNTRY_UNSUPPORTED';
+  if (/relay|gateway|sender|device/.test(values)) return 'PROVIDER_SENDER_UNAVAILABLE';
+  if (/not registered|not found|unregistered/.test(values) && /recipient|phone|user/.test(values)) return 'PROVIDER_RECIPIENT_NOT_REGISTERED';
+  if (/phone|recipient|number|e.?164/.test(values)) return 'PROVIDER_RECIPIENT_INVALID';
+  if (/organization|approval|approved|account|suspend/.test(values)) return 'PROVIDER_ACCOUNT_CONFIGURATION';
+  return `HTTP_${httpStatus}`;
+}
+
 /** Zero recipients, no phone numbers/text and no possibility of sending an SMS. */
 export async function checkOfflineSmsConnection(key = process.env.OFFLINESMS_API_KEY, send: typeof fetch = fetch) {
   if (!key?.trim()) return { outcome: 'MISSING_API_KEY' };
@@ -25,6 +44,7 @@ export async function checkOfflineSmsConnection(key = process.env.OFFLINESMS_API
       anonymousStatus,
       authorizedStatus: authorized.status,
       acceptedSignal,
+      validationReason: safeProbeReason(result, key),
       // Only structural booleans, never response text, identifiers or credentials.
       responseShape: { successBoolean: typeof result?.success === 'boolean', statusString: typeof result?.status === 'string', errorsPresent: result?.errors != null, dataPresent: result?.data != null },
     };

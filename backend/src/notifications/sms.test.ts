@@ -7,8 +7,10 @@ import { randomBytes } from 'node:crypto';
 import * as XLSX from 'xlsx';
 
 test('Palestinian numbers normalize to the same international identity', () => {
-  for (const phone of ['0591234567', '591234567', '+970 59 123 4567', '00970591234567', '٠٥٩١٢٣٤٥٦٧']) assert.equal(normalizePhone(phone), '970591234567');
-  assert.equal(normalizePhone('561234567'), '970561234567');
+  for (const phone of ['0591234567', '591234567', '+970 59 123 4567', '00970591234567', '٠٥٩١٢٣٤٥٦٧']) assert.equal(normalizePhone(phone), '+970591234567');
+  assert.equal(normalizePhone('561234567'), '+970561234567');
+  assert.equal(normalizePhone('970594370955'), '+970594370955');
+  assert.equal(normalizePhone('00970594370955'), '+970594370955');
   for (const phone of ['', '059123', '970551234567', '123x456789', '000000000']) assert.throws(() => normalizePhone(phone));
 });
 test('personalization rejects missing and empty fields', () => {
@@ -91,7 +93,7 @@ test('worker sends mocked provider requests once and never treats acceptance as 
   row.encryptedText = (service as any).encrypt('رسالة اختبار');
   assert.ok(!row.encryptedText.includes('رسالة اختبار'));
   try {
-    global.fetch = async (_url, options) => { calls++; const payload = JSON.parse(String(options?.body)); assert.deepEqual(Object.keys(payload.messages[0]).sort(), ['phone', 'text', 'title']); return new Response('{"success":true}', { status: 200 }); };
+    global.fetch = async (_url, options) => { calls++; const payload = JSON.parse(String(options?.body)); assert.deepEqual(Object.keys(payload.messages[0]).sort(), ['phone', 'text', 'title']); assert.equal(payload.messages[0].phone, '+970591234567'); return new Response('{"success":true}', { status: 200 }); };
     await service.work(); await service.work();
     assert.equal(calls, 1); assert.equal(state, 'ACCEPTED'); assert.ok(!JSON.stringify(updates).includes('رسالة اختبار'));
     state = 'QUEUED'; global.fetch = async () => { throw new Error('timeout'); };

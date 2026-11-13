@@ -90,8 +90,8 @@ test('donation notes are stored as admin-visible tickets and notify administrato
 
 test('bulk notifications deliver complete persisted rows, deduplicate recipients and tolerate socket failures', async () => {
   const events: any[] = [];
-  const tx: any = { $queryRaw: async () => [], syncChange: { create: async () => ({}) },
-    notification: { create: async ({ data }: any) => ({ ...data, id: `notice-${data.userId}`, isRead: false }) } };
+  const tx: any = { $queryRaw: async () => [], syncChange: { create: async () => ({}), createMany: async ({ data }: any) => ({ count: data.length }) },
+    notification: { create: async ({ data }: any) => ({ ...data, id: `notice-${data.userId}`, isRead: false }), createManyAndReturn: async ({ data }: any) => data.map((item: any) => ({ ...item, id: `notice-${item.userId}`, isRead: false })) } };
   const prisma: any = { $transaction: async (run: any) => run(tx), notification: { count: async () => 1 } };
   const service = new NotificationsService(prisma, { emitToUser: (...args: any[]) => { events.push(args); if (args[0] === 'one') throw new Error('socket down'); } } as any);
   assert.deepEqual(await service.notifyMany(['one', 'one', 'two'], { type: 'SYSTEM', title: 'Saved' }), ['one', 'two']);

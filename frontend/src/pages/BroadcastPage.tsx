@@ -36,7 +36,7 @@ export default function BroadcastPage() {
     } finally { setSending(false); }
   };
   return <div dir="rtl"><PageHeader title="إرسال الإشعارات" />
-    <Card><form onSubmit={send} className="space-y-5">
+    <p className="mb-4 text-sm"><a href="/admin/sms" className="font-bold text-emerald-700 underline">إرسال رسائل SMS لأولياء الأمور عبر Excel</a></p><Card><form onSubmit={send} className="space-y-5">
       <Input label="عنوان الإشعار" value={title} maxLength={160} required onChange={e => setTitle(e.target.value)} />
       <Textarea label="نص الإشعار" value={body} maxLength={3000} required onChange={e => setBody(e.target.value)} />
       <div className="grid gap-4 sm:grid-cols-2">

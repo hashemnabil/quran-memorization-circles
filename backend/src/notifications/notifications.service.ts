@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { BroadcastDto } from './broadcast.dto';
 import { Notification, NotificationType, Prisma, Role } from '@prisma/client';
@@ -90,23 +91,36 @@ export class NotificationsService {
   async notifyMany(userIds: string[], input: Omit<CreateNotificationInput, 'userId'>) {
     const unique = [...new Set(userIds.filter(Boolean))];
     if (unique.length === 0) return [];
-    const notifications = await this.prisma.$transaction(async tx => {
-      const saved = [];
-      for (const userId of unique) {
-      const row = await tx.notification.create({ data: {
-        userId,
-        type: input.type,
-        title: input.title,
-        body: input.body,
-        link: input.link,
-        data: input.data as any,
-      } });
-      await recordNotificationChange(tx, row);
-      saved.push(row);
-      }
-      return saved;
+    // Bulk writes avoid one INSERT and advisory-lock query per recipient. On large
+    // broadcasts that loop could exceed Prisma's interactive transaction timeout.
+    const rows = unique.map(userId => ({
+      id: randomUUID(),
+      userId,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      link: input.link,
+      data: input.data as Prisma.InputJsonValue | undefined,
+    }));
+    await this.prisma.$transaction(async tx => {
+      await tx.notification.createMany({ data: rows });
+      // Acquire the journal lock once and append the matching sync records in bulk.
+      await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext('quran-sync-journal'), 0)) AS locked`;
+      await tx.syncChange.createMany({
+        data: rows.map(row => ({
+          entity: 'notifications',
+          entityId: row.id,
+          operation: 'UPSERT',
+          payload: { id: row.id, userId: row.userId },
+        })),
+      });
+    }, { timeout: 30000 });
+    // Deliver only after commit, and do not block the API response on hundreds
+    // of sequential unread-count queries.
+    const notifications = await this.prisma.notification.findMany({
+      where: { id: { in: rows.map(row => row.id) } },
     });
-    for (const notification of notifications) await this.deliver(notification);
+    await Promise.allSettled(notifications.map(notification => this.deliver(notification)));
     return unique;
   }
 

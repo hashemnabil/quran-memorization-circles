@@ -25,6 +25,7 @@ import PrivacyPage from '@/pages/PrivacyPage';
 import AboutPage from '@/pages/AboutPage';
 import AccountDeletionPage from '@/pages/AccountDeletionPage';
 import BroadcastPage from '@/pages/BroadcastPage';
+import SmsPage from '@/pages/SmsPage';
 import ActivityPage from '@/pages/ActivityPage';
 import PasswordRequestsPage from '@/pages/PasswordRequestsPage';
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
@@ -127,6 +128,7 @@ export default function App() {
         <Route path="prayer-times/reminders" element={<PrayerReminderSettingsPage key={currentUser?.id} />} />
         <Route path="profile/settings/notifications/sound" element={<NotificationSoundSettingsPage key={currentUser?.id} />} />
         <Route path="donations" element={<DonationsPage />} />
+        <Route path="admin/sms" element={<RequireRole roles={['ADMIN']}><SmsPage /></RequireRole>} />
         <Route path="admin/notifications" element={<RequireRole roles={['ADMIN']}><BroadcastPage /></RequireRole>} />
         <Route path="meetings" element={<RequireRole roles={['ADMIN']}><MeetingsPage /></RequireRole>} />
         <Route path="admin/activity" element={<RequireRole roles={['ADMIN']}><ActivityPage /></RequireRole>} />

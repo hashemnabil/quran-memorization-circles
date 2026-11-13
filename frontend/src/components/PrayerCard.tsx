@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { calculateGazaTimes, countdown, GAZA_ZONE, gazaDateKey, nextPrayer, prayerTimeLabel, readPrayerPreferences } from '@/lib/prayer-times';
-import { useAuthStore } from '@/store/auth';
+import { countdown, gazaDateKey, nextPrayer, prayerTimeLabel } from '@/lib/prayer-times';
 import { IconMoon } from '@/components/ui/Icons';
-import { DEFAULT_SCHOOL_LOGO } from '@/config/branding';
 import './prayer.css';
 
 export function PrayerTimeIcon({ id, size = 24 }: { id: string; size?: number }) {
@@ -35,32 +33,14 @@ function NextPrayerCountdown({ onChange }: { onChange: () => void }) {
   return <div className="prayer-next"><div><span className="prayer-eyebrow">الصلاة القادمة</span><h2 key={next.id}><PrayerTimeIcon id={next.id} size={30} /> {next.label}</h2><span>الساعة {prayerTimeLabel(next.at)}</span></div><div><span className="prayer-eyebrow">متبقي على الأذان</span><time className="prayer-countdown" dir="ltr" aria-label="الوقت المتبقي">{countdown(next.at, now)}</time></div></div>;
 }
 export default function PrayerCard() {
-  const date = usePrayerDay();
-  const account = useAuthStore(s => s.user?.id) || '';
-  const [revision, setRevision] = useState(0);
   const [now, setNow] = useState(Date.now);
   useEffect(() => { const tick = () => setNow(Date.now()); const timer = window.setInterval(tick, 30000); document.addEventListener('visibilitychange', tick); return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', tick); }; }, []);
-  const [offset, setOffset] = useState(() => readPrayerPreferences(account).hijriOffset);
-  useEffect(() => {
-    const update = () => setOffset(readPrayerPreferences(account).hijriOffset);
-    update(); window.addEventListener('qc:prayer-settings', update);
-    return () => window.removeEventListener('qc:prayer-settings', update);
-  }, [account]);
-  const times = calculateGazaTimes(date);
   const next = nextPrayer(new Date(now));
-  const sunrise = times.find(p => p.id === 'sunrise')!.at.getTime();
-  const maghrib = times.find(p => p.id === 'maghrib')!.at.getTime();
-  const isDay = now >= sunrise && now < maghrib;
-  const day = new Date(`${date}T12:00:00Z`);
-  const hijri = new Date(day.getTime() + offset * 86400000);
-  // Only the countdown ticks each second. The card updates at prayer/day boundaries.
-  const onChange = useState(() => () => setRevision(v => v + 1))[0];
-  return <section className={`prayer-card ${isDay ? "prayer-card-day" : "prayer-card-night"}`} dir="rtl" aria-label="مواقيت الصلاة — غزة" data-revision={revision}>
-    <img className="prayer-mosque" src="/prayer-mosque.jpg" alt="" aria-hidden="true" />
-    <div className="prayer-card-heading"><div><p className="prayer-eyebrow">📍 غزة — فلسطين</p><h2>مواقيت الصلاة — غزة</h2></div><span className="prayer-brand-icon" aria-label="شعار المدرسة"><img src={DEFAULT_SCHOOL_LOGO} alt="شعار المدرسة" width={48} height={48} className="h-12 w-12 rounded-full object-contain" /></span></div>
-    <NextPrayerCountdown onChange={onChange} />
-    <p className="prayer-date">{new Intl.DateTimeFormat('ar', { timeZone: GAZA_ZONE, dateStyle: 'full' }).format(day)} <span> · </span>{new Intl.DateTimeFormat('ar-u-ca-islamic-civil', { timeZone: GAZA_ZONE, day: 'numeric', month: 'long', year: 'numeric' }).format(hijri)}</p>
-    <div className="prayer-strip">{times.map(p => <div key={p.id} className={next.id === p.id && gazaDateKey(next.at) === date ? 'prayer-slot is-next' : 'prayer-slot'}><span className="prayer-slot-icon" aria-hidden="true"><PrayerTimeIcon id={p.id} size={24} /></span><strong>{p.label}</strong><time dir="ltr">{prayerTimeLabel(p.at)}</time></div>)}</div>
-    <div className="prayer-actions"><Link to="/prayer-times">عرض جميع المواقيت <span aria-hidden>←</span></Link><Link to="/prayer-times/reminders">إعدادات التذكير</Link></div>
-  </section>;
+  return <Link to="/prayer-times" className="prayer-compact group mb-5 flex w-full items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-l from-emerald-950 to-emerald-800 px-4 py-3 text-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600" dir="rtl" aria-label={`الصلاة القادمة ${next.label} الساعة ${prayerTimeLabel(next.at)}، اضغط لعرض جميع المواقيت`}>
+    <span className="flex min-w-0 items-center gap-3">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/15"><PrayerTimeIcon id={next.id} size={23} /></span>
+      <span className="min-w-0"><span className="block text-xs text-emerald-100">الصلاة القادمة · غزة</span><strong className="block text-base font-extrabold">{next.label} <span className="mr-1 text-sm font-semibold text-emerald-100">{prayerTimeLabel(next.at)}</span></strong></span>
+    </span>
+    <span className="shrink-0 text-left"><span className="block text-[11px] text-emerald-100">عرض كل الصلوات</span><span className="text-sm font-bold" aria-hidden="true">←</span></span>
+  </Link>;
 }

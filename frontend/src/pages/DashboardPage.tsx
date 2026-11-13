@@ -116,9 +116,25 @@ export default function DashboardPage() {
         }
       />
 
+      <section className="mb-5 overflow-hidden rounded-3xl border border-emerald-100 bg-gradient-to-l from-emerald-50 via-white to-white p-4 shadow-sm sm:p-6" aria-label="ملخص المدرسة">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div><p className="text-xs font-bold text-emerald-700">مدرستنا بالأرقام</p><h2 className="mt-1 text-xl font-extrabold text-slate-800">مجتمع القرآن الكريم</h2></div>
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">إحصائيات المدرسة</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><IconGraduation size={23}/></span>
+            <div><p className="text-xs font-semibold text-slate-500">عدد الطلاب</p><strong className="numeric text-2xl font-black text-slate-800">{data.schoolStats?.students ?? '—'}</strong></div>
+          </div>
+          <div className="flex items-center gap-3 rounded-2xl border border-sky-100 bg-white p-4 shadow-sm">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700"><IconCircleGroup size={23}/></span>
+            <div><p className="text-xs font-semibold text-slate-500">عدد الحلقات</p><strong className="numeric text-2xl font-black text-slate-800">{data.schoolStats?.circles ?? '—'}</strong></div>
+          </div>
+        </div>
+      </section>
+      <PrayerCard />
       <HonorRoll />
       <CircleHonorRoll />
-      <PrayerCard />
       <DailyOverview/>
 
       <section className="mb-6">

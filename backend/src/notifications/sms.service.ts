@@ -37,12 +37,16 @@ export class SmsService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.smsTemplate.upsert({ where: { kind }, create: { kind, text }, update: { text } });
   }
   import(file?: Express.Multer.File) {
-    if (!file || !/\.(xlsx|xls|csv)$/i.test(file.originalname)) throw new BadRequestException('ارفع XLSX أو XLS أو CSV');
+    if (!file) throw new BadRequestException('لم يصل ملف المستلمين؛ اختر ملف XLSX أو XLS أو CSV وأعد رفعه');
+    if (!/\.(xlsx|xls|csv)$/i.test(file.originalname)) throw new BadRequestException('امتداد الملف غير مدعوم؛ ارفع XLSX أو XLS أو CSV');
     try {
       const book = XLSX.read(file.buffer, { type: 'buffer', sheetRows: 5002 });
-      const grid = XLSX.utils.sheet_to_json<string[]>(book.Sheets[book.SheetNames[0]], { header: 1, defval: '', raw: false });
+      const sheet = book.Sheets[book.SheetNames[0]];
+      if (!sheet) throw new BadRequestException('الملف فارغ؛ أضف أسماء الأعمدة في الصف الأول وبيانات المستلمين تحته');
+      const grid = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: '', raw: false });
       const columns = (grid.shift() || []).map(v => String(v).trim());
-      if (!columns.length || columns.length > 100 || columns.some(c => !c) || new Set(columns).size !== columns.length || grid.length > 5000) throw new Error();
+      if (!columns.length || columns.some(c => !c) || new Set(columns).size !== columns.length) throw new BadRequestException('الصف الأول يجب أن يحتوي أسماء أعمدة غير فارغة وغير مكررة، مثل الاسم والهاتف');
+      if (columns.length > 100 || grid.length > 5000) throw new BadRequestException('الحد الأقصى للاستيراد 5000 صف و100 عمود');
       if (columns.some(c => /كلمة (?:السر|المرور)|password/i.test(c))) throw new BadRequestException('لا تستورد كلمات المرور؛ استخدم إجراء إصدار كلمة مرور مؤقتة للحساب');
       return { columns, rows: grid.filter(row => row.some(v => String(v).trim())).map(row => Object.fromEntries(columns.map((c, i) => [c, String(row[i] ?? '')]))) };
     } catch (error) { if (error instanceof BadRequestException) throw error; throw new BadRequestException('ملف غير صالح؛ حد الاستيراد 5000 صف و100 عمود'); }

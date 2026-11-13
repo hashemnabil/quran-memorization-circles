@@ -4,7 +4,7 @@
   "description": "Backend for the Quran Memorization Circles Management System",
   "private": true,
   "scripts": {
-    "test:sms": "node --test -r ts-node/register src/notifications/sms.test.ts src/notifications/sms-schema.test.ts",
+    "test:sms": "node --test -r ts-node/register src/notifications/sms.test.ts src/notifications/sms-schema.test.ts src/notifications/sms-import-http.test.ts",
     "test:honor-roll": "node --test -r ts-node/register src/dashboard/honor-roll.test.ts",
     "test:achievements": "node --test -r ts-node/register src/common/surah-achievements.test.ts",
     "test:ui-domain": "node --test -r ts-node/register src/community/community-policy.test.ts src/community/community-audience.test.ts src/chat/offline-message.test.ts src/notifications/notification-flows.test.ts src/security-readiness.test.ts",

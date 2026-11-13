@@ -3,10 +3,56 @@ import { test, expect, chromium, type BrowserContext } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
 const account = '00000000-0000-4000-8000-000000000001';
 const circleId = '00000000-0000-4000-8000-000000000002';
 const user = { id: account, username: 'offline-test', fullName: 'مدير الاختبار', role: 'ADMIN', isActive: true, mustChangePassword: false };
 const schoolName = 'مدرسة عبدالله بن عمر لتعليم القران الكريم والسنة النبوية';
+
+test('SMS spreadsheet import sends multipart file bytes for XLSX, XLS and CSV without sending messages', async ({ page }) => {
+  const XLSX = createRequire(import.meta.url)('../../backend/node_modules/xlsx');
+  const pageErrors: string[] = [];
+  let imports = 0;
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
+  await page.route('**/api/**', async route => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/auth/me') return route.fulfill({ json: user });
+    if (path === '/api/settings/public' || path === '/api/settings') return route.fulfill({ json: { name: schoolName } });
+    if (path === '/api/sms/templates') return route.fulfill({ json: {} });
+    if (path === '/api/sms/campaigns' || path === '/api/sms/recipients' || path === '/api/announcements/active') return route.fulfill({ json: [] });
+    if (path === '/api/sms/import') {
+      const contentType = request.headers()['content-type'];
+      expect(contentType).toMatch(/^multipart\/form-data;\s*boundary=/);
+      const form = await new Request('http://localhost/import', { method: 'POST', headers: { 'Content-Type': contentType }, body: new Uint8Array(request.postDataBuffer()!) }).formData();
+      const file = form.get('file') as File;
+      expect(file.name).toMatch(/\.(xlsx|xls|csv)$/);
+      const book = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const grid = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, raw: false });
+      expect(grid[0]).toEqual(['الاسم', 'الهاتف']);
+      imports++;
+      return route.fulfill({ json: { columns: grid[0], rows: [{ 'الاسم': grid[1][0], 'الهاتف': grid[1][1] }] } });
+    }
+    expect(path.startsWith('/api/sms/')).toBe(false); // Never submit an SMS send.
+    if (path === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+    return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
+  });
+  await gotoWithLocalUnlock(page, '/admin/sms');
+  await page.getByLabel('قالب الرسالة', { exact: true }).fill('مرحباً {الاسم}');
+  for (const bookType of ['xlsx', 'xls', 'csv']) {
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['الاسم', 'الهاتف'], [`مستلم ${bookType}`, '0591234567']]));
+    const response = page.waitForResponse(result => result.url().endsWith('/api/sms/import'));
+    await page.getByLabel('ملف المستلمين', { exact: true }).setInputFiles({ name: `مستلمون (2).${bookType}`, mimeType: 'application/octet-stream', buffer: XLSX.write(book, { type: 'buffer', bookType }) });
+    expect((await response).status()).toBe(200);
+    await expect(page.getByLabel('الاسم', { exact: true })).toHaveValue(`مستلم ${bookType}`);
+    await expect(page.getByLabel('الهاتف', { exact: true })).toHaveValue('0591234567');
+    await expect(page.getByLabel(/^رسالة 1/)).toHaveValue(`مرحباً مستلم ${bookType}`);
+  }
+  expect(imports).toBe(3);
+  expect(pageErrors).toEqual([]);
+});
 const fixtures: Record<string, any[]> = {
   students: [{ id: '00000000-0000-4000-8000-000000000003', fullName: 'طالب أوفلاين', code: 'ST-1', status: 'ACTIVE', gender: 'MALE', circleId, circle: { id: circleId, name: 'حلقة الأوفلاين' }, memorizedParts: 1, totalPoints: 0, createdAt: '2026-10-15T00:00:00Z' }],
   circles: [{ id: circleId, name: 'حلقة الأوفلاين', code: 'C-1', isActive: true, capacity: 20, studentsCount: 1, teachers: [], scheduleDays: [], students: [] }],

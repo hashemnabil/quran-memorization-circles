@@ -68,6 +68,7 @@ jobs:
         run: node --test -r ts-node/register src/community/community-policy.test.ts src/community/community-audience.test.ts src/community/profile-cover.test.ts
         working-directory: backend
       - run: npm --prefix backend run test:security
+      - run: npm --prefix backend run test:sms
       - run: npm --prefix backend run test:student-transfer
       - run: npm --prefix backend run test:production-start
       - run: npm --prefix backend run test:realtime-sync

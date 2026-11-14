@@ -19,3 +19,29 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Capacitor 6 discovers plugin metadata and callbacks through reflection.
+# Its consumer rules keep plugin implementations; retain the annotation types
+# too, so R8 full mode cannot erase runtime permission/activity metadata.
+-keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations,AnnotationDefault
+-keepattributes SourceFile,LineNumberTable,InnerClasses,EnclosingMethod,Signature
+-keep @interface com.getcapacitor.annotation.**
+-keep @interface com.getcapacitor.PluginMethod
+-keepclassmembers class com.getcapacitor.** {
+    @android.webkit.JavascriptInterface <methods>;
+}
+# Firebase/AndroidX and secure storage retain their dependency consumer rules.
+# Do not disable optimization or keep every Firebase/Android class globally.
+
+# Preserve only the public bridge inspection API used to validate the release.
+-keepclassmembers class com.getcapacitor.BridgeActivity {
+    public com.getcapacitor.Bridge getBridge();
+}
+-keepclassmembers class com.getcapacitor.Bridge {
+    public com.getcapacitor.PluginHandle getPlugin(java.lang.String);
+    public android.webkit.WebView getWebView();
+}
+-keepclassmembers class com.getcapacitor.PluginHandle {
+    public java.lang.Class getPluginClass();
+    public java.util.Collection getMethods();
+}

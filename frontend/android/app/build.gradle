@@ -27,7 +27,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode releaseVersionCode.toInteger()
         versionName releaseVersionName
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner System.getenv('ANDROID_RELEASE_INSTRUMENTATION') == 'true' ?
+            'com.abdullahschool.myapp.ReleaseSmokeInstrumentation' : 'androidx.test.runner.AndroidJUnitRunner'
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61

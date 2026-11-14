@@ -33,15 +33,6 @@
 # Firebase/AndroidX and secure storage retain their dependency consumer rules.
 # Do not disable optimization or keep every Firebase/Android class globally.
 
-# The release instrumentation runner shares this tiny dependency with the app.
-# R8 otherwise removes it as unused by production code while Android's test APK
-# dependency deduplication omits its copy, crashing the runner before any test.
--keep class androidx.tracing.** { *; }
-# AndroidJUnitRunner's output-directory lambda uses this shared Kotlin ABI.
-# Retain its constructor without keeping the whole Kotlin standard library.
--keepclassmembers class kotlin.jvm.internal.Lambda {
-    public <init>(int);
-}
 # Preserve only the public bridge inspection API used to validate the release.
 -keepclassmembers class com.getcapacitor.BridgeActivity {
     public com.getcapacitor.Bridge getBridge();

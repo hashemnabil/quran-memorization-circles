@@ -14,6 +14,9 @@ if (!(releaseVersionCode ==~ /[1-9][0-9]{0,9}/) || releaseVersionCode.toLong() >
 if (!(releaseVersionName ==~ /[0-9]+\.[0-9]+\.[0-9]+/)) {
     throw new GradleException('ANDROID_VERSION_NAME must use major.minor.patch')
 }
+if (releaseVersionCode.toLong() < releaseDefaults.build.toLong()) {
+    throw new GradleException('Version code predates this release candidate; never reuse a published Play version code')
+}
 
 android {
     namespace "com.abdullahschool.myapp"
@@ -28,7 +31,9 @@ android {
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+            // Design/audio review pages are retained in the web repo, not shipped
+            // inside the Android app. Runtime fonts, Quran pages and sounds stay.
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:brand-concepts'
         }
     }
     signingConfigs {
@@ -53,6 +58,8 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+    // Opt-in only for the disposable-key emulator job; debug remains unchanged.
+    if (System.getenv('ANDROID_RELEASE_INSTRUMENTATION') == 'true') testBuildType 'release'
 }
 
 gradle.taskGraph.whenReady { graph ->

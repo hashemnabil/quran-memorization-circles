@@ -13,10 +13,10 @@ on:
         default: false
       version_name:
         description: 'Release version'
-        default: '1.1.4'
+        default: '1.1.8'
       version_code:
         description: 'Increasing Android version code'
-        default: '7'
+        default: '11'
 jobs:
   android-debug:
     if: ${{ github.event_name != 'workflow_dispatch' || !inputs.release }}

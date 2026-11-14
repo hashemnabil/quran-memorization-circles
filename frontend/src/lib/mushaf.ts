@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+
 export interface MushafWord {
     id: string;
     surah: number;
@@ -19,7 +21,7 @@ export interface MushafPage {
     }[];
 }
 const cacheName = 'halaqat-mushaf-v2-1';
-export async function mushafAsset(url: string): Promise<Response> { if (typeof caches === 'undefined') {
+export async function mushafAsset(url: string): Promise<Response> { if (Capacitor.isNativePlatform() || typeof caches === 'undefined') {
     const response = await fetch(url);
     if (!response.ok)
         throw Error('تعذر فتح صفحة المصحف');

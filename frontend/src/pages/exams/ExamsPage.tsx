@@ -95,7 +95,7 @@ export default function ExamsPage() {
   const canManage = user.role === 'ADMIN' || user.role === 'EXAM_COMMITTEE';
   const canRequest = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(user.role);
 
-  const [tab, setTab] = useState<'requests' | 'scheduled' | 'history' | 'progression' | 'combined' | 'committees'>('requests');
+  const [tab, setTab] = useState<'requests' | 'scheduled' | 'history' | 'progression' | 'combined' | 'committees'>(location.search.includes('tab=committees') ? 'committees' : 'requests');
   const [creating, setCreating] = useState(!!requestStudent);
   const [progressSearch, setProgressSearch] = useState('');
   const debouncedProgressSearch = useDebounce(progressSearch);

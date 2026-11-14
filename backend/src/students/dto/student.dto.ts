@@ -164,6 +164,12 @@ export class CreateStudentDto {
 
 export class UpdateStudentDto extends PartialType(CreateStudentDto) {}
 
+export class SetStudentApprovalDto {
+  @ApiProperty({ description: 'حالة اعتماد الطالب من الإدارة' })
+  @IsBoolean()
+  isApproved: boolean;
+}
+
 export class StudentQuestionnaireDto extends PartialType(PickType(CreateStudentDto, [
   'fullName', 'birthDate', 'address', 'nationalId', 'fatherNationalId',
   'guardianName', 'guardianPhone', 'guardianRelation',
@@ -185,6 +191,11 @@ export enum StudentTrack {
 }
 
 export class QueryStudentsDto extends PaginationDto {
+  @ApiPropertyOptional({ description: 'تصفية الطلاب حسب اعتماد الإدارة' })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' ? true : value === 'false' ? false : value)
+  @IsBoolean()
+  isApproved?: boolean;
   @ApiPropertyOptional({ enum: StudentStatus })
   @IsOptional()
   @IsEnum(StudentStatus)

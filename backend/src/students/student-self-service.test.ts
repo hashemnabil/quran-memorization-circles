@@ -33,6 +33,20 @@ test('student notes exclude staff-private entries', async () => {
   assert.equal((await service.listNotes(actor, 'one')).length, 1);
 });
 
+test('only administration can change student approval', async () => {
+  const writes: boolean[] = [];
+  const prisma: any = { student: {
+    findFirst: async () => ({ id: 'one', fullName: 'طالب' }),
+    update: async ({ data }: any) => { writes.push(data.isApproved); return { id: 'one', ...data }; },
+  } };
+  const service = new StudentsService(prisma, {} as any, { log: async () => undefined } as any, {} as any);
+  service.findOne = async () => ({ id: 'one', isApproved: writes.at(-1) }) as any;
+  await assert.rejects(service.setApproval({ id: 'teacher', role: Role.TEACHER } as any, 'one', { isApproved: true }), /الإدارة/);
+  assert.deepEqual(writes, []);
+  assert.equal((await service.setApproval({ id: 'admin', role: Role.ADMIN } as any, 'one', { isApproved: true })).isApproved, true);
+  assert.deepEqual(writes, [true]);
+});
+
 test('student profile exposes evaluations and summons without exposing legacy account data', async () => {
   const prisma: any = { student: { findFirst: async ({ where }: any) => { assert.equal(where.userId, actor.id); return { id: 'one' }; } },
     studentEvaluation: { findMany: async ({ where }: any) => { assert.equal(where.studentId, 'one'); return [{ id: 'evaluation' }]; } },

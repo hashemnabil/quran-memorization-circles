@@ -161,7 +161,12 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   if(url.pathname==='/recitations/learning-settings'){return (await db.meta.get(accountId()+':learning-policy:'+(params.circleId??'')))?.value??(await db.meta.get(accountId()+':reference:/recitations/learning-policies'))?.value?.[params.circleId]??(params.circleId?undefined:(await db.meta.get(accountId()+':reference:/recitations/learning-settings'))?.value);}
   const reference = await db.meta.get(`${accountId()}:reference:${url.pathname}`);
   if (reference) return reference.value;
-  if (segments[0] === 'students' && segments[2] === 'history') return (await get('students')).find((row) => row.id === segments[1])?._offline?.history;
+  if (segments[0] === 'students' && segments[2] === 'history') {
+    const history = (await get('students')).find((row) => row.id === segments[1])?._offline?.history;
+    if (!history) return history;
+    const summons = (await get('guardianSummons')).filter((row) => row.studentId === segments[1]);
+    return { ...history, summons: summons.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))) };
+  }
   if (segments[0] === 'students' && segments[2] === 'notes') return (await get('behaviors')).filter((row) => row.studentId === segments[1]);
   if (segments[0] === 'exams' && ['eligibility', 'milestones'].includes(segments[1])) return (await get('students')).find((row) => row.id === segments[2])?._offline?.[segments[1]];
   if (segments[0] === 'recitations' && segments[1] === 'student' && segments[3] === 'progress') {
@@ -229,7 +234,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   if (id === 'options') return rows.map((row) => ({ id: row.id, name: row.name, code: row.code }));
   let filtered = rows.filter((row) => {
     if (params.search && ![row.fullName, row.name, row.username, row.email, row.code, row.nationalId, row.guardianName, row.guardianPhone, row.phone, row.user?.fullName].filter(Boolean).join(' ').toLocaleLowerCase().includes(String(params.search).toLocaleLowerCase())) return false;
-    for (const field of ['status', 'evaluation', 'circleId', 'studentId', 'teacherId', 'type', 'gender', 'isActive', 'role', 'kind', 'committeeId']) {
+    for (const field of ['status', 'evaluation', 'isApproved', 'circleId', 'studentId', 'teacherId', 'type', 'gender', 'isActive', 'role', 'kind', 'committeeId']) {
       const value = params[field]; if (value === '' || value === undefined) continue;
       const actual = field === 'circleId' ? row.circleId ?? row.circle?.id : row[field];
       if (String(actual) !== String(value)) return false;
@@ -495,6 +500,12 @@ export async function localWrite(method: string, path: string, data: any): Promi
     const student = (await get('students')).find(row => row.id === route[1]);
     if (!student) throw Object.assign(new Error('حمّل ملف الطالب أولاً'), { localWriteRejected: true });
     return save('students', { id: student.id, evaluation: data.evaluation, note: data.note }, 'evaluation');
+  }
+  if (route[0] === 'students' && route[2] === 'approval' && method === 'patch') {
+    if (readActiveIdentity()?.role !== 'ADMIN' || typeof data?.isApproved !== 'boolean') throw Object.assign(new Error('اعتماد الطلاب متاح للإدارة فقط'), { localWriteRejected: true });
+    const student = (await get('students')).find(row => row.id === route[1]);
+    if (!student) throw Object.assign(new Error('حمّل ملف الطالب قبل تعديل الاعتماد دون اتصال'), { localWriteRejected: true });
+    return save('students', { id: student.id, isApproved: data.isApproved }, 'approval');
   }
   if (route[0] === 'attendance' && route[1] === 'absence-permissions') {
     const actor = readActiveIdentity();

@@ -55,6 +55,7 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [evaluation, setEvaluation] = useState('');
+  const [approvalFilter, setApprovalFilter] = useState('');
   const [circleId, setCircleId] = useState('');
   const [track, setTrack] = useState<StudentTrack | ''>('');
   const [showForm, setShowForm] = useState(false);
@@ -92,7 +93,7 @@ export default function StudentsPage() {
   });
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['students', { page, debouncedSearch, status, evaluation, circleId, track }],
+    queryKey: ['students', { page, debouncedSearch, status, evaluation, approvalFilter, circleId, track }],
     queryFn: async () => {
       try {
         const { data } = await api.get<PaginatedResponse<Student>>('/students', {
@@ -102,13 +103,14 @@ export default function StudentsPage() {
             search: debouncedSearch || undefined,
             status: status || undefined,
             evaluation: evaluation || undefined,
+            isApproved: approvalFilter || undefined,
             circleId: circleId || undefined,
             track: track || undefined,
           },
         });
         return data;
       } catch (error) {
-        const hasFilters = Boolean(debouncedSearch || status || evaluation || circleId || track);
+        const hasFilters = Boolean(debouncedSearch || status || evaluation || approvalFilter || circleId || track);
         if ((error as { response?: unknown } | null)?.response || page !== 1 || hasFilters) throw error;
         const snapshot = queryClient.getQueryData<{
           accountId: string; complete: boolean;
@@ -179,12 +181,13 @@ export default function StudentsPage() {
     setSearch('');
     setStatus('');
     setEvaluation('');
+    setApprovalFilter('');
     setCircleId('');
     setTrack('');
     setPage(1);
   };
 
-  const hasFilters = search || status || evaluation || circleId || track;
+  const hasFilters = search || status || evaluation || approvalFilter || circleId || track;
 
   /**
    * The unified record — every student the school has ever had, across circles,
@@ -330,6 +333,11 @@ export default function StudentsPage() {
               </option>
             ))}
           </Select>
+          <Select aria-label="تصفية اعتماد الطلاب" value={approvalFilter} onChange={e => { setApprovalFilter(e.target.value); setPage(1); }}>
+            <option value="">كل حالات الاعتماد</option>
+            <option value="true">معتمد</option>
+            <option value="false">غير معتمد</option>
+          </Select>
           <Select
             value={circleId}
             onChange={(e) => {
@@ -421,6 +429,7 @@ export default function StudentsPage() {
                     <th>الأجزاء</th>
                     <th>النقاط</th>
                     <th>التقييم</th>
+                    <th>الاعتماد</th>
                     <th>الحالة</th>
                     <th className="text-center">إجراءات</th>
                   </tr>
@@ -492,6 +501,9 @@ export default function StudentsPage() {
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
                         )}
+                      </td>
+                      <td>
+                        <Badge className={student.isApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>{student.isApproved ? 'معتمد' : 'غير معتمد'}</Badge>
                       </td>
                       <td>
                         <Badge className={STUDENT_STATUS_COLORS[student.status]}>

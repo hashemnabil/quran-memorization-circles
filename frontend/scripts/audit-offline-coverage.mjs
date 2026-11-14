@@ -29,7 +29,7 @@ const localRules=[
  ['POST',/^\/students\/bulk-delete$/],
  ['POST',/^\/(transfers\/students|suspensions)$/],['PATCH',/^\/(transfers|suspensions)\/:id\/(approve|reject|cancel|return)$/],
  ['POST',/^\/exams\/requests$/],['POST',/^\/exams\/requests\/:id\/schedule$/],['PATCH',/^\/exams\/requests\/:id\/(reject|cancel)$/],['PATCH',/^\/exams\/:id\/result$/],
- ['POST',/^\/students\/:id\/(notes|surahs|account|account\/reset-password)$/],['DELETE',/^\/students\/:id\/surahs\/:id$/],['PATCH',/^\/students\/:id\/evaluation$/],['PATCH',/^\/students\/me\/questionnaire$/],
+ ['POST',/^\/students\/:id\/(notes|surahs|account|account\/reset-password)$/],['DELETE',/^\/students\/:id\/surahs\/:id$/],['PATCH',/^\/students\/:id\/(evaluation|approval)$/],['PATCH',/^\/students\/me\/questionnaire$/],
  ['PATCH',/^\/users\/:id\/reset-password$/],['POST',/^\/notifications\/broadcast$/],['PATCH',/^\/notifications\/(read-all|:id\/read)$/],
  ['POST',/^\/preparations$/],['PATCH',/^\/preparations\/:id(?:\/(?:complete|reopen))?$/],['DELETE',/^\/preparations\/:id$/],
  ['POST',/^\/attendance\/(absence-permissions|summons)$/],['PATCH',/^\/attendance\/absence-permissions\/:id\/(approve|reject)$/],

@@ -11,6 +11,7 @@ import {
   CreateStudentDto,
   QueryStudentsDto,
   SetEvaluationDto,
+  SetStudentApprovalDto,
   SetStudentPhotoDto,
   SurahCompletionDto,
   UpdateStudentDto,
@@ -274,6 +275,13 @@ export class StudentsController {
   @ApiOperation({ summary: 'تعديل بيانات طالب' })
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateStudentDto) {
     return this.service.update(user, id, dto);
+  }
+
+  @Patch(':id/approval')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'اعتماد الطالب أو إلغاء اعتماده' })
+  setApproval(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SetStudentApprovalDto) {
+    return this.service.setApproval(user, id, dto);
   }
 
   /**

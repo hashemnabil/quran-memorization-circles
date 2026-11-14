@@ -172,6 +172,7 @@ export default function StudentPortalPage() {
           <Info label="الصفحة الحالية" value={data.currentPage} />
           <Info label="النقاط" value={data.points?.total ?? data.totalPoints ?? 0} />
           <Info label="التقييم الحالي" value={data.evaluation ? EVALUATION_LABELS[data.evaluation as Evaluation] : null} />
+          <Info label="اعتماد الإدارة" value={data.isApproved ? 'معتمد' : 'غير معتمد'} />
           <Info label="ملاحظة التقييم" value={data.evaluationNote} />
           <Info label="آخر تسميع" value={data.lastRecitation ? `${data.lastRecitation.fromSurah} — ${data.lastRecitation.toSurah} (${formatDateShort(data.lastRecitation.date)})` : 'لا يوجد تسميع مسجل'} />
           <Info label="آخر اختبار مجتاز" value={data.examSummary?.lastPassedSection} />

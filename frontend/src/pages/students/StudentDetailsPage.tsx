@@ -3,7 +3,7 @@ import {RecitationMushafHistory} from '@/components/RecitationMushafHistory';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import MemorizationPlans from '@/components/MemorizationPlans';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -118,6 +118,7 @@ function getStatusLabel(status: string): string {
 
 export default function StudentDetailsPage() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -126,6 +127,19 @@ export default function StudentDetailsPage() {
   const [modal, setModal] = useState<'evaluation' | 'note' | 'transfer' | 'suspend' | 'exam' | 'edit' | null>(null);
 
   const canManage = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(user.role);
+
+  const approval = useMutation({
+    networkMode: 'always',
+    mutationFn: (isApproved: boolean) => api.patch(`/students/${id}/approval`, { isApproved }),
+    onSuccess: async (result) => {
+      notifyWriteSuccess(result, 'تم تحديث اعتماد الطالب');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['students', id] }),
+        queryClient.invalidateQueries({ queryKey: ['students'] }),
+      ]);
+    },
+    onError: (error) => toast.error(apiError(error)),
+  });
 
   const {
     data: student,
@@ -267,21 +281,30 @@ export default function StudentDetailsPage() {
               <Button variant="secondary" size="sm" icon={<IconAward size={15} />} onClick={() => setModal('evaluation')}>
                 التقييم
               </Button>
-              <Button variant="secondary" size="sm" icon={<IconExchange size={15} />} onClick={() => setModal('transfer')}>
-                طلب نقل
-              </Button>
-              <Button variant="secondary" size="sm" icon={<IconPause size={15} />} onClick={() => setModal('suspend')}>
-                طلب إيقاف
-              </Button>
-              <Button size="sm" icon={<IconAward size={15} />} onClick={() => setTab('exams')}>
-                الاختبارات
-              </Button>
+              <Select aria-label="إجراءات الطالب" value="" onChange={event => {
+                const action = event.target.value;
+                if (action === 'transfer' || action === 'suspend' || action === 'exam') setModal(action);
+                if (action === 'committees') navigate('/exams?tab=committees');
+                event.target.value = '';
+              }}>
+                <option value="">إجراء للطالب…</option>
+                <option value="transfer">طلب نقل</option>
+                <option value="suspend">طلب فصل أو إيقاف</option>
+                <option value="exam">طلب اختبار</option>
+                {user.role === 'ADMIN' && <option value="committees">اختيار لجنة الاختبار</option>}
+              </Select>
             </>
           )
         }
       />
       <div className="mb-5"><Link to={`/students/achievements/${student.id}`} className="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-900"><IconAward size={18} />إنجازات الطالب</Link></div>
       <MemorizationPlans studentId={student.id}/>
+
+      <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+        <span className="text-sm font-semibold text-slate-600">اعتماد الطالب</span>
+        <Badge className={student.isApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>{student.isApproved ? 'معتمد' : 'غير معتمد'}</Badge>
+        {user.role === 'ADMIN' && <Button className="ms-auto" size="sm" variant="secondary" loading={approval.isPending} onClick={() => approval.mutate(!student.isApproved)}>{student.isApproved ? 'إلغاء الاعتماد' : 'اعتماد الطالب'}</Button>}
+      </div>
 
       {student.status === 'ACTIVITY' && (
         <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
@@ -940,6 +963,15 @@ function HistoryTab({ history, examRequests }: { history: any; examRequests: any
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
+      <Card title="سجل الإنذارات والاستدعاءات" padded={false}>
+        {history.summons?.length ? <ul className="divide-y divide-slate-100">
+          {history.summons.map((item: any) => <li key={item.id} className="px-5 py-3">
+            <p className="text-sm font-semibold text-slate-700">{item.title}</p>
+            <p className="mt-1 whitespace-pre-wrap text-xs text-slate-600">{item.body}</p>
+            <p className="mt-1 text-[11px] text-slate-400">{item.issuedBy?.fullName} · {formatDateShort(item.createdAt)}</p>
+          </li>)}
+        </ul> : <EmptyState title="لا توجد إنذارات أو استدعاءات مسجلة" />}
+      </Card>
       <Card title="سجل الحلقات" padded={false}>
         {history.memberships?.length ? (
           <ul className="divide-y divide-slate-100">

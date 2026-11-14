@@ -50,3 +50,31 @@
   .prayer-card .prayer-mosque, .prayer-slot-icon .app-icon { transition: none; }
   .prayer-slot.is-next .prayer-slot-icon .app-icon { animation: none; }
 }
+
+/* Prayer times page: one strong next-prayer focus and readable daily schedule. */
+.prayer-page{max-width:980px}
+.prayer-hero{position:relative;isolation:isolate;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:24px;margin-bottom:24px;padding:30px 34px;border:1px solid #c9ae72;border-radius:26px;background:radial-gradient(circle at 12% 0%,#3b7659 0%,transparent 42%),linear-gradient(135deg,#103e32,#092d2a);color:#fff9e9;box-shadow:0 16px 35px #143d302a}
+.prayer-hero::before{content:'';position:absolute;z-index:-1;inset:0;background:repeating-conic-gradient(from 45deg,#efdba8 0 25%,transparent 0 50%);background-size:70px 70px;opacity:.035;mask-image:linear-gradient(90deg,transparent,#000)}
+.prayer-hero-kicker,.prayer-hero-countdown span{display:block;color:#e8d4a3;font-size:13px;font-weight:700}
+.prayer-hero-name{display:flex;align-items:center;gap:14px;margin:12px 0}
+.prayer-hero-icon{display:grid;place-items:center;width:60px;height:60px;border:1px solid #e6c98880;border-radius:18px;background:#fff6dc1a;color:#ffe6ab}
+.prayer-hero h2{font-size:clamp(28px,4vw,42px);font-weight:900;line-height:1.15}
+.prayer-hero p{color:#e5ede5;font-size:14px}.prayer-hero p strong{color:#fff;font-size:17px;font-variant-numeric:tabular-nums}
+.prayer-hero-countdown{min-width:245px;padding:19px 22px;border:1px solid #ead7ab5c;border-radius:19px;background:#ffffff12;text-align:center;backdrop-filter:blur(8px)}
+.prayer-hero-countdown time{display:block;margin-top:6px;font-size:clamp(26px,4vw,40px);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:1px;white-space:nowrap}
+.prayer-page .prayer-table{gap:10px}
+.prayer-page .prayer-row{display:grid;grid-template-columns:minmax(160px,1fr) auto minmax(145px,.75fr);align-items:center;gap:12px;padding:13px 17px;border-color:#e1e8e1;background:#fff;box-shadow:0 3px 10px #183e2c08}
+.prayer-page .prayer-row.is-next{background:#f5f9f2;border-color:#9fbd9c;box-shadow:inset 4px 0 #25744d,0 6px 18px #1f57381a}
+.prayer-page .prayer-row strong{gap:12px;color:#173d31;font-size:17px}
+.prayer-page .prayer-row strong>span.prayer-row-icon{display:grid;place-items:center;width:45px;height:45px;border-radius:14px;background:#eef5ed;color:#28734c}
+.prayer-page .prayer-row.is-next strong>span.prayer-row-icon{background:#dcebd8;color:#145d3c}
+.prayer-page .prayer-row strong small{display:block;margin-top:2px;color:#2b7952;font-size:11px;font-weight:700}
+.prayer-page .prayer-row time{color:#173c32;font-size:22px;font-weight:800;white-space:nowrap}
+.prayer-reminder-link{justify-self:end;padding:8px 10px;border:1px solid #e3e9df;border-radius:10px;background:#f8faf6;color:#54715e;font-size:12px;text-align:center;text-decoration:none!important}
+.prayer-reminder-link:hover,.prayer-reminder-link:focus-visible{border-color:#85b494;color:#185b39;background:#edf7ee}
+.prayer-settings-link{padding:8px 11px;border:1px solid #c9dfce;border-radius:10px;background:#f1f8f2;color:#176140;font-size:12px;font-weight:800}
+.prayer-settings-link:hover{background:#e0f0e2}
+.prayer-settings-grid .prayer-check{font-size:14px;font-weight:700;color:#254d39}
+.prayer-settings-grid .prayer-row{grid-template-columns:minmax(140px,1fr) auto}
+.prayer-settings-grid .prayer-row select{width:100%;max-width:240px}
+@media(max-width:640px){.prayer-hero{grid-template-columns:1fr;gap:16px;padding:22px 20px}.prayer-hero-countdown{min-width:0;text-align:right}.prayer-hero-countdown time{font-size:31px}.prayer-page .prayer-row{grid-template-columns:minmax(0,1fr) auto;gap:5px 10px;padding:12px}.prayer-page .prayer-row strong{font-size:15px}.prayer-page .prayer-row strong>span.prayer-row-icon{width:40px;height:40px}.prayer-page .prayer-row time{font-size:19px}.prayer-reminder-link{grid-column:1/-1;justify-self:stretch;text-align:right;margin-inline-start:52px}.prayer-settings-grid .prayer-row{grid-template-columns:1fr}.prayer-settings-grid .prayer-row select{max-width:none}}

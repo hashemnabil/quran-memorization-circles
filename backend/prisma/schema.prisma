@@ -469,6 +469,7 @@ model Student {
   circleId         String?
   enrollmentDate   DateTime      @default(now())
   status           StudentStatus @default(ACTIVE)
+  isApproved       Boolean       @default(false)
   evaluation       Evaluation?
   evaluationNote   String?
   evaluatedAt      DateTime?

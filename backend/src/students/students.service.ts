@@ -25,6 +25,7 @@ import {
   CreateStudentDto,
   QueryStudentsDto,
   SetEvaluationDto,
+  SetStudentApprovalDto,
   StudentTrack,
   StudentRegistrationTrack,
   SurahCompletionDto,
@@ -54,6 +55,7 @@ const LIST_SELECT = {
   guardianName: true,
   guardianPhone: true,
   status: true,
+  isApproved: true,
   evaluation: true,
   memorizedParts: true,
   currentSurah: true,
@@ -134,6 +136,7 @@ export class StudentsService {
         scope,
         { deletedAt: null },
         query.status ? { status: query.status } : {},
+        query.isApproved === undefined ? {} : { isApproved: query.isApproved },
         query.evaluation ? { evaluation: query.evaluation } : {},
         query.circleId ? { circleId: query.circleId } : {},
         query.unassigned ? { circleId: null } : {},
@@ -889,6 +892,20 @@ export class StudentsService {
     return this.findOne(actor, id);
   }
 
+  async setApproval(actor: AuthUser, id: string, dto: SetStudentApprovalDto) {
+    if (actor.role !== Role.ADMIN) throw new ForbiddenException('اعتماد الطلاب متاح للإدارة فقط');
+    const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, select: { id: true, fullName: true } });
+    if (!student) throw new NotFoundException('الطالب غير موجود');
+    await this.prisma.student.update({ where: { id }, data: { isApproved: dto.isApproved } });
+    await this.activity.log({
+      userId: actor.id,
+      action: 'STUDENT_APPROVAL',
+      summary: `${dto.isApproved ? 'اعتماد' : 'إلغاء اعتماد'} الطالب ${student.fullName}`,
+      entityType: 'Student', entityId: id,
+    });
+    return this.findOne(actor, id);
+  }
+
   async evaluationHistory(user: AuthUser, id: string) {
     await this.acl.assertStudentAccess(user, id);
     return this.prisma.studentEvaluation.findMany({
@@ -942,7 +959,7 @@ export class StudentsService {
   async history(user: AuthUser, id: string) {
     await this.acl.assertStudentAccess(user, id);
 
-    const [memberships, suspensions, evaluations, exams, attendance, recitations] = await Promise.all([
+    const [memberships, suspensions, evaluations, exams, attendance, recitations, summons] = await Promise.all([
       this.prisma.circleMembership.findMany({
         where: { studentId: id },
         include: { circle: { select: { id: true, name: true, code: true } } },
@@ -980,9 +997,14 @@ export class StudentsService {
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         take: 100,
       }),
+      this.prisma.guardianSummons.findMany({
+        where: { studentId: id },
+        include: { issuedBy: { select: { fullName: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
     ]);
 
-    return { memberships, suspensions, evaluations, exams, attendance, recitations };
+    return { memberships, suspensions, evaluations, exams, attendance, recitations, summons };
   }
 
   async remove(actor: AuthUser, id: string) {

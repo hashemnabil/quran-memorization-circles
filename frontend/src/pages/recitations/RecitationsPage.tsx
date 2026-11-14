@@ -1,6 +1,7 @@
 import {fetchLearningSettings} from '@/lib/learning-settings';
 import {RecitationMushafHistory} from '@/components/RecitationMushafHistory';
 import {MushafReader} from '@/components/MushafReader';
+import {SURAHS} from '@/lib/quran-surahs';
 import {LearningSettingsModal} from '@/components/LearningSettingsModal';
 import {db} from '@/lib/db';
 import {dataKey} from '@/lib/local-encryption';
@@ -457,8 +458,9 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
     onError: (error) => toast.error(apiError(error)),
   });
 
-  const fromSurah = surahs?.find((s) => s.name === form.fromSurah);
-  const toSurah = surahs?.find((s) => s.name === form.toSurah);
+  const availableSurahs = surahs?.length ? surahs : SURAHS;
+  const fromSurah = availableSurahs.find((s) => s.name === form.fromSurah);
+  const toSurah = availableSurahs.find((s) => s.name === form.toSurah);
 
   /**
    * Live mirror of the server's scoring rule: one point per ayah, minus one per
@@ -473,7 +475,7 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
     }
     if (fromSurah.number > toSurah.number) return 0;
     let total = Math.max(0, fromSurah.ayahs - form.fromAyah + 1);
-    for (const s of surahs ?? []) {
+    for (const s of availableSurahs) {
       if (s.number > fromSurah.number && s.number < toSurah.number) total += s.ayahs;
     }
     return total + Math.max(0, Math.min(form.toAyah, toSurah.ayahs));
@@ -571,7 +573,7 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
 
         <p className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-7 text-amber-900">يتلوّن القلب بعد إتمام السورة كاملة بتقدير ممتاز: الحفظ أصفر، ثم المراجعة أحمر، ثم التثبيت أخضر. يمكن إتمام كل مرحلة على عدة جلسات دون تكرار احتساب الآيات.</p>
         <Select label="من سورة" required value={form.fromSurah} onChange={(e) => set('fromSurah', e.target.value)}>
-          {surahs?.map((s) => (
+          {availableSurahs.map((s) => (
             <option key={s.number} value={s.name}>
               {s.number}. {s.name}
             </option>
@@ -590,7 +592,7 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
         />
 
         <Select label="إلى سورة" required value={form.toSurah} onChange={(e) => set('toSurah', e.target.value)} error={errors.toSurah}>
-          {surahs?.map((s) => (
+          {availableSurahs.map((s) => (
             <option key={s.number} value={s.name}>
               {s.number}. {s.name}
             </option>

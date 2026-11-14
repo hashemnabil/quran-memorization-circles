@@ -23,7 +23,7 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { UploadsService } from '../uploads/uploads.service';
 import { StudentsService } from '../students/students.service';
 import { MemorizationPlansController } from '../students/memorization-plans.controller';
-import { CreateStudentDto, UpdateStudentDto, QueryStudentsDto, AddNoteDto, StudentQuestionnaireDto } from '../students/dto/student.dto';
+import { CreateStudentDto, UpdateStudentDto, QueryStudentsDto, AddNoteDto, StudentQuestionnaireDto, SetStudentApprovalDto } from '../students/dto/student.dto';
 import { CirclesService } from '../circles/circles.service';
 import { CreateCircleDto, UpdateCircleDto, QueryCirclesDto } from '../circles/dto/circle.dto';
 import { TeachersService } from '../teachers/teachers.service';
@@ -530,6 +530,7 @@ export class FullSyncService {
       return s.students.updateMyQuestionnaire(user, await this.dto(StudentQuestionnaireDto, op.data), id);
     }
     if (op.table === 'students' && staff) {
+      if (op.action === 'approval' && admin) return s.students.setApproval(user, id, await this.dto(SetStudentApprovalDto, op.data));
       if (op.action === 'evaluation') return s.students.setEvaluation(user, id, await this.dto(SetEvaluationDto, { evaluation: op.data.evaluation, note: op.data.note }));
       if (op.action === 'create') return s.students.create(user, await this.dto(CreateStudentDto, op.data));
       if (op.action === 'update') return s.students.update(user, id, await this.dto(UpdateStudentDto, op.data));

@@ -76,6 +76,34 @@ test('application-only communication does not create SMS rows or require provide
     await assert.rejects(service.communicate({ id: 'admin', role: 'ADMIN' } as any, { kind: 'NOTICE', channel: 'APP', confirm: true, requestKey: 'app-operation-1234', preview: [] }));
   } finally { if (old === undefined) delete process.env.OFFLINESMS_ENABLED; else process.env.OFFLINESMS_ENABLED = old; }
 });
+test('SMS-only warnings and summons are recorded in the student file once per request', async () => {
+  const original = { enabled: process.env.OFFLINESMS_ENABLED, api: process.env.OFFLINESMS_API_KEY, key: process.env.SMS_ENCRYPTION_KEY };
+  process.env.OFFLINESMS_ENABLED = 'true'; process.env.OFFLINESMS_API_KEY = 'test-only'; process.env.SMS_ENCRYPTION_KEY = randomBytes(32).toString('base64');
+  const campaigns = new Map<string, any>(), recorded: any[] = [], messages: any[] = [];
+  const tx: any = {
+    smsCampaign: { create: async ({ data }: any) => { const campaign = { id: `campaign-${campaigns.size}`, ...data }; campaigns.set(data.requestKey, campaign); return campaign; } },
+    smsMessage: { createMany: async ({ data }: any) => { messages.push(...data); } },
+    guardianSummons: { createMany: async ({ data }: any) => { recorded.push(...data); } },
+  };
+  const service = new SmsService({ smsCampaign: { findUnique: async ({ where }: any) => campaigns.get(where.requestKey) ?? null }, $transaction: async (run: any) => run(tx) } as any);
+  service.preview = async (body: any) => body.preview;
+  const user: any = { id: 'admin', role: 'ADMIN' };
+  try {
+    for (const kind of ['WARNING', 'SUMMONS']) {
+      const preview = [{ studentId: 'student-one', userId: 'account-one', name: 'طالب', phone: '970591234567', title: kind, text: `رسالة ${kind}`, error: '' }];
+      const body = { kind, channel: 'SMS', confirm: true, requestKey: `student-record-${kind}`, preview };
+      await service.communicate(user, body);
+      await service.communicate(user, body);
+    }
+    assert.equal(recorded.length, 2);
+    assert.deepEqual(recorded.map(row => row.studentId), ['student-one', 'student-one']);
+    assert.equal(messages.length, 2);
+  } finally {
+    for (const [name, value] of Object.entries({ OFFLINESMS_ENABLED: original.enabled, OFFLINESMS_API_KEY: original.api, SMS_ENCRYPTION_KEY: original.key })) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  }
+});
 test('worker sends mocked provider requests once and never treats acceptance as delivery', async () => {
   const oldFetch = global.fetch;
   const oldEnv = { enabled: process.env.OFFLINESMS_ENABLED, api: process.env.OFFLINESMS_API_KEY, key: process.env.SMS_ENCRYPTION_KEY };

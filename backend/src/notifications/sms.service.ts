@@ -143,8 +143,10 @@ export class SmsService implements OnModuleInit, OnModuleDestroy {
       return await this.prisma.$transaction(async tx => {
         const campaign = await tx.smsCampaign.create({ data: { requestKey, requestHash, createdById: user.id }, select: { id: true } });
         if (sms) await tx.smsMessage.createMany({ data: rows.map((row, i) => ({ campaignId: campaign.id, phone: row.phone, title: row.title, credential: !!credentials[i], encryptedText: this.encrypt(credentials[i] ? 'CREDENTIALS_PENDING:' + JSON.stringify(credentials[i]) : row.text) })) });
+        if (body.kind === 'WARNING' || body.kind === 'SUMMONS') {
+          await tx.guardianSummons.createMany({ data: rows.map(row => ({ studentId: row.studentId, issuedById: user.id, title: row.title, body: row.text })) });
+        }
         if (body.channel !== 'SMS') {
-          if (body.kind !== 'NOTICE') await tx.guardianSummons.createMany({ data: rows.map(row => ({ studentId: row.studentId, issuedById: user.id, title: row.title, body: row.text })) });
           const notices = rows.filter(row => row.userId).map(row => ({ id: randomUUID(), userId: row.userId!, type: 'ATTENDANCE' as const, title: row.title, body: row.text }));
           if (notices.length) {
             await tx.notification.createMany({ data: notices });

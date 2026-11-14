@@ -32,3 +32,20 @@
 }
 # Firebase/AndroidX and secure storage retain their dependency consumer rules.
 # Do not disable optimization or keep every Firebase/Android class globally.
+
+# The release instrumentation runner shares this tiny dependency with the app.
+# R8 otherwise removes it as unused by production code while Android's test APK
+# dependency deduplication omits its copy, crashing the runner before any test.
+-keep class androidx.tracing.** { *; }
+# Preserve only the public bridge inspection API used to validate the release.
+-keepclassmembers class com.getcapacitor.BridgeActivity {
+    public com.getcapacitor.Bridge getBridge();
+}
+-keepclassmembers class com.getcapacitor.Bridge {
+    public com.getcapacitor.PluginHandle getPlugin(java.lang.String);
+    public android.webkit.WebView getWebView();
+}
+-keepclassmembers class com.getcapacitor.PluginHandle {
+    public java.lang.Class getPluginClass();
+    public java.util.Collection getMethods();
+}

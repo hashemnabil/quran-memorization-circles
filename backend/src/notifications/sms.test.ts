@@ -97,6 +97,7 @@ test('SMS-only warnings and summons are recorded in the student file once per re
     }
     assert.equal(recorded.length, 2);
     assert.deepEqual(recorded.map(row => row.studentId), ['student-one', 'student-one']);
+    assert.ok(recorded.every(row => row.channel === 'SMS' && messages.some(message => message.id === row.smsMessageId)));
     assert.equal(messages.length, 2);
   } finally {
     for (const [name, value] of Object.entries({ OFFLINESMS_ENABLED: original.enabled, OFFLINESMS_API_KEY: original.api, SMS_ENCRYPTION_KEY: original.key })) {

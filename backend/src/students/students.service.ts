@@ -1004,7 +1004,11 @@ export class StudentsService {
       }),
     ]);
 
-    return { memberships, suspensions, evaluations, exams, attendance, recitations, summons };
+    const smsIds = summons.map(item => item.smsMessageId).filter((id): id is string => Boolean(id));
+    const smsMessages = smsIds.length ? await this.prisma.smsMessage.findMany({ where: { id: { in: smsIds } }, select: { id: true, status: true, errorCode: true } }) : [];
+    const smsById = new Map(smsMessages.map(item => [item.id, item]));
+    return { memberships, suspensions, evaluations, exams, attendance, recitations,
+      summons: summons.map(item => ({ ...item, smsStatus: item.smsMessageId ? smsById.get(item.smsMessageId)?.status ?? 'UNKNOWN' : null })) };
   }
 
   async remove(actor: AuthUser, id: string) {

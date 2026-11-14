@@ -12,6 +12,7 @@ import { StudentPhoto } from '@/components/StudentPhoto';
 import { RecitationFormModal } from '@/pages/recitations/RecitationsPage';
 import { StudentAttendanceEditor } from './StudentAttendanceEditor';
 import { StudentReviewSection } from './StudentReviewSection';
+import StudentTimeline from './StudentTimeline';
 import { ExamResultDialog } from '@/components/ExamResultDialog';
 import { ExamProgressionTable } from '@/pages/exams/ExamProgressionTable';
 import {
@@ -962,6 +963,8 @@ function HistoryTab({ history, examRequests }: { history: any; examRequests: any
   if (!history) return <LoadingState rows={4} />;
 
   return (
+    <>
+    <StudentTimeline history={history} examRequests={examRequests} />
     <div className="grid gap-5 lg:grid-cols-2">
       <Card title="سجل الإنذارات والاستدعاءات" padded={false}>
         {history.summons?.length ? <ul className="divide-y divide-slate-100">
@@ -1086,6 +1089,7 @@ function HistoryTab({ history, examRequests }: { history: any; examRequests: any
         )}
       </Card>
     </div>
+    </>
   );
 }
 

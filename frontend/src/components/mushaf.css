@@ -88,4 +88,10 @@
 .mushaf-error-option:hover,.mushaf-error-option:focus-visible{border-color:currentColor;box-shadow:0 4px 12px #142c1814;outline:none}
 .mushaf-error-option:active{transform:scale(.98)}
 @media(max-width:540px){.mushaf-toolbar,.mushaf-reading-mode .mushaf-toolbar{padding-inline:10px}.mushaf-toolbar-actions{gap:4px}.mushaf-icon-action{width:39px;height:39px;min-width:39px}.mushaf-surah-trigger{padding-inline:8px;font-size:13px}.mushaf-session-info{margin:8px 8px 0;padding:8px 10px}.mushaf-legend{width:100%;justify-content:center;margin-inline-start:0}.mushaf-paper,.mushaf-reading-mode .mushaf-paper{border-width:4px;padding:4% 3%;outline-offset:-9px}.mushaf-line{font-size:clamp(15px,5.25cqi,27px)}.mushaf-page-nav button{padding:8px 5px}.mushaf-page-nav button:nth-child(2) span{display:none}}
+
+.mushaf-page-progress{height:4px;background:#d8e6d7}.mushaf-page-progress span{display:block;height:100%;background:#b39250;transition:width .2s ease}
+.mushaf-review-nav{display:flex;align-items:center;justify-content:center;gap:12px;padding:9px 12px;background:#f8f6e9;color:#173e32;font-size:13px;font-weight:700}
+.mushaf-review-nav button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:44px;min-width:85px;padding:7px 10px;border:1px solid #bdd2bd;border-radius:11px;background:#fff}
+.mushaf-review-nav button:disabled{opacity:.45}.mushaf-review-nav span{text-align:center;font-variant-numeric:tabular-nums}
+@media(max-width:540px){.mushaf-icon-action{width:44px;min-width:44px;height:44px}.mushaf-review-nav{gap:5px;padding:7px}.mushaf-review-nav button{min-width:74px;padding-inline:6px}.mushaf-footer>button{min-height:44px}.mushaf-page-nav button{min-height:44px}}
 @media(prefers-reduced-motion:reduce){.mushaf-icon-action,.mushaf-word,.mushaf-error-option,.mushaf-panel-list>button{transition:none}}

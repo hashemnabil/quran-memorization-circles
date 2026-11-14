@@ -356,9 +356,12 @@ function AdminDashboard({ data }: { data: any }) {
       <div className="grid gap-5 lg:grid-cols-3">
         <Card title="الطلبات المعلقة" subtitle="بانتظار قرار الإدارة" className="lg:col-span-1">
           <div className="space-y-2">
+            <PendingRow to="/students?approval=false" label="طلاب بانتظار الاعتماد" count={data.counts.unapprovedStudents ?? 0} icon={<IconGraduation size={17} />} tone="bg-amber-50 text-amber-700" />
+            <PendingRow to="/student-summons" label="إنذارات آخر 30 يومًا" count={data.counts.recentWarnings ?? 0} icon={<IconBell size={17} />} tone="bg-rose-50 text-rose-700" />
             <PendingRow to="/transfers" label="طلبات النقل" count={data.pending.transfers} icon={<IconExchange size={17} />} tone="bg-sky-50 text-sky-600" />
             <PendingRow to="/suspensions" label="طلبات الإيقاف" count={data.pending.suspensions} icon={<IconPause size={17} />} tone="bg-red-50 text-red-600" />
             <PendingRow to="/exams" label="طلبات الاختبار" count={data.pending.examRequests} icon={<IconAward size={17} />} tone="bg-gold-50 text-gold-700" />
+            <PendingRow to="/exams" label="اختبارات قادمة" count={data.upcomingExamsCount ?? 0} icon={<IconCalendar size={17} />} tone="bg-violet-50 text-violet-700" />
             <PendingRow to="/support" label="تذاكر الدعم المفتوحة" count={data.pending.supportTickets} icon={<IconLifeBuoy size={17} />} tone="bg-slate-100 text-slate-600" />
           </div>
         </Card>

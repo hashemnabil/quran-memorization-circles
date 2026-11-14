@@ -6,25 +6,19 @@ import { AppModule } from './app.module';
 import { configureApp } from './configure-app';
 import { PrismaService } from './prisma/prisma.service';
 import { recoverSmsSchema } from './notifications/sms-schema';
-import { spawnSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { PrismaClient } from '@prisma/client';
 
-function applyPendingMigrations() {
-  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required before applying database migrations.');
-  const result = spawnSync(process.execPath, [
-    resolve(__dirname, '../node_modules/prisma/build/index.js'),
-    'migrate', 'deploy', '--schema', resolve(__dirname, '../prisma/schema.prisma'),
-  ], {
-    cwd: resolve(__dirname, '..'),
-    stdio: 'inherit',
-    shell: false,
-    env: { ...process.env, DIRECT_URL: process.env.DIRECT_URL || process.env.DATABASE_URL },
-  });
-  if (result.error || result.status !== 0) throw new Error('Database migrations failed; the API was not started.');
+async function ensureStudentApprovalColumn() {
+  const prisma = new PrismaClient();
+  try {
+    await prisma.$executeRawUnsafe('ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "isApproved" BOOLEAN NOT NULL DEFAULT false');
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 async function bootstrap() {
-  applyPendingMigrations();
+  await ensureStudentApprovalColumn();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false, logger: ['log', 'error', 'warn'] });
   if (await recoverSmsSchema(app.get(PrismaService), process.env.SMS_SCHEMA_RECOVERY === 'apply')) {
     new Logger('Bootstrap').log('SMS schema verified; additive recovery complete');

@@ -13,11 +13,11 @@ on:
       version_name:
         description: 'Release version (major.minor.patch)'
         required: true
-        default: '1.1.8'
+        default: '1.1.9'
       version_code:
         description: 'Increasing Android version code'
         required: true
-        default: '11'
+        default: '12'
 permissions:
   contents: read
   actions: read

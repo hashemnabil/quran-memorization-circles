@@ -67,6 +67,9 @@ jobs:
           retention-days: 7
   android-release:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/android-release.yml
     with:
       version_name: ${{ inputs.version_name }}

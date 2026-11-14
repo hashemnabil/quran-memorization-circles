@@ -115,7 +115,8 @@ export async function save(table: EntityTable, data: Record<string, any>, action
   }
   const opId = crypto.randomUUID();
   const { credentialPending: _pendingCredential, activationPending: _pendingActivation, _localPreviewUrl: _preview, ...wireData } = data;
-  const queued: QueuedWrite = { accountId: account, opId, table, action, entityId: id, data: wireData, createdAt: row.updatedAt };
+  const planFields = action === 'progress' ? ['studentId', 'requestId', 'amount', 'itemIds', 'versesCount', 'note'] : ['studentId', 'title', 'unit', 'period', 'target', 'scope', 'dueAt', 'archived'];
+  const queued: QueuedWrite = { accountId: account, opId, table, action, entityId: id, data: table === 'memorizationPlans' ? Object.fromEntries(Object.entries(wireData).filter(([key]) => planFields.includes(key))) : wireData, createdAt: row.updatedAt };
   const sealed = await sealCredentials(queued);
   const candidates = await db.queue.where('accountId').equals(account).filter(item => item.table === table && item.entityId === id).toArray();
   const candidate = candidates.length === 1 && candidates[0].error &&
@@ -229,7 +230,7 @@ async function downloadDelta(account: string, initialCursor: string) {
   let cursor = initialCursor;
   const entities = new Set<string>();
   for (;;) {
-    const result = await transport('get', `/sync-all/delta?since=${encodeURIComponent(cursor)}&communication=1&support=1`);
+    const result = await transport('get', `/sync-all/delta?since=${encodeURIComponent(cursor)}&communication=1&support=1&plans=1`);
     if (currentAccount() !== account) return;
     if (!result?.tables || !/^(0|[1-9]\d*)$/.test(result.cursor) || BigInt(result.cursor) < BigInt(cursor) || result.hasMore && result.cursor === cursor) throw new Error('استجابة تحديث غير صالحة؛ بقي مؤشر المزامنة محفوظًا');
     for (const [name, value] of Object.entries(result.tables)) {
@@ -358,7 +359,11 @@ export async function initOffline() {
 }
 export function refreshOffline(options: { forceDownload?: boolean; checkDelta?: boolean } = {}): Promise<void> {
   const account = currentAccount();
-  if (refreshing?.account === account) return refreshing.promise;
+  if (refreshing?.account === account) {
+    const existing = refreshing.promise;
+    if (options.forceDownload) return existing.then(() => currentAccount() === account && navigator.onLine ? refreshOffline(options) : undefined);
+    return existing;
+  }
   const promise = refreshOnce(options).finally(() => { if (refreshing?.promise === promise) refreshing = undefined; });
   refreshing = { account, promise }; return promise;
 }
@@ -387,6 +392,15 @@ export function reconcileAfterNetworkWrite(): Promise<void> {
 async function refreshOnce(options: { forceDownload?: boolean; checkDelta?: boolean }) {
   if (!navigator.onLine || !currentAccount()) return;
   const account = accountId();
+  if ((await db.meta.get(`${account}:needsPlansBootstrap`))?.value) {
+    for (let page = 1; ; page++) {
+      const result = await transport('get', `/sync-all?table=memorizationPlans&page=${page}`);
+      if (currentAccount() !== account) return;
+      await mergeRows('memorizationPlans', result.data, account);
+      if (!result.meta?.hasNextPage) break;
+    }
+    await db.meta.delete(`${account}:needsPlansBootstrap`);
+  }
   if ((await db.meta.get(`${account}:needsCommunicationBootstrap`))?.value) {
     for (const table of ['chatMessages','communityPosts','communityComments','accountPreferences'] as const) for (let page = 1; ; page++) {
       const result = await transport('get', `/sync-all?table=${table}&page=${page}`);

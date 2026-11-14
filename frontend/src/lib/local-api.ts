@@ -1,4 +1,5 @@
 import { readActiveIdentity } from './active-identity';
+import { writeLocalPlan } from './local-plans';
 import { absencePeriod } from './absence-period';
 import { db, entityTables, type EntityTable } from './db';
 import { accountId, get, mergeRows, remove, save, update } from './offline-engine';
@@ -44,6 +45,11 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   url.searchParams.forEach((value, key) => { params[key] ??= value; });
   const segments = url.pathname.split('/').filter(Boolean);
   if (['students','courses','circles','teachers','exams','recitations','media-activities','transfers','suspensions','preparations'].includes(segments[0]) && /^[0-9a-f-]{36}$/i.test(segments[1] || '')) segments[1] = (await db.meta.get(`${accountId()}:id:${segments[1]}`))?.value || segments[1];
+  if (segments[0] === 'students' && segments[2] === 'plans' && segments.length === 3) {
+    const plans = (await get('memorizationPlans')).filter(plan => plan.studentId === segments[1]);
+    if (plans.length || (await db.meta.get(`${accountId()}:downloadedAt`)) && !(await db.meta.get(`${accountId()}:needsPlansBootstrap`))) return plans.sort((a, b) => Number(a.archived) - Number(b.archived) || String(b.createdAt).localeCompare(String(a.createdAt)));
+    return undefined;
+  }
   if (segments[0] === 'chat' && segments[1] === 'conversations') {
     if (segments[2]) segments[2] = (await db.meta.get(`${accountId()}:id:${segments[2]}`))?.value || segments[2];
     if (segments.length <= 3) return localConversation(url.pathname);
@@ -250,6 +256,13 @@ export async function rememberRead(path: string, params: any, data: any) {
   const account = accountId();
   if (path === '/recitations/grading-settings') await db.meta.put({ key: `${account}:reference:/recitations/grading-settings`, value: data });
   await db.responses.put({ key: responseKey(account, path, params), accountId: account, data });
+  const plansPath = path.split('?')[0].match(/^\/students\/([^/]+)\/plans$/);
+  if (plansPath && Array.isArray(data)) {
+    const visible = new Set(data.map(plan => plan.id));
+    await db.table('memorizationPlans').where('accountId').equals(account).filter(row => row.studentId === plansPath[1] && row.synced === 1 && !visible.has(row.id)).delete();
+    await mergeRows('memorizationPlans', data.map(plan => ({ ...plan, studentId: plansPath[1] })), account);
+    return;
+  }
   if (path.split('?')[0] === '/media-activities' && Array.isArray(data)) await mergeRows('mediaActivities', data, account);
   if (path === '/chat/conversations' && Array.isArray(data)) await cacheConversations(account, data, true);
   if (/^\/chat\/conversations\/[^/]+$/.test(path) && data?.id) await cacheConversations(account, [data]);
@@ -273,6 +286,7 @@ export function responseKey(account: string, path: string, params: any) {
 export async function localWrite(method: string, path: string, data: any): Promise<any | undefined> {
   if (path.startsWith('/support')) return writeLocalSupport(method, path, data);
   const route = path.split('/').filter(Boolean);
+  if (route[0] === 'students' && route[2] === 'plans') return writeLocalPlan(method, route, data);
   if (route[0] === 'chat' && route[1] === 'conversations' && route.length === 3 && ['direct', 'group'].includes(route[2]) && method === 'post') return createLocalConversation(route[2], data);
   if (route[0] === 'chat' && route[1] === 'conversations' && route[2] && !['direct', 'group'].includes(route[2])) route[2] = (await db.meta.get(`${accountId()}:id:${route[2]}`))?.value || route[2];
   if (route[0] === 'chat' && route[1] === 'conversations' && route[3] === 'read' && method === 'patch') {

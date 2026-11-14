@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import { installLocalEncryption, dataKey, encryptedAccount } from './local-encryption';
 
-export const entityTables = ['students', 'circles', 'teachers', 'attendance', 'staffAttendance', 'courseAttendance', 'recitations', 'exams', 'behaviors', 'notifications', 'courses', 'examRequests', 'mediaPlans', 'teacherDuties', 'dutyTeachers', 'users', 'studentAccounts', 'profileReviews', 'transfers', 'suspensions', 'meetings', 'examCommittees', 'absencePermissions', 'guardianSummons', 'preparations', 'surahCompletions', 'announcements', 'mediaActivities', 'certificateRequests', 'certificates', 'certificateTemplates', 'schoolSettings', 'chatMessages', 'communityPosts', 'communityComments', 'accountPreferences', 'supportTickets', 'chatConversations'] as const;
+export const entityTables = ['memorizationPlans', 'students', 'circles', 'teachers', 'attendance', 'staffAttendance', 'courseAttendance', 'recitations', 'exams', 'behaviors', 'notifications', 'courses', 'examRequests', 'mediaPlans', 'teacherDuties', 'dutyTeachers', 'users', 'studentAccounts', 'profileReviews', 'transfers', 'suspensions', 'meetings', 'examCommittees', 'absencePermissions', 'guardianSummons', 'preparations', 'surahCompletions', 'announcements', 'mediaActivities', 'certificateRequests', 'certificates', 'certificateTemplates', 'schoolSettings', 'chatMessages', 'communityPosts', 'communityComments', 'accountPreferences', 'supportTickets', 'chatConversations'] as const;
 export type EntityTable = typeof entityTables[number];
 export type LocalRow = Record<string, any> & { id: string; accountId: string; synced: number; updatedAt: string; pendingDelete?: number };
 export type QueuedWrite = { id?: number; accountId: string; opId: string; table: EntityTable; action: string; entityId: string; data: Record<string, any>; createdAt: string; error?: string };
@@ -80,6 +80,9 @@ class HalaqatDatabase extends Dexie {
         await tx.table('meta').put({ key: row.key.replace(/:downloadedAt$/, ':needsSupportBootstrap'), value: true });
     });
     this.version(14).stores({ chatConversations: '[accountId+id], accountId, type, updatedAt, synced' });
+    this.version(15).stores({ memorizationPlans: '[accountId+id], accountId, studentId, updatedAt, synced' }).upgrade(async tx => {
+      for (const row of await tx.table('meta').filter(row => row.key.endsWith(':downloadedAt') && (!encryptedAccount(row.key.split(':')[0]) || !!dataKey(row.key.split(':')[0]))).toArray()) await tx.table('meta').put({ key: row.key.replace(/:downloadedAt$/, ':needsPlansBootstrap'), value: true });
+    });
   }
 }
 export const db = new HalaqatDatabase();

@@ -9,6 +9,39 @@ const circleId = '00000000-0000-4000-8000-000000000002';
 const user = { id: account, username: 'offline-test', fullName: 'مدير الاختبار', role: 'ADMIN', isActive: true, mustChangePassword: false };
 const schoolName = 'مدرسة عبدالله بن عمر لتعليم القران الكريم والسنة النبوية';
 
+for (const width of [390, 1440]) {
+  test(`offline readiness dashboard survives a disconnected reload at ${width}px`, async ({ page, context }, info) => {
+    await page.setViewportSize({ width, height: 950 });
+    await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
+    await page.route('**/api/**', route => {
+      const url = new URL(route.request().url());
+      if (url.pathname === '/api/auth/me') return route.fulfill({ json: user });
+      if (url.pathname === '/api/settings/public' || url.pathname === '/api/settings') return route.fulfill({ json: { name: schoolName } });
+      if (url.pathname === '/api/announcements/active') return route.fulfill({ json: [] });
+      if (url.pathname === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+      if (url.pathname === '/api/sync-all/delta') return route.fulfill({ json: { tables: {}, cursor: '0', hasMore: false } });
+      return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
+    });
+    await gotoWithLocalUnlock(page, '/settings/offline');
+    await expect(page.getByRole('heading', { name: 'العمل بدون إنترنت', exact: true })).toBeVisible();
+    if (width >= 1024) await expect(page.getByRole('navigation', { name: 'التنقل الرئيسي للجوال' })).toBeHidden();
+    else await expect(page.getByRole('navigation', { name: 'التنقل الرئيسي للجوال' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'نسختك المحلية محفوظة' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'تحديث النسخة المحلية', exact: true })).toBeEnabled();
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; if (!navigator.serviceWorker.controller) await new Promise<void>(resolve => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })); });
+    await page.screenshot({ path: info.outputPath(`offline-light-${width}.png`), fullPage: true });
+    await context.setOffline(true);
+    await page.reload(); await unlockLocalGate(page);
+    await expect(page.getByRole('heading', { name: 'نسختك المحلية محفوظة' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'تحديث النسخة المحلية', exact: true })).toBeDisabled();
+    await page.getByText('تفاصيل البيانات المحفوظة', { exact: true }).click();
+    await expect(page.getByRole('cell', { name: 'خطط الحفظ', exact: true })).toBeVisible();
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`offline-dark-${width}.png`), fullPage: true });
+  });
+}
+
 test('SMS spreadsheet import sends multipart file bytes for XLSX, XLS and CSV without sending messages', async ({ page }) => {
   const XLSX = createRequire(import.meta.url)('../../backend/node_modules/xlsx');
   const pageErrors: string[] = [];

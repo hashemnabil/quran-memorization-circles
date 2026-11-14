@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Network } from '@capacitor/network';
 import { db } from '@/lib/db';
 import { initOffline, refreshOffline } from '@/lib/offline-engine';
@@ -123,7 +124,7 @@ export default function OfflineSystem() {
   }, [account]);
   const syncing = online && progress.account === account && progress.active;
   const waiting = pending > 0 || Boolean(error) || !last;
-  return <div dir="rtl" role="status" aria-live="polite" className="mb-5 flex flex-wrap items-center gap-2 text-[11px] font-medium">
+  return <div dir="rtl" role="status" aria-live="polite" className="offline-status mb-5 flex flex-wrap items-center gap-2 text-[11px] font-medium">
     <span className={`inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 ${online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
       <span aria-hidden="true" className={`h-2 w-2 rounded-full ${online ? 'bg-emerald-500' : 'bg-slate-400'}`} />
       {online ? 'متصل بالإنترنت' : 'العمل بالنسخة المحلية'}
@@ -134,6 +135,7 @@ export default function OfflineSystem() {
       {syncing && <span role="progressbar" aria-label="تقدم مراحل المزامنة" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent} className="h-1.5 w-14 overflow-hidden rounded-full bg-blue-100"><span className="block h-full rounded-full bg-blue-500 transition-[width] motion-reduce:transition-none" style={{ width: `${progress.percent}%` }} /></span>}
     </span>
     {last && Number.isFinite(Date.parse(last)) && <time dateTime={last} className="text-slate-500">آخر مزامنة: {new Intl.DateTimeFormat('ar-SA', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(last))}</time>}
+    <Link to="/settings/offline" className="offline-status-link">إدارة النسخة المحلية <span aria-hidden="true">←</span></Link>
     {rejected.length > 0 && <details className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
       <summary className="cursor-pointer font-bold">تعذّر اعتماد {rejected.length} عملية — عرض الأسباب</summary>
       <p className="mt-2 leading-6">تعديلاتك محفوظة على الجهاز. راجع البيانات أو الصلاحيات المذكورة؛ لم تُعتمد هذه العمليات على الخادم.</p>

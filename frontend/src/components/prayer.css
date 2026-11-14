@@ -14,7 +14,7 @@
 .prayer-page .prayer-table { gap:12px; }
 .prayer-page .prayer-row { padding:18px 20px; border-radius:18px; }
 .prayer-page .prayer-row strong { display:flex; align-items:center; gap:12px; }
-.prayer-page .prayer-row strong>span { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; background:#b79b5718; color:#a58543; font-size:24px; }
+.prayer-page .prayer-row strong>span.prayer-row-icon { display:grid; place-items:center; width:42px; height:42px; flex:none; border-radius:14px; background:#b79b5718; color:#a58543; font-size:24px; }
 .prayer-page .prayer-row.is-next { border-color:#bda264; box-shadow:0 4px 16px #ab8e4412; }
 .prayer-page .prayer-row>a { text-underline-offset:5px; line-height:1.8; }
 @media(max-width:480px) { .prayer-page .prayer-row>a { width:100%; padding-inline-start:54px; } }

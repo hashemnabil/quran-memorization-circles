@@ -984,6 +984,20 @@ test('cold offline navigation opens downloaded core screens and searches locally
   }
   await gotoWithLocalUnlock(page,'/students');
   await expect(page.locator('main')).toContainText('طالب أوفلاين');
+  await gotoWithLocalUnlock(page, `/students/${fixtures.students[0].id}`);
+  await page.getByRole('button', { name: 'خطة جديدة', exact: true }).click();
+  await page.getByRole('textbox', { name: 'عنوان الخطة', exact: true }).fill('خطة محفوظة بدون نت');
+  await page.getByLabel('وحدة القياس', { exact: true }).selectOption('TASKS');
+  await page.getByRole('spinbutton', { name: 'الهدف', exact: true }).fill('3');
+  await page.getByRole('button', { name: 'حفظ الخطة', exact: true }).click();
+  const planCard = page.locator('.plan-card').filter({ hasText: 'خطة محفوظة بدون نت' });
+  await expect(planCard).toBeVisible();
+  await planCard.getByRole('button', { name: 'تسجيل إنجاز', exact: true }).click();
+  await page.getByRole('spinbutton', { name: 'الكمية المنجزة', exact: true }).fill('1');
+  await page.getByRole('button', { name: 'اعتماد الإنجاز', exact: true }).click();
+  await expect(planCard).toContainText('المنجز 1 من 3');
+  await page.reload(); await unlockLocalGate(page);
+  await expect(planCard).toContainText('المنجز 1 من 3');
   await gotoWithLocalUnlock(page,'/media-schedule');
   await page.getByLabel('شو بدنا نعمل؟').fill('تصوير نشاط دون نت');
   await page.getByLabel('الفكرة').fill('فكرة إعلامية');

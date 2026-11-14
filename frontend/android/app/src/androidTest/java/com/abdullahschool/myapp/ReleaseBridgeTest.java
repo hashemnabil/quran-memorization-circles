@@ -48,11 +48,16 @@ public class ReleaseBridgeTest {
                 + "const c=window.Capacitor; await c.nativePromise('Preferences','set',{key:'release-smoke',value:'saved-offline'});"
                 + "const r=await c.nativePromise('Preferences','get',{key:'release-smoke'}); if(r.value!=='saved-offline')throw Error('storage');"
                 + "await c.nativePromise('Preferences','remove',{key:'release-smoke'});"
+                + "await c.nativePromise('SecureStorage','internalSetItem',{prefixedKey:'release-smoke',data:'test-session'});"
+                + "const secure=await c.nativePromise('SecureStorage','internalGetItem',{prefixedKey:'release-smoke'});if(secure.data!=='test-session')throw Error('secure-storage');"
+                + "await c.nativePromise('SecureStorage','internalRemoveItem',{prefixedKey:'release-smoke'});"
                 + "await c.nativePromise('DeviceSecurity','available',{});"
                 + "const request=indexedDB.open('release-smoke',1); request.onupgradeneeded=()=>request.result.createObjectStore('records');"
                 + "const db=await new Promise((ok,fail)=>{request.onsuccess=()=>ok(request.result);request.onerror=fail});"
                 + "await new Promise((ok,fail)=>{const tx=db.transaction('records','readwrite');tx.objectStore('records').put({name:'offline-test'},'student');tx.oncomplete=ok;tx.onerror=fail});"
-                + "db.close();window.__releaseSmoke='ok';}catch(e){window.__releaseSmoke='failed:'+e.message}})();";
+                + "db.close();const reopen=indexedDB.open('release-smoke',1);const saved=await new Promise((ok,fail)=>{reopen.onsuccess=()=>ok(reopen.result);reopen.onerror=fail});"
+                + "const read=saved.transaction('records').objectStore('records').get('student');const record=await new Promise((ok,fail)=>{read.onsuccess=()=>ok(read.result);read.onerror=fail});"
+                + "if(record.name!=='offline-test')throw Error('local-data');saved.close();window.__releaseSmoke='ok';}catch(e){window.__releaseSmoke='failed:'+e.message}})();";
             // Wait for the bundled WebView/bridge, without requiring a server login.
             for (int attempt = 0; attempt < 60; attempt++) {
                 if (evaluate(scenario, "typeof window.Capacitor?.nativePromise").equals("\"function\"")) break;

@@ -150,6 +150,17 @@ jobs:
           retention-days: 90
       - uses: actions/upload-artifact@v4
         with:
+          name: halaqat-release-report-${{ inputs.version_name }}-${{ inputs.version_code }}
+          path: |
+            release-download/size-report.json
+            release-download/size-report.md
+            release-download/release-signature.txt
+            release-download/release-manifest.txt
+            release-download/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
           name: halaqat-web-${{ inputs.version_name }}
           path: frontend/dist/*
           if-no-files-found: error

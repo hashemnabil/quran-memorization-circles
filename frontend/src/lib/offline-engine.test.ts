@@ -19,6 +19,21 @@ beforeEach(async () => {
 });
 after(() => db.close());
 
+test('plan upgrade downloads its authorized replica once without resetting the existing cursor', async () => {
+  online = true;
+  await db.meta.bulkPut([{ key: `${account}:downloadedAt`, value: 'ready' }, { key: `${account}:deltaCursor`, value: '50' }, { key: `${account}:needsPlansBootstrap`, value: true }]);
+  const paths: string[] = [];
+  configureOffline(async (_method, path) => {
+    paths.push(path);
+    if (path.startsWith('/sync-all?table=memorizationPlans')) return { data: [{ id: 'plan', studentId: 'student', logs: [] }], meta: { hasNextPage: false } };
+    throw new Error('Unexpected network call');
+  }, () => account);
+  await refreshOffline(); await refreshOffline();
+  assert.deepEqual(paths, ['/sync-all?table=memorizationPlans&page=1']);
+  assert.equal((await db.meta.get(`${account}:deltaCursor`))?.value, '50');
+  assert.equal((await get('memorizationPlans'))[0].id, 'plan');
+});
+
 test('recipient and activity upgrade runs once without resetting existing entity cursors', async () => {
   online = true; const domains: any[] = [];
   await db.meta.bulkPut([{ key: `${account}:downloadedAt`, value: 'ready' }, { key: `${account}:chatContactPolicyV1`, value: true }, { key: `${account}:deltaCursor`, value: '50' }]);
@@ -386,7 +401,7 @@ test('startup checks the server silently and downloads only changes missed by re
   cursor = '11';
   // No socket event: reopening still discovers the new server revision.
   await initOffline();
-  assert.deepEqual(paths, ['/sync-all/watermark', '/sync-all/delta?since=10&communication=1&support=1']);
+  assert.deepEqual(paths, ['/sync-all/watermark', '/sync-all/delta?since=10&communication=1&support=1&plans=1']);
   paths.length = 0;
   await initOffline(); await refreshOffline();
   assert.deepEqual(paths, ['/sync-all/watermark']);
@@ -402,7 +417,7 @@ test('delta updates only changed rows, removes synced tombstones and preserves d
     return { cursor: '11', hasMore: false, changedEntities: ['students'], tables: { students: { data: [{ id: 'changed', fullName: 'after' }], visibleIds: ['old', 'changed'] } } };
   }, () => account);
   online = true; await pullAll();
-  assert.deepEqual(paths, ['/sync-all/delta?since=10&communication=1&support=1']);
+  assert.deepEqual(paths, ['/sync-all/delta?since=10&communication=1&support=1&plans=1']);
   const rows = await get('students');
   assert.equal(rows.find(row => row.id === 'old')?.fullName, 'unchanged');
   assert.equal(rows.find(row => row.id === 'changed')?.fullName, 'after');
@@ -423,7 +438,7 @@ test('a failed section patch does not advance the delta cursor and the same chan
   await assert.rejects(pullAll(), /interrupted/);
   assert.equal((await db.meta.get(`${account}:deltaCursor`))?.value, '10');
   fail = false; await pullAll();
-  assert.deepEqual(paths, ['/sync-all/delta?since=10&communication=1&support=1', '/sync-all/delta?since=10&communication=1&support=1']);
+  assert.deepEqual(paths, ['/sync-all/delta?since=10&communication=1&support=1&plans=1', '/sync-all/delta?since=10&communication=1&support=1&plans=1']);
 });
 test('pull cannot overwrite pending edits or resurrect pending deletes', async () => {
   await save('students', { id: 's1', fullName: 'محلي' });

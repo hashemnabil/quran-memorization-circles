@@ -22,6 +22,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { UploadsService } from '../uploads/uploads.service';
 import { StudentsService } from '../students/students.service';
+import { MemorizationPlansController } from '../students/memorization-plans.controller';
 import { CreateStudentDto, UpdateStudentDto, QueryStudentsDto, AddNoteDto, StudentQuestionnaireDto } from '../students/dto/student.dto';
 import { CirclesService } from '../circles/circles.service';
 import { CreateCircleDto, UpdateCircleDto, QueryCirclesDto } from '../circles/dto/circle.dto';
@@ -77,6 +78,7 @@ export class FullSyncService {
     const mediaActivities = new MediaActivitiesService(prisma);
     const certificates = new CertificatesService(prisma, { emitToUser() {} } as unknown as RealtimeGateway);
     return { prisma, acl, students, chat: new ChatService(prisma, { emitToConversation() {}, emitToUser() {}, isOnline() { return false; } } as unknown as RealtimeGateway, notifications, acl), community: new CommunityController(prisma), transfers, suspensions, operations, users: new UsersService(prisma, this.config, activity, acl, new UploadsService(this.config)), notifications, schedules: new SchedulesService(prisma, notifications), circles: new CirclesService(prisma, acl, activity, notifications),
+      plans: new MemorizationPlansController(prisma, acl),
       support: new SupportService(prisma, activity, notifications, { emitToUser() {} } as unknown as RealtimeGateway),
       teachers: new TeachersService(prisma, this.config, activity, acl),
       recitations: new RecitationsService(prisma, acl, activity, students),
@@ -89,6 +91,12 @@ export class FullSyncService {
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const empty = { data: [], meta: { hasNextPage: false } };
     switch (table) {
+      case 'memorizationPlans': {
+        if (!staff && user.role !== Role.STUDENT) return empty;
+        const scope = await s.acl.studentScope(user);
+        const plans = await this.prisma.memorizationPlan.findMany({ where: { student: { AND: [scope, { deletedAt: null }] } }, skip: (page - 1) * 200, take: 200, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], include: { progress: { orderBy: { createdAt: 'desc' }, include: { recordedBy: { select: { fullName: true } } } } } });
+        return { data: plans.map(({ progress, ...plan }) => ({ ...plan, logs: progress.map(({ recordedBy, ...log }) => ({ ...log, recorderName: recordedBy.fullName })) })), meta: { hasNextPage: plans.length === 200 } };
+      }
       case 'chatConversations': return { data: page === 1 ? await s.chat.listConversations(user) : [], meta: { hasNextPage: false } };
       case 'supportTickets': {
         const result = await s.support.findAll(user, plainToInstance(QueryTicketsDto, query));
@@ -197,7 +205,7 @@ export class FullSyncService {
     const rows = await this.prisma.$queryRaw<Array<{ seq: bigint }>>`SELECT COALESCE(MAX("seq"), 0)::bigint AS "seq" FROM sync_changes`;
     return { cursor: rows[0].seq.toString() };
   }
-  async delta(user: AuthUser, since: string, includeCommunication = false, includeSupport = false) {
+  async delta(user: AuthUser, since: string, includeCommunication = false, includeSupport = false, includePlans = false) {
     if (!/^(0|[1-9]\d*)$/.test(since) || since.length > 19 || BigInt(since) > 9223372036854775807n) throw new BadRequestException('مؤشر غير صالح');
     const changes = await this.prisma.syncChange.findMany({ where: { seq: { gt: BigInt(since) } }, orderBy: { seq: 'asc' }, take: 200 });
     const affected = new Map<string, Set<string> | undefined>();
@@ -208,6 +216,7 @@ export class FullSyncService {
     };
     const direct: Record<string, string> = { profile_reviews: 'profileReviews', absence_permission_requests: 'absencePermissions', guardian_summons: 'guardianSummons', preparation_assignments: 'preparations', surah_completions: 'surahCompletions', announcements: 'announcements', media_activities: 'mediaActivities', school_settings: 'schoolSettings', student_file_requests: 'certificateRequests', certificate_records: 'certificates', certificate_templates: 'certificateTemplates', students: 'students', circles: 'circles', teacher_profiles: 'teachers', attendance: 'attendance', staff_attendance: 'staffAttendance', course_attendance: 'courseAttendance', recitations: 'recitations', exams: 'exams', exam_requests: 'examRequests', student_notes: 'behaviors', notifications: 'notifications', courses: 'courses', media_plans: 'mediaPlans', teacher_duties: 'teacherDuties' };
     for (const change of changes) {
+      if (includePlans && ['memorization_plans', 'memorization_progress', 'students', 'circles', 'circle_teachers', 'users'].includes(change.entity)) add('memorizationPlans');
       if(change.entity==='learning_rule_sets')add('recitations');
         if (includeSupport && ['support_tickets', 'ticket_messages', 'users'].includes(change.entity)) add('supportTickets');
       if (includeCommunication && ['messages','conversation_members','users'].includes(change.entity)) add('chatMessages');
@@ -320,6 +329,16 @@ export class FullSyncService {
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const admin = user.role === Role.ADMIN;
     const id = op.entityId;
+    if (op.table === 'memorizationPlans' && staff) {
+      const studentId = op.data.studentId;
+      if (typeof studentId !== 'string') throw new BadRequestException('الطالب غير صالح');
+      if (op.action === 'create') return { ...await s.plans.create(user, studentId, op.data), logs: [] };
+      if (op.action === 'update') return s.plans.update(user, studentId, id, op.data);
+      if (op.action === 'progress') {
+        const updated = await s.plans.progress(user, studentId, id, op.data as any);
+        return (await s.plans.list(user, studentId)).find(plan => plan.id === updated.id);
+      }
+    }
     if (op.table === 'chatConversations' && op.action === 'create') {
       let conversation: { id: string };
       if (op.data.kind === 'direct') conversation = await s.chat.createDirect(user, await this.dto(CreateDirectConversationDto, { userId: op.data.userId }));

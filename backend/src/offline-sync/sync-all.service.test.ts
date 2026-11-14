@@ -6,6 +6,45 @@ import { FullSyncService } from './sync-all.service';
 import { UpdateStudentDto, StudentQuestionnaireDto } from '../students/dto/student.dto';
 import { StudentsService } from '../students/students.service';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { MemorizationPlansController } from '../students/memorization-plans.controller';
+
+test('plan snapshots honor the student scope and remain opt-in for older clients', async () => {
+  let query: any;
+  const service = new FullSyncService({ memorizationPlan: { findMany: async (args: any) => { query = args; return []; } }, syncChange: { findMany: async () => [{ seq: 1n, entity: 'memorization_progress', entityId: randomUUID(), payload: {} }] } } as any, {} as any);
+  const scope = { circleId: { in: ['authorized-circle'] } };
+  (service as any).services = () => ({ acl: { studentScope: async () => scope } });
+  await service.pull({ ...user, role: Role.TEACHER }, 'memorizationPlans', 2);
+  assert.deepEqual(query.where, { student: { AND: [scope, { deletedAt: null }] } });
+  assert.equal(query.skip, 200); assert.equal(query.take, 200);
+  let pulls = 0;
+  (service as any).pull = async () => { pulls++; return { data: [], meta: { hasNextPage: false } }; };
+  assert.deepEqual((await service.delta(user, '0', true, true)).tables, {});
+  assert.equal(pulls, 0);
+  assert('memorizationPlans' in (await service.delta(user, '0', true, true, true)).tables);
+});
+
+test('offline plan progress reuses its durable receipt and rejects student writes', async () => {
+  const { service } = fixture(); let writes = 0;
+  (service as any).apply = (FullSyncService.prototype as any).apply.bind(service);
+  const plan = { id: randomUUID(), studentId: randomUUID(), completed: 1, logs: [{ id: randomUUID() }] };
+  (service as any).services = () => ({ plans: {
+    progress: async () => { writes++; return plan; }, list: async () => [plan],
+  } });
+  const op = { ...operation(), table: 'memorizationPlans', action: 'progress', entityId: plan.id, data: { studentId: plan.studentId, requestId: randomUUID(), amount: 1 } };
+  const first = await service.push(user, { operations: [op] });
+  const replay = await service.push(user, { operations: [op] });
+  assert.equal(writes, 1); assert.deepEqual(first, replay);
+  assert.equal((first.outcomes[0] as any).data.logs.length, 1);
+  assert.equal((await service.push({ ...user, role: Role.STUDENT }, { operations: [{ ...op, opId: randomUUID() }] })).outcomes[0].status, 'rejected');
+});
+
+test('plan writes keep the existing student ownership check before accessing storage', async () => {
+  let checks = 0;
+  const controller = new MemorizationPlansController({} as any, { assertStudentWriteAccess: async () => { checks++; throw new ForbiddenException(); } } as any);
+  await assert.rejects(controller.create({ ...user, role: Role.TEACHER }, randomUUID(), {}), ForbiddenException);
+  await assert.rejects(controller.progress({ ...user, role: Role.STUDENT }, randomUUID(), randomUUID(), { requestId: randomUUID() }), ForbiddenException);
+  assert.equal(checks, 1);
+});
 
 test('broadcast replay validates role and reuses the transaction receipt after a lost acknowledgement', async () => {
   const { service } = fixture(); let broadcasts = 0;

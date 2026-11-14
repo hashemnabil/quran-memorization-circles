@@ -2,6 +2,7 @@ import { db } from './db';
 import { reportSyncProgress } from './sync-progress';
 import { applySnapshotPatch } from './snapshot-delta';
 import { cacheConversations } from './conversation-cache';
+import { mergeRows } from './offline-engine';
 
 type Send = (method: string, path: string, headers?: Record<string, string>) => Promise<any>;
 type Snapshot = { data: any; rows?: any[]; paginated: boolean; registry?: boolean; savedAt: string };
@@ -92,6 +93,12 @@ export async function prefetchSections(send: Send, account: string, currentAccou
     }
     if (currentAccount() !== account) return;
     const data = paginated ? { ...result, [registry ? 'items' : 'data']: rows } : result;
+    const plansPath = path.match(/^\/students\/([^/]+)\/plans$/);
+    if (plansPath && Array.isArray(data)) {
+      const visible = new Set(data.map(plan => plan.id));
+      await db.table('memorizationPlans').where('accountId').equals(account).filter(row => row.studentId === plansPath[1] && row.synced === 1 && !visible.has(row.id)).delete();
+      await mergeRows('memorizationPlans', data.map(plan => ({ ...plan, studentId: plansPath[1] })), account);
+    }
     if (path === '/chat/conversations' && Array.isArray(data)) await cacheConversations(account, data, true);
     if (/^\/chat\/conversations\/[^/]+$/.test(path) && data?.id) await cacheConversations(account, [data]);
     if (path === '/profile-reviews/me' && data?.profile && Array.isArray(data.requests)) {

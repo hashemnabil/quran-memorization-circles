@@ -36,10 +36,23 @@ for (const [role, paths] of Object.entries(destinations)) {
       const link = sidebar.locator(`a[href="${path}"]`);
       if (await link.count()) await link.click();
       else await gotoWithLocalUnlock(page,path);
-      await expect(page, `Role ${role} failed navigation to ${path}`).toHaveURL(url => url.pathname === path || (role === 'STUDENT' && url.pathname === '/student' && path !== '/student'));
+      await expect(page, `Role ${role} failed navigation to ${path}`).toHaveURL(url => url.pathname === path || (path === '/profile' && url.pathname === '/community/users/me') || (role === 'STUDENT' && url.pathname === '/student' && path !== '/student'));
       await expect(page.getByRole('status', { name: 'بدء التطبيق' })).not.toBeVisible();
-      await expect(page.locator('main h1').first()).toBeVisible();
-      await expect(page.locator('main')).not.toContainText('تعذر تحميل');
+      if (path === '/mushaf') {
+        // The standalone Mushaf is a full-screen dialog rendered in a portal,
+        // not a conventional page with a <main><h1> heading.
+        const reader = page.getByRole('dialog', { name: 'المصحف الشريف', exact: true });
+        await expect(reader).toBeVisible();
+        await expect(reader.getByRole('article', { name: 'صفحة 1', exact: true })).toBeVisible();
+        await expect(reader).not.toContainText('تعذر تحميل');
+        // The full-screen modal intercepts subsequent sidebar clicks.
+        // Close it before continuing the shared navigation smoke test.
+        await reader.getByRole('button', { name: 'العودة للرئيسية', exact: true }).click();
+        await expect(reader).toHaveCount(0);
+      } else {
+        await expect(page.locator('main h1').first()).toBeVisible();
+        await expect(page.locator('main')).not.toContainText('تعذر تحميل');
+      }
     }
     // Check the account menu from a known authorized page rather than the last
     // visited destination (which may render with a different page shell).

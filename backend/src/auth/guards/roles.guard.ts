@@ -19,9 +19,10 @@ export class RolesGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!required || required.length === 0) return true;
-
     const { user } = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
+    if (user?.mustChangePassword && !/\/auth\/(me|change-password|logout)(?:\?|$)/.test(request.originalUrl || request.url || '')) throw new ForbiddenException('يجب تغيير كلمة المرور المؤقتة أولاً');
+    if (!required || required.length === 0) return true;
     if (!user) throw new ForbiddenException('غير مصرح');
 
     // Preserve school administrator access without granting founder ownership.

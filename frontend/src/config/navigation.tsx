@@ -50,6 +50,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/', label: 'الرئيسية', icon: <IconDashboard size={19} />, roles: ALL },
       { to: '/student-ranking', label: 'ترتيب الطلاب', icon: <IconAward size={19} />, roles: ALL },
+      { to: '/mushaf', label: 'المصحف الشريف', icon: <IconBook size={19} />, roles: ALL },
       
     ],
   },
@@ -57,6 +58,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'شؤون إدارية',
     items: [
       { to: '/meetings', label: 'الاجتماعات', icon: <IconCalendar size={19} />, roles: ['ADMIN'] },
+      { to: '/admin/sms', label: 'رسائل SMS', icon: <IconChat size={19} />, roles: ['ADMIN'] },
       { to: '/admin/notifications', label: 'إرسال الإشعارات', icon: <IconBell size={19} />, roles: ['ADMIN'] },
       { to: '/admin/activity', label: 'سجل النشاط', icon: <IconCalendar size={19} />, roles: ['ADMIN'] },
       { to: '/admin/password-requests', label: 'طلبات تغيير كلمة المرور', icon: <IconUser size={19} />, roles: ['ADMIN'] },
@@ -146,20 +148,20 @@ export const NAV_GROUPS: NavGroup[] = [
 ];
 NAV_GROUPS.push({ title: 'المشاركة', items: [{ to: '/donations', label: 'التبرعات', icon: <IconHeart size={19} />, roles: ALL }] });
 const SECTION_PATHS = [
-  ['الرئيسية', ['/','/student-ranking']],
+  ['الرئيسية', ['/','/student-ranking','/mushaf']],
   ['المتابعة اليومية', ['/attendance','/recitations','/exams','/teacher-duties','/staff/attendance']],
   ['الأذونات', ['/absence-permissions','/student-summons']],
   ['الطلاب والحلقات', ['/students','/students/achievements','/circles','/courses','/student-accounts','/transfers','/suspensions']],
   ['ملفي الدراسي', ['/student','/student/achievements','/my-files']],
   ['التقارير والشهادات', ['/documents/attendance','/documents/recitations','/documents/exams','/documents/student','/documents/circles','/certificates-admin','/documents/students','/documents/memorization-students','/documents/activity-students','/documents/suspended-students','/documents/course-students','/documents/courses','/documents/course-attendance']],
   ['التواصل', ['/community','/community/posts','/community/stories','/community/school','/community/users/me','/notifications','/chat','/support']],
-  ['الكادر والإدارة', ['/teachers','/supervisors','/staff','/meetings','/profile-reviews/students','/profile-reviews/teachers','/admin/password-requests','/admin/notifications','/admin/activity']],
+  ['الكادر والإدارة', ['/teachers','/supervisors','/staff','/meetings','/profile-reviews/students','/profile-reviews/teachers','/admin/password-requests','/admin/notifications','/admin/sms','/admin/activity']],
   ['الإعلام والمشاركة', ['/announcements','/media-schedule','/media-activities','/donations']],
   ['الإعدادات والحساب', ['/users','/settings','/profile','/verify-profile','/about']],
 ] as const;
 
 export function navigationFor(role: Role): NavGroup[] {
-  if (role === 'FOUNDER') return [{ title: 'إدارة النظام', items: [{ to: '/founder', label: 'لوحة المؤسس', icon: <IconDashboard size={19} />, roles: ['FOUNDER'] }] }];
+  if (role === 'FOUNDER') return [{ title: 'إدارة النظام', items: [{ to: '/founder', label: 'لوحة المؤسس', icon: <IconDashboard size={19} />, roles: ['FOUNDER'] }, { to: '/mushaf', label: 'المصحف الشريف', icon: <IconBook size={19} />, roles: ['FOUNDER'] }] }];
   const items = new Map(NAV_GROUPS.flatMap(group => group.items).map(item => [item.to, item]));
   return SECTION_PATHS.map(([title, paths]) => ({ title, items: paths.flatMap(path => {
     const item = items.get(path);

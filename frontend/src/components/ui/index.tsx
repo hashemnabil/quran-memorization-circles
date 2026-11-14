@@ -104,7 +104,7 @@ export function StatCard({
     <Wrapper
       onClick={onClick}
       className={cx(
-        'card flex items-center gap-4 p-4 text-right w-full',
+        'card stat-card flex items-center gap-4 p-4 text-right w-full',
         onClick && 'card-hover cursor-pointer',
       )}
     >

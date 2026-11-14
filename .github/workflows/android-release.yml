@@ -13,13 +13,14 @@ on:
       version_name:
         description: 'Release version (major.minor.patch)'
         required: true
-        default: '1.1.6'
+        default: '1.1.8'
       version_code:
         description: 'Increasing Android version code'
         required: true
-        default: '9'
+        default: '11'
 permissions:
   contents: read
+  actions: read
 jobs:
   signed-release:
     runs-on: ubuntu-latest
@@ -34,6 +35,18 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Validate new release version
+        env:
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { releaseVersion } from './frontend/scripts/release-version.mjs';
+          import fs from 'node:fs';
+          const selected = releaseVersion();
+          const candidate = JSON.parse(fs.readFileSync('frontend/release-version.json', 'utf8'));
+          if (Number(selected.build) < Number(candidate.build)) throw new Error('Refusing an older/reused version code');
+          NODE
       - name: Prepare private signing material
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -86,13 +99,41 @@ jobs:
           if grep -q 'CN=Android Debug' release-signature.txt; then echo 'Debug signature refused'; exit 1; fi
           "$build_tools/aapt" dump badging "$apk" > release-manifest.txt
           if grep -q 'application-debuggable' release-manifest.txt; then echo 'Debuggable release refused'; exit 1; fi
+          grep -F "package: name='com.abdullahschool.myapp' versionCode='${{ inputs.version_code }}' versionName='${{ inputs.version_name }}'" release-manifest.txt
+          aab="frontend/android/app/build/outputs/bundle/release/app-release.aab"
+          jarsigner -J-Duser.language=en -verify -verbose -certs "$aab" > release-bundle-signature.txt
+          grep -q 'jar verified' release-bundle-signature.txt
           sha256sum "$apk" frontend/android/app/build/outputs/bundle/release/app-release.aab > SHA256SUMS.txt
+      - name: Download measured production baseline (1.1.7 build 10)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 42596348548 --repo "$GITHUB_REPOSITORY" --name halaqat-release-1.1.7-10 --dir release-baseline
+      - name: Verify signing continuity and report actual sizes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          def digest(path):
+              match = re.search(r'certificate SHA-256 digest:\s*([0-9a-fA-F]+)', Path(path).read_text())
+              if not match: raise SystemExit('Signing certificate digest is missing')
+              return match.group(1).lower()
+          if digest('release-signature.txt') != digest('release-baseline/release-signature.txt'):
+              raise SystemExit('Upload signing certificate changed; release refused')
+          PY
+          python3 frontend/scripts/android-release-report.py \
+            --aab frontend/android/app/build/outputs/bundle/release/app-release.aab \
+            --apk frontend/android/app/build/outputs/apk/release/app-release.apk \
+            --mapping frontend/android/app/build/outputs/mapping/release/mapping.txt \
+            --baseline-aab release-baseline/Halaqat-1.1.7.aab \
+            --baseline-apk release-baseline/Halaqat-1.1.7.apk --out release-download
+          cat release-download/size-report.md >> "$GITHUB_STEP_SUMMARY"
       - name: Prepare simple download package
         run: |
           mkdir -p release-download
-          cp frontend/android/app/build/outputs/apk/release/app-release.apk release-download/Halaqat-${{ inputs.version_name }}.apk
-          cp frontend/android/app/build/outputs/bundle/release/app-release.aab release-download/Halaqat-${{ inputs.version_name }}.aab
-          cp release-signature.txt release-manifest.txt release-download/
+          cp frontend/android/app/build/outputs/apk/release/app-release.apk release-download/Halaqat-${{ inputs.version_name }}-${{ inputs.version_code }}.apk
+          cp frontend/android/app/build/outputs/bundle/release/app-release.aab release-download/Halaqat-${{ inputs.version_name }}-${{ inputs.version_code }}.aab
+          cp frontend/android/app/build/outputs/mapping/release/mapping.txt release-download/mapping.txt
+          cp release-signature.txt release-bundle-signature.txt release-manifest.txt release-download/
           cd release-download
           sha256sum *.apk *.aab > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
@@ -101,6 +142,23 @@ jobs:
           path: release-download/*
           if-no-files-found: error
           retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: halaqat-mapping-${{ inputs.version_name }}-${{ inputs.version_code }}
+          path: frontend/android/app/build/outputs/mapping/release/*
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: halaqat-release-report-${{ inputs.version_name }}-${{ inputs.version_code }}
+          path: |
+            release-download/size-report.json
+            release-download/size-report.md
+            release-download/release-signature.txt
+            release-download/release-manifest.txt
+            release-download/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 90
       - uses: actions/upload-artifact@v4
         with:
           name: halaqat-web-${{ inputs.version_name }}

@@ -36,3 +36,4 @@ keystore.properties
 /.worktrees/
 /.verify-mushaf-preview/
 /.verify-prisma-client/
+/.codex-artifacts/

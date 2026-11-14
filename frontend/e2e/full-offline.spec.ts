@@ -3,10 +3,90 @@ import { test, expect, chromium, type BrowserContext } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
 const account = '00000000-0000-4000-8000-000000000001';
 const circleId = '00000000-0000-4000-8000-000000000002';
 const user = { id: account, username: 'offline-test', fullName: 'مدير الاختبار', role: 'ADMIN', isActive: true, mustChangePassword: false };
 const schoolName = 'مدرسة عبدالله بن عمر لتعليم القران الكريم والسنة النبوية';
+
+for (const width of [390, 1440]) {
+  test(`offline readiness dashboard survives a disconnected reload at ${width}px`, async ({ page, context }, info) => {
+    await page.setViewportSize({ width, height: 950 });
+    await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
+    await page.route('**/api/**', route => {
+      const url = new URL(route.request().url());
+      if (url.pathname === '/api/auth/me') return route.fulfill({ json: user });
+      if (url.pathname === '/api/settings/public' || url.pathname === '/api/settings') return route.fulfill({ json: { name: schoolName } });
+      if (url.pathname === '/api/announcements/active') return route.fulfill({ json: [] });
+      if (url.pathname === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+      if (url.pathname === '/api/sync-all/delta') return route.fulfill({ json: { tables: {}, cursor: '0', hasMore: false } });
+      return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
+    });
+    await gotoWithLocalUnlock(page, '/settings/offline');
+    await expect(page.getByRole('heading', { name: 'العمل بدون إنترنت', exact: true })).toBeVisible();
+    if (width >= 1024) await expect(page.getByRole('navigation', { name: 'التنقل الرئيسي للجوال' })).toBeHidden();
+    else await expect(page.getByRole('navigation', { name: 'التنقل الرئيسي للجوال' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'نسختك المحلية محفوظة' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'تحديث النسخة المحلية', exact: true })).toBeEnabled();
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; if (!navigator.serviceWorker.controller) await new Promise<void>(resolve => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })); });
+    await page.screenshot({ path: info.outputPath(`offline-light-${width}.png`), fullPage: true });
+    await context.setOffline(true);
+    await page.reload(); await unlockLocalGate(page);
+    await expect(page.getByRole('heading', { name: 'نسختك المحلية محفوظة' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'تحديث النسخة المحلية', exact: true })).toBeDisabled();
+    await page.getByText('تفاصيل البيانات المحفوظة', { exact: true }).click();
+    await expect(page.getByRole('cell', { name: 'خطط الحفظ', exact: true })).toBeVisible();
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`offline-dark-${width}.png`), fullPage: true });
+  });
+}
+
+test('SMS spreadsheet import sends multipart file bytes for XLSX, XLS and CSV without sending messages', async ({ page }) => {
+  const XLSX = createRequire(import.meta.url)('../../backend/node_modules/xlsx');
+  const pageErrors: string[] = [];
+  let imports = 0;
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
+  await page.route('**/api/**', async route => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/auth/me') return route.fulfill({ json: user });
+    if (path === '/api/settings/public' || path === '/api/settings') return route.fulfill({ json: { name: schoolName } });
+    if (path === '/api/sms/templates') return route.fulfill({ json: {} });
+    if (path === '/api/sms/campaigns' || path === '/api/sms/recipients' || path === '/api/announcements/active') return route.fulfill({ json: [] });
+    if (path === '/api/sms/import') {
+      const contentType = request.headers()['content-type'];
+      expect(contentType).toMatch(/^multipart\/form-data;\s*boundary=/);
+      const form = await new Request('http://localhost/import', { method: 'POST', headers: { 'Content-Type': contentType }, body: new Uint8Array(request.postDataBuffer()!) }).formData();
+      const file = form.get('file') as File;
+      expect(file.name).toMatch(/\.(xlsx|xls|csv)$/);
+      const book = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const grid = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, raw: false });
+      expect(grid[0]).toEqual(['الاسم', 'الهاتف']);
+      imports++;
+      return route.fulfill({ json: { columns: grid[0], rows: [{ 'الاسم': grid[1][0], 'الهاتف': grid[1][1] }] } });
+    }
+    expect(path.startsWith('/api/sms/')).toBe(false); // Never submit an SMS send.
+    if (path === '/api/sync-all/watermark') return route.fulfill({ json: { cursor: '0' } });
+    return route.fulfill({ json: { data: [], meta: { hasNextPage: false } } });
+  });
+  await gotoWithLocalUnlock(page, '/admin/sms');
+  await page.getByLabel('قالب الرسالة', { exact: true }).fill('مرحباً {الاسم}');
+  for (const bookType of ['xlsx', 'xls', 'csv']) {
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['الاسم', 'الهاتف'], [`مستلم ${bookType}`, bookType === 'xls' ? '591234567' : '0591234567']]));
+    const response = page.waitForResponse(result => result.url().endsWith('/api/sms/import'));
+    await page.getByLabel('ملف المستلمين', { exact: true }).setInputFiles({ name: `مستلمون (2).${bookType}`, mimeType: 'application/octet-stream', buffer: XLSX.write(book, { type: 'buffer', bookType }) });
+    expect((await response).status()).toBe(200);
+    await expect(page.getByLabel('الاسم', { exact: true })).toHaveValue(`مستلم ${bookType}`);
+    await expect(page.getByLabel('الهاتف', { exact: true })).toHaveValue(bookType === 'xls' ? '591234567' : '0591234567');
+    await expect(page.getByLabel('رسالة 1 — 970591234567', { exact: true })).toHaveValue(`مرحباً مستلم ${bookType}`);
+    await expect(page.getByLabel(/^رسالة 1/)).toHaveValue(`مرحباً مستلم ${bookType}`);
+  }
+  expect(imports).toBe(3);
+  expect(pageErrors).toEqual([]);
+});
 const fixtures: Record<string, any[]> = {
   students: [{ id: '00000000-0000-4000-8000-000000000003', fullName: 'طالب أوفلاين', code: 'ST-1', status: 'ACTIVE', gender: 'MALE', circleId, circle: { id: circleId, name: 'حلقة الأوفلاين' }, memorizedParts: 1, totalPoints: 0, createdAt: '2026-10-15T00:00:00Z' }],
   circles: [{ id: circleId, name: 'حلقة الأوفلاين', code: 'C-1', isActive: true, capacity: 20, studentsCount: 1, teachers: [], scheduleDays: [], students: [] }],
@@ -630,6 +710,8 @@ test('activity archive opens records older than the former 100-record limit and 
 });
 
 test('admin broadcast targets selected accounts and stays durable offline', async ({ page, context }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
   const recipients = [{ id: fixtures.students[0].id, fullName: 'طالب التجربة', username: 'student25', role: 'STUDENT', isActive: true }, { id: fixtures.teachers[0].id, fullName: 'محفظ التجربة', username: 'teacher25', role: 'TEACHER', isActive: true }];
   await page.addInitScript(identity => { localStorage.setItem('qc.accessToken', 'test-token'); localStorage.setItem('qc.offlineUser', JSON.stringify(identity)); }, user);
   await page.route('**/api/**', route => {
@@ -642,6 +724,10 @@ test('admin broadcast targets selected accounts and stays durable offline', asyn
   });
   await gotoWithLocalUnlock(page,'/admin/notifications');
   await expect(page.getByRole('heading', { name: 'إرسال الإشعارات' })).toBeVisible();
+  // The legacy/fallback response below is not an SMS recipient array. The new
+  // optional panel must show an error without breaking the existing broadcast.
+  await expect(page.getByRole('alert').filter({ hasText: 'تعذر تحميل مستلمي الرسائل' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'معاينة جميع الرسائل', exact: true })).toBeDisabled();
   await page.getByLabel(/^عنوان الإشعار/).fill('موعد اللقاء');
   await page.getByLabel(/^نص الإشعار/).fill('نلتقي غدًا بعد العصر.');
   await page.getByLabel('الفئة', { exact: true }).selectOption('STUDENT');
@@ -658,6 +744,7 @@ test('admin broadcast targets selected accounts and stays durable offline', asyn
     const rows = await new Promise<any[]>(resolve => { const request = database.transaction('queue').objectStore('queue').getAll(); request.onsuccess = () => resolve(request.result); }); database.close(); return rows;
   });
   const operation = operations.find(row => row.action === 'broadcast'); expect(operation.data.userIds).toEqual([recipients[0].id]);
+  expect(pageErrors).toEqual([]);
 });
 
 test('student save explains missing fields, confirms online creation and works offline on mobile', async ({ page, context }) => {
@@ -897,6 +984,20 @@ test('cold offline navigation opens downloaded core screens and searches locally
   }
   await gotoWithLocalUnlock(page,'/students');
   await expect(page.locator('main')).toContainText('طالب أوفلاين');
+  await gotoWithLocalUnlock(page, `/students/${fixtures.students[0].id}`);
+  await page.getByRole('button', { name: 'خطة جديدة', exact: true }).click();
+  await page.getByRole('textbox', { name: 'عنوان الخطة', exact: true }).fill('خطة محفوظة بدون نت');
+  await page.getByLabel('وحدة القياس', { exact: true }).selectOption('TASKS');
+  await page.getByRole('spinbutton', { name: 'الهدف', exact: true }).fill('3');
+  await page.getByRole('button', { name: 'حفظ الخطة', exact: true }).click();
+  const planCard = page.locator('.plan-card').filter({ hasText: 'خطة محفوظة بدون نت' });
+  await expect(planCard).toBeVisible();
+  await planCard.getByRole('button', { name: 'تسجيل إنجاز', exact: true }).click();
+  await page.getByRole('spinbutton', { name: 'الكمية المنجزة', exact: true }).fill('1');
+  await page.getByRole('button', { name: 'اعتماد الإنجاز', exact: true }).click();
+  await expect(planCard).toContainText('المنجز 1 من 3');
+  await page.reload(); await unlockLocalGate(page);
+  await expect(planCard).toContainText('المنجز 1 من 3');
   await gotoWithLocalUnlock(page,'/media-schedule');
   await page.getByLabel('شو بدنا نعمل؟').fill('تصوير نشاط دون نت');
   await page.getByLabel('الفكرة').fill('فكرة إعلامية');

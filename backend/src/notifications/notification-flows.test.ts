@@ -30,14 +30,18 @@ test('educational staff and circle broadcasts resolve current membership and rej
   const actor: any = { id: 'admin', role: Role.ADMIN };
   const dto: any = { title: 'Notice', body: 'Body', selection: 'ALL', userIds: [], audience: 'STAFF' };
   await service.broadcast(actor, dto);
-  assert.deepEqual(where.role.in, [Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE]);
+  assert.deepEqual(where.role.in, [Role.ADMIN, Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE]);
+  await service.broadcast(actor, { ...dto, audience: 'ADMIN' });
+  assert.equal(where.role, Role.ADMIN);
+  await service.broadcast(actor, { ...dto, audience: 'ALL' });
+  assert.deepEqual(where.role, { not: Role.PARENT });
   await service.broadcast(actor, { ...dto, audience: 'CIRCLE', circleId: 'circle' });
   assert.deepEqual(where.studentProfile, { circleId: 'circle', deletedAt: null });
   assert.equal(where.role, Role.STUDENT);
   await assert.rejects(service.broadcast(actor, { ...dto, audience: 'CIRCLE' }));
   await assert.rejects(service.broadcast(actor, { ...dto, audience: 'CIRCLE', circleId: 'missing' }));
   await assert.rejects(service.broadcast(actor, { ...dto, audience: 'CIRCLE', circleId: 'circle', selection: 'SELECTED', userIds: ['member', 'outside'] }));
-  assert.equal(calls, 2);
+  assert.equal(calls, 4);
 });
 
 test('broadcast directory returns more than one staff-list page and separates students without accounts', async () => {
@@ -86,14 +90,57 @@ test('donation notes are stored as admin-visible tickets and notify administrato
 
 test('bulk notifications deliver complete persisted rows, deduplicate recipients and tolerate socket failures', async () => {
   const events: any[] = [];
-  const tx: any = { $queryRaw: async () => [], syncChange: { create: async () => ({}) },
-    notification: { create: async ({ data }: any) => ({ ...data, id: `notice-${data.userId}`, isRead: false }) } };
-  const prisma: any = { $transaction: async (run: any) => run(tx), notification: { count: async () => 1 } };
-  const service = new NotificationsService(prisma, { emitToUser: (...args: any[]) => { events.push(args); if (args[0] === 'one') throw new Error('socket down'); } } as any);
-  assert.deepEqual(await service.notifyMany(['one', 'one', 'two'], { type: 'SYSTEM', title: 'Saved' }), ['one', 'two']);
-  assert.equal(events.length, 2);
-  assert.equal(events[1][2].notification.id, 'notice-two');
-  assert.equal(events[1][2].notification.userId, 'two');
+  let committed = false;
+  let journalLockCount = 0;
+  let inserts: any[] = [];
+  let journal: any[] = [];
+  const tx: any = {
+    $queryRaw: async () => { journalLockCount++; return []; },
+    syncChange: { createMany: async ({ data }: any) => { journal = data; return { count: data.length }; } },
+    notification: { createMany: async ({ data }: any) => {
+      inserts = data;
+      return { count: data.length };
+    } },
+  };
+  const prisma: any = {
+    $transaction: async (run: any, options: any) => {
+      assert.equal(options.timeout, 30000);
+      const result = await run(tx);
+      committed = true;
+      return result;
+    },
+    notification: {
+      findMany: async ({ where }: any) => {
+        assert(committed, 'Notifications must not be delivered before committing');
+        assert.deepEqual(where.id.in, inserts.map(row => row.id));
+        return inserts.map(row => ({ ...row, isRead: false }));
+      },
+      count: async () => 1,
+    },
+  };
+  const service = new NotificationsService(prisma, {
+    emitToUser: (...args: any[]) => {
+      assert(committed, 'Live events must follow a successful commit');
+      events.push(args);
+      if (args[0] === 'one') throw new Error('socket down');
+    },
+  } as any);
+  const users = ['one', 'one', 'two', ...Array.from({ length: 181 }, (_, i) => `student-${i}`)];
+  const expected = [...new Set(users)];
+  assert.deepEqual(await service.notifyMany(users, { type: 'SYSTEM', title: 'Saved' }), expected);
+  assert.equal(inserts.length, 183);
+  assert.equal(journal.length, 183);
+  assert.equal(journalLockCount, 1);
+  assert.equal(events.length, 183);
+  assert.equal(new Set(inserts.map(row => row.id)).size, 183);
+  for (const row of inserts) {
+    assert.deepEqual(journal.find(entry => entry.entityId === row.id)?.payload,
+      { id: row.id, userId: row.userId });
+    assert.equal(row.title, 'Saved');
+  }
+  const deliveredToTwo = events.find(event => event[0] === 'two');
+  assert.equal(deliveredToTwo[2].notification.userId, 'two');
+  assert.equal(deliveredToTwo[2].notification.id, inserts.find(row => row.userId === 'two').id);
 });
 
 test('every account role gets a persistent message notice even while connected; the sender is excluded', async () => {

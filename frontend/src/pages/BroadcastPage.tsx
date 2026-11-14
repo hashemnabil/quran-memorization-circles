@@ -1,3 +1,4 @@
+import { StudentCommunications } from '@/pages/SmsPage';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -15,7 +16,7 @@ export default function BroadcastPage() {
   const [sending, setSending] = useState(false); const [notice, setNotice] = useState('');
   const [rejected, setRejected] = useState<number[]>([]);
   const users = useQuery({ queryKey: ['broadcast-recipients'], queryFn: async () => (await api.get('/notifications/recipients')).data });
-  const available = (users.data?.users || []).filter((user: any) => audience === 'ALL' || audience === 'STAFF' && ['TEACHER', 'SUPERVISOR', 'EXAM_COMMITTEE'].includes(user.role) || audience === 'CIRCLE' && user.role === 'STUDENT' && !!circleId && user.circleId === circleId || user.role === audience);
+  const available = (users.data?.users || []).filter((user: any) => audience === 'ALL' || audience === 'STAFF' && ['ADMIN', 'TEACHER', 'SUPERVISOR', 'EXAM_COMMITTEE'].includes(user.role) || audience === 'CIRCLE' && user.role === 'STUDENT' && !!circleId && user.circleId === circleId || user.role === audience);
   const withoutAccounts = (users.data?.studentsWithoutAccounts || []).filter((student: any) => audience === 'ALL' || audience === 'STUDENT' || audience === 'CIRCLE' && !!circleId && student.circleId === circleId);
   const shown = available.filter((user: any) => `${user.fullName} ${user.username}`.toLowerCase().includes(search.toLowerCase()));
   const send = async (event: React.FormEvent) => {
@@ -36,15 +37,15 @@ export default function BroadcastPage() {
     } finally { setSending(false); }
   };
   return <div dir="rtl"><PageHeader title="إرسال الإشعارات" />
-    <Card><form onSubmit={send} className="space-y-5">
+    <div className="my-4"><StudentCommunications /></div><p className="mb-4 text-sm"><a href="/admin/sms" className="font-bold text-emerald-700 underline">إرسال رسائل SMS لأولياء الأمور عبر Excel</a></p><Card><form onSubmit={send} className="space-y-5">
       <Input label="عنوان الإشعار" value={title} maxLength={160} required onChange={e => setTitle(e.target.value)} />
       <Textarea label="نص الإشعار" value={body} maxLength={3000} required onChange={e => setBody(e.target.value)} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Select label="الفئة" value={audience} onChange={e => { setAudience(e.target.value); setCircleId(''); setSelected([]); }}><option value="ALL">كل المستخدمين</option><option value="STAFF">الكادر التعليمي</option><option value="STUDENT">الطلاب</option><option value="CIRCLE">الحلقات — طلاب حلقة</option></Select>
+        <Select label="الفئة" value={audience} onChange={e => { setAudience(e.target.value); setCircleId(''); setSelected([]); }}><option value="ALL">كل المستخدمين</option><option value="STAFF">الإدارة والكادر التعليمي</option><option value="ADMIN">الإدارة فقط</option><option value="STUDENT">الطلاب</option><option value="CIRCLE">الحلقات — طلاب حلقة</option></Select>
         <Select label="المستلمون" value={selection} onChange={e => { setSelection(e.target.value); setSelected([]); }}><option value="ALL">الجميع في الفئة</option><option value="SELECTED">أشخاص محددون</option></Select>
       </div>
       {audience === 'CIRCLE' && <Select label="الحلقة" value={circleId} required onChange={e => { setCircleId(e.target.value); setSelected([]); }}><option value="">اختر الحلقة</option>{(users.data?.circles || []).map((circle: any) => <option key={circle.id} value={circle.id}>{circle.name}</option>)}</Select>}
-      {users.isLoading ? <LoadingState /> : users.isError ? <ErrorState message="تعذر تحميل المستلمين" onRetry={() => users.refetch()} /> : <p className="text-sm text-slate-600">الحسابات المتاحة في الفئة: {available.length} — الكادر التعليمي يشمل المحفظين والمشرفين ولجنة الاختبارات.</p>}
+      {users.isLoading ? <LoadingState /> : users.isError ? <ErrorState message="تعذر تحميل المستلمين" onRetry={() => users.refetch()} /> : <p className="text-sm text-slate-600">الحسابات المتاحة في الفئة: {available.length} — الكادر يشمل الإدارة والمحفظين والمشرفين ولجنة الاختبارات، وخيار كل المستخدمين يشمل الإدارة أيضًا.</p>}
       {withoutAccounts.length > 0 && <details className="rounded-xl border border-slate-200 p-3"><summary className="cursor-pointer font-bold">طلاب دون حساب دخول: {withoutAccounts.length}</summary><p className="my-2 text-sm text-slate-600">يلزم إنشاء حساب للطالب حتى يتمكن من استلام الإشعارات.</p>{withoutAccounts.map((student: any) => <p key={student.id} className="py-1 text-sm">{student.fullName} — لا يوجد حساب دخول</p>)}</details>}
       {selection === 'SELECTED' && <section className="rounded-2xl border p-4">
         <Input label="البحث عن مستلم" value={search} onChange={e => setSearch(e.target.value)} />

@@ -3,7 +3,6 @@ import { io, type Socket } from 'socket.io-client';
 import { tokenStore } from './api';
 
 let socket: Socket | null = null;
-let warnedMissingNativeUrl = false;
 
 /**
  * A single shared Socket.IO connection, used exclusively for real-time chat
@@ -14,22 +13,17 @@ export function getSocket(): Socket | null {
   if (!token) return null;
 
   const configuredUrl = import.meta.env.VITE_SOCKET_URL?.trim();
-  if (Capacitor.isNativePlatform() && !configuredUrl) {
-    if (!warnedMissingNativeUrl) {
-      console.error('اضبط VITE_SOCKET_URL على أصل خادم NestJS لتفعيل الدردشة والإشعارات في تطبيق الجوال.');
-      warnedMissingNativeUrl = true;
-    }
-    return null;
-  }
 
   if (!socket) {
-    const url = configuredUrl || window.location.origin;
+    const url = configuredUrl || (Capacitor.isNativePlatform()
+      ? (import.meta.env.VITE_API_URL?.trim() || 'https://quran-memorization-circles.onrender.com/api').replace(/\/api\/?$/, '')
+      : window.location.origin);
     socket = io(`${url}/realtime`, {
       path: '/socket.io',
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1500,
     });
   } else if (socket.auth && typeof socket.auth === 'object') {

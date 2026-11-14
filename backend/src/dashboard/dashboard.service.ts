@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ExamResult, ExamStatus, Prisma, RequestStatus, Role, StudentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { SuspensionsService } from '../suspensions/suspensions.service';
 import { AuthUser } from '../common/decorators';
+import { PaginationDto, paginate } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class DashboardService {
@@ -13,27 +14,118 @@ export class DashboardService {
     private readonly suspensions: SuspensionsService,
   ) {}
 
+  async honorRoll(query: {circleId?:string;period?:string} = {}) {
+    return this.rankedStudents(10, query);
+  }
+
+  private async honorCircleIds(user: AuthUser): Promise<string[] | null> {
+    if (user.role === Role.ADMIN) return null;
+    if (user.role === Role.TEACHER || user.role === Role.SUPERVISOR) return this.acl.ownCircleIds(user);
+    if (user.role === Role.STUDENT) {
+      const student = await this.prisma.student.findFirst({
+        where: { userId: user.id, deletedAt: null },
+        select: { circleId: true },
+      });
+      return student?.circleId ? [student.circleId] : [];
+    }
+    return [];
+  }
+
+  async honorCircles(user: AuthUser) {
+    const ids = await this.honorCircleIds(user);
+    return this.prisma.circle.findMany({
+      where: { deletedAt: null, isActive: true, ...(ids === null ? {} : { id: { in: ids } }) },
+      select: { id: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  async circleHonorRoll(user: AuthUser, circleId?: string) {
+    const allowed = await this.honorCircleIds(user);
+    const selected = circleId || (allowed?.length === 1 ? allowed[0] : undefined);
+    if (!selected) return { updatedAt: new Date().toISOString(), students: [] };
+    if (allowed !== null && !allowed.includes(selected)) {
+      throw new ForbiddenException('لا تملك صلاحية عرض لوحة شرف هذه الحلقة');
+    }
+    const circle = await this.prisma.circle.findFirst({
+      where: { id: selected, deletedAt: null, isActive: true }, select: { id: true },
+    });
+    if (!circle) return { updatedAt: new Date().toISOString(), students: [] };
+    return this.rankedStudents(10, { circleId: selected, period: 'all' });
+  }
+
+  async studentRanking(query: {circleId?:string;period?:string} = {}) {
+    return this.rankedStudents(undefined, query);
+  }
+
+  private async rankedStudents(limit?: number, query: {circleId?:string;period?:string} = {}) {
+    if (query.circleId || query.period) return this.filteredRanking(limit, query);
+    const students = await this.prisma.student.findMany({
+      where: limit ? { deletedAt: null, status: StudentStatus.ACTIVE, totalPoints: { gt: 0 }, circle: { is: { deletedAt: null, isActive: true } } } : { deletedAt: null },
+      orderBy: [{ totalPoints: 'desc' }, { fullName: 'asc' }, { id: 'asc' }],
+      take: limit,
+      select: {
+        id: true, fullName: true, totalPoints: true,
+        circle: { select: { name: true, teachers: {
+          where: { endedAt: null, teacher: { is: { deletedAt: null, isActive: true, user: { is: { deletedAt: null, isActive: true } } } } },
+          orderBy: [{ role: 'asc' }, { startedAt: 'asc' }, { id: 'asc' }],
+          select: { teacher: { select: { user: { select: { fullName: true } } } } },
+        } } },
+      },
+    });
+    let rank = 0;
+    return {
+      updatedAt: new Date().toISOString(),
+      students: students.map((student, index) => {
+        if (index === 0 || student.totalPoints !== students[index - 1].totalPoints) rank = index + 1;
+        return { id: student.id, fullName: student.fullName, points: student.totalPoints, rank,
+          circleName: student.circle?.name ?? 'غير مسجل في حلقة',
+          teacherName: [...new Set((student.circle?.teachers ?? []).map(item => item.teacher.user.fullName))].join('، ') || null };
+      }),
+    };
+  }
+
+  private async filteredRanking(limit:number|undefined,query:{circleId?:string;period?:string}){
+    const now=new Date();const local=new Date(now.getTime()+3*3600000);const start=query.period==='month'?new Date(Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),1)-3*3600000):query.period==='week'?new Date(Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),local.getUTCDate()-local.getUTCDay())-3*3600000):undefined;
+    const students=await this.prisma.student.findMany({
+      where:{deletedAt:null,...(limit?{status:StudentStatus.ACTIVE,circle:{is:{deletedAt:null,isActive:true}}}:{}),...(query.circleId?{circleId:query.circleId}:{})},
+      select:{id:true,fullName:true,circle:{select:{name:true,teachers:{
+        where:{endedAt:null,teacher:{is:{deletedAt:null,isActive:true,user:{is:{deletedAt:null,isActive:true}}}}},
+        orderBy:[{role:'asc'},{startedAt:'asc'},{id:'asc'}],
+        select:{teacher:{select:{user:{select:{fullName:true}}}}}
+      }}}}
+    });
+    const ids=students.map(s=>s.id);const studentId={in:ids};const date=start?{gte:start,lte:now}:undefined;
+    const [recitations,attendance,achievements]=await Promise.all([this.prisma.recitation.groupBy({by:['studentId'],where:{studentId,deletedAt:null,date,...(query.circleId?{circleId:query.circleId}:{})},_sum:{points:true}}),this.prisma.attendance.groupBy({by:['studentId'],where:{studentId,date,...(query.circleId?{circleId:query.circleId}:{})},_sum:{points:true}}),this.prisma.surahCompletion.groupBy({by:['studentId'],where:{studentId,completedAt:date},_sum:{points:true}})]);
+    const map=(rows:{studentId:string;_sum:{points:number|null}}[])=>new Map(rows.map(r=>[r.studentId,r._sum.points??0]));const rec=map(recitations),att=map(attendance),ach=map(achievements);
+    const rows=students.map(s=>{const sources={recitation:rec.get(s.id)??0,attendance:att.get(s.id)??0,achievement:ach.get(s.id)??0};return {id:s.id,fullName:s.fullName,points:Math.round(Object.values(sources).reduce((a,b)=>a+b,0)*100)/100,sources,circleName:s.circle?.name??'غير مسجل في حلقة',teacherName:[...new Set(s.circle?.teachers.map(t=>t.teacher.user.fullName))].join('، ')||null,rank:0}}).filter(s=>!limit||s.points>0).sort((a,b)=>b.points-a.points||a.fullName.localeCompare(b.fullName,'ar')||a.id.localeCompare(b.id));let rank=0;rows.forEach((r,i)=>{if(i===0||r.points!==rows[i-1].points)rank=i+1;r.rank=rank});return {updatedAt:now.toISOString(),period:query.period??'all',students:limit?rows.slice(0,limit):rows};
+  }
+
   /** One entry point; the payload adapts to the caller's role. */
   async overview(user: AuthUser) {
     // Cheap housekeeping: bring back students whose suspension has elapsed.
     await this.suspensions.releaseExpired();
 
+    const [schoolStudents, schoolCircles] = await Promise.all([
+      this.prisma.student.count({ where: { deletedAt: null } }),
+      this.prisma.circle.count({ where: { deletedAt: null } }),
+    ]);
+    let result: any;
     switch (user.role) {
       case Role.ADMIN:
-        return this.adminOverview(user);
+        result = await this.adminOverview(user); break;
       case Role.SUPERVISOR:
-        return this.supervisorOverview(user);
+        result = await this.supervisorOverview(user); break;
       case Role.TEACHER:
-        return this.teacherOverview(user);
+        result = await this.teacherOverview(user); break;
       case Role.EXAM_COMMITTEE:
-        return this.committeeOverview(user);
+        result = await this.committeeOverview(user); break;
       case Role.SUPPORT:
-        return this.supportOverview(user);
-      case Role.PARENT:
-        return this.parentOverview(user);
+        result = await this.supportOverview(user); break;
       default:
-        return { role: user.role };
+        result = { role: user.role }; break;
     }
+    return { ...result, schoolStats: { students: schoolStudents, circles: schoolCircles } };
   }
 
   // --- admin ---------------------------------------------------------------
@@ -52,7 +144,6 @@ export class DashboardService {
       pendingExamRequests,
       upcomingExams,
       openTickets,
-      parents,
     ] = await Promise.all([
       this.prisma.student.count({ where: { deletedAt: null } }),
       this.prisma.student.count({ where: { deletedAt: null, status: StudentStatus.ACTIVE } }),
@@ -70,7 +161,6 @@ export class DashboardService {
       this.prisma.supportTicket.count({
         where: { deletedAt: null, status: { in: ['OPEN', 'IN_PROGRESS'] } },
       }),
-      this.prisma.parentProfile.count({ where: { deletedAt: null } }),
     ]);
 
     const [attendanceToday, evaluationBreakdown, activity, nextExams, topCircles] = await Promise.all([
@@ -118,7 +208,6 @@ export class DashboardService {
         suspendedStudents,
         teachers,
         supervisors,
-        parents,
         circles,
         activeCircles,
       },
@@ -393,62 +482,6 @@ export class DashboardService {
     };
   }
 
-  // --- parent --------------------------------------------------------------
-
-  private async parentOverview(user: AuthUser) {
-    if (!user.parentId) return { role: Role.PARENT, children: [] };
-
-    const students = await this.prisma.student.findMany({
-      where: { parentId: user.parentId, deletedAt: null },
-      select: { id: true, fullName: true, status: true, evaluation: true, memorizedParts: true },
-    });
-
-    const ids = students.map((s) => s.id);
-    const [upcomingExams, recentRecitations, absencesThisMonth] = await Promise.all([
-      ids.length
-        ? this.prisma.exam.findMany({
-            where: {
-              studentId: { in: ids },
-              status: ExamStatus.SCHEDULED,
-              scheduledAt: { gte: new Date() },
-            },
-            include: {
-              student: { select: { id: true, fullName: true } },
-              section: { select: { name: true, order: true } },
-          sections: { select: { section: { select: { name: true, order: true } } } },
-            },
-            orderBy: { scheduledAt: 'asc' },
-            take: 5,
-          })
-        : [],
-      ids.length
-        ? this.prisma.recitation.findMany({
-            where: { studentId: { in: ids }, deletedAt: null },
-            include: { student: { select: { id: true, fullName: true } } },
-            orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-            take: 5,
-          })
-        : [],
-      ids.length
-        ? this.prisma.attendance.count({
-            where: { studentId: { in: ids }, status: 'ABSENT', date: { gte: this.startOfMonth() } },
-          })
-        : 0,
-    ]);
-
-    return {
-      role: Role.PARENT,
-      counts: {
-        children: students.length,
-        suspended: students.filter((s) => s.status === StudentStatus.SUSPENDED).length,
-        absencesThisMonth,
-      },
-      children: students,
-      upcomingExams,
-      recentRecitations,
-    };
-  }
-
   // --- shared helpers ------------------------------------------------------
 
   private async attendanceForDate(date: Date, circleIds?: string[]) {
@@ -458,14 +491,14 @@ export class DashboardService {
       _count: { _all: true },
     });
 
-    const counts = { PRESENT: 0, ABSENT: 0, EXCUSED: 0 };
+    const counts = { PRESENT: 0, LATE:0, ABSENT: 0, EXCUSED: 0 };
     grouped.forEach((g) => (counts[g.status] = g._count._all));
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
     return {
       ...counts,
       total,
-      rate: total ? Math.round((counts.PRESENT / total) * 100) : 0,
+      rate: total ? Math.round(((counts.PRESENT+counts.LATE) / total) * 100) : 0,
     };
   }
 
@@ -480,7 +513,7 @@ export class DashboardService {
     const map = new Map<string, Record<string, number>>();
     rows.forEach((r) => {
       const key = r.date.toISOString().slice(0, 10);
-      const row = map.get(key) ?? { PRESENT: 0, ABSENT: 0, EXCUSED: 0 };
+      const row = map.get(key) ?? { PRESENT: 0, LATE:0, ABSENT: 0, EXCUSED: 0 };
       row[r.status] = r._count._all;
       map.set(key, row);
     });
@@ -491,12 +524,18 @@ export class DashboardService {
   }
 
   /** Recent system activity, restricted to administration. */
-  async activity(limit = 30) {
-    return this.prisma.activityLog.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: Math.min(limit, 100),
+  async activity(query: PaginationDto) {
+    const where: Prisma.ActivityLogWhereInput = query.search ? { OR: [
+      { summary: { contains: query.search, mode: 'insensitive' } },
+      { action: { contains: query.search, mode: 'insensitive' } },
+      { user: { fullName: { contains: query.search, mode: 'insensitive' } } },
+    ] } : {};
+    const [rows, total] = await this.prisma.$transaction([this.prisma.activityLog.findMany({
+      where, orderBy: [{ createdAt: query.sortOrder || 'desc' }, { id: query.sortOrder || 'desc' }],
+      skip: query.skip, take: query.take,
       include: { user: { select: { id: true, fullName: true, role: true } } },
-    });
+    }), this.prisma.activityLog.count({ where })]);
+    return paginate(rows, total, query.page, query.limit);
   }
 
   private today() {

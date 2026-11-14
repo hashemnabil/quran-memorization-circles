@@ -1,0 +1,1729 @@
+[
+  {
+    "page": "frontend/src/pages/AboutPage.tsx",
+    "operations": []
+  },
+  {
+    "page": "frontend/src/pages/AccountDeletionPage.tsx",
+    "operations": [
+      {
+        "line": 13,
+        "method": "post",
+        "path": "'/support/account-deletion'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/ActivityPage.tsx",
+    "operations": [
+      {
+        "line": 15,
+        "method": "get",
+        "path": "'/dashboard/activity'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/announcements/AnnouncementsPage.tsx",
+    "operations": [
+      {
+        "line": 61,
+        "method": "get",
+        "path": "'/announcements'"
+      },
+      {
+        "line": 69,
+        "method": "delete",
+        "path": "`/announcements/${id}`"
+      },
+      {
+        "line": 80,
+        "method": "patch",
+        "path": "`/announcements/${a.id}`"
+      },
+      {
+        "line": 328,
+        "method": "patch",
+        "path": "`/announcements/${announcement.id}`"
+      },
+      {
+        "line": 333,
+        "method": "post",
+        "path": "'/announcements'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/attendance/AbsencePermissionsPage.tsx",
+    "operations": [
+      {
+        "line": 24,
+        "method": "get",
+        "path": "'/students'"
+      },
+      {
+        "line": 26,
+        "method": "get",
+        "path": "'/students/me'"
+      },
+      {
+        "line": 28,
+        "method": "get",
+        "path": "'/attendance/absence-permissions'"
+      },
+      {
+        "line": 29,
+        "method": "get",
+        "path": "'/attendance/summons'"
+      },
+      {
+        "line": 32,
+        "method": "post",
+        "path": "'/attendance/absence-permissions'"
+      },
+      {
+        "line": 33,
+        "method": "patch",
+        "path": "`/attendance/absence-permissions/${id}/${action}`"
+      },
+      {
+        "line": 34,
+        "method": "post",
+        "path": "'/attendance/summons'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/attendance/AttendancePage.tsx",
+    "operations": [
+      {
+        "line": 71,
+        "method": "get",
+        "path": "'/circles/options'"
+      },
+      {
+        "line": 118,
+        "method": "get",
+        "path": "'/attendance/sheet'"
+      },
+      {
+        "line": 174,
+        "method": "post",
+        "path": "'/attendance'"
+      },
+      {
+        "line": 458,
+        "method": "get",
+        "path": "'/attendance/history'"
+      },
+      {
+        "line": 473,
+        "method": "get",
+        "path": "`/attendance/history/${openCircle!.date}/${openCircle!.circleId}`"
+      },
+      {
+        "line": 481,
+        "method": "patch",
+        "path": "`/attendance/${id}`"
+      },
+      {
+        "line": 494,
+        "method": "get",
+        "path": "'/attendance/stats'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/BroadcastPage.tsx",
+    "operations": [
+      {
+        "line": 17,
+        "method": "get",
+        "path": "'/notifications/recipients'"
+      },
+      {
+        "line": 27,
+        "method": "post",
+        "path": "'/notifications/broadcast'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/CertificatesAdminPage.tsx",
+    "operations": [
+      {
+        "line": 190,
+        "method": "get",
+        "path": "'/certificates/monthly-report-data'"
+      },
+      {
+        "line": 191,
+        "method": "get",
+        "path": "'/certificates/issued'"
+      },
+      {
+        "line": 192,
+        "method": "get",
+        "path": "'/certificates/templates'"
+      },
+      {
+        "line": 193,
+        "method": "get",
+        "path": "'/certificates/requests'"
+      },
+      {
+        "line": 194,
+        "method": "get",
+        "path": "'/students'"
+      },
+      {
+        "line": 196,
+        "method": "post",
+        "path": "'/certificates/templates'"
+      },
+      {
+        "line": 197,
+        "method": "patch",
+        "path": "'/certificates/templates/'+id+'/deactivate'"
+      },
+      {
+        "line": 198,
+        "method": "patch",
+        "path": "'/certificates/requests/'+id+'/decision'"
+      },
+      {
+        "line": 207,
+        "method": "post",
+        "path": "'/certificates/issue'"
+      },
+      {
+        "line": 276,
+        "method": "post",
+        "path": "'/certificates/monthly-reports/issue'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/chat/ChatPage.tsx",
+    "operations": [
+      {
+        "line": 86,
+        "method": "get",
+        "path": "'/chat/conversations'"
+      },
+      {
+        "line": 92,
+        "method": "get",
+        "path": "`/chat/conversations/${id}`"
+      },
+      {
+        "line": 99,
+        "method": "get",
+        "path": "`/chat/conversations/${id}/messages`"
+      },
+      {
+        "line": 105,
+        "method": "patch",
+        "path": "`/chat/conversations/${conversationId}/read`"
+      },
+      {
+        "line": 113,
+        "method": "post",
+        "path": "`/chat/conversations/${id}/messages`"
+      },
+      {
+        "line": 126,
+        "method": "patch",
+        "path": "`/chat/conversations/${id}/messages/${messageId}`"
+      },
+      {
+        "line": 138,
+        "method": "delete",
+        "path": "`/chat/conversations/${id}/messages/${messageId}`"
+      },
+      {
+        "line": 588,
+        "method": "patch",
+        "path": "`/chat/conversations/${conversation.id}/members/${userId}`"
+      },
+      {
+        "line": 597,
+        "method": "delete",
+        "path": "`/chat/conversations/${conversation.id}/members/${userId}`"
+      },
+      {
+        "line": 695,
+        "method": "get",
+        "path": "'/users/directory'"
+      },
+      {
+        "line": 701,
+        "method": "post",
+        "path": "`/chat/conversations/${conversation.id}/members`"
+      },
+      {
+        "line": 777,
+        "method": "patch",
+        "path": "`/chat/conversations/${conversation.id}`"
+      },
+      {
+        "line": 788,
+        "method": "delete",
+        "path": "`/chat/conversations/${conversation.id}/members/me`"
+      },
+      {
+        "line": 897,
+        "method": "get",
+        "path": "'/users/directory'"
+      },
+      {
+        "line": 905,
+        "method": "post",
+        "path": "'/chat/conversations/direct'"
+      },
+      {
+        "line": 907,
+        "method": "post",
+        "path": "'/chat/conversations/group'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/circles/CircleDetailsPage.tsx",
+    "operations": [
+      {
+        "line": 61,
+        "method": "get",
+        "path": "`/circles/${id}`"
+      },
+      {
+        "line": 67,
+        "method": "get",
+        "path": "`/attendance/circle/${id}/summary`"
+      },
+      {
+        "line": 73,
+        "method": "get",
+        "path": "`/circles/${id}/history`"
+      },
+      {
+        "line": 78,
+        "method": "delete",
+        "path": "`/circles/${id}/teachers/${teacherId}`"
+      },
+      {
+        "line": 450,
+        "method": "get",
+        "path": "'/teachers'"
+      },
+      {
+        "line": 456,
+        "method": "patch",
+        "path": "`/circles/${circleId}/primary-teacher`"
+      },
+      {
+        "line": 457,
+        "method": "post",
+        "path": "`/circles/${circleId}/assistants`"
+      },
+      {
+        "line": 525,
+        "method": "get",
+        "path": "'/users'"
+      },
+      {
+        "line": 544,
+        "method": "patch",
+        "path": "`/circles/${circle.id}`"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/circles/CirclesPage.tsx",
+    "operations": [
+      {
+        "line": 48,
+        "method": "get",
+        "path": "'/circles'"
+      },
+      {
+        "line": 77,
+        "method": "delete",
+        "path": "`/circles/${id}`"
+      },
+      {
+        "line": 273,
+        "method": "get",
+        "path": "'/users'"
+      },
+      {
+        "line": 279,
+        "method": "get",
+        "path": "'/teachers'"
+      },
+      {
+        "line": 294,
+        "method": "post",
+        "path": "'/circles'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/community/CommunityPage.tsx",
+    "operations": [
+      {
+        "line": 17,
+        "method": "get",
+        "path": "'/community/users/'+userId"
+      },
+      {
+        "line": 19,
+        "method": "get",
+        "path": "'/community/feed'"
+      },
+      {
+        "line": 20,
+        "method": "get",
+        "path": "'/community/school'"
+      },
+      {
+        "line": 21,
+        "method": "get",
+        "path": "'/community/stories'"
+      },
+      {
+        "line": 22,
+        "method": "get",
+        "path": "'/community/stories/'+selectedStory+'/replies'"
+      },
+      {
+        "line": 38,
+        "method": "get",
+        "path": "'/community/school/follow'"
+      },
+      {
+        "line": 39,
+        "method": "delete",
+        "path": "path"
+      },
+      {
+        "line": 39,
+        "method": "patch",
+        "path": "path"
+      },
+      {
+        "line": 39,
+        "method": "post",
+        "path": "path"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/courses/CourseDetailsPage.tsx",
+    "operations": [
+      {
+        "line": 41,
+        "method": "get",
+        "path": "`/courses/${id}`"
+      },
+      {
+        "line": 124,
+        "method": "delete",
+        "path": "`/courses/${course.id}/students/${studentId}`"
+      },
+      {
+        "line": 250,
+        "method": "get",
+        "path": "'/students'"
+      },
+      {
+        "line": 259,
+        "method": "post",
+        "path": "`/courses/${courseId}/students`"
+      },
+      {
+        "line": 334,
+        "method": "get",
+        "path": "`/courses/${courseId}/attendance/sheet`"
+      },
+      {
+        "line": 340,
+        "method": "post",
+        "path": "`/courses/${courseId}/attendance`"
+      },
+      {
+        "line": 449,
+        "method": "get",
+        "path": "`/courses/${courseId}/attendance/history`"
+      },
+      {
+        "line": 454,
+        "method": "get",
+        "path": "`/courses/${courseId}/attendance/${openDate}`"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/courses/CoursesPage.tsx",
+    "operations": [
+      {
+        "line": 58,
+        "method": "get",
+        "path": "'/courses'"
+      },
+      {
+        "line": 66,
+        "method": "get",
+        "path": "'/courses/stats'"
+      },
+      {
+        "line": 71,
+        "method": "delete",
+        "path": "`/courses/${id}`"
+      },
+      {
+        "line": 80,
+        "method": "post",
+        "path": "'/courses/bulk-delete'"
+      },
+      {
+        "line": 389,
+        "method": "get",
+        "path": "'/users/staff'"
+      },
+      {
+        "line": 401,
+        "method": "patch",
+        "path": "`/courses/${course.id}`"
+      },
+      {
+        "line": 402,
+        "method": "post",
+        "path": "'/courses'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/DashboardPage.tsx",
+    "operations": [
+      {
+        "line": 75,
+        "method": "get",
+        "path": "'/dashboard/overview'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/DonationsPage.tsx",
+    "operations": [
+      {
+        "line": 20,
+        "method": "get",
+        "path": "'/settings/public'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/ErrorPages.tsx",
+    "operations": []
+  },
+  {
+    "page": "frontend/src/pages/exams/CombinedTab.tsx",
+    "operations": [
+      {
+        "line": 10,
+        "method": "get",
+        "path": "'/students'"
+      },
+      {
+        "line": 12,
+        "method": "get",
+        "path": "'/exams'"
+      },
+      {
+        "line": 13,
+        "method": "get",
+        "path": "`/exams/milestones/${student!.id}`"
+      },
+      {
+        "line": 13,
+        "method": "get",
+        "path": "'/exams/requests'"
+      },
+      {
+        "line": 13,
+        "method": "get",
+        "path": "'/exams/sections'"
+      },
+      {
+        "line": 16,
+        "method": "post",
+        "path": "'/exams/requests'"
+      },
+      {
+        "line": 17,
+        "method": "patch",
+        "path": "'/exams/requests/'+editingRequest.id"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/exams/CommitteesTab.tsx",
+    "operations": [
+      {
+        "line": 18,
+        "method": "patch",
+        "path": "'/exams/committees/'+committee.id+'/grading-settings'"
+      },
+      {
+        "line": 25,
+        "method": "get",
+        "path": "'/examCommittees'"
+      },
+      {
+        "line": 27,
+        "method": "get",
+        "path": "'/exams'"
+      },
+      {
+        "line": 29,
+        "method": "patch",
+        "path": "'/exams/'+moving!.id"
+      },
+      {
+        "line": 46,
+        "method": "get",
+        "path": "'/teachers'"
+      },
+      {
+        "line": 48,
+        "method": "request",
+        "path": "{method:committee?'patch':'post',url:committee?`/examCommittees/${committee.id}`:'/examCommittees',data:{number,heldAt:new Date(heldAt).toISOString(),location,members,notes}}"
+      },
+      {
+        "line": 53,
+        "method": "get",
+        "path": "'/students'"
+      },
+      {
+        "line": 54,
+        "method": "get",
+        "path": "'/exams/sections'"
+      },
+      {
+        "line": 55,
+        "method": "post",
+        "path": "'/exams/historical'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/exams/ExamProgressionTable.tsx",
+    "operations": [
+      {
+        "line": 44,
+        "method": "get",
+        "path": "`/exams/milestones/${studentId}`"
+      },
+      {
+        "line": 50,
+        "method": "get",
+        "path": "'/exams/requests'"
+      },
+      {
+        "line": 54,
+        "method": "post",
+        "path": "'/exams/requests'"
+      },
+      {
+        "line": 66,
+        "method": "patch",
+        "path": "`/exams/milestones/${studentId}/${sectionId}`"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/exams/ExamsPage.tsx",
+    "operations": [
+      {
+        "line": 105,
+        "method": "get",
+        "path": "'/students'"
+      },
+      {
+        "line": 110,
+        "method": "get",
+        "path": "`/exams/eligibility/${progressStudent!.id}`"
+      },
+      {
+        "line": 115,
+        "method": "get",
+        "path": "'/exams'"
+      },
+      {
+        "line": 120,
+        "method": "get",
+        "path": "'/exams/stats'"
+      },
+      {
+        "line": 209,
+        "method": "get",
+        "path": "'/exams/requests'"
+      },
+      {
+        "line": 216,
+        "method": "patch",
+        "path": "`/exams/requests/${id}/cancel`"
+      },
+      {
+        "line": 358,
+        "method": "get",
+        "path": "'/exams'"
+      },
+      {
+        "line": 365,
+        "method": "patch",
+        "path": "`/exams/${id}/absent`"
+      },
+      {
+        "line": 511,
+        "method": "get",
+        "path": "'/exams/examiners'"
+      },
+      {
+        "line": 523,
+        "method": "get",
+        "path": "'/examCommittees'"
+      },
+      {
+        "line": 527,
+        "method": "post",
+        "path": "`/exams/requests/${request.id}/schedule`"
+      },
+      {
+        "line": 582,
+        "method": "patch",
+        "path": "`/exams/requests/${request.id}/reject`"
+      },
+      {
+        "line": 622,
+        "method": "patch",
+        "path": "`/exams/${exam.id}`"
+      },
+      {
+        "line": 680,
+        "method": "get",
+        "path": "'/students'"
+      },
+      {
+        "line": 685,
+        "method": "get",
+        "path": "`/exams/eligibility/${student!.id}`"
+      },
+      {
+        "line": 695,
+        "method": "post",
+        "path": "'/exams/requests'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/LoginPage.tsx",
+    "operations": [
+      {
+        "line": 31,
+        "method": "get",
+        "path": "'/settings/public'"
+      },
+      {
+        "line": 192,
+        "method": "post",
+        "path": "'/support/public'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/MediaActivitiesPage.tsx",
+    "operations": [
+      {
+        "line": 67,
+        "method": "get",
+        "path": "'/media-activities'"
+      },
+      {
+        "line": 69,
+        "method": "post",
+        "path": "'/media-activities'"
+      },
+      {
+        "line": 74,
+        "method": "delete",
+        "path": "'/media-activities/' + id"
+      },
+      {
+        "line": 90,
+        "method": "get",
+        "path": "'/media-activities'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/MeetingsPage.tsx",
+    "operations": [
+      {
+        "line": 16,
+        "method": "get",
+        "path": "'/meetings'"
+      },
+      {
+        "line": 17,
+        "method": "delete",
+        "path": "`/meetings/${id}`"
+      },
+      {
+        "line": 30,
+        "method": "request",
+        "path": "{method:meeting?'patch':'post',url:meeting?`/meetings/${meeting.id}`:'/meetings',data:{title,heldAt,attendees:attendees.split(/[\\n،,]/).map(value=>value.trim()).filter(Boolean),notes,sections}}"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/NotificationSoundSettingsPage.tsx",
+    "operations": []
+  },
+  {
+    "page": "frontend/src/pages/NotificationsPage.tsx",
+    "operations": [
+      {
+        "line": 37,
+        "method": "get",
+        "path": "'/notifications'"
+      },
+      {
+        "line": 44,
+        "method": "patch",
+        "path": "`/notifications/${id}/read`"
+      },
+      {
+        "line": 52,
+        "method": "patch",
+        "path": "'/notifications/read-all'"
+      },
+      {
+        "line": 61,
+        "method": "delete",
+        "path": "`/notifications/${id}`"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/OfflineSettingsPage.tsx",
+    "operations": []
+  },
+  {
+    "page": "frontend/src/pages/parent/ParentChildDetailsPage.tsx",
+    "operations": [
+      {
+        "line": 36,
+        "method": "get",
+        "path": "'/parents/my-children'"
+      },
+      {
+        "line": 41,
+        "method": "get",
+        "path": "`/parents/my-children/${id}`"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/parent/ParentChildrenPage.tsx",
+    "operations": [
+      {
+        "line": 40,
+        "method": "get",
+        "path": "'/parents/my-children'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/parents/ParentsPage.tsx",
+    "operations": [
+      {
+        "line": 43,
+        "method": "get",
+        "path": "'/parents'"
+      },
+      {
+        "line": 50,
+        "method": "delete",
+        "path": "`/parents/${id}`"
+      },
+      {
+        "line": 192,
+        "method": "post",
+        "path": "'/parents'"
+      },
+      {
+        "line": 267,
+        "method": "get",
+        "path": "'/students'"
+      },
+      {
+        "line": 272,
+        "method": "patch",
+        "path": "`/parents/${parent.id}/students`"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/PasswordRequestsPage.tsx",
+    "operations": [
+      {
+        "line": 8,
+        "method": "get",
+        "path": "'/support'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/PrayerReminderSettingsPage.tsx",
+    "operations": []
+  },
+  {
+    "page": "frontend/src/pages/PrayerTimesPage.tsx",
+    "operations": []
+  },
+  {
+    "page": "frontend/src/pages/PrivacyPage.tsx",
+    "operations": [
+      {
+        "line": 10,
+        "method": "get",
+        "path": "'/settings/public'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/ProfilePage.tsx",
+    "operations": [
+      {
+        "line": 43,
+        "method": "get",
+        "path": "'/auth/me'"
+      },
+      {
+        "line": 53,
+        "method": "patch",
+        "path": "'/auth/change-password'"
+      },
+      {
+        "line": 196,
+        "method": "patch",
+        "path": "'/community/nickname'"
+      },
+      {
+        "line": 286,
+        "method": "post",
+        "path": "'/uploads/avatar'"
+      },
+      {
+        "line": 287,
+        "method": "patch",
+        "path": "'/auth/profile'"
+      },
+      {
+        "line": 288,
+        "method": "get",
+        "path": "'/auth/me'"
+      },
+      {
+        "line": 301,
+        "method": "patch",
+        "path": "'/auth/profile'"
+      },
+      {
+        "line": 302,
+        "method": "get",
+        "path": "'/auth/me'"
+      },
+      {
+        "line": 395,
+        "method": "patch",
+        "path": "'/auth/profile'"
+      },
+      {
+        "line": 402,
+        "method": "get",
+        "path": "'/auth/me'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/ProfileVerificationPage.tsx",
+    "operations": [
+      {
+        "line": 15,
+        "method": "get",
+        "path": "'/profile-reviews/me'"
+      },
+      {
+        "line": 17,
+        "method": "post",
+        "path": "'/profile-reviews'"
+      },
+      {
+        "line": 48,
+        "method": "get",
+        "path": "'/profile-reviews'"
+      },
+      {
+        "line": 53,
+        "method": "patch",
+        "path": "`/profile-reviews/${id}/decision`"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/recitations/RecitationsPage.tsx",
+    "operations": [
+      {
+        "line": 62,
+        "method": "get",
+        "path": "'/circles/options'"
+      },
+      {
+        "line": 69,
+        "method": "get",
+        "path": "'/recitations/history'"
+      },
+      {
+        "line": 85,
+        "method": "get",
+        "path": "`/recitations/history/${openCircle!.date}/${openCircle!.circleId}`"
+      },
+      {
+        "line": 91,
+        "method": "delete",
+        "path": "`/recitations/${id}`"
+      },
+      {
+        "line": 395,
+        "method": "get",
+        "path": "'/circles/options'"
+      },
+      {
+        "line": 400,
+        "method": "get",
+        "path": "'/recitations/surahs'"
+      },
+      {
+        "line": 407,
+        "method": "get",
+        "path": "'/students'"
+      },
+      {
+        "line": 417,
+        "method": "post",
+        "path": "'/recitations'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/RegistryAdminPage.tsx",
+    "operations": [
+      {
+        "line": 8,
+        "method": "get",
+        "path": "'/registry/admin/stats'"
+      },
+      {
+        "line": 8,
+        "method": "get",
+        "path": "'/registry/admin/users'"
+      },
+      {
+        "line": 9,
+        "method": "post",
+        "path": "'/registry/admin/import'"
+      },
+      {
+        "line": 10,
+        "method": "get",
+        "path": "path"
+      },
+      {
+        "line": 17,
+        "method": "post",
+        "path": "'/registry/admin/users/'+u.id+'/invitation'"
+      },
+      {
+        "line": 17,
+        "method": "patch",
+        "path": "'/registry/admin/users/'+u.id+'/active'"
+      },
+      {
+        "line": 17,
+        "method": "delete",
+        "path": "'/registry/admin/users/'+u.id"
+      },
+      {
+        "line": 20,
+        "method": "patch",
+        "path": "'/registry/admin/users/'+editing!.id"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/RegistryDataPage.tsx",
+    "operations": []
+  },
+  {
+    "page": "frontend/src/pages/RegistryLoginPage.tsx",
+    "operations": []
+  },
+  {
+    "page": "frontend/src/pages/ReportsPage.tsx",
+    "operations": [
+      {
+        "line": 59,
+        "method": "get",
+        "path": "'/circles/options'"
+      },
+      {
+        "line": 60,
+        "method": "get",
+        "path": "'/courses'"
+      },
+      {
+        "line": 63,
+        "method": "get",
+        "path": "'/students'"
+      },
+      {
+        "line": 64,
+        "method": "get",
+        "path": "'/teachers'"
+      },
+      {
+        "line": 66,
+        "method": "get",
+        "path": "'/reports'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/SchedulesPage.tsx",
+    "operations": [
+      {
+        "line": 35,
+        "method": "get",
+        "path": "'/schedules/media'"
+      },
+      {
+        "line": 36,
+        "method": "patch",
+        "path": "'/schedules/media/' + editing"
+      },
+      {
+        "line": 36,
+        "method": "post",
+        "path": "'/schedules/media'"
+      },
+      {
+        "line": 39,
+        "method": "delete",
+        "path": "'/schedules/media/' + id"
+      },
+      {
+        "line": 59,
+        "method": "get",
+        "path": "'/schedules/duties'"
+      },
+      {
+        "line": 60,
+        "method": "get",
+        "path": "'/schedules/teachers'"
+      },
+      {
+        "line": 61,
+        "method": "patch",
+        "path": "'/schedules/duties/' + editing"
+      },
+      {
+        "line": 61,
+        "method": "post",
+        "path": "'/schedules/duties'"
+      },
+      {
+        "line": 64,
+        "method": "delete",
+        "path": "'/schedules/duties/' + id"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/SettingsPage.tsx",
+    "operations": [
+      {
+        "line": 45,
+        "method": "get",
+        "path": "'/settings'"
+      },
+      {
+        "line": 56,
+        "method": "patch",
+        "path": "'/settings'"
+      },
+      {
+        "line": 68,
+        "method": "post",
+        "path": "'/settings/logo'"
+      },
+      {
+        "line": 78,
+        "method": "delete",
+        "path": "'/settings/logo'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/staff/StaffAttendancePage.tsx",
+    "operations": [
+      {
+        "line": 75,
+        "method": "get",
+        "path": "'/staff-attendance/sheet'"
+      },
+      {
+        "line": 84,
+        "method": "post",
+        "path": "'/staff-attendance'"
+      },
+      {
+        "line": 205,
+        "method": "get",
+        "path": "'/staff-attendance/history'"
+      },
+      {
+        "line": 210,
+        "method": "get",
+        "path": "`/staff-attendance/history/${openDate}`"
+      },
+      {
+        "line": 278,
+        "method": "get",
+        "path": "'/staff-attendance/summary'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/staff/StaffPage.tsx",
+    "operations": [
+      {
+        "line": 43,
+        "method": "get",
+        "path": "'/users/staff'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/StudentFilesPage.tsx",
+    "operations": [
+      {
+        "line": 20,
+        "method": "get",
+        "path": "'/certificates/requests/mine'"
+      },
+      {
+        "line": 21,
+        "method": "get",
+        "path": "'/certificates/mine'"
+      },
+      {
+        "line": 23,
+        "method": "post",
+        "path": "'/certificates/requests'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/StudentPortalPage.tsx",
+    "operations": [
+      {
+        "line": 26,
+        "method": "patch",
+        "path": "'/auth/change-password'"
+      },
+      {
+        "line": 49,
+        "method": "get",
+        "path": "'/students/me'"
+      },
+      {
+        "line": 55,
+        "method": "get",
+        "path": "'/students/me/history'"
+      },
+      {
+        "line": 158,
+        "method": "get",
+        "path": "'/preparations'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/students/StudentAccountsPage.tsx",
+    "operations": [
+      {
+        "line": 11,
+        "method": "get",
+        "path": "'/students/accounts'"
+      },
+      {
+        "line": 12,
+        "method": "get",
+        "path": "'/students'"
+      },
+      {
+        "line": 13,
+        "method": "post",
+        "path": "`/students/${id}/account`"
+      },
+      {
+        "line": 14,
+        "method": "post",
+        "path": "'/students/accounts/reset-password-bulk'"
+      },
+      {
+        "line": 15,
+        "method": "patch",
+        "path": "`/students/${a.id}/account/active`"
+      },
+      {
+        "line": 16,
+        "method": "post",
+        "path": "'/students/accounts/export-with-temporary-passwords'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/students/StudentDetailsPage.tsx",
+    "operations": [
+      {
+        "line": 128,
+        "method": "get",
+        "path": "`/students/${id}`"
+      },
+      {
+        "line": 134,
+        "method": "get",
+        "path": "`/students/${id}/history`"
+      },
+      {
+        "line": 140,
+        "method": "get",
+        "path": "'/exams/requests'"
+      },
+      {
+        "line": 147,
+        "method": "get",
+        "path": "'/attendance'"
+      },
+      {
+        "line": 154,
+        "method": "get",
+        "path": "'/recitations'"
+      },
+      {
+        "line": 160,
+        "method": "get",
+        "path": "`/recitations/student/${id}/progress`"
+      },
+      {
+        "line": 166,
+        "method": "get",
+        "path": "`/exams/eligibility/${id}`"
+      },
+      {
+        "line": 172,
+        "method": "get",
+        "path": "'/exams'"
+      },
+      {
+        "line": 178,
+        "method": "get",
+        "path": "`/students/${id}/notes`"
+      },
+      {
+        "line": 185,
+        "method": "patch",
+        "path": "`/exams/requests/${requestId}/reject`"
+      },
+      {
+        "line": 194,
+        "method": "delete",
+        "path": "`/exams/${examId}`"
+      },
+      {
+        "line": 203,
+        "method": "delete",
+        "path": "`/students/${id}/notes/${noteId}`"
+      },
+      {
+        "line": 677,
+        "method": "get",
+        "path": "'/exams/requests'"
+      },
+      {
+        "line": 683,
+        "method": "get",
+        "path": "'/exams'"
+      },
+      {
+        "line": 1046,
+        "method": "patch",
+        "path": "`/students/${student.id}/evaluation`"
+      },
+      {
+        "line": 1102,
+        "method": "post",
+        "path": "`/students/${studentId}/notes`"
+      },
+      {
+        "line": 1147,
+        "method": "post",
+        "path": "'/transfers/students'"
+      },
+      {
+        "line": 1199,
+        "method": "post",
+        "path": "'/suspensions'"
+      },
+      {
+        "line": 1269,
+        "method": "get",
+        "path": "'/circles/options'"
+      },
+      {
+        "line": 1283,
+        "method": "patch",
+        "path": "`/students/${student.id}`"
+      },
+      {
+        "line": 1398,
+        "method": "get",
+        "path": "'/recitations/surahs'"
+      },
+      {
+        "line": 1403,
+        "method": "post",
+        "path": "`/students/${student.id}/surahs`"
+      },
+      {
+        "line": 1414,
+        "method": "delete",
+        "path": "`/students/${student.id}/surahs/${completionId}`"
+      },
+      {
+        "line": 1609,
+        "method": "get",
+        "path": "'/preparations'"
+      },
+      {
+        "line": 1617,
+        "method": "patch",
+        "path": "`/preparations/${id}/${done ? 'complete' : 'reopen'}`"
+      },
+      {
+        "line": 1700,
+        "method": "get",
+        "path": "'/recitations/surahs'"
+      },
+      {
+        "line": 1706,
+        "method": "post",
+        "path": "'/preparations'"
+      },
+      {
+        "line": 1807,
+        "method": "get",
+        "path": "`/exams/eligibility/${student.id}`"
+      },
+      {
+        "line": 1817,
+        "method": "post",
+        "path": "'/exams/requests'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/students/StudentsPage.tsx",
+    "operations": [
+      {
+        "line": 72,
+        "method": "get",
+        "path": "'/circles/options'"
+      },
+      {
+        "line": 97,
+        "method": "get",
+        "path": "'/students'"
+      },
+      {
+        "line": 144,
+        "method": "delete",
+        "path": "`/students/${id}`"
+      },
+      {
+        "line": 153,
+        "method": "post",
+        "path": "'/students/bulk-delete'"
+      },
+      {
+        "line": 213,
+        "method": "get",
+        "path": "'/students/import-template'"
+      },
+      {
+        "line": 234,
+        "method": "post",
+        "path": "'/students/import-excel'"
+      },
+      {
+        "line": 237,
+        "method": "post",
+        "path": "'/students/credentials-export'"
+      },
+      {
+        "line": 574,
+        "method": "get",
+        "path": "'/courses'"
+      },
+      {
+        "line": 594,
+        "method": "post",
+        "path": "'/students'"
+      },
+      {
+        "line": 766,
+        "method": "get",
+        "path": "'/circles/options'"
+      },
+      {
+        "line": 773,
+        "method": "post",
+        "path": "`/suspensions/students/${student.id}/return`"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/supervisors/SupervisorsPage.tsx",
+    "operations": [
+      {
+        "line": 38,
+        "method": "get",
+        "path": "'/users/staff'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/support/SupportPage.tsx",
+    "operations": [
+      {
+        "line": 52,
+        "method": "get",
+        "path": "'/support/stats'"
+      },
+      {
+        "line": 59,
+        "method": "get",
+        "path": "'/support'"
+      },
+      {
+        "line": 234,
+        "method": "post",
+        "path": "'/support'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/support/SupportTicketPage.tsx",
+    "operations": [
+      {
+        "line": 43,
+        "method": "get",
+        "path": "`/support/${id}`"
+      },
+      {
+        "line": 49,
+        "method": "get",
+        "path": "'/support/staff'"
+      },
+      {
+        "line": 54,
+        "method": "post",
+        "path": "`/support/${id}/reply`"
+      },
+      {
+        "line": 65,
+        "method": "patch",
+        "path": "`/support/${id}`"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/suspensions/SuspensionsPage.tsx",
+    "operations": [
+      {
+        "line": 42,
+        "method": "get",
+        "path": "'/suspensions/active'"
+      },
+      {
+        "line": 48,
+        "method": "get",
+        "path": "'/suspensions'"
+      },
+      {
+        "line": 218,
+        "method": "get",
+        "path": "'/suspensions'"
+      },
+      {
+        "line": 225,
+        "method": "patch",
+        "path": "`/suspensions/${id}/cancel`"
+      },
+      {
+        "line": 399,
+        "method": "patch",
+        "path": "`/suspensions/${request.id}/${approve ? 'approve' : 'reject'}`"
+      },
+      {
+        "line": 595,
+        "method": "get",
+        "path": "'/circles/options'"
+      },
+      {
+        "line": 601,
+        "method": "patch",
+        "path": "`/suspensions/${suspension.id}/return`"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/teachers/TeacherDetailsPage.tsx",
+    "operations": [
+      {
+        "line": 35,
+        "method": "get",
+        "path": "`/teachers/${id}`"
+      },
+      {
+        "line": 248,
+        "method": "patch",
+        "path": "`/teachers/${teacher.id}`"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/teachers/TeachersPage.tsx",
+    "operations": [
+      {
+        "line": 50,
+        "method": "get",
+        "path": "'/teachers'"
+      },
+      {
+        "line": 64,
+        "method": "delete",
+        "path": "`/teachers/${id}`"
+      },
+      {
+        "line": 273,
+        "method": "post",
+        "path": "'/teachers'"
+      },
+      {
+        "line": 373,
+        "method": "get",
+        "path": "'/teachers'"
+      },
+      {
+        "line": 380,
+        "method": "post",
+        "path": "'/transfers/teachers/swap'"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/transfers/TransfersPage.tsx",
+    "operations": [
+      {
+        "line": 46,
+        "method": "get",
+        "path": "'/transfers'"
+      },
+      {
+        "line": 53,
+        "method": "patch",
+        "path": "`/transfers/${id}/cancel`"
+      },
+      {
+        "line": 252,
+        "method": "get",
+        "path": "'/circles/options'"
+      },
+      {
+        "line": 258,
+        "method": "patch",
+        "path": "`/transfers/${request.id}/${approve ? 'approve' : 'reject'}`"
+      }
+    ]
+  },
+  {
+    "page": "frontend/src/pages/users/UsersPage.tsx",
+    "operations": [
+      {
+        "line": 50,
+        "method": "get",
+        "path": "'/users/stats'"
+      },
+      {
+        "line": 57,
+        "method": "get",
+        "path": "'/users'"
+      },
+      {
+        "line": 71,
+        "method": "patch",
+        "path": "`/users/${id}/${activate ? 'activate' : 'deactivate'}`"
+      },
+      {
+        "line": 80,
+        "method": "delete",
+        "path": "`/users/${id}`"
+      },
+      {
+        "line": 89,
+        "method": "post",
+        "path": "'/users/bulk-delete'"
+      },
+      {
+        "line": 378,
+        "method": "patch",
+        "path": "`/users/${user!.id}`"
+      },
+      {
+        "line": 378,
+        "method": "post",
+        "path": "'/users'"
+      },
+      {
+        "line": 477,
+        "method": "patch",
+        "path": "`/users/${user.id}/reset-password`"
+      }
+    ]
+  }
+]

@@ -1,3 +1,4 @@
+import {attendanceStatusLabel} from '../common/attendance-label';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
 import * as XLSX from 'xlsx';
@@ -27,7 +28,7 @@ const formatDateValue = (value: unknown): unknown => {
 };
 const sheet = (rows: Record<string, unknown>[]) => XLSX.utils.json_to_sheet((rows.length ? rows : [{ 'لا توجد بيانات': '' }]).map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, formatDateValue(value)]))));
 const studentCode = (code?: string | null) => code?.replace(/^ST-/i, '') ?? '';
-const arabicAttendance: Record<string, string> = { PRESENT: 'حاضر', ABSENT: 'غائب', EXCUSED: 'غائب بعذر' };
+const arabicAttendance: Record<string, string> = { LATE:'متأخر', PRESENT: 'حاضر', ABSENT: 'غائب', EXCUSED: 'غائب بعذر' };
 
 @Injectable()
 export class ReportsService {
@@ -39,6 +40,8 @@ export class ReportsService {
       throw new BadRequestException('لا تملك صلاحية عرض التقارير');
     }
     const from = DATE(q.from), to = DATE(q.to);
+    if (to) to.setUTCHours(23, 59, 59, 999);
+    const reportDateFilter = from || to ? { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } : undefined;
     const allowed = await this.acl.accessibleCircleIds(user);
     if (q.circleId) await this.acl.assertCircleAccess(user, q.circleId);
     const studentScope = await this.acl.studentScope(user);
@@ -53,7 +56,7 @@ export class ReportsService {
     if (type === 'students') {
       const rows = await this.prisma.student.findMany({
         where: {
-          ...studentScope,
+          AND: [studentScope],
           deletedAt: null,
           ...(from || to ? { enrollmentDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
           ...(q.status ? { status: q.status as any } : {}),
@@ -70,7 +73,6 @@ export class ReportsService {
         },
         include: {
           circle: { select: { name: true, teachers: { where: { endedAt: null }, include: { teacher: { include: { user: { select: { fullName: true } } } } } } } },
-          parentProfile: { include: { user: { select: { fullName: true } } } },
         },
         orderBy: { fullName: 'asc' },
         take: 10000,
@@ -84,8 +86,8 @@ export class ReportsService {
         'تاريخ الميلاد': r.birthDate ?? '',
         'الحلقة': r.circle?.name ?? (r.status === 'ACTIVITY' ? 'برنامج النشاط' : 'غير مسجل'),
         'المعلم': r.circle?.teachers.map(t => t.teacher.user.fullName).join('، ') ?? '',
-        'ولي الأمر': r.guardianName ?? r.parentProfile?.user.fullName ?? '',
-        'هاتف ولي الأمر': r.guardianPhone ?? r.parentProfile?.phone ?? '',
+        'جهة اتصال الطوارئ': r.guardianName ?? '',
+        'هاتف الطوارئ': r.guardianPhone ?? '',
         'الأجزاء': r.memorizedParts,
         'النقاط': Math.round(r.totalPoints * 100) / 100,
         'التقييم': r.evaluation ? evaluationLabels[r.evaluation] ?? r.evaluation : '',
@@ -104,7 +106,7 @@ export class ReportsService {
       const matrix = new Map<string, Record<string, unknown>>();
       for (const r of rows) {
         if (!matrix.has(r.student.id)) matrix.set(r.student.id, { 'رقم الطالب': studentCode(r.student.code), 'الطالب': r.student.fullName, 'الحلقة': r.circle.name });
-        matrix.get(r.student.id)![r.date.toISOString().slice(0, 10)] = arabicAttendance[r.status] ?? r.status;
+        matrix.get(r.student.id)![r.date.toISOString().slice(0, 10)] = attendanceStatusLabel(r);
       }
       const matrixRows = [...matrix.values()].map(row => Object.fromEntries([...Object.entries(row).slice(0, 3), ...dates.map(date => [date, row[date] ?? '—'])]));
       return { type, dates, rows: matrixRows, stats: { total: rows.length, present: rows.filter(r=>r.status==='PRESENT').length, absent: rows.filter(r=>r.status==='ABSENT').length, excused: rows.filter(r=>r.status==='EXCUSED').length } };
@@ -128,9 +130,9 @@ export class ReportsService {
     }
     if (type === 'student') {
       if (!q.studentId) throw new BadRequestException('اختر الطالب أولاً لعرض ملفه الشامل');
-      const student = await this.prisma.student.findFirst({ where: { id:q.studentId, ...studentScope, deletedAt:null }, include:{ circle:{select:{name:true}}, attendance:{where:allowed===null?{}:{circleId:{in:allowed}},orderBy:{date:'desc'},include:{circle:{select:{name:true}}},take:10000}, recitations:{where:{deletedAt:null,...(allowed===null?{}:{circleId:{in:allowed}})},orderBy:{date:'desc'},include:{circle:{select:{name:true}},teacher:{include:{user:{select:{fullName:true}}}}},take:10000}, exams:{orderBy:{scheduledAt:'desc'},include:{section:{select:{name:true}},examiner:{select:{fullName:true}}},take:10000} } });
+      const student = await this.prisma.student.findFirst({ where: { id:q.studentId, ...studentScope, deletedAt:null }, include:{ circle:{select:{name:true,teachers:{where:{endedAt:null},include:{teacher:{include:{user:{select:{fullName:true}}}}}}}}, attendance:{where:{...(allowed===null?{}:{circleId:{in:allowed}}),...(reportDateFilter?{date:reportDateFilter}:{})},orderBy:{date:'desc'},include:{circle:{select:{name:true}}},take:10000}, recitations:{where:{deletedAt:null,...(allowed===null?{}:{circleId:{in:allowed}}),...(reportDateFilter?{date:reportDateFilter}:{})},orderBy:{date:'desc'},include:{circle:{select:{name:true}},teacher:{include:{user:{select:{fullName:true}}}}},take:10000}, exams:{where:reportDateFilter?{scheduledAt:reportDateFilter}:{},orderBy:{scheduledAt:'desc'},include:{section:{select:{name:true}},examiner:{select:{fullName:true}}},take:10000} } });
       if (!student) throw new BadRequestException('الطالب غير موجود أو لا تملك صلاحية الوصول إليه');
-      return { type, student:{'معرّف الطالب':student.id,'رقم الطالب':studentCode(student.code),'اسم الطالب':student.fullName,'الجنس':student.gender==='MALE'?'ذكر':student.gender==='FEMALE'?'أنثى':student.gender,'الحالة':student.status,'الحلقة':student.circle?.name??'','تاريخ التسجيل':student.enrollmentDate,'هاتف الطالب':student.phone??'','ولي الأمر':student.guardianName??'','هاتف ولي الأمر':student.guardianPhone??'','الأجزاء المحفوظة':student.memorizedParts,'مجموع النقاط':student.totalPoints}, attendance:student.attendance.map(a=>({date:a.date,circle:a.circle.name,status:arabicAttendance[a.status]??a.status,note:a.note??''})), recitations:student.recitations.map(r=>({date:r.date,circle:r.circle.name,teacher:r.teacher.user.fullName,type:r.type,from:`${r.fromSurah}:${r.fromAyah}`,to:`${r.toSurah}:${r.toAyah}`,pages:r.pagesCount??0,verses:r.versesCount??0,points:r.points,evaluation:r.evaluation??''})), exams:student.exams.map(e=>({date:e.scheduledAt,section:e.section.name,examiner:e.examiner?.fullName??'',status:e.status,score:e.score??'',result:e.result??'',evaluation:e.evaluation??''})), stats:{attendance:student.attendance.length,recitations:student.recitations.length,exams:student.exams.length,points:student.totalPoints} };
+      return { type, student:{'معرّف الطالب':student.id,'رقم الطالب':studentCode(student.code),'اسم الطالب':student.fullName,'اسم الشيخ':student.circle?.teachers.map(t=>t.teacher.user.fullName).join('، ')??'','الجنس':student.gender==='MALE'?'ذكر':student.gender==='FEMALE'?'أنثى':student.gender,'الحالة':student.status,'الحلقة':student.circle?.name??'','تاريخ التسجيل':student.enrollmentDate,'هاتف الطالب':student.phone??'','ولي الأمر':student.guardianName??'','هاتف ولي الأمر':student.guardianPhone??'','الأجزاء المحفوظة':student.memorizedParts,'مجموع النقاط':student.totalPoints}, attendance:student.attendance.map(a=>({date:a.date,circle:a.circle.name,status:attendanceStatusLabel(a),note:a.note??''})), recitations:student.recitations.map(r=>({date:r.date,circle:r.circle.name,teacher:r.teacher.user.fullName,type:r.type,from:`${r.fromSurah}:${r.fromAyah}`,to:`${r.toSurah}:${r.toAyah}`,pages:r.pagesCount??0,verses:r.versesCount??0,points:r.points,evaluation:r.evaluation??''})), exams:student.exams.map(e=>({date:e.scheduledAt,section:e.section.name,examiner:e.examiner?.fullName??'',status:e.status,score:e.score??'',result:e.result??'',evaluation:e.evaluation??''})), stats:{attendance:student.attendance.length,recitations:student.recitations.length,exams:student.exams.length,points:student.totalPoints} };
     }
     const courseScope: Prisma.CourseWhereInput = { deletedAt: null, ...(user.role === Role.TEACHER ? { instructorId: user.id } : {}), ...(q.courseId ? { id: q.courseId } : {}) };
     if (['courses', 'courseStudents', 'courseAttendance'].includes(type)) {
@@ -152,14 +154,14 @@ export class ReportsService {
       const matrix = new Map<string, Record<string, unknown>>();
       for (const a of records) {
         if (!matrix.has(a.studentId)) matrix.set(a.studentId, { 'رقم الطالب': studentCode(a.student.code), 'الطالب': a.student.fullName, 'الدورة': a.course.name });
-        matrix.get(a.studentId)![a.date.toISOString().slice(0, 10)] = arabicAttendance[a.status] ?? a.status;
+        matrix.get(a.studentId)![a.date.toISOString().slice(0, 10)] = attendanceStatusLabel(a);
       }
       const matrixRows = [...matrix.values()].map(row => Object.fromEntries([...Object.entries(row).slice(0, 3), ...dates.map(date => [date, row[date] ?? '—'])]));
       return { type, dates, rows: matrixRows, stats: { total: records.length, present: records.filter(a=>a.status==='PRESENT').length, absent: records.filter(a=>a.status==='ABSENT').length, excused: records.filter(a=>a.status==='EXCUSED').length } };
     }
 
     const circles = await this.prisma.circle.findMany({ where:{deletedAt:null,...(from||to?{createdAt:{...(from?{gte:from}:{}),...(to?{lte:to}:{})}}:{}),...(allowed===null?{}:{id:{in:allowed}}),...(q.circleId?{id:q.circleId}:{})}, include:{_count:{select:{students:true,attendance:true,recitations:true}},teachers:{where:{endedAt:null},include:{teacher:{include:{user:{select:{fullName:true}}}}}}},orderBy:{name:'asc'},take:5000 });
-    return { type, rows:circles.map(c=>({'الحلقة':c.name,'رمز الحلقة':c.code,'عدد الطلاب':c._count.students,'سجلات الحضور':c._count.attendance,'سجلات التسميع':c._count.recitations,'المعلمون':c.teachers.map(t=>t.teacher.user.fullName).join('، '),'السعة الاستيعابية':c.capacity,'مفعّلة':c.isActive?'نعم':'لا'})), stats:{circles:circles.length,students:circles.reduce((n,c)=>n+c._count.students,0),attendance:circles.reduce((n,c)=>n+c._count.attendance,0),recitations:circles.reduce((n,c)=>n+c._count.recitations,0)} };
+    return { type, rows:circles.map(c=>({'الحلقة':c.name,'رمز الحلقة':c.code,'عدد الطلاب':c._count.students,'سجلات الحضور':c._count.attendance,'سجلات التسميع':c._count.recitations,'اسم الشيخ':c.teachers.map(t=>t.teacher.user.fullName).join('، '),'السعة الاستيعابية':c.capacity,'مفعّلة':c.isActive?'نعم':'لا'})), stats:{circles:circles.length,students:circles.reduce((n,c)=>n+c._count.students,0),attendance:circles.reduce((n,c)=>n+c._count.attendance,0),recitations:circles.reduce((n,c)=>n+c._count.recitations,0)} };
   }
 
   async exportXlsx(user: AuthUser, type: ReportType, q: Record<string,string>) {

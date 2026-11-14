@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -44,22 +45,39 @@ export default function CirclesPage() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['circles', { page, debouncedSearch, isActive }],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<Circle>>('/circles', {
-        params: {
-          page,
-          limit: 12,
-          search: debouncedSearch || undefined,
-          isActive: isActive === '' ? undefined : isActive,
-        },
-      });
-      return data;
+      try {
+        const { data } = await api.get<PaginatedResponse<Circle>>('/circles', {
+          params: {
+            page, limit: 12, search: debouncedSearch || undefined,
+            isActive: isActive === '' ? undefined : isActive,
+          },
+        });
+        return data;
+      } catch (error) {
+        if ((error as { response?: unknown } | null)?.response ||
+            page !== 1 || Boolean(debouncedSearch) || isActive !== '') throw error;
+        const snapshot = queryClient.getQueryData<{
+          accountId: string; complete: boolean;
+          circles: Array<Pick<Circle, 'id' | 'name' | 'code' | 'scheduleDays' | 'startTime' | 'isActive'>>;
+        }>(['offline', 'bootstrap', user.id]);
+        if (!snapshot?.complete || snapshot.accountId !== user.id) throw error;
+        const circles = snapshot.circles.map((circle) => ({
+          ...circle, capacity: 1, endTime: null, studentsCount: 0,
+          assistantTeachers: [], primaryTeacher: null, supervisor: null,
+        })) as Circle[];
+        return { offlineSnapshot: true, data: circles.slice(0, 12), meta: {
+          total: circles.length, page: 1, limit: 12,
+          totalPages: Math.max(1, Math.ceil(circles.length / 12)),
+          hasNextPage: circles.length > 12, hasPreviousPage: false,
+        }};
+      }
     },
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/circles/${id}`),
-    onSuccess: () => {
-      toast.success('تم حذف الحلقة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف الحلقة');
       queryClient.invalidateQueries({ queryKey: ['circles'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -74,6 +92,8 @@ export default function CirclesPage() {
     if (ok) remove.mutate(circle.id);
   };
 
+  const isOfflineSnapshot = Boolean((data as (PaginatedResponse<Circle> & { offlineSnapshot?: boolean }) | undefined)?.offlineSnapshot);
+
   return (
     <>
       <PageHeader
@@ -87,6 +107,12 @@ export default function CirclesPage() {
           )
         }
       />
+
+      {(isOfflineSnapshot || (isError && Boolean(data))) && (
+        <Card className="mb-5 border-amber-300 bg-amber-50">
+          <p className="text-sm font-semibold text-amber-900">{isOfflineSnapshot ? 'أنت تعرض نسخة محفوظة دون اتصال. سعة الحلقة وعدد الطلاب وتفاصيل إسناد المعلمين غير متاحة في هذه النسخة؛ قد تظهر قيم غير مكتملة. اتصل بالإنترنت للتحقق من التفاصيل قبل اتخاذ قرارات.' : 'تعذّر تحديث الحلقات؛ تعرض البيانات المحفوظة وقد تكون غير محدّثة.'}</p>
+        </Card>
+      )}
 
       <Card className="mb-5">
         <div className="grid gap-3 sm:grid-cols-3">
@@ -115,7 +141,7 @@ export default function CirclesPage() {
 
       {isLoading ? (
         <LoadingState />
-      ) : isError ? (
+      ) : isError && !data ? (
         <ErrorState message="تعذر تحميل الحلقات" onRetry={() => refetch()} />
       ) : !data?.data.length ? (
         <Card>
@@ -267,8 +293,8 @@ function CircleFormModal({ onClose }: { onClose: () => void }) {
 
   const create = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.post('/circles', payload),
-    onSuccess: () => {
-      toast.success('تم إنشاء الحلقة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إنشاء الحلقة');
       queryClient.invalidateQueries({ queryKey: ['circles'] });
       onClose();
     },

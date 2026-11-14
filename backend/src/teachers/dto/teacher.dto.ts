@@ -1,3 +1,4 @@
+import { NewPassword } from '../../common/validators/password';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { EmploymentType, Gender } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
@@ -35,9 +36,9 @@ export class CreateTeacherDto {
   @MaxLength(160)
   email?: string | null;
 
-  @ApiProperty({ minLength: 6 })
+  @ApiProperty({ minLength: 12 })
   @IsString()
-  @MinLength(6, { message: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' })
+  @NewPassword()
   password: string;
 
   @ApiProperty()

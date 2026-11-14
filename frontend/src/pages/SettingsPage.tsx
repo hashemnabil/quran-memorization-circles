@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -21,6 +22,18 @@ const EMPTY: Partial<SchoolSettings> = {
   telegram: '',
   whatsapp: '',
   website: '',
+  donationsEnabled: false,
+  donationTitle: '',
+  donationDescription: '',
+  donationGoalAmount: null,
+  donationRaisedAmount: null,
+  donationCurrency: '',
+  donationMethod: '',
+  donationLink: '',
+  donationBankPalestine: '',
+  donationIslamicBank: '',
+  donationJawwal: '',
+  donationPalPay: '',
 };
 
 export default function SettingsPage() {
@@ -36,14 +49,14 @@ export default function SettingsPage() {
   useEffect(() => {
     if (data) {
       // Nulls from the API would make the inputs uncontrolled.
-      setForm(Object.fromEntries(Object.entries({ ...EMPTY, ...data }).map(([k, v]) => [k, v ?? ''])));
+      setForm(Object.fromEntries(Object.entries({ ...EMPTY, ...data }).map(([k, v]) => [k, ['donationGoalAmount', 'donationRaisedAmount'].includes(k) ? v ?? null : v ?? ''])));
     }
   }, [data]);
 
   const save = useMutation({
     mutationFn: () => api.patch('/settings', form),
-    onSuccess: () => {
-      toast.success('تم حفظ الإعدادات');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حفظ الإعدادات');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -55,8 +68,8 @@ export default function SettingsPage() {
       formData.append('file', file);
       return api.post('/settings/logo', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
     },
-    onSuccess: () => {
-      toast.success('تم رفع الشعار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم رفع الشعار');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -64,8 +77,8 @@ export default function SettingsPage() {
 
   const removeLogo = useMutation({
     mutationFn: () => api.delete('/settings/logo'),
-    onSuccess: () => {
-      toast.success('تمت إزالة الشعار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت إزالة الشعار');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -106,7 +119,7 @@ export default function SettingsPage() {
             <input
               ref={fileRef}
               type="file"
-              accept=".png,.jpg,.jpeg,.webp,.svg"
+              accept=".png,.jpg,.jpeg,.webp,.gif"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -170,6 +183,31 @@ export default function SettingsPage() {
           </div>
         </Card>
       </div>
+
+      <Card title="إعدادات حملة التبرعات" className="mt-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 sm:col-span-2">
+            <input type="checkbox" checked={!!form.donationsEnabled} onChange={event => setForm(current => ({ ...current, donationsEnabled: event.target.checked }))} />
+            <span className="text-sm font-semibold text-slate-700">نشر حملة التبرعات لجميع المستخدمين</span>
+          </label>
+          <Input label="عنوان الحملة" value={form.donationTitle ?? ''} onChange={event => set('donationTitle', event.target.value)} className="sm:col-span-2" placeholder="مثال: دعم حلقات تعليم القرآن" />
+          <Textarea label="عن الحملة وأوجه الصرف" rows={4} value={form.donationDescription ?? ''} onChange={event => set('donationDescription', event.target.value)} className="sm:col-span-2" />
+          <Input label="الهدف المالي" type="number" min="0" value={form.donationGoalAmount ?? ''} onChange={event => setForm(current => ({ ...current, donationGoalAmount: event.target.value === '' ? null : Number(event.target.value) }))} />
+          <Input label="المبلغ المجموع حتى الآن" type="number" min="0" value={form.donationRaisedAmount ?? ''} onChange={event => setForm(current => ({ ...current, donationRaisedAmount: event.target.value === '' ? null : Number(event.target.value) }))} />
+          <Input label="العملة (اختياري)" value={form.donationCurrency ?? ''} onChange={event => set('donationCurrency', event.target.value)} placeholder="مثال: SAR أو JOD" />
+          <Textarea label="طريقة المساهمة" rows={3} value={form.donationMethod ?? ''} onChange={event => set('donationMethod', event.target.value)} className="sm:col-span-2" hint="اكتب فقط الوسائل الرسمية التي تحققت منها الإدارة." />
+          <div className="sm:col-span-2">
+            <h3 className="mb-1 font-bold text-slate-800">حسابات ووسائل التبرع</h3>
+            <p className="mb-3 text-sm text-slate-500">أدخل الرقم أو اسم الحساب المعتمد لكل وسيلة. اترك الحقل فارغًا لإخفائه عن المستخدمين.</p>
+          </div>
+          <Input label="بنك فلسطين" value={form.donationBankPalestine ?? ''} onChange={event => set('donationBankPalestine', event.target.value)} dir="auto" placeholder="رقم الحساب أو الآيبان" />
+          <Input label="البنك الإسلامي" value={form.donationIslamicBank ?? ''} onChange={event => set('donationIslamicBank', event.target.value)} dir="auto" placeholder="رقم الحساب أو الآيبان" />
+          <Input label="جوال باي" value={form.donationJawwal ?? ''} onChange={event => set('donationJawwal', event.target.value)} dir="auto" placeholder="رقم المحفظة أو الهاتف" />
+          <Input label="محفظة PalPay" value={form.donationPalPay ?? ''} onChange={event => set('donationPalPay', event.target.value)} dir="auto" placeholder="رقم المحفظة" />
+          <Input label="رابط المساهمة الرسمي (اختياري)" value={form.donationLink ?? ''} onChange={event => set('donationLink', event.target.value)} dir="ltr" className="sm:col-span-2" placeholder="https://..." />
+          <p className="text-xs leading-6 text-slate-500 sm:col-span-2">المبلغ المجموع يُحدّث يدويًا من الإدارة. لا يجمع التطبيق بيانات البطاقات أو ينفذ تحويلات مالية.</p>
+        </div>
+      </Card>
 
       <div className="mt-5 text-left">
         <Button onClick={() => save.mutate()} loading={save.isPending}>

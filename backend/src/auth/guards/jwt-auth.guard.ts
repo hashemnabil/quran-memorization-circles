@@ -10,6 +10,14 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   canActivate(context: ExecutionContext) {
+    if (context.getType() === 'ws') {
+      // The gateway verifies the handshake token and each privileged message's
+      // current session. Passport's HTTP extractor cannot read a Socket.IO event.
+      const client = context.switchToWs().getClient();
+      return typeof client.data?.user?.id === 'string' &&
+        typeof client.data?.sessionId === 'string' &&
+        Number.isFinite(client.data?.tokenExpiresAt) && client.data.tokenExpiresAt > Date.now();
+    }
     const isPublic = this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),

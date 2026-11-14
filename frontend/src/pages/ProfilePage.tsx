@@ -1,12 +1,18 @@
-import { ChangeEvent, FormEvent, useRef, useState } from 'react';
+import CommunityPreferences from '@/components/CommunityPreferences';
+import { notifyWriteSuccess } from '@/lib/write-feedback';
+import FirstUseOnboarding from '@/components/FirstUseOnboarding';
+import { passwordError } from '@/lib/validation';
+import { Link } from 'react-router-dom';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { api, apiError } from '@/lib/api';
+import { api, apiError, tokenStore } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
-import { Avatar, Badge, Button, Card, Input, PageHeader, Spinner, StatCard, Textarea } from '@/components/ui';
+import { Avatar, Badge, Button, Card, Input, Modal, PageHeader, Spinner, StatCard, Textarea } from '@/components/ui';
 import { PHONE_HINT, emailError, phoneError } from '@/lib/validation';
 import {
+  IconSettings,
   IconCamera,
   IconCircleGroup,
   IconGraduation,
@@ -16,15 +22,28 @@ import {
 } from '@/components/ui/Icons';
 import { EMPLOYMENT_LABELS, ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateTime, formatParts } from '@/lib/format';
+import { rememberOfflineLogin } from '@/lib/offline-login';
 
-export default function ProfilePage() {
-  const { user, logout, setUser } = useAuthStore();
+export default function ProfilePage(props: { settings?: boolean; settingsSection?: 'identity'|'password' }) {
+  // Keep /profile as the stable account route used by offline and account workflows.
+  // The social profile remains accessible through its dedicated community route.
+  return <AccountProfilePage {...props} />;
+}
+
+function AccountProfilePage({ settings = false, settingsSection='identity' }: { settings?: boolean; settingsSection?: 'identity'|'password' }) {
+  const [replayIntro, setReplayIntro] = useState(false);
+  const [nickname, setNickname] = useState('');
+  const [savingNickname, setSavingNickname] = useState(false);
+  const { user, logout, forgetDevice, setUser } = useAuthStore();
   const navigate = useNavigate();
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [passwordSaved, setPasswordSaved] = useState(false);
+  const [passwordSaveError, setPasswordSaveError] = useState('');
 
   const { data: profile } = useQuery({
     queryKey: ['auth', 'me'],
@@ -35,15 +54,26 @@ export default function ProfilePage() {
     },
   });
 
+  useEffect(() => { if (profile) setNickname(profile.nickname || ''); }, [profile?.nickname]);
+
   const changePassword = useMutation({
-    mutationFn: () => api.patch('/auth/change-password', { currentPassword, newPassword }),
-    onSuccess: async () => {
-      toast.success('تم تغيير كلمة المرور، يرجى تسجيل الدخول مجدداً');
-      await logout();
-      navigate('/login', { replace: true });
+    mutationFn: async () => {
+      const result = await api.patch('/auth/change-password', { currentPassword, newPassword });
+      if (user) await rememberOfflineLogin(user.username, newPassword, { ...user, mustChangePassword: false });
+      return result;
     },
-    onError: (error) => toast.error(apiError(error)),
+    onSuccess: async (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تغيير كلمة المرور، يرجى تسجيل الدخول مجدداً');
+      setPasswordSaved(true);
+    },
+    onError: (error) => { const message = apiError(error); setPasswordSaveError(message); toast.error(message); },
   });
+
+  useEffect(() => {
+    if (!passwordSaved) return;
+    const timer = window.setTimeout(() => { void logout().then(() => navigate('/login', { replace: true })).catch(error => toast.error(apiError(error))); }, 2200);
+    return () => window.clearTimeout(timer);
+  }, [passwordSaved, logout, navigate]);
 
   if (!user) return null;
 
@@ -51,23 +81,54 @@ export default function ProfilePage() {
     e.preventDefault();
     const next: Record<string, string> = {};
     if (!currentPassword) next.currentPassword = 'كلمة المرور الحالية مطلوبة';
-    if (newPassword.length < 6) next.newPassword = 'كلمة المرور الجديدة 6 أحرف على الأقل';
+    if (passwordError(newPassword)) next.newPassword = passwordError(newPassword);
     if (newPassword !== confirmPassword) next.confirmPassword = 'كلمتا المرور غير متطابقتين';
     if (newPassword && newPassword === currentPassword) next.newPassword = 'يجب أن تختلف عن الحالية';
     setErrors(next);
     if (Object.keys(next).length) return;
+    setPasswordSaveError('');
     changePassword.mutate();
   };
 
+  if(settings)return <div className="settings-detail"><PageHeader title={settingsSection==='password'?'تغيير كلمة المرور':'الكنية والنبذة'} action={<Link to="/profile/settings" className="btn-secondary">العودة للإعدادات</Link>}/>{settingsSection==='password'?<>          <div className="mx-auto max-w-2xl overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-xl shadow-emerald-900/10" dir="rtl">
+            <div className="relative overflow-hidden bg-gradient-to-bl from-emerald-900 via-emerald-800 to-teal-700 px-6 py-9 text-center text-white sm:px-10">
+              <div className="pointer-events-none absolute -start-12 -top-12 h-40 w-40 rounded-full bg-white/10 blur-xl" />
+              <div className="mx-auto mb-4 grid h-20 w-20 place-items-center rounded-3xl border border-white/30 bg-white/15 shadow-lg motion-safe:animate-pulse"><IconLock size={34}/></div>
+              <h2 className="text-2xl font-extrabold">حماية حسابك تبدأ من هنا</h2>
+              <p className="mt-2 text-sm leading-7 text-emerald-50">غيّر كلمة المرور بأمان. بعد الحفظ سيتم تسجيل خروجك لتدخل بالكلمة الجديدة.</p>
+            </div>
+            <div className="p-5 sm:p-8">
+              {passwordSaved ? <div role="status" aria-live="polite" className="py-8 text-center motion-safe:animate-[fadeIn_.35s_ease-out]">
+                <div className="mx-auto mb-5 grid h-24 w-24 place-items-center rounded-full bg-emerald-100 text-5xl font-black text-emerald-700 shadow-lg shadow-emerald-100 motion-safe:animate-bounce">✓</div>
+                <h3 className="text-2xl font-extrabold text-emerald-800">تم تغيير كلمة المرور بنجاح!</h3>
+                <p className="mt-3 text-sm text-slate-600">جارٍ تحويلك إلى تسجيل الدخول…</p>
+                <div className="mx-auto mt-5 h-1.5 max-w-xs overflow-hidden rounded-full bg-emerald-100"><div className="h-full w-full origin-right bg-emerald-600 motion-safe:animate-[password-progress_2.2s_linear_forwards]" /></div>
+              </div> : <form onSubmit={submit} className="space-y-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-lg font-extrabold text-slate-800">تحديث كلمة المرور</h3>
+                  <button type="button" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50" aria-pressed={showPasswords} onClick={() => setShowPasswords(value => !value)}>{showPasswords ? 'إخفاء كلمات المرور' : 'إظهار كلمات المرور'}</button>
+                </div>
+                <Input label="كلمة المرور الحالية" aria-label="كلمة المرور الحالية" autoComplete="current-password" type={showPasswords ? 'text' : 'password'} required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} error={errors.currentPassword} dir="ltr" />
+                <Input label="كلمة المرور الجديدة" autoComplete="new-password" type={showPasswords ? 'text' : 'password'} required value={newPassword} onChange={e => setNewPassword(e.target.value)} error={errors.newPassword} hint="اختر كلمة مختلفة عن الحالية" dir="ltr" />
+                <Input label="تأكيد كلمة المرور الجديدة" autoComplete="new-password" type={showPasswords ? 'text' : 'password'} required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} error={errors.confirmPassword} dir="ltr" />
+                {passwordSaveError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 motion-safe:animate-pulse">{passwordSaveError}</p>}
+                <Button type="submit" loading={changePassword.isPending} disabled={changePassword.isPending} className="w-full justify-center" icon={<IconLock size={18}/>}>{changePassword.isPending ? 'جارٍ تحديث كلمة المرور…' : 'حفظ كلمة المرور الجديدة'}</Button>
+                <p className="text-center text-xs leading-6 text-slate-500">لن يتم عرض رسالة النجاح إلا بعد قبول عملية الحفظ.</p>
+              </form>}
+            </div>
+          </div></>:<>          <Card title="الكنية"><form className="flex gap-2" onSubmit={async e => { e.preventDefault(); setSavingNickname(true); try { const result = await api.patch('/community/nickname', { nickname: nickname.trim() }); if(result.data?.synced===0) toast('حُفظت الكنية محليًا، بانتظار المزامنة'); else toast.success('تم حفظ الكنية'); } catch (error) { toast.error(apiError(error)); } finally { setSavingNickname(false); } }}><Input aria-label="الكنية" placeholder={profile?.nickname || 'أضف كنيتك'} maxLength={60} value={nickname} onChange={e => setNickname(e.target.value)} /><Button type="submit" loading={savingNickname}>حفظ</Button></form></Card><CommunityPreferences/></>}</div>;
   const teacher = profile?.teacherProfile;
 
   return (
     <>
-      <PageHeader title="الملف الشخصي" subtitle="بياناتك في النظام وإعدادات الحساب" />
+      {replayIntro && <div className="fixed inset-0 z-[200] overflow-y-auto"><FirstUseOnboarding onComplete={() => setReplayIntro(false)} /></div>}
+      <PageHeader title={settings ? "إعدادات الحساب" : "الملف الشخصي"} subtitle="رحلتك مع القرآن في مكان واحد" action={<Link className="app-icon-button" aria-label={settings ? "الملف الشخصي" : "إعدادات الحساب"} to={settings ? "/profile" : "/profile/settings"}><IconSettings size={21} /></Link>} />
+      {!settings && <div className="profile-cover"><span>رحلة نور مع القرآن</span><p>كل آية تحفظها، أثر يبقى معك</p></div>}
+      <Link to="/community/users/me" className="inline-flex rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white">👤 افتح ملفي الشخصي العام ومنشوراتي</Link>
 
 
       <div className="grid gap-5 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+        <Card className={settings ? "lg:col-span-1" : "profile-identity lg:col-span-1"}>
           <div className="flex flex-col items-center gap-3 py-2 text-center">
             <AvatarUploader user={user} onUpdated={setUser} />
             <div>
@@ -102,12 +163,18 @@ export default function ProfilePage() {
             className="mt-5 w-full"
             icon={<IconLogout size={16} />}
             onClick={async () => {
-              await logout();
-              navigate('/login', { replace: true });
+              try { await logout(); navigate('/login', { replace: true }); }
+              catch (error) { toast.error(apiError(error)); }
             }}
           >
             تسجيل الخروج
           </Button>
+            <p className="mt-2 text-xs leading-6 text-slate-500">تبقى بياناتك مشفرة على الجهاز، ويمكنك الدخول بكلمة مرورك دون نت. التعديلات المعلقة تبقى محفوظة.</p>
+            <Button variant="secondary" className="mt-3 w-full" onClick={async () => {
+              if (!window.confirm('حذف بيانات هذا الحساب من هذا الجهاز وإلغاء الدخول دون نت؟ لا يمكن الحذف بوجود تعديلات غير مزامنة.')) return;
+              try { await forgetDevice(); navigate('/login', { replace: true }); } catch (error) { toast.error(apiError(error)); }
+            }}>حذف بيانات الحساب من هذا الجهاز</Button>
+          <Link to="/account-deletion" className="mt-3 block py-3 text-center text-sm font-bold text-red-700">طلب حذف الحساب والبيانات</Link>
         </Card>
 
         <div className="space-y-5 lg:col-span-2">
@@ -148,60 +215,20 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {user.role === 'PARENT' && profile?.parentProfile && (
-            <Card title="بياناتي">
-              <dl className="grid gap-3 text-xs sm:grid-cols-2">
-                <Row label="الجوال" value={<span className="numeric" dir="ltr">{profile.parentProfile.phone}</span>} />
-                <Row label="جوال بديل" value={<span className="numeric" dir="ltr">{profile.parentProfile.altPhone}</span>} />
-                <Row label="المهنة" value={profile.parentProfile.occupation} />
-                <Row label="العنوان" value={profile.parentProfile.address} />
-              </dl>
-              <Button variant="secondary" size="sm" className="mt-4" onClick={() => navigate('/parent/children')}>
-                متابعة الأبناء
-              </Button>
-            </Card>
-          )}
 
-          <ProfileDetailsCard profile={profile} onUpdated={setUser} />
+          {user.role === 'STUDENT' && <Card title="متابعتي الدراسية" subtitle="كل ما يخص رحلتك التعليمية من حسابك مباشرة"><div className="grid gap-2 sm:grid-cols-2">{[
+            ['/student#student-attendance', 'الحضور والغياب'],
+            ['/student#student-evaluations', 'التقييمات والملاحظات'],
+            ['/student#student-warnings', 'الإنذارات والاستدعاءات'],
+            ['/student#student-plans', 'خطط الحفظ والمراجعة'],
+            ['/student#student-recitations', 'سجل التسميع'],
+            ['/notifications', 'الإشعارات والتنبيهات'],
+            ['/my-files', 'التقارير والشهادات'],
+            ['/chat', 'الرسائل'],
+          ].map(([to, label])=><Link key={to} className="daily-shortcut" to={to}>{label}</Link>)}</div></Card>}
+          {['STUDENT', 'TEACHER'].includes(user.role) ? <Card title="بياناتي الشخصية"><Button onClick={() => navigate('/verify-profile')}>تحقق من بياناتي</Button></Card> : <ProfileDetailsCard profile={profile} onUpdated={setUser} />}
 
-          <Card title="تغيير كلمة المرور" subtitle="سيتم إنهاء جميع جلساتك بعد التغيير">
-            <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-              <Input
-                label="كلمة المرور الحالية"
-                type="password"
-                required
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                error={errors.currentPassword}
-                className="sm:col-span-2"
-                dir="ltr"
-              />
-              <Input
-                label="كلمة المرور الجديدة"
-                type="password"
-                required
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                error={errors.newPassword}
-                hint="6 أحرف على الأقل"
-                dir="ltr"
-              />
-              <Input
-                label="تأكيد كلمة المرور"
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                error={errors.confirmPassword}
-                dir="ltr"
-              />
-              <div className="sm:col-span-2">
-                <Button type="submit" loading={changePassword.isPending} icon={<IconLock size={16} />}>
-                  تغيير كلمة المرور
-                </Button>
-              </div>
-            </form>
-          </Card>
+          {!settings && <Card title="منشوراتي"><Link className="btn-primary inline-flex" to="/community/users/me">عرض ملفي ومنشوراتي</Link></Card>}
         </div>
       </div>
     </>
@@ -221,7 +248,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
  * Profile picture. The file goes to Cloudinary when the school has configured
  * it, and to local storage otherwise — the page does not need to know which.
  */
-function AvatarUploader({
+export function AvatarUploader({
   user,
   onUpdated,
 }: {
@@ -230,31 +257,44 @@ function AvatarUploader({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-
-  const pick = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    // Reset immediately so choosing the same file twice still fires a change.
-    e.target.value = '';
-    if (!file) return;
-
+  const account = useAuthStore(state => state.user?.id);
+  const [cropUrl,setCropUrl]=useState<string|null>(null);
+  const [zoom,setZoom]=useState(1);
+  const [position,setPosition]=useState({x:0,y:0});
+  const [dimensions,setDimensions]=useState({w:1,h:1});
+  const drag=useRef<{x:number;y:number;px:number;py:number}|null>(null);
+  useEffect(()=>()=>{if(cropUrl)URL.revokeObjectURL(cropUrl);},[cropUrl]);
+  const size=280, base=Math.max(size/dimensions.w,size/dimensions.h);
+  const w=dimensions.w*base*zoom,h=dimensions.h*base*zoom;
+  const clamp=(x:number,y:number,z=zoom)=>({x:Math.max(-(dimensions.w*base*z-size)/2,Math.min((dimensions.w*base*z-size)/2,x)),y:Math.max(-(dimensions.h*base*z-size)/2,Math.min((dimensions.h*base*z-size)/2,y))});
+  const saveCrop=async()=>{
+    if(!cropUrl)return;
     setUploading(true);
-    try {
+    try{
+      const image=new Image();image.src=cropUrl;await image.decode();
+      const canvas=document.createElement('canvas');canvas.width=512;canvas.height=512;
+      const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Canvas unavailable');
+      ctx.drawImage(image,(size/2-w/2+position.x)*512/size,(size/2-h/2+position.y)*512/size,w*512/size,h*512/size);
+      const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Crop failed')),'image/jpeg',0.9));
+      if (!account) throw new Error('يلزم تسجيل الدخول');
+      if (!navigator.onLine || tokenStore.isLocal()) throw new Error('يلزم الاتصال بالإنترنت لرفع الصورة الشخصية');
       const body = new FormData();
-      body.append('file', file);
-      const { data } = await api.post('/uploads/avatar', body, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      const me = await api.patch('/auth/profile', { avatarUrl: data.url });
-      onUpdated({ ...me.data, avatarUrl: data.url });
-      toast.success('تم تحديث الصورة الشخصية');
-      // Re-read so every consumer of /auth/me sees the new picture.
+      body.append('file', blob, 'avatar.jpg');
+      const uploaded = await api.post('/uploads/avatar', body, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (!uploaded.data?.url) throw new Error('لم يؤكد الخادم رفع الصورة');
+      await api.patch('/auth/profile', { avatarUrl: uploaded.data.url });
       const fresh = await api.get('/auth/me');
       onUpdated(fresh.data);
-    } catch (error) {
-      toast.error(apiError(error, 'تعذر رفع الصورة'));
-    } finally {
-      setUploading(false);
-    }
+      setCropUrl(null);
+      toast.success('تم تحديث الصورة الشخصية');
+    }catch(error){toast.error(apiError(error,'تعذر رفع الصورة'));}finally{setUploading(false);}
+  };
+
+  const pick=(e:ChangeEvent<HTMLInputElement>)=>{
+    const file=e.target.files?.[0];e.target.value='';if(!file)return;
+    if (!navigator.onLine || tokenStore.isLocal()) { toast.error('يلزم الاتصال بالإنترنت لرفع الصورة الشخصية'); return; }
+    if(!file.type.startsWith('image/')){toast.error('اختر صورة صالحة');return;}
+    setZoom(1);setPosition({x:0,y:0});setDimensions({w:1,h:1});setCropUrl(URL.createObjectURL(file));
   };
 
   const remove = async () => {
@@ -280,7 +320,7 @@ function AvatarUploader({
         <Avatar name={user.fullName} src={user.avatarUrl} size={88} preview />
         <button
           type="button"
-          onClick={() => inputRef.current?.click()}
+          onClick={() => { if (!navigator.onLine || tokenStore.isLocal()) { toast.error('يلزم الاتصال بالإنترنت لرفع الصورة الشخصية'); return; } inputRef.current?.click(); }}
           disabled={uploading}
           className="absolute -bottom-0.5 -left-0.5 grid h-8 w-8 place-items-center rounded-full bg-primary-600 text-white shadow-md ring-2 ring-white transition hover:bg-primary-700 disabled:opacity-60"
           title="تغيير الصورة الشخصية"
@@ -293,7 +333,8 @@ function AvatarUploader({
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif"
+        aria-label="اختيار الصورة الشخصية"
+        accept="image/png,image/jpeg,image/webp"
         onChange={pick}
         className="hidden"
       />
@@ -308,6 +349,20 @@ function AvatarUploader({
           إزالة الصورة
         </button>
       )}
+      {cropUrl&&<Modal open onClose={()=>setCropUrl(null)} title="تحديد الصورة الشخصية">
+        <div className="space-y-4">
+          <p className="text-sm">حرّك الصورة بإصبعك أو الماوس لتحديد الجزء الظاهر داخل الدائرة.</p>
+          <div className="relative mx-auto overflow-hidden rounded-full border-4 border-primary-500 bg-slate-100 touch-none" style={{width:size,height:size}}
+            onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);drag.current={x:e.clientX,y:e.clientY,px:position.x,py:position.y};}}
+            onPointerMove={e=>{if(drag.current)setPosition(clamp(drag.current.px+e.clientX-drag.current.x,drag.current.py+e.clientY-drag.current.y));}}
+            onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}}>
+            <img src={cropUrl} alt="معاينة قص الصورة" draggable={false} onLoad={e=>{setDimensions({w:e.currentTarget.naturalWidth,h:e.currentTarget.naturalHeight});setPosition({x:0,y:0});}}
+              className="absolute max-w-none select-none pointer-events-none" style={{width:w,height:h,left:size/2-w/2+position.x,top:size/2-h/2+position.y}}/>
+          </div>
+          <label className="block text-sm">تكبير الصورة: {zoom.toFixed(1)}×<input className="w-full" type="range" min="1" max="3" step="0.05" value={zoom} onChange={e=>{const z=Number(e.target.value);setPosition(clamp(position.x,position.y,z));setZoom(z);}}/></label>
+          <div className="flex gap-2"><Button loading={uploading} onClick={()=>void saveCrop()}>حفظ الصورة</Button><Button variant="secondary" disabled={uploading} onClick={()=>setCropUrl(null)}>إلغاء</Button></div>
+        </div>
+      </Modal>}
     </div>
   );
 }
@@ -345,8 +400,8 @@ function ProfileDetailsCard({
         email: form.email || '',
         phone: form.phone || '',
       }),
-    onSuccess: async () => {
-      toast.success('تم تحديث بياناتك');
+    onSuccess: async (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تحديث بياناتك');
       const fresh = await api.get('/auth/me');
       onUpdated(fresh.data);
     },

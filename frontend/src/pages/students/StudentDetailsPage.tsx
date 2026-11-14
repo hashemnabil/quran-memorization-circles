@@ -1,11 +1,18 @@
+import {attendanceRecordLabel} from '@/lib/labels';
+import {RecitationMushafHistory} from '@/components/RecitationMushafHistory';
+import { notifyWriteSuccess } from '@/lib/write-feedback';
+import MemorizationPlans from '@/components/MemorizationPlans';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
-import { PHONE_HINT, phoneError } from '@/lib/validation';
 import { useAuthStore } from '@/store/auth';
 import { StudentPhoto } from '@/components/StudentPhoto';
+import { RecitationFormModal } from '@/pages/recitations/RecitationsPage';
+import { StudentAttendanceEditor } from './StudentAttendanceEditor';
+import { StudentReviewSection } from './StudentReviewSection';
+import { ExamResultDialog } from '@/components/ExamResultDialog';
 import { ExamProgressionTable } from '@/pages/exams/ExamProgressionTable';
 import {
   Badge,
@@ -58,6 +65,7 @@ import type {
   AttendanceRecord,
   Circle,
   Evaluation,
+  Exam,
   ExamEligibility,
   PaginatedResponse,
   PreparationAssignment,
@@ -184,8 +192,8 @@ export default function StudentDetailsPage() {
   const rejectRequest = useMutation({
     mutationFn: ({ requestId, reason }: { requestId: string; reason: string }) =>
       api.patch(`/exams/requests/${requestId}/reject`, { reviewNote: reason }),
-    onSuccess: () => {
-      toast.success('تم رفض طلب الاختبار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم رفض طلب الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -193,8 +201,8 @@ export default function StudentDetailsPage() {
 
   const deleteExam = useMutation({
     mutationFn: (examId: string) => api.delete(`/exams/${examId}`),
-    onSuccess: () => {
-      toast.success('تم حذف الاختبار');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف الاختبار');
       queryClient.invalidateQueries({ queryKey: ['exams'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -202,8 +210,8 @@ export default function StudentDetailsPage() {
 
   const deleteNote = useMutation({
     mutationFn: (noteId: string) => api.delete(`/students/${id}/notes/${noteId}`),
-    onSuccess: () => {
-      toast.success('تم حذف الملاحظة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف الملاحظة');
       queryClient.invalidateQueries({ queryKey: ['students', id, 'notes'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -216,6 +224,8 @@ export default function StudentDetailsPage() {
     { key: 'overview', label: 'نظرة عامة' },
     { key: 'attendance', label: 'الحضور' },
     { key: 'recitations', label: 'التسميع' },
+    { key: 'review', label: 'المراجعة' },
+    { key: 'consolidation', label: 'التثبيت' },
     { key: 'exams', label: 'الاختبارات' },
     { key: 'points', label: 'النقاط' },
     { key: 'courses', label: 'الدورات' },
@@ -264,12 +274,14 @@ export default function StudentDetailsPage() {
                 طلب إيقاف
               </Button>
               <Button size="sm" icon={<IconAward size={15} />} onClick={() => setTab('exams')}>
-                طلب اختبار
+                الاختبارات
               </Button>
             </>
           )
         }
       />
+      <div className="mb-5"><Link to={`/students/achievements/${student.id}`} className="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-900"><IconAward size={18} />إنجازات الطالب</Link></div>
+      <MemorizationPlans studentId={student.id}/>
 
       {student.status === 'ACTIVITY' && (
         <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
@@ -351,17 +363,19 @@ export default function StudentDetailsPage() {
           tone="amber"
           hint={
             student.points
-              ? `${student.points.fromRecitations} من التسميع + ${student.points.fromSurahs} من السور`
+              ? `${student.points.fromRecitations} من التسميع + ${student.points.fromSurahs} من السور + ${student.points.fromAttendance??0} من الحضور`
               : undefined
           }
         />
       </div>
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
+      {tab === 'review' && <StudentReviewSection key="review" mode="review" student={student} canManage={canManage} />}
+      {tab === 'consolidation' && <StudentReviewSection key="consolidation" mode="consolidation" student={student} canManage={canManage} />}
 
       {tab === 'overview' && <OverviewTab student={student} progress={progress} />}
-      {tab === 'attendance' && <AttendanceTab records={attendance?.data ?? []} summary={student.attendanceSummary} />}
-      {tab === 'recitations' && <RecitationsTabComponent records={recitations?.data ?? []} progress={progress} />}
+      {tab === 'attendance' && <AttendanceTab records={attendance?.data ?? []} summary={student.attendanceSummary} student={student} canManage={canManage} />}
+      {tab === 'recitations' && <RecitationsTabComponent records={recitations?.data ?? []} progress={progress} student={student} canManage={canManage} />}
       {tab === 'exams' && (
         <ExamsTabComponent 
           studentId={id}
@@ -458,8 +472,8 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
       <Card title="البيانات الشخصية" className="lg:col-span-1">
         <InfoRow label="رقم الطالب" value={<span className="numeric">{student.code.replace(/^ST-/i, '')}</span>} />
         <InfoRow label="تاريخ الميلاد" value={formatDate(student.birthDate)} />
-        <InfoRow label="البريد الإلكتروني" value={student.parentProfile?.user.email} />
-        <InfoRow label="اسم المستخدم" value={student.parentProfile?.user.username} />
+        <InfoRow label="البريد الإلكتروني" value={student.user?.email} />
+        <InfoRow label="اسم المستخدم" value={student.user?.username} />
         <InfoRow label="العمر" value={calcAge(student.birthDate)} />
         <InfoRow label="رقم الهوية" value={<span className="numeric" dir="ltr">{student.nationalId}</span>} />
         <InfoRow label="العنوان" value={student.address} />
@@ -489,23 +503,20 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
         <InfoRow label="المشرف" value={student.supervisorName} />
       </Card>
 
-      <Card title="بيانات ولي الأمر" className="lg:col-span-1">
+      <Card title="جهة اتصال الطوارئ" className="lg:col-span-1">
         <InfoRow
-          label="اسم ولي الأمر"
-          value={student.guardianName ?? student.parentName ?? student.parentProfile?.user.fullName}
+          label="اسم جهة الاتصال"
+          value={student.guardianName}
         />
         <InfoRow
           label="رقم الهوية"
-          value={<span className="numeric" dir="ltr">{student.fatherNationalId ?? student.parentProfile?.nationalId}</span>}
+          value={<span className="numeric" dir="ltr">{student.fatherNationalId}</span>}
         />
         <InfoRow
           label="رقم الجوال"
-          value={<span dir="ltr">{student.guardianPhone ?? student.parentPhone ?? student.parentProfile?.phone ?? student.parentProfile?.user.phone}</span>}
+          value={<span dir="ltr">{student.guardianPhone}</span>}
         />
-        <InfoRow label="جوال إضافي" value={<span dir="ltr">{student.parentProfile?.altPhone}</span>} />
         <InfoRow label="صلة القرابة" value={student.guardianRelation} />
-        <InfoRow label="المهنة" value={student.parentProfile?.occupation} />
-        <InfoRow label="العنوان" value={student.parentProfile?.address} />
       </Card>
 
       <Card title="المستوى والتقييم" className="lg:col-span-1">
@@ -551,7 +562,7 @@ function OverviewTab({ student, progress }: { student: Student; progress: any })
   );
 }
 
-function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summary?: Student['attendanceSummary'] }) {
+function AttendanceTab({ records, summary, student, canManage }: { records: AttendanceRecord[]; summary?: Student['attendanceSummary']; student: Student; canManage: boolean }) {
   return (
     <div className="space-y-5">
       {summary && (
@@ -563,6 +574,7 @@ function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summ
         </div>
       )}
 
+      {canManage&&<StudentAttendanceEditor key={student.id} student={student}/>}
       <Card title="سجل الحضور" padded={false}>
         {records.length ? (
           <div className="table-wrap border-0 shadow-none">
@@ -580,7 +592,7 @@ function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summ
                   <tr key={rec.id}>
                     <td className="numeric">{formatDateShort(rec.date)}</td>
                     <td>
-                      <Badge className={ATTENDANCE_COLORS[rec.status]}>{ATTENDANCE_SHORT[rec.status]}</Badge>
+                      <Badge className={ATTENDANCE_COLORS[rec.status]}>{attendanceRecordLabel(rec)}</Badge>
                     </td>
                     <td className="text-xs text-slate-500">{rec.circle?.name}</td>
                     <td className="text-xs text-slate-500">{rec.note ?? '—'}</td>
@@ -597,7 +609,8 @@ function AttendanceTab({ records, summary }: { records: AttendanceRecord[]; summ
   );
 }
 
-function RecitationsTabComponent({ records, progress }: { records: Recitation[]; progress: any }) {
+function RecitationsTabComponent({ records, progress, student, canManage }: { records: Recitation[]; progress: any; student: Student; canManage: boolean }) {
+  const [adding,setAdding]=useState(false);
   return (
     <div className="space-y-5">
       {progress && (
@@ -609,7 +622,8 @@ function RecitationsTabComponent({ records, progress }: { records: Recitation[];
         </div>
       )}
 
-      <Card title="سجل التسميع" padded={false}>
+      {adding&&<RecitationFormModal student={student} onClose={()=>setAdding(false)}/>}
+      <Card title="سجل التسميع" action={canManage&&<Button size="sm" icon={<IconPlus size={15}/>} onClick={()=>setAdding(true)}>إضافة تسميع</Button>} padded={false}>
         {records.length ? (
           <div className="table-wrap border-0 shadow-none">
             <table className="table">
@@ -628,7 +642,7 @@ function RecitationsTabComponent({ records, progress }: { records: Recitation[];
                     <td>
                       {rec.fromSurah} {rec.fromAyah} — {rec.toSurah} {rec.toAyah}
                     </td>
-                    <td className="numeric text-red-600">{rec.mistakes ?? 0}</td>
+                    <td className="numeric text-red-600">{rec.mistakes ?? 0}<RecitationMushafHistory record={rec}/></td>
                     <td className="numeric text-amber-600">{rec.warnings ?? 0}</td>
                   </tr>
                 ))}
@@ -672,6 +686,7 @@ function ExamsTabComponent({
 }) {
   const confirm = useConfirm();
   const [rejectModal, setRejectModal] = useState<{ id: string; reason: string } | null>(null);
+  const [correctingResult, setCorrectingResult] = useState<Exam | null>(null);
 
   const { data: requestsData, refetch: refetchRequests } = useQuery({
     queryKey: ['exams', 'requests', studentId],
@@ -713,6 +728,7 @@ function ExamsTabComponent({
       <ExamProgressionTable studentId={studentId} canEditMilestones={canEditMilestones} canRequest={['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(useAuthStore.getState().user?.role ?? '')} eligibility={eligibility} exams={exams as any[]} loading={!eligibility} />
 
       <Tabs tabs={examTabs} active={examSubTab} onChange={setExamSubTab} />
+      {correctingResult && <ExamResultDialog exam={correctingResult} onClose={() => setCorrectingResult(null)} />}
 
       {examSubTab === 'history' && (
         <Card title="سجل الاختبارات" padded={false}>
@@ -725,6 +741,8 @@ function ExamsTabComponent({
                     <th>المدى</th>
                     <th>الحالة</th>
                     <th>النتيجة</th>
+                    <th>العلامة / 100</th><th>الأخطاء</th><th>التنبيهات</th><th>الأحكام / 10</th>
+                    {canEditMilestones && <th>تعديل النتيجة</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -746,6 +764,11 @@ function ExamsTabComponent({
                           '—'
                         )}
                       </td>
+                      <td className="numeric">{exam.score ?? '—'}</td>
+                      <td className="numeric">{exam.grading?.mistakes ?? exam.mistakes ?? '—'}</td>
+                      <td className="numeric">{exam.grading?.alerts ?? '—'}</td>
+                      <td className="numeric">{exam.grading?.tajweed ?? '—'}</td>
+                      {canEditMilestones && <td>{exam.status === 'COMPLETED' && <Button size="sm" variant="secondary" onClick={() => setCorrectingResult({...exam,student:exam.student??student})}>تعديل العلامة</Button>}</td>}
                     </tr>
                   ))}
                 </tbody>
@@ -841,8 +864,8 @@ function ExamsTabComponent({
                             className="text-red-600 hover:bg-red-50"
                             onClick={async () => {
                               const ok = await confirm({
-                                title: 'حذف الاختبار',
-                                message: 'سيتم حذف هذا الاختبار نهائياً. هل أنت متأكد؟',
+                                title: 'حذف موعد اختبار غير مرصود',
+                                message: 'يُحذف الموعد غير المرصود ويعود طلبه للانتظار. لا تُحذف النتائج المكتملة أو سجلات التقدم. هل تريد المتابعة؟',
                                 confirmLabel: 'حذف',
                                 variant: 'danger',
                               });
@@ -1045,8 +1068,8 @@ function EvaluationModal({ student, onClose }: { student: Student; onClose: () =
 
   const mutation = useMutation({
     mutationFn: () => api.patch(`/students/${student.id}/evaluation`, { evaluation, note: note || undefined }),
-    onSuccess: () => {
-      toast.success('تم تحديث تقييم الطالب');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تحديث تقييم الطالب');
       queryClient.invalidateQueries({ queryKey: ['students'] });
       onClose();
     },
@@ -1101,8 +1124,8 @@ function NoteModal({ studentId, onClose }: { studentId: string; onClose: () => v
 
   const mutation = useMutation({
     mutationFn: () => api.post(`/students/${studentId}/notes`, { body, isPrivate }),
-    onSuccess: () => {
-      toast.success('تمت إضافة الملاحظة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت إضافة الملاحظة');
       queryClient.invalidateQueries({ queryKey: ['students', studentId, 'notes'] });
       onClose();
     },
@@ -1146,8 +1169,8 @@ function TransferModal({ student, onClose }: { student: Student; onClose: () => 
 
   const mutation = useMutation({
     mutationFn: () => api.post('/transfers/students', { studentId: student.id, reason }),
-    onSuccess: () => {
-      toast.success('تم إرسال طلب النقل إلى الإدارة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إرسال طلب النقل إلى الإدارة');
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
       onClose();
     },
@@ -1198,8 +1221,8 @@ function SuspendModal({ student, onClose }: { student: Student; onClose: () => v
 
   const mutation = useMutation({
     mutationFn: () => api.post('/suspensions', { studentId: student.id, reason }),
-    onSuccess: () => {
-      toast.success('تم إرسال الطلب إلى الإدارة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إرسال الطلب إلى الإدارة');
       queryClient.invalidateQueries({ queryKey: ['suspensions'] });
       onClose();
     },
@@ -1256,9 +1279,8 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
     nationalId: student.nationalId ?? '',
     fatherNationalId: student.fatherNationalId ?? '',
     address: student.address ?? '',
-    phone: student.phone ?? '',
-    guardianName: student.guardianName ?? student.parentName ?? student.parentProfile?.user.fullName ?? '',
-    guardianPhone: student.guardianPhone ?? student.parentPhone ?? student.parentProfile?.phone ?? '',
+    guardianName: student.guardianName ?? '',
+    guardianPhone: student.guardianPhone ?? '',
     guardianRelation: student.guardianRelation ?? '',
     memorizedParts: student.memorizedParts,
     currentSurah: student.currentSurah ?? '',
@@ -1277,7 +1299,6 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
       const payload: Record<string, unknown> = isAdmin
         ? { ...form, circleId: form.circleId || null }
         : {
-            phone: form.phone,
             address: form.address,
             notes: form.notes,
             currentSurah: form.currentSurah,
@@ -1285,8 +1306,8 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
           };
       return api.patch(`/students/${student.id}`, payload);
     },
-    onSuccess: () => {
-      toast.success('تم تحديث بيانات الطالب');
+    onSuccess: (response) => {
+      toast.success(response.data?.synced === 0 ? 'تم حفظ التعديل على الجهاز؛ بانتظار إرساله للخادم' : 'تم تحديث بيانات الطالب');
       queryClient.invalidateQueries({ queryKey: ['students'] });
       onClose();
     },
@@ -1303,8 +1324,6 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
   const submit = () => {
     const next: Record<string, string> = {};
     if (!/^\d{1,9}$/.test(form.code)) next.code = 'رقم الطالب أرقام فقط وبحد أقصى 9 أرقام';
-    const phoneErr = phoneError(form.phone);
-    if (phoneErr) next.phone = phoneErr;
     setErrors(next);
     if (Object.values(next).some(Boolean)) return;
     mutation.mutate();
@@ -1362,10 +1381,9 @@ function EditStudentModal({ student, onClose }: { student: Student; onClose: () 
             ))}
           </Select>
         )}
-        <Input label="جوال الطالب" value={form.phone} onChange={(e) => set('phone', e.target.value)} error={errors.phone} hint={PHONE_HINT} dir="ltr" />
         {isAdmin && (
           <>
-            <Input label="رقم هوية الأب" value={form.fatherNationalId} onChange={(e) => set('fatherNationalId', e.target.value)} dir="ltr" />
+            <Input label="رقم هوية ولي الأمر" value={form.fatherNationalId} onChange={(e) => set('fatherNationalId', e.target.value)} dir="ltr" />
             <Input label="اسم ولي الأمر" value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} />
             <Input label="جوال ولي الأمر" value={form.guardianPhone} onChange={(e) => set('guardianPhone', e.target.value)} dir="ltr" />
             <Input label="صلة القرابة" value={form.guardianRelation} onChange={(e) => set('guardianRelation', e.target.value)} />
@@ -1407,8 +1425,8 @@ function PointsTab({ student, canManage }: { student: Student; canManage: boolea
 
   const award = useMutation({
     mutationFn: () => api.post(`/students/${student.id}/surahs`, { surah, points }),
-    onSuccess: () => {
-      toast.success('تم تسجيل إتمام السورة ومنح نقاطها');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تسجيل إتمام السورة ومنح نقاطها');
       setSurah('');
       queryClient.invalidateQueries({ queryKey: ['students', student.id] });
     },
@@ -1418,8 +1436,8 @@ function PointsTab({ student, canManage }: { student: Student; canManage: boolea
   const removeSurah = useMutation({
     mutationFn: (completionId: string) =>
       api.delete(`/students/${student.id}/surahs/${completionId}`),
-    onSuccess: () => {
-      toast.success('تم حذف السجل');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف السجل');
       queryClient.invalidateQueries({ queryKey: ['students', student.id] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -1715,8 +1733,8 @@ function PreparationModal({ student, onClose }: { student: Student; onClose: () 
         note: form.note || undefined,
         dueDate: form.dueDate || undefined,
       }),
-    onSuccess: () => {
-      toast.success('تم إنشاء التكليف وإشعار ولي الأمر');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إنشاء التكليف وإشعار ولي الأمر');
       queryClient.invalidateQueries({ queryKey: ['preparations', student.id] });
       onClose();
     },
@@ -1825,8 +1843,8 @@ function StudentExamRequestModal({ student, onClose }: { student: Student; onClo
       sectionIds,
       note: note || undefined,
     }),
-    onSuccess: async () => {
-      toast.success('تم تقديم طلب الاختبار وحفظه');
+    onSuccess: async (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تقديم طلب الاختبار وحفظه');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['exams'] }),
         queryClient.invalidateQueries({ queryKey: ['students', student.id] }),

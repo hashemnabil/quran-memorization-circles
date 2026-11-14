@@ -1,0 +1,6062 @@
+{
+  "scope": "جرد كود لكل صفحة، وليس شهادة اختبار كل زر على كل دور أو جهاز",
+  "summary": {
+    "pages": 58,
+    "operations": 298,
+    "controls": 394,
+    "uncoveredWrites": [
+      {
+        "page": "frontend/src/pages/CertificatesAdminPage.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "/certificates/issue",
+        "line": 207,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/CertificatesAdminPage.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "/certificates/monthly-reports/issue",
+        "line": 276,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/attendance/AbsencePermissionsPage.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/attendance/absence-permissions/{id}/{action}",
+        "line": 33,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/chat/ChatPage.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/chat/conversations/{conversationId}/read",
+        "line": 109,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/chat/ChatPage.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/chat/conversations/{conversation.id}/members/{userId}",
+        "line": 599,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/chat/ChatPage.tsx",
+        "client": "api",
+        "method": "DELETE",
+        "path": "/chat/conversations/{conversation.id}/members/{userId}",
+        "line": 608,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/chat/ChatPage.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "/chat/conversations/{conversation.id}/members",
+        "line": 712,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/chat/ChatPage.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/chat/conversations/{conversation.id}",
+        "line": 788,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/chat/ChatPage.tsx",
+        "client": "api",
+        "method": "DELETE",
+        "path": "/chat/conversations/{conversation.id}/members/me",
+        "line": 799,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/circles/CircleDetailsPage.tsx",
+        "client": "api",
+        "method": "DELETE",
+        "path": "/circles/{id}/teachers/{teacherId}",
+        "line": 78,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/circles/CircleDetailsPage.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/circles/{circleId}/primary-teacher",
+        "line": 456,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/circles/CircleDetailsPage.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "/circles/{circleId}/assistants",
+        "line": 457,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/community/CommunityPage.tsx",
+        "client": "api",
+        "method": "DELETE",
+        "path": "{path}",
+        "line": 39,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/community/CommunityPage.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "{path}",
+        "line": 39,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/community/CommunityPage.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "{path}",
+        "line": 39,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/courses/CoursesPage.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "/courses/bulk-delete",
+        "line": 80,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/exams/CombinedTab.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/exams/requests/{editingRequest.id}",
+        "line": 17,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/exams/CommitteesTab.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/exams/committees/{committee.id}/grading-settings",
+        "line": 18,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/exams/CommitteesTab.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "/exams/historical",
+        "line": 55,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/exams/ExamProgressionTable.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/exams/milestones/{studentId}/{sectionId}",
+        "line": 66,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/exams/ExamsPage.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/exams/{id}/absent",
+        "line": 365,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/parents/ParentsPage.tsx",
+        "client": "api",
+        "method": "DELETE",
+        "path": "/parents/{id}",
+        "line": 50,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/parents/ParentsPage.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "/parents",
+        "line": 192,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/parents/ParentsPage.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/parents/{parent.id}/students",
+        "line": 272,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/students/StudentAccountsPage.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "/students/accounts/reset-password-bulk",
+        "line": 14,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/students/StudentAccountsPage.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/students/{a.id}/account/active",
+        "line": 15,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/students/StudentDetailsPage.tsx",
+        "client": "api",
+        "method": "DELETE",
+        "path": "/students/{id}/notes/{noteId}",
+        "line": 203,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/students/StudentsPage.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "/students/import-excel",
+        "line": 234,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/students/StudentsPage.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "/suspensions/students/{student.id}/return",
+        "line": 773,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/teachers/TeachersPage.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "/transfers/teachers/swap",
+        "line": 380,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/users/UsersPage.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/users/{id}/activate",
+        "line": 71,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/users/UsersPage.tsx",
+        "client": "api",
+        "method": "PATCH",
+        "path": "/users/{id}/deactivate",
+        "line": 71,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/users/UsersPage.tsx",
+        "client": "api",
+        "method": "DELETE",
+        "path": "/users/{id}",
+        "line": 80,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      },
+      {
+        "page": "frontend/src/pages/users/UsersPage.tsx",
+        "client": "api",
+        "method": "POST",
+        "path": "/users/bulk-delete",
+        "line": 89,
+        "blob": false,
+        "kind": "gap",
+        "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+      }
+    ],
+    "sharedModules": 9
+  },
+  "verification": {
+    "startedAt": "2026-10-28T13:17:58.090Z",
+    "passed": true,
+    "suites": [
+      {
+        "name": "frontend",
+        "passed": true,
+        "tests": 126,
+        "pass": 126,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 40841,
+        "files": [
+          "frontend/src/lib/offline-engine.test.ts",
+          "frontend/src/lib/local-api.test.ts",
+          "frontend/src/lib/db-migration.test.ts",
+          "frontend/src/lib/offline-prefetch.test.ts",
+          "frontend/src/lib/offline-login.test.ts",
+          "frontend/src/lib/queued-credentials.test.ts",
+          "frontend/src/lib/security-session.test.ts",
+          "frontend/src/lib/local-encryption.test.ts",
+          "frontend/src/lib/app-lock.test.ts",
+          "frontend/src/lib/back-navigation.test.ts",
+          "frontend/src/lib/communication-offline.test.ts",
+          "frontend/src/lib/offline-access-policy.test.ts",
+          "frontend/src/lib/pending-avatar.test.ts",
+          "frontend/src/lib/read-refresh.test.ts",
+          "frontend/src/lib/pending-student-photos.test.ts",
+          "frontend/src/lib/local-support.test.ts",
+          "frontend/src/lib/local-conversations.test.ts",
+          "frontend/src/lib/local-media.test.ts",
+          "frontend/src/lib/local-course-enrollment.test.ts",
+          "frontend/src/lib/local-pending-reason.test.ts",
+          "frontend/src/lib/api-offline-boundaries.test.ts",
+          "frontend/src/lib/notification-audio.test.mjs",
+          "frontend/src/lib/audio-logo-samples.test.mjs"
+        ],
+        "scope": "unit/mocked integration; no production database or physical Android device"
+      },
+      {
+        "name": "backend",
+        "passed": true,
+        "tests": 77,
+        "pass": 77,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 32526,
+        "files": [
+          "backend/src/offline-sync/sync-all.service.test.ts",
+          "backend/src/schedules/schedules.service.test.ts",
+          "backend/src/certificates/certificates.service.test.ts",
+          "backend/src/exams/exam-reminders.service.test.ts",
+          "backend/src/attendance/absence-alerts.test.ts",
+          "backend/src/notifications/notification-flows.test.ts",
+          "backend/src/push/push.test.ts",
+          "backend/src/exams/exam-deletion.test.ts",
+          "backend/src/chat/offline-message.test.ts",
+          "backend/src/support/offline-support.test.ts",
+          "backend/src/media-activities/media-activities.test.ts",
+          "backend/src/courses/course-enrollment.test.ts",
+          "backend/src/transfers/pending-reason.test.ts",
+          "backend/src/auth/jwt.strategy.test.ts",
+          "backend/src/uploads/uploads.service.test.ts"
+        ],
+        "scope": "unit/mocked integration; no production database or physical Android device"
+      }
+    ]
+  },
+  "pages": [
+    {
+      "page": "frontend/src/pages/AboutPage.tsx",
+      "operations": [],
+      "controls": [],
+      "components": []
+    },
+    {
+      "page": "frontend/src/pages/AccountDeletionPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/support/account-deletion",
+          "line": 13,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 19,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 22,
+          "label": "إرسال طلب حذف حسابي",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/ActivityPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/dashboard/activity",
+          "line": 15,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/BroadcastPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/notifications/recipients",
+          "line": 17,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/notifications/broadcast",
+          "line": 27,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 39,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 52,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 57,
+          "label": "إلغاء الطلب المرفوض",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 68,
+          "label": "إرسال الإشعار",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/CertificatesAdminPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/certificates/monthly-report-data",
+          "line": 190,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/certificates/issued",
+          "line": 191,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/certificates/templates",
+          "line": 192,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/certificates/requests",
+          "line": 193,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students",
+          "line": 194,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/certificates/templates",
+          "line": 196,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/certificates/templates/{id}/deactivate",
+          "line": 197,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/certificates/requests/{id}/decision",
+          "line": 198,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/certificates/issue",
+          "line": 207,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/certificates/monthly-reports/issue",
+          "line": 276,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        }
+      ],
+      "controls": [
+        {
+          "line": 219,
+          "label": "تصدير Excel",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 225,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 231,
+          "label": "تحديد الكل / إلغاء التحديد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 234,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 239,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 243,
+          "label": "اختيار ملف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 258,
+          "label": "إضافة النص للتصميم",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 260,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 264,
+          "label": "إيقاف القالب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 274,
+          "label": "تحديد الكل / إلغاء التحديد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 276,
+          "label": "إنشاء التقارير ونشرها وتنزيل PDF",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 283,
+          "label": "موافقة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 283,
+          "label": "رفض",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 283,
+          "label": "نشر الملف للطالب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/DashboardPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/dashboard/overview",
+          "line": 75,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [],
+      "components": [
+        "@/components/PrayerCard",
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/DonationsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/settings/public",
+          "line": 20,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [],
+      "components": [
+        "@/components/ui",
+        "@/components/DonationPanel",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/ErrorPages.tsx",
+      "operations": [],
+      "controls": [
+        {
+          "line": 17,
+          "label": "العودة إلى لوحة المعلومات",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 34,
+          "label": "العودة إلى لوحة المعلومات",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/LoginPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/settings/public",
+          "line": 31,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/support/public",
+          "line": 192,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 60,
+          "label": "طلب تغيير كلمة المرور",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 61,
+          "label": "الدعم الفني",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 115,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 124,
+          "label": "{showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 132,
+          "label": "دخول",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 232,
+          "label": "إغلاق",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 235,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 248,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 249,
+          "label": "إرسال الطلب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/PasswordRequestModal",
+        "@/components/DonationPanel",
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/MediaActivitiesPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/media-activities",
+          "line": 68,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/media-activities/{editing.id}",
+          "line": 72,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/media-activities",
+          "line": 72,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/media-activities/{id}",
+          "line": 78,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/media-activities",
+          "line": 94,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 115,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 121,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 133,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 133,
+          "label": "إلغاء التعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 148,
+          "label": "تعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 148,
+          "label": "حذف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/MeetingsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/meetings",
+          "line": 16,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/meetings/{id}",
+          "line": 17,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/meetings/{meeting.id}",
+          "line": 30,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/meetings",
+          "line": 30,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 20,
+          "label": "إضافة اجتماع",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 22,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 24,
+          "label": "تصدير ملف PDF بكل التفاصيل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 24,
+          "label": "تصدير Excel",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 24,
+          "label": "تعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 24,
+          "label": "حذف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 31,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 31,
+          "label": "حذف القسم",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 31,
+          "label": "إضافة قسم وشرح ومحاضر",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 31,
+          "label": "حفظ الاجتماع",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/NotificationSoundSettingsPage.tsx",
+      "operations": [],
+      "controls": [
+        {
+          "line": 35,
+          "label": "حفظ الاختيار",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 35,
+          "label": "استعادة صوت الجهاز",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 39,
+          "label": "إعدادات قناة الصوت",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 39,
+          "label": "إشعارات التطبيق في أندرويد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/SoundPicker",
+        "@/components/NativePush",
+        "@/components/ui/Icons",
+        "@/components/prayer.css"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/NotificationsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/notifications",
+          "line": 37,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/notifications/{id}/read",
+          "line": 44,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/notifications/read-all",
+          "line": 52,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/notifications/{id}",
+          "line": 61,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 100,
+          "label": "تعليم الكل كمقروء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 142,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 160,
+          "label": "\"تعليم كمقروء\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 169,
+          "label": "\"حذف\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/OfflineSettingsPage.tsx",
+      "operations": [],
+      "controls": [
+        {
+          "line": 17,
+          "label": "تصدير كل البيانات JSON",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 18,
+          "label": "اختيار ملف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 19,
+          "label": "مسح الكاش المحلي",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": []
+    },
+    {
+      "page": "frontend/src/pages/PasswordRequestsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/support",
+          "line": 8,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 13,
+          "label": "السابق",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 13,
+          "label": "التالي",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/PrayerReminderSettingsPage.tsx",
+      "operations": [],
+      "controls": [
+        {
+          "line": 24,
+          "label": "السماح بالمنبهات الدقيقة للأذان",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 25,
+          "label": "فتح إعدادات إشعارات أندرويد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 26,
+          "label": "حفظ الإعدادات",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/SoundPicker"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/PrayerTimesPage.tsx",
+      "operations": [],
+      "controls": [
+        {
+          "line": 10,
+          "label": "→ رجوع",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/PrayerCard",
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/PrivacyPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/settings/public",
+          "line": 10,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [],
+      "components": []
+    },
+    {
+      "page": "frontend/src/pages/ProfilePage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/auth/me",
+          "line": 44,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/auth/change-password",
+          "line": 54,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/community/nickname",
+          "line": 197,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/auth/me",
+          "line": 312,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/auth/profile",
+          "line": 327,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/auth/me",
+          "line": 328,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/auth/me",
+          "line": 365,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/auth/profile",
+          "line": 422,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/auth/me",
+          "line": 429,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 120,
+          "label": "تسجيل الخروج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 132,
+          "label": "حذف بيانات الحساب من هذا الجهاز",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 159,
+          "label": "عرض ملفي الكامل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 185,
+          "label": "متابعة الأبناء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 191,
+          "label": "تحقق من بياناتي",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 195,
+          "label": "إعادة مشاهدة شرح التطبيق",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 197,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 197,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 201,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 232,
+          "label": "تغيير كلمة المرور",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 345,
+          "label": "\"تغيير الصورة الشخصية\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 357,
+          "label": "اختيار ملف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 365,
+          "label": "إعادة المحاولة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 367,
+          "label": "إزالة الصورة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 387,
+          "label": "حفظ الصورة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 387,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 455,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 482,
+          "label": "حفظ البيانات",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ThemeSelect",
+        "@/components/LocalSecuritySettings",
+        "@/components/FirstUseOnboarding",
+        "@/components/NativePush",
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/ProfileVerificationPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/profile-reviews/me",
+          "line": 15,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/profile-reviews",
+          "line": 17,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/profile-reviews",
+          "line": 48,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/profile-reviews/{id}/decision",
+          "line": 53,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 32,
+          "label": "تعديل بياناتي",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 35,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 36,
+          "label": "إرسال للتحقق",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 36,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 59,
+          "label": "تأكيد واعتماد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 59,
+          "label": "رفض الطلب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/RegistryAdminPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/registry/admin/stats",
+          "line": 8,
+          "blob": false,
+          "kind": "online",
+          "label": "تحقق/جلسة يحتاج الخادم؛ لا يُعتمد دون اتصال"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/registry/admin/users",
+          "line": 8,
+          "blob": false,
+          "kind": "online",
+          "label": "تحقق/جلسة يحتاج الخادم؛ لا يُعتمد دون اتصال"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/registry/admin/import",
+          "line": 9,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "{path}",
+          "line": 10,
+          "blob": true,
+          "kind": "file",
+          "label": "تحميل ملف: يحتاج فحص توفر النسخة/الموارد المحلية؛ لا يُضمن دون اتصال"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/registry/admin/users/{u.id}/invitation",
+          "line": 17,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/registry/admin/users/{u.id}/active",
+          "line": 17,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/registry/admin/users/{u.id}",
+          "line": 17,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/registry/admin/users/{editing!.id}",
+          "line": 20,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 14,
+          "label": "إغلاق",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 14,
+          "label": "اختيار ملف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 14,
+          "label": "تحميل نموذج Excel",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 15,
+          "label": "تصدير الكل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 15,
+          "label": "المكتمل فقط",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 15,
+          "label": "غير المكتمل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 17,
+          "label": "إصدار دعوة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 17,
+          "label": "عرض / تعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 17,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 17,
+          "label": "حذف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 18,
+          "label": "السابق",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 18,
+          "label": "التالي",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 20,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 20,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 20,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": []
+    },
+    {
+      "page": "frontend/src/pages/RegistryDataPage.tsx",
+      "operations": [
+        {
+          "client": "registryApi",
+          "method": "GET",
+          "path": "/registry/me",
+          "line": 11,
+          "blob": false,
+          "kind": "online",
+          "label": "عميل تسجيل مستقل: يحتاج شبكة/تحقق؛ لا يوجد طابور محلي مؤكد لهذا المسار"
+        },
+        {
+          "client": "registryApi",
+          "method": "PATCH",
+          "path": "/registry/me",
+          "line": 13,
+          "blob": false,
+          "kind": "online",
+          "label": "عميل تسجيل مستقل: يحتاج شبكة/تحقق؛ لا يوجد طابور محلي مؤكد لهذا المسار"
+        }
+      ],
+      "controls": [
+        {
+          "line": 17,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 31,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": []
+    },
+    {
+      "page": "frontend/src/pages/RegistryLoginPage.tsx",
+      "operations": [
+        {
+          "client": "registryApi",
+          "method": "POST",
+          "path": "/registry/access",
+          "line": 19,
+          "blob": false,
+          "kind": "online",
+          "label": "عميل تسجيل مستقل: يحتاج شبكة/تحقق؛ لا يوجد طابور محلي مؤكد لهذا المسار"
+        }
+      ],
+      "controls": [
+        {
+          "line": 35,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 42,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": []
+    },
+    {
+      "page": "frontend/src/pages/ReportsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/circles/options",
+          "line": 59,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/courses",
+          "line": 60,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students",
+          "line": 63,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/teachers",
+          "line": 64,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/reports",
+          "line": 66,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 80,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 85,
+          "label": "إعادة المحاولة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 91,
+          "label": "تحديث التقرير",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 91,
+          "label": "تصدير Excel",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 91,
+          "label": "تصدير PDF",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/SchedulesPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/schedules/media",
+          "line": 35,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/schedules/media/{editing}",
+          "line": 36,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/schedules/media",
+          "line": 36,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/schedules/media/{id}",
+          "line": 39,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/schedules/duties",
+          "line": 59,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/schedules/teachers",
+          "line": 60,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/schedules/duties/{editing}",
+          "line": 61,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/schedules/duties",
+          "line": 61,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/schedules/duties/{id}",
+          "line": 64,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 42,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 48,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 48,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 50,
+          "label": "تصدير Excel",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 51,
+          "label": "تعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 51,
+          "label": "حذف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 68,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 73,
+          "label": "حفظ التعيين",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 73,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 75,
+          "label": "تصدير Excel",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 76,
+          "label": "تعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 76,
+          "label": "حذف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/SettingsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/settings",
+          "line": 45,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/settings",
+          "line": 56,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/settings/logo",
+          "line": 68,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/settings/logo",
+          "line": 78,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 96,
+          "label": "حفظ التغييرات",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 118,
+          "label": "اختيار ملف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 130,
+          "label": "رفع شعار جديد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 139,
+          "label": "إزالة الشعار",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 212,
+          "label": "حفظ التغييرات",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/StudentFilesPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/certificates/requests/mine",
+          "line": 20,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/certificates/mine",
+          "line": 21,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/certificates/requests",
+          "line": 23,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 30,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 40,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/PdfDownloadLink",
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/StudentPortalPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/auth/change-password",
+          "line": 26,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students/me",
+          "line": 49,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students/me/history",
+          "line": 55,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/preparations",
+          "line": 158,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 63,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 68,
+          "label": "حفظ كلمة المرور",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 172,
+          "label": "السابق",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 173,
+          "label": "التالي",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/PrayerCard",
+        "@/components/ui",
+        "@/components/ui/Icons",
+        "@/components/StudentQuestionnaire"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/announcements/AnnouncementsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/announcements",
+          "line": 61,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/announcements/{id}",
+          "line": 69,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/announcements/{a.id}",
+          "line": 80,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/announcements/{announcement.id}",
+          "line": 328,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/announcements",
+          "line": 333,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 98,
+          "label": "إعلان جديد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 201,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 209,
+          "label": "تعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 220,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 410,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 483,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 594,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 621,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 629,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/attendance/AbsencePermissionsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students",
+          "line": 24,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students/me",
+          "line": 26,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/attendance/absence-permissions",
+          "line": 28,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/attendance/summons",
+          "line": 29,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/attendance/absence-permissions",
+          "line": 32,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/attendance/absence-permissions/{id}/{action}",
+          "line": 33,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/attendance/summons",
+          "line": 34,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 38,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 42,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 45,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 49,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 52,
+          "label": "موافقة وتسجيل بعذر",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 52,
+          "label": "رفض",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/attendance/AttendancePage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/circles/options",
+          "line": 71,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/attendance/sheet",
+          "line": 118,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/attendance",
+          "line": 174,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/attendance/history",
+          "line": 458,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/attendance/history/{openCircle!.date}/{openCircle!.circleId}",
+          "line": 473,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/attendance/{id}",
+          "line": 481,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/attendance/stats",
+          "line": 494,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 269,
+          "label": "تعيين الكل حاضر",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 272,
+          "label": "تعيين الكل غائب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 313,
+          "label": "فتح سجل الحضور",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 316,
+          "label": "كشف آخر",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 338,
+          "label": "حفظ الكشف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 387,
+          "label": "حفظ الكشف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 415,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 569,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 620,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/chat/ChatPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/chat/conversations",
+          "line": 87,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/chat/conversations/{id}",
+          "line": 93,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/chat/conversations/{id}/messages",
+          "line": 103,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/chat/conversations/{conversationId}/read",
+          "line": 109,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/chat/conversations/{id}/messages",
+          "line": 117,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/chat/conversations/{id}/messages/{messageId}",
+          "line": 130,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/chat/conversations/{id}/messages/{messageId}",
+          "line": 143,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/chat/conversations/{conversation.id}/members/{userId}",
+          "line": 599,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/chat/conversations/{conversation.id}/members/{userId}",
+          "line": 608,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/users/directory",
+          "line": 706,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/chat/conversations/{conversation.id}/members",
+          "line": 712,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/chat/conversations/{conversation.id}",
+          "line": 788,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/chat/conversations/{conversation.id}/members/me",
+          "line": 799,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/users/directory",
+          "line": 908,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/chat/conversations/direct",
+          "line": 916,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/chat/conversations/group",
+          "line": 918,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 272,
+          "label": "محادثة جديدة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 275,
+          "label": "مجموعة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 296,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 355,
+          "label": "\"رجوع\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 370,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 397,
+          "label": "\"أعضاء المجموعة\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 406,
+          "label": "\"إعدادات المجموعة\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 450,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 468,
+          "label": "إلغاء الطلب المرفوض",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 482,
+          "label": "\"تعديل\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 492,
+          "label": "\"حذف\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 518,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 527,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 548,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 625,
+          "label": "إغلاق",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 629,
+          "label": "إضافة أعضاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 643,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 654,
+          "label": "{member.isAdmin ? 'إزالة الإشراف' : 'ترقية إلى مشرف'}",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 661,
+          "label": "\"إزالة من المجموعة\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 730,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 733,
+          "label": "إضافة ( )",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 748,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 817,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 820,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 849,
+          "label": "مغادرة المجموعة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 944,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 947,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 978,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/circles/CircleDetailsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/circles/{id}",
+          "line": 61,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/attendance/circle/{id}/summary",
+          "line": 67,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/circles/{id}/history",
+          "line": 73,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/circles/{id}/teachers/{teacherId}",
+          "line": 78,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/teachers",
+          "line": 450,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/circles/{circleId}/primary-teacher",
+          "line": 456,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/circles/{circleId}/assistants",
+          "line": 457,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/users",
+          "line": 525,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/circles/{circle.id}",
+          "line": 544,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 117,
+          "label": "تعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 166,
+          "label": "تعيين المعلم الأساسي",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 170,
+          "label": "معلم مساعد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 422,
+          "label": "\"إزالة من الحلقة\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 474,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 477,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 565,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 568,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 608,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/circles/CirclesPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/circles",
+          "line": 48,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/circles/{id}",
+          "line": 77,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/users",
+          "line": 273,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/teachers",
+          "line": 279,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/circles",
+          "line": 294,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 103,
+          "label": "إنشاء حلقة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 228,
+          "label": "\"حذف\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 326,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 329,
+          "label": "إنشاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 374,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/community/CommunityPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/community/users/{userId}",
+          "line": 17,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/community/feed",
+          "line": 19,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/community/school",
+          "line": 20,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/community/stories",
+          "line": 21,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/community/stories/{selectedStory}/replies",
+          "line": 22,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/community/school/follow",
+          "line": 38,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "{path}",
+          "line": 39,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "{path}",
+          "line": 39,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "{path}",
+          "line": 39,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        }
+      ],
+      "controls": [
+        {
+          "line": 49,
+          "label": "حفظ الكنية",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 52,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 53,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 55,
+          "label": "نشر القصة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 57,
+          "label": "✕",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 57,
+          "label": "حذف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 58,
+          "label": "\"الستوري السابقة\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 58,
+          "label": "\"الستوري التالية\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 59,
+          "label": "❤️ إعجاب ( )",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 59,
+          "label": "👁 مشاهدة ·",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 59,
+          "label": "إرسال",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 61,
+          "label": "نشر",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 62,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 63,
+          "label": "♡ إعجاب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 63,
+          "label": "👍 معجب ·",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 63,
+          "label": "💬 تعليق ·",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 63,
+          "label": "حذف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 63,
+          "label": "♡ إعجاب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 63,
+          "label": "↩ رد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 63,
+          "label": "رد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 63,
+          "label": "تعليق",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/courses/CourseDetailsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/courses/{id}",
+          "line": 41,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/courses/{course.id}/students/{studentId}",
+          "line": 125,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students",
+          "line": 253,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/courses/{courseId}/students",
+          "line": 262,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/courses/{courseId}/attendance/sheet",
+          "line": 338,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/courses/{courseId}/attendance",
+          "line": 344,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/courses/{courseId}/attendance/history",
+          "line": 453,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/courses/{courseId}/attendance/{openDate}",
+          "line": 458,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 145,
+          "label": "تسجيل طلاب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 187,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 311,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 314,
+          "label": "تسجيل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 405,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 436,
+          "label": "حفظ الحضور",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 472,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/courses/CoursesPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/courses",
+          "line": 58,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/courses/stats",
+          "line": 66,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/courses/{id}",
+          "line": 71,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/courses/bulk-delete",
+          "line": 80,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/users/staff",
+          "line": 389,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/courses/{course.id}",
+          "line": 401,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/courses",
+          "line": 402,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 102,
+          "label": "حذف جماعي",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 107,
+          "label": "إضافة دورة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 263,
+          "label": "تعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 275,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 440,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 527,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 560,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 563,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/BulkBar",
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/exams/CombinedTab.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students",
+          "line": 10,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams",
+          "line": 12,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/milestones/{student!.id}",
+          "line": 13,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/requests",
+          "line": 13,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/sections",
+          "line": 13,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/exams/requests",
+          "line": 16,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/exams/requests/{editingRequest.id}",
+          "line": 17,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        }
+      ],
+      "controls": [
+        {
+          "line": 18,
+          "label": "اختيار طالب آخر",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 18,
+          "label": "·",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 21,
+          "label": "تعديل الطلب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 21,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 23,
+          "label": "حفظ التعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 23,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/exams/CommitteesTab.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/exams/committees/{committee.id}/grading-settings",
+          "line": 18,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/examCommittees",
+          "line": 25,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams",
+          "line": 27,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/exams/{moving!.id}",
+          "line": 29,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/teachers",
+          "line": 46,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/examCommittees/{committee.id}",
+          "line": 48,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/examCommittees",
+          "line": 48,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students",
+          "line": 53,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/sections",
+          "line": 54,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/exams/historical",
+          "line": 55,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        }
+      ],
+      "controls": [
+        {
+          "line": 20,
+          "label": "حفظ إعدادات اللجنة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 31,
+          "label": "← الرجوع إلى جميع اللجان",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 31,
+          "label": "إضافة لجنة — حالية أو قديمة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 32,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 34,
+          "label": "تصدير PDF",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 34,
+          "label": "تصدير Excel",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 34,
+          "label": "تعديل اللجنة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 34,
+          "label": "إدخال نتيجة قديمة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 35,
+          "label": "رصد العلامة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 35,
+          "label": "نقل للجنة أخرى",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 37,
+          "label": "تأكيد النقل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 49,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 49,
+          "label": "حفظ اللجنة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 56,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 56,
+          "label": "حفظ النتيجة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ExamResultDialog"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/exams/ExamProgressionTable.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/milestones/{studentId}",
+          "line": 44,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/requests",
+          "line": 50,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/exams/requests",
+          "line": 54,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/exams/milestones/{studentId}/{sectionId}",
+          "line": 66,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        }
+      ],
+      "controls": [
+        {
+          "line": 152,
+          "label": "طلب اختبار",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 155,
+          "label": "طلب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 165,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 165,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 167,
+          "label": "تعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/exams/ExamsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students",
+          "line": 105,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/eligibility/{progressStudent!.id}",
+          "line": 110,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams",
+          "line": 115,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/stats",
+          "line": 120,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/requests",
+          "line": 209,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/exams/requests/{id}/cancel",
+          "line": 216,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams",
+          "line": 358,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/exams/{id}/absent",
+          "line": 365,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/examiners",
+          "line": 511,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/examCommittees",
+          "line": 523,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/exams/requests/{request.id}/schedule",
+          "line": 527,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/exams/requests/{request.id}/reject",
+          "line": 582,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/exams/{exam.id}",
+          "line": 622,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students",
+          "line": 680,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/eligibility/{student!.id}",
+          "line": 685,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/exams/requests",
+          "line": 695,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 130,
+          "label": "طلب اختبار",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 171,
+          "label": "اختيار طالب آخر",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 178,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 304,
+          "label": "جدولة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 307,
+          "label": "رفض",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 313,
+          "label": "إلغاء الطلب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 476,
+          "label": "رصد النتيجة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 479,
+          "label": "تعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 482,
+          "label": "غياب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 549,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 552,
+          "label": "جدولة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 599,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 602,
+          "label": "رفض الطلب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 642,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 645,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 716,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 717,
+          "label": "تقديم الطلب ( )",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 735,
+          "label": "تغيير",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 744,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ExamResultDialog",
+        "@/components/ExamPlanTable",
+        "@/components/NotificationRecord",
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/parent/ParentChildDetailsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/parents/my-children",
+          "line": 36,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/parents/my-children/{id}",
+          "line": 41,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/parent/ParentChildrenPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/parents/my-children",
+          "line": 40,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 88,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons",
+        "@/components/StudentPhoto"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/parents/ParentsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/parents",
+          "line": 43,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/parents/{id}",
+          "line": 50,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/parents",
+          "line": 192,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students",
+          "line": 267,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/parents/{parent.id}/students",
+          "line": 272,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        }
+      ],
+      "controls": [
+        {
+          "line": 64,
+          "label": "إضافة ولي أمر",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 141,
+          "label": "ربط الأبناء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 144,
+          "label": "\"حذف\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 233,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 236,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 293,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 296,
+          "label": "حفظ الارتباط",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 316,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/recitations/RecitationsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/circles/options",
+          "line": 62,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/recitations/history",
+          "line": 69,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/recitations/history/{openCircle!.date}/{openCircle!.circleId}",
+          "line": 85,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/recitations/{id}",
+          "line": 91,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/circles/options",
+          "line": 395,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/recitations/surahs",
+          "line": 400,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students",
+          "line": 407,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/recitations",
+          "line": 417,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 117,
+          "label": "تسجيل تسميع",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 196,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 240,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 328,
+          "label": "\"حذف\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 475,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 478,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/staff/StaffAttendancePage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/staff-attendance/sheet",
+          "line": 75,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/staff-attendance",
+          "line": 84,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/staff-attendance/history",
+          "line": 205,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/staff-attendance/history/{openDate}",
+          "line": 210,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/staff-attendance/summary",
+          "line": 278,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 157,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 188,
+          "label": "حفظ الحضور",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 223,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/staff/StaffPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/users/staff",
+          "line": 43,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/students/StudentAccountsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students/accounts",
+          "line": 11,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students",
+          "line": 12,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/students/{id}/account",
+          "line": 13,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/students/accounts/reset-password-bulk",
+          "line": 14,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/students/{a.id}/account/active",
+          "line": 15,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/students/accounts/export-with-temporary-passwords",
+          "line": 16,
+          "blob": true,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 19,
+          "label": "إصدار Excel",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 20,
+          "label": "إنشاء حساب طالب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 23,
+          "label": "تحديد الكل الظاهر ( )",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 23,
+          "label": "إلغاء التحديد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 23,
+          "label": "إعادة تعيين للمحددين",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 24,
+          "label": "إعادة تعيين كلمة السر",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 24,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/students/StudentDetailsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students/{id}",
+          "line": 128,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students/{id}/history",
+          "line": 134,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/requests",
+          "line": 140,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/attendance",
+          "line": 147,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/recitations",
+          "line": 154,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/recitations/student/{id}/progress",
+          "line": 160,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/eligibility/{id}",
+          "line": 166,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams",
+          "line": 172,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students/{id}/notes",
+          "line": 178,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/exams/requests/{requestId}/reject",
+          "line": 185,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/exams/{examId}",
+          "line": 194,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/students/{id}/notes/{noteId}",
+          "line": 203,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/requests",
+          "line": 677,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams",
+          "line": 683,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/students/{student.id}/evaluation",
+          "line": 1046,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/students/{studentId}/notes",
+          "line": 1102,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/transfers/students",
+          "line": 1147,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/suspensions",
+          "line": 1199,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/circles/options",
+          "line": 1269,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/students/{student.id}",
+          "line": 1283,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/recitations/surahs",
+          "line": 1398,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/students/{student.id}/surahs",
+          "line": 1403,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/students/{student.id}/surahs/{completionId}",
+          "line": 1414,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/preparations",
+          "line": 1609,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/preparations/{id}/complete",
+          "line": 1617,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/preparations/{id}/reopen",
+          "line": 1617,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/recitations/surahs",
+          "line": 1700,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/preparations",
+          "line": 1706,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/eligibility/{student.id}",
+          "line": 1807,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/exams/requests",
+          "line": 1817,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 253,
+          "label": "تعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 256,
+          "label": "التقييم",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 259,
+          "label": "طلب نقل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 262,
+          "label": "طلب إيقاف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 265,
+          "label": "طلب اختبار",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 386,
+          "label": "إضافة ملاحظة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 407,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 787,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 837,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 875,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 878,
+          "label": "رفض",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1063,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1066,
+          "label": "حفظ التقييم",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1075,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1119,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1122,
+          "label": "إضافة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1164,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1167,
+          "label": "إرسال الطلب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1216,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1219,
+          "label": "إرسال الطلب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1316,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1319,
+          "label": "حفظ التعديلات",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1344,
+          "label": "توليد رقم طالب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1477,
+          "label": "منح النقاط",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1498,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1631,
+          "label": "تكليف جديد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1665,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1733,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1736,
+          "label": "إرسال التكليف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1841,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 1842,
+          "label": "تقديم الطلب ( )",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/StudentPhoto",
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/students/StudentsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/circles/options",
+          "line": 72,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students",
+          "line": 97,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/students/{id}",
+          "line": 144,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/students/bulk-delete",
+          "line": 153,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/students/import-template",
+          "line": 213,
+          "blob": true,
+          "kind": "file",
+          "label": "تحميل ملف: يحتاج فحص توفر النسخة/الموارد المحلية؛ لا يُضمن دون اتصال"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/students/import-excel",
+          "line": 234,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/students/credentials-export",
+          "line": 237,
+          "blob": true,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/courses",
+          "line": 574,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/students",
+          "line": 594,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/circles/options",
+          "line": 766,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/suspensions/students/{student.id}/return",
+          "line": 773,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        }
+      ],
+      "controls": [
+        {
+          "line": 211,
+          "label": "تنزيل قالب Excel",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 222,
+          "label": "استيراد Excel",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 225,
+          "label": "اختيار ملف",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 257,
+          "label": "حذف جماعي",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 262,
+          "label": "تسجيل طالب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 348,
+          "label": "مسح عوامل التصفية",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 514,
+          "label": "\"إعادة إلى حلقة\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 523,
+          "label": "\"حذف\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 650,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 653,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 675,
+          "label": "توليد رقم",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 735,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 794,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 797,
+          "label": "إعادة الطالب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/BulkBar",
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/supervisors/SupervisorsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/users/staff",
+          "line": 38,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/support/SupportPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/support/stats",
+          "line": 52,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/support",
+          "line": 59,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/support",
+          "line": 235,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 78,
+          "label": "طلب دعم جديد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 253,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 256,
+          "label": "إرسال الطلب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/support/SupportTicketPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/support/{id}",
+          "line": 43,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/support/staff",
+          "line": 49,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/support/{id}/reply",
+          "line": 54,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/support/{id}",
+          "line": 66,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 153,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 168,
+          "label": "إرسال",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/suspensions/SuspensionsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/suspensions/active",
+          "line": 43,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/suspensions",
+          "line": 49,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/suspensions",
+          "line": 219,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/suspensions/{id}/cancel",
+          "line": 226,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/suspensions/{request.id}/approve",
+          "line": 401,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/suspensions/{request.id}/reject",
+          "line": 401,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/circles/options",
+          "line": 597,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/suspensions/{suspension.id}/return",
+          "line": 603,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 188,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 336,
+          "label": "موافقة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 344,
+          "label": "رفض",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 356,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 436,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 439,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 486,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 505,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 524,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 625,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 628,
+          "label": "تأكيد",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/PendingRequestReasonEditor",
+        "@/components/NotificationRecord",
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/teachers/TeacherDetailsPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/teachers/{id}",
+          "line": 35,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/teachers/{teacher.id}",
+          "line": 248,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 63,
+          "label": "تحقق من بياناتي",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 65,
+          "label": "تعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 284,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 287,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/teachers/TeachersPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/teachers",
+          "line": 50,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/teachers/{id}",
+          "line": 64,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/teachers",
+          "line": 273,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/teachers",
+          "line": 373,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/transfers/teachers/swap",
+          "line": 380,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        }
+      ],
+      "controls": [
+        {
+          "line": 89,
+          "label": "تبادل معلمين",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 94,
+          "label": "إضافة معلم",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 225,
+          "label": "\"حذف\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 313,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 316,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 400,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 403,
+          "label": "إرسال الطلب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/transfers/TransfersPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/transfers",
+          "line": 47,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/transfers/{id}/cancel",
+          "line": 54,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/circles/options",
+          "line": 254,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/transfers/{request.id}/approve",
+          "line": 260,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/transfers/{request.id}/reject",
+          "line": 260,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 183,
+          "label": "موافقة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 191,
+          "label": "رفض",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 203,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 296,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 299,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/PendingRequestReasonEditor",
+        "@/components/NotificationRecord",
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/pages/users/UsersPage.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/users/stats",
+          "line": 50,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/users",
+          "line": 57,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/users/{id}/activate",
+          "line": 71,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/users/{id}/deactivate",
+          "line": 71,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "DELETE",
+          "path": "/users/{id}",
+          "line": 80,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/users/bulk-delete",
+          "line": 89,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/users/{user!.id}",
+          "line": 378,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/users",
+          "line": 378,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/users/{user.id}/reset-password",
+          "line": 477,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 117,
+          "label": "حذف جماعي",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 121,
+          "label": "إضافة مستخدم",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 275,
+          "label": "\"تعديل\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 282,
+          "label": "\"إعادة تعيين كلمة المرور\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 291,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 307,
+          "label": "\"حذف\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 418,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 421,
+          "label": "حفظ",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 493,
+          "label": "إلغاء",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 496,
+          "label": "إعادة التعيين",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/BulkBar",
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    }
+  ],
+  "shared": [
+    {
+      "page": "frontend/src/components/AnnouncementBar.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/announcements/active",
+          "line": 42,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 115,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 143,
+          "label": "\"إخفاء الإعلان\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 177,
+          "label": "\"إغلاق\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 200,
+          "label": "إغلاق",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 208,
+          "label": "فتح الرابط",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/components/AppLaunchGate.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/settings/public",
+          "line": 33,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [],
+      "components": []
+    },
+    {
+      "page": "frontend/src/components/DonationPanel.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/support/public",
+          "line": 50,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 84,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 88,
+          "label": "إرسال للإدارة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 113,
+          "label": "{`نسخ رقم ${label}`}",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui",
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/components/ExamResultDialog.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/exams/committees/{exam.committeeId}/grading-settings",
+          "line": 11,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/exams/{exam.id}/result",
+          "line": 21,
+          "blob": false,
+          "kind": "queued-write",
+          "label": "مسار طابور محلي موجود؛ الاعتماد والصلاحيات والتعارض تُراجع على الخادم"
+        }
+      ],
+      "controls": [
+        {
+          "line": 22,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 23,
+          "label": "خطأ +",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 23,
+          "label": "تنبيه +",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 24,
+          "label": "حفظ النتيجة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/components/NotificationRecord.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "{pathname}",
+          "line": 16,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/components/OfflineDownloadButton.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/offline-sync/bootstrap",
+          "line": 77,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/attendance/offline-bundle",
+          "line": 110,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 162,
+          "label": "\"تحميل البيانات للاستخدام دون إنترنت\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 220,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 221,
+          "label": "إغلاق",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui/Icons"
+      ]
+    },
+    {
+      "page": "frontend/src/components/PasswordRequestModal.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "POST",
+          "path": "/support/public",
+          "line": 22,
+          "blob": false,
+          "kind": "online",
+          "label": "مسار شبكة/تحقق أو رفع فعلي/إصدار اعتماد؛ راجع وجود تحضير محلي منفصل في المكونات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 28,
+          "label": "تم",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 28,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 32,
+          "label": "إرسال الطلب للإدارة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/components/PendingRequestReasonEditor.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "PATCH",
+          "path": "/{domain}/{id}",
+          "line": 10,
+          "blob": false,
+          "kind": "gap",
+          "label": "غير مغطى بكتابة محلية مؤكدة في الجرد: يلزم تحويل أو فحص يدوي"
+        }
+      ],
+      "controls": [
+        {
+          "line": 14,
+          "label": "تعديل السبب",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 16,
+          "label": "إرسال نموذج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 19,
+          "label": "حفظ التعديل",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/ui"
+      ]
+    },
+    {
+      "page": "frontend/src/components/layout/AppLayout.tsx",
+      "operations": [
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/settings/public",
+          "line": 94,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/notifications/unread-count",
+          "line": 100,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/chat/unread-count",
+          "line": 105,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        },
+        {
+          "client": "api",
+          "method": "GET",
+          "path": "/support/stats",
+          "line": 110,
+          "blob": false,
+          "kind": "cached-read",
+          "label": "قراءة محلية مشروطة بتنزيل البيانات والصلاحيات؛ وجود المسار لا يثبت اكتمال البيانات"
+        }
+      ],
+      "controls": [
+        {
+          "line": 171,
+          "label": "\"إغلاق القائمة\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 191,
+          "label": "عنصر تفاعلي ذو عنوان ديناميكي/أيقونة",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 260,
+          "label": "{rail ? 'تسجيل الخروج' : undefined}",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 317,
+          "label": "\"الرجوع للصفحة السابقة\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 321,
+          "label": "\"فتح القائمة\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 330,
+          "label": "{collapsed ? 'توسيع القائمة' : 'طي القائمة'}",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 373,
+          "label": "\"قائمة الحساب\"",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        },
+        {
+          "line": 407,
+          "label": "تسجيل الخروج",
+          "verification": "لم يُختبر هذا العنصر فعليًا بكل الأدوار ضمن الجرد الآلي"
+        }
+      ],
+      "components": [
+        "@/components/NativePush",
+        "@/components/PrayerReminderConnection",
+        "@/components/ui",
+        "@/components/AnnouncementBar",
+        "@/components/OfflineSystem",
+        "@/components/DutyReminder",
+        "@/components/ui/Icons"
+      ]
+    }
+  ]
+}

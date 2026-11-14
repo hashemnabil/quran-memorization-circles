@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -10,6 +11,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AccessControlService } from '../common/services/access-control.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AuthUser } from '../common/decorators';
+import { ActivityService } from '../realtime/activity.service';
+import { publicActivity } from '../realtime/activity-policy';
 import { paginate } from '../common/dto/pagination.dto';
 import {
   AddMembersDto,
@@ -34,6 +37,7 @@ export class ChatService {
     private readonly realtime: RealtimeGateway,
     private readonly notifications: NotificationsService,
     private readonly acl: AccessControlService,
+    private readonly activity: ActivityService = new ActivityService(prisma),
   ) {}
 
   /** Every conversation the user belongs to, with unread counts and last message. */
@@ -56,6 +60,8 @@ export class ChatService {
       orderBy: { conversation: { lastMessageAt: 'desc' } },
     });
 
+    const contactIds = await this.contactIds(user, memberships.flatMap(m => m.conversation.members.map(member => member.user.id)));
+    const activity = await this.activity.read([...contactIds]);
     const results = await Promise.all(
       memberships.map(async (m) => {
         const unreadCount = await this.prisma.message.count({
@@ -80,7 +86,7 @@ export class ChatService {
           description: m.conversation.description,
           avatarUrl: m.conversation.avatarUrl ?? other?.user.avatarUrl ?? null,
           otherUser: other?.user ?? null,
-          isOnline: other ? this.realtime.isOnline(other.user.id) : false,
+          ...publicActivity(other && contactIds.has(other.user.id) ? activity.get(other.user.id) : null, !!other && this.realtime.isOnline(other.user.id)),
           members: m.conversation.members,
           memberCount: m.conversation.members.length,
           lastMessage: m.conversation.messages[0] ?? null,
@@ -90,7 +96,9 @@ export class ChatService {
           adminOnly: m.conversation.adminOnly,
           isAdmin: m.isAdmin,
           // Mirrors the checks in `send()` so the UI can disable the composer.
-          canPost: !isGroup || (!m.conversation.isClosed && (!m.conversation.adminOnly || m.isAdmin)),
+          contactRestricted: m.conversation.members.some(member => member.user.id !== user.id && !contactIds.has(member.user.id)),
+          canPost: m.conversation.members.every(member => member.user.id === user.id || contactIds.has(member.user.id)) &&
+            (!isGroup || (!m.conversation.isClosed && (!m.conversation.adminOnly || m.isAdmin))),
         };
       }),
     );
@@ -124,6 +132,14 @@ export class ChatService {
   }
 
   /** Throws on the first member the actor is not permitted to contact. */
+  private async contactIds(user: AuthUser, ids: string[]) {
+    if (!ids.length) return new Set<string>();
+    const filter = await this.acl.contactableUserFilter(user);
+    if (!filter) return new Set<string>();
+    const rows = await this.prisma.user.findMany({ where: { AND: [filter, { id: { in: ids }, isActive: true, deletedAt: null }] }, select: { id: true } });
+    return new Set(rows.map(row => row.id));
+  }
+
   private async assertAllContactable(user: AuthUser, memberIds: string[]) {
     for (const id of memberIds) {
       if (id === user.id) continue;
@@ -216,6 +232,9 @@ export class ChatService {
 
     const isGroup = conversation.type === ConversationType.GROUP;
     const other = !isGroup ? conversation.members.find((m) => m.user.id !== user.id) : null;
+    const contactIds = await this.contactIds(user, conversation.members.map(member => member.user.id));
+    const contactRestricted = conversation.members.some(member => member.user.id !== user.id && !contactIds.has(member.user.id));
+    const activity = other && contactIds.has(other.user.id) ? (await this.activity.read([other.user.id])).get(other.user.id) : null;
 
     return {
       ...conversation,
@@ -225,10 +244,11 @@ export class ChatService {
       // the same user showed a photo in the list and initials in the header.
       avatarUrl: conversation.avatarUrl ?? other?.user.avatarUrl ?? null,
       otherUser: other?.user ?? null,
-      isOnline: other ? this.realtime.isOnline(other.user.id) : false,
+      ...publicActivity(activity, !!other && this.realtime.isOnline(other.user.id)),
       memberCount: conversation.members.length,
       isAdmin: membership.isAdmin,
-      canPost: !isGroup || (!conversation.isClosed && (!conversation.adminOnly || membership.isAdmin)),
+      contactRestricted,
+      canPost: !contactRestricted && (!isGroup || (!conversation.isClosed && (!conversation.adminOnly || membership.isAdmin))),
     };
   }
 
@@ -253,6 +273,10 @@ export class ChatService {
 
   async send(user: AuthUser, id: string, dto: SendMessageDto) {
     const membership = await this.assertMember(user, id);
+    const recipients = await this.prisma.conversationMember.findMany({
+      where: { conversationId: id, leftAt: null, userId: { not: user.id } }, select: { userId: true },
+    });
+    await this.assertAllContactable(user, recipients.map(member => member.userId));
 
     // Group moderation: archived groups accept nothing, announcement-style
     // groups accept messages from their admins only.
@@ -269,6 +293,10 @@ export class ChatService {
       }
     }
 
+    if(dto.attachmentUrl){
+      const mediaId=dto.attachmentUrl.match(/^community-media:([0-9a-f-]{36})$/i)?.[1];
+      if(!mediaId||!await this.prisma.communityMedia.count({where:{id:mediaId,ownerId:user.id}}))throw new BadRequestException('الصورة المرفقة غير صالحة أو لا تملكها');
+    }
     const message = await this.prisma.$transaction(async (tx) => {
       const created = await tx.message.create({
         data: {
@@ -292,7 +320,7 @@ export class ChatService {
 
     this.realtime.emitToConversation(id, 'chat:message', message);
 
-    // Members who are offline get a persistent notification instead.
+    // Persist a notification for every other member, including connected accounts.
     const others = await this.prisma.conversationMember.findMany({
       where: { conversationId: id, leftAt: null, userId: { not: user.id } },
       select: { userId: true },
@@ -304,8 +332,8 @@ export class ChatService {
     });
 
     for (const member of others) {
-      this.realtime.emitToUser(member.userId, 'chat:inbox', { conversationId: id, message });
-      if (!this.realtime.isOnline(member.userId)) {
+      // Connected accounts may be on another page or device: persist for everyone.
+      {
         await this.notifications.notify({
           userId: member.userId,
           type: NotificationType.CHAT_MESSAGE,
@@ -315,8 +343,10 @@ export class ChatService {
               : `رسالة من ${user.fullName}`,
           body: dto.body.slice(0, 120),
           link: `/chat/${id}`,
+          data: { conversationId: id, messageId: message.id },
         });
       }
+      this.realtime.emitToUser(member.userId, 'chat:inbox', { conversationId: id, message });
     }
 
     return message;
@@ -324,11 +354,17 @@ export class ChatService {
 
   async markRead(user: AuthUser, id: string) {
     const membership = await this.assertMember(user, id);
-    await this.prisma.conversationMember.update({
+    const readAt = new Date();
+    await this.prisma.$transaction(async tx => {
+    await tx.conversationMember.update({
       where: { id: membership.id },
-      data: { lastReadAt: new Date() },
+      data: { lastReadAt: readAt },
+    });
+    await tx.notification.updateMany({ where: { userId: user.id, type: 'CHAT_MESSAGE', isRead: false,
+      createdAt: { lte: readAt }, data: { path: ['conversationId'], equals: id } }, data: { isRead: true, readAt } });
     });
     this.realtime.emitToConversation(id, 'chat:read', { conversationId: id, userId: user.id });
+    this.realtime.emitToUser(user.id, 'chat:read', { conversationId: id, userId: user.id });
     return { message: 'تم تعليم الرسائل كمقروءة' };
   }
 
@@ -380,8 +416,12 @@ export class ChatService {
   }
 
   /** Editing is limited to the author; the message is flagged as edited. */
-  async editMessage(user: AuthUser, conversationId: string, messageId: string, body: string) {
+  async editMessage(user: AuthUser, conversationId: string, messageId: string, body: string, expected?: { body: string; editedAt: string | null }) {
     await this.assertMember(user, conversationId);
+    const recipients = await this.prisma.conversationMember.findMany({
+      where: { conversationId, leftAt: null, userId: { not: user.id } }, select: { userId: true },
+    });
+    await this.assertAllContactable(user, recipients.map(member => member.userId));
 
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, conversationId, deletedAt: null },
@@ -391,6 +431,16 @@ export class ChatService {
       throw new ForbiddenException('يمكن تعديل الرسالة من قبل مرسلها فقط');
     }
 
+    if (expected) {
+      const result = await this.prisma.message.updateMany({
+        where: { id: messageId, conversationId, deletedAt: null, body: expected.body, editedAt: expected.editedAt ? new Date(expected.editedAt) : null },
+        data: { body, editedAt: new Date() },
+      });
+      if (!result.count) throw new ConflictException('تغيّرت الرسالة من جهاز آخر؛ راجع النسخة الحديثة قبل تعديلها');
+      const updated = await this.prisma.message.findUnique({ where: { id: messageId }, include: { sender: { select: { id: true, fullName: true, role: true, avatarUrl: true } } } });
+      this.realtime.emitToConversation(conversationId, 'chat:message-edited', updated);
+      return updated;
+    }
     const updated = await this.prisma.message.update({
       where: { id: messageId },
       data: { body, editedAt: new Date() },
@@ -401,7 +451,7 @@ export class ChatService {
     return updated;
   }
 
-  async deleteMessage(user: AuthUser, conversationId: string, messageId: string) {
+  async deleteMessage(user: AuthUser, conversationId: string, messageId: string, expected?: { body: string; editedAt: string | null }) {
     await this.assertMember(user, conversationId);
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, conversationId, deletedAt: null },
@@ -419,7 +469,10 @@ export class ChatService {
       throw new ForbiddenException('يمكن حذف الرسالة من قبل مرسلها أو مشرف المجموعة');
     }
 
-    await this.prisma.message.update({ where: { id: messageId }, data: { deletedAt: new Date() } });
+    if (expected) {
+      const result = await this.prisma.message.updateMany({ where: { id: messageId, conversationId, deletedAt: null, body: expected.body, editedAt: expected.editedAt ? new Date(expected.editedAt) : null }, data: { deletedAt: new Date() } });
+      if (!result.count) throw new ConflictException('تغيّرت الرسالة من جهاز آخر؛ راجع النسخة الحديثة قبل حذفها');
+    } else await this.prisma.message.update({ where: { id: messageId }, data: { deletedAt: new Date() } });
     this.realtime.emitToConversation(conversationId, 'chat:message-deleted', {
       conversationId,
       messageId,

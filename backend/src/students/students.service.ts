@@ -1,3 +1,6 @@
+import {learningPolicy} from '../recitations/learning-policy';
+import { assertNewPassword } from '../common/validators/password';
+import { ProfileReviewsService } from '../profile-reviews/profile-reviews.service';
 import {
   BadRequestException,
   ConflictException,
@@ -15,6 +18,7 @@ import { UploadsService } from '../uploads/uploads.service';
 import { AuthUser } from '../common/decorators';
 import { paginate } from '../common/dto/pagination.dto';
 import { SURAH_COMPLETION_POINTS } from '../common/points';
+import { calculateSurahAchievements } from '../common/surah-achievements';
 import {
   AddNoteDto,
   BulkStudentIdsDto,
@@ -25,6 +29,7 @@ import {
   StudentRegistrationTrack,
   SurahCompletionDto,
   UpdateStudentDto,
+  StudentQuestionnaireDto,
 } from './dto/student.dto';
 
 /** Fields a teacher is allowed to change on a student record. */
@@ -46,6 +51,8 @@ const LIST_SELECT = {
   birthDate: true,
   gender: true,
   nationalId: true,
+  guardianName: true,
+  guardianPhone: true,
   status: true,
   evaluation: true,
   memorizedParts: true,
@@ -88,11 +95,23 @@ export class StudentsService {
     });
     if (!student) throw new NotFoundException('ملف الطالب غير مرتبط بهذا الحساب');
     const profile = await this.findOne(user, student.id);
-    // Do not expose guardian identities or guardian contact details to the student session.
+    // The student can review their own questionnaire contact fields, never the linked parent's account.
     const { parentProfile: _parentProfile, parentName: _parentName, parentPhone: _parentPhone,
-      guardianName: _guardianName, guardianPhone: _guardianPhone, parentId: _parentId,
-      fatherNationalId: _fatherNationalId, ...safeProfile } = profile as any;
-    return safeProfile;
+      parentId: _parentId, ...safeProfile } = profile as any;
+    const [evaluations, summons] = await Promise.all([
+      this.evaluationHistory(user, student.id),
+      this.prisma.guardianSummons.findMany({ where: { studentId: student.id }, orderBy: { createdAt: 'desc' } }),
+    ]);
+    return { ...safeProfile, evaluations, summons, selfAccountId: user.id };
+  }
+
+  async updateMyQuestionnaire(user: AuthUser, dto: StudentQuestionnaireDto, expectedId?: string) {
+    if (user.role !== Role.STUDENT) throw new ForbiddenException('هذا النموذج مخصص للطالب');
+    const student = await this.prisma.student.findFirst({ where: { userId: user.id, deletedAt: null }, select: { id: true } });
+    if (!student) throw new NotFoundException('ملف الطالب غير مرتبط بهذا الحساب');
+    if (expectedId && expectedId !== student.id) throw new ForbiddenException('يمكنك تعديل ملفك فقط');
+    const verificationRequest = await new ProfileReviewsService(this.prisma).submit(user, { ...dto }, undefined, expectedId);
+    return { ...await this.getMyProfile(user), verificationRequest };
   }
 
   async getMyHistory(user: AuthUser) {
@@ -117,7 +136,6 @@ export class StudentsService {
         query.status ? { status: query.status } : {},
         query.evaluation ? { evaluation: query.evaluation } : {},
         query.circleId ? { circleId: query.circleId } : {},
-        query.parentId ? { parentId: query.parentId } : {},
         query.unassigned ? { circleId: null } : {},
         query.courseId
           ? { courseEnrollments: { some: { courseId: query.courseId, endedAt: null } } }
@@ -180,18 +198,7 @@ export class StudentsService {
         guardianName: true,
         guardianPhone: true,
         guardianRelation: true,
-        parentId: true,
-        parentProfile: {
-          select: {
-            id: true,
-            nationalId: true,
-            phone: true,
-            altPhone: true,
-            address: true,
-            occupation: true,
-            user: { select: { fullName: true, phone: true, email: true, username: true } },
-          },
-        },
+        user: { select: { username: true, email: true } },
         notes: true,
         evaluationNote: true,
         evaluatedAt: true,
@@ -201,7 +208,7 @@ export class StudentsService {
     });
     if (!student) throw new NotFoundException('الطالب غير موجود');
 
-    const isParent = user.role === Role.PARENT;
+    const isStudent = user.role === Role.STUDENT;
 
     const [
       attendanceSummary,
@@ -213,6 +220,7 @@ export class StudentsService {
       preparations,
       surahCompletions,
       pointsAgg,
+      achievementRecitations,
     ] = await Promise.all([
       this.prisma.attendance.groupBy({
         by: ['status'],
@@ -245,7 +253,7 @@ export class StudentsService {
         orderBy: { section: { order: 'asc' } },
       }),
       this.prisma.studentNote.findMany({
-        where: { studentId: id, deletedAt: null, ...(isParent ? { isPrivate: false } : {}) },
+        where: { studentId: id, deletedAt: null, ...(isStudent ? { isPrivate: false } : {}) },
         include: { author: { select: { id: true, fullName: true, role: true } } },
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -285,10 +293,15 @@ export class StudentsService {
         _sum: { points: true, mistakes: true, warnings: true, versesCount: true },
         _count: { _all: true },
       }),
+      this.prisma.recitation.findMany({
+        where: { studentId: id, deletedAt: null, evaluation: 'EXCELLENT' },
+        select: { id: true, type: true, fromSurah: true, fromAyah: true, toSurah: true, toAyah: true, evaluation: true, date: true, createdAt: true, updatedAt: true },
+        orderBy: [{ date: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+      }),
     ]);
 
     const totalAttendance = attendanceSummary.reduce((s, a) => s + a._count._all, 0);
-    const present = attendanceSummary.find((a) => a.status === 'PRESENT')?._count._all ?? 0;
+    const present = attendanceSummary.filter(a=>a.status==='PRESENT'||a.status==='LATE').reduce((sum,a)=>sum+a._count._all,0);
     const surahPoints = surahCompletions.reduce((s, c) => s + c.points, 0);
 
     return {
@@ -323,10 +336,13 @@ export class StudentsService {
       })),
       preparations,
       surahCompletions,
+      surahAchievements: calculateSurahAchievements(achievementRecitations),
+      achievementRecitations,
       points: {
         total: student.totalPoints,
         fromRecitations: Math.round((pointsAgg._sum.points ?? 0) * 100) / 100,
         fromSurahs: Math.round(surahPoints * 100) / 100,
+        fromAttendance: Math.round((student.totalPoints-(pointsAgg._sum.points??0)-surahPoints)*100)/100,
         sessions: pointsAgg._count._all,
         verses: pointsAgg._sum.versesCount ?? 0,
         mistakes: pointsAgg._sum.mistakes ?? 0,
@@ -358,20 +374,8 @@ export class StudentsService {
    * incrementing means an edited or deleted session can never leave it adrift.
    */
   async recalculatePoints(studentId: string) {
-    const [recitations, surahs] = await Promise.all([
-      this.prisma.recitation.aggregate({
-        where: { studentId, deletedAt: null },
-        _sum: { points: true },
-      }),
-      this.prisma.surahCompletion.aggregate({
-        where: { studentId },
-        _sum: { points: true },
-      }),
-    ]);
-    const total =
-      Math.round(((recitations._sum.points ?? 0) + (surahs._sum.points ?? 0)) * 100) / 100;
-    await this.prisma.student.update({ where: { id: studentId }, data: { totalPoints: total } });
-    return total;
+    const rows=await this.prisma.$queryRaw<Array<{total:number}>>`SELECT refresh_learning_total(${studentId}) AS total`;
+    return rows[0]?.total??0;
   }
 
   /** Awards the surah-completion bonus. Unique per (student, surah). */
@@ -384,11 +388,12 @@ export class StudentsService {
     });
     if (existing) throw new ConflictException('تم تسجيل إتمام هذه السورة لهذا الطالب مسبقاً');
 
+    const completionRules=await learningPolicy(this.prisma,student.circleId??undefined);
     const completion = await this.prisma.surahCompletion.create({
       data: {
         studentId,
         surah: dto.surah,
-        points: dto.points ?? SURAH_COMPLETION_POINTS,
+        points: Math.round((dto.points ?? SURAH_COMPLETION_POINTS)*completionRules.weights.achievement*100)/100,
         note: dto.note || null,
         recordedById: actor.id,
       },
@@ -524,7 +529,7 @@ export class StudentsService {
       if (usernameTaken) throw new ConflictException('رقم الطالب مستخدم كاسم دخول لحساب آخر');
     }
 
-    const temporaryPassword = dto.createAccount ? randomBytes(9).toString('base64url') : undefined;
+    const temporaryPassword = dto.createAccount ? dto.accountPassword ?? randomBytes(9).toString('base64url') : undefined;
     const passwordHash = temporaryPassword ? await bcrypt.hash(temporaryPassword, 12) : undefined;
     const student = await this.prisma.$transaction(async (tx) => {
       const user = dto.createAccount
@@ -642,14 +647,15 @@ export class StudentsService {
     }));
   }
 
-  async createAccountForStudent(actor: AuthUser, id: string) {
+  async createAccountForStudent(actor: AuthUser, id: string, password?: string) {
+    if (password !== undefined) assertNewPassword(password);
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (student.userId) throw new ConflictException('الطالب لديه حساب دخول بالفعل');
     const username = student.code.toLowerCase();
     const taken = await this.prisma.user.findFirst({ where: { username, deletedAt: null }, select: { id: true } });
     if (taken) throw new ConflictException('رقم الطالب مستخدم كاسم دخول لحساب آخر');
-    const temporaryPassword = randomBytes(9).toString('base64url');
+    const temporaryPassword = password ?? randomBytes(9).toString('base64url');
     const user = await this.prisma.user.create({ data: {
       username, passwordHash: await bcrypt.hash(temporaryPassword, 12), fullName: student.fullName,
       phone: student.phone, role: Role.STUDENT, isActive: true, mustChangePassword: true,
@@ -659,15 +665,39 @@ export class StudentsService {
     return { studentId: id, fullName: student.fullName, username, temporaryPassword };
   }
 
-  async resetStudentAccountPassword(actor: AuthUser, id: string) {
+  async resetStudentAccountPassword(actor: AuthUser, id: string, password?: string) {
+    if (password !== undefined) assertNewPassword(password);
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, include: { user: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     if (!student.user) throw new BadRequestException('الطالب لا يملك حساب دخول');
-    const temporaryPassword = randomBytes(9).toString('base64url');
+    const temporaryPassword = password ?? randomBytes(9).toString('base64url');
     await this.prisma.user.update({ where: { id: student.user.id },
       data: { passwordHash: await bcrypt.hash(temporaryPassword, 12), mustChangePassword: true, isActive: true } });
+    await this.prisma.refreshToken.updateMany({ where: { userId: student.user.id, revokedAt: null }, data: { revokedAt: new Date() } });
     await this.activity.log({ userId: actor.id, action: 'STUDENT_ACCOUNT_PASSWORD_RESET', summary: `إعادة تعيين كلمة مرور الطالب: ${student.fullName}`, entityType: 'Student', entityId: id });
     return { studentId: id, fullName: student.fullName, username: student.user.username, temporaryPassword };
+  }
+
+  /** Bound concurrency so large selections do not serialize hundreds of bcrypt calls. */
+  async resetStudentAccountPasswordsBulk(actor: AuthUser, ids: string[]) {
+    const results: Array<{ id: string; ok: boolean; temporaryPassword?: string; error?: string }> = [];
+    const concurrency = 6;
+    for (let offset = 0; offset < ids.length; offset += concurrency) {
+      const batch = await Promise.all(ids.slice(offset, offset + concurrency).map(async id => {
+        try {
+          const account = await this.resetStudentAccountPassword(actor, id);
+          return { id, ok: true, temporaryPassword: account.temporaryPassword };
+        } catch (error) {
+          // Do not leak internal database details to the client.
+          const message = error instanceof BadRequestException || error instanceof NotFoundException
+            ? error.message : 'تعذر إعادة تعيين كلمة المرور';
+          return { id, ok: false, error: message };
+        }
+      }));
+      results.push(...batch);
+    }
+    return { succeeded: results.filter(result => result.ok).length,
+      failed: results.filter(result => !result.ok).length, results };
   }
 
   async setStudentAccountActive(actor: AuthUser, id: string, active: boolean) {
@@ -701,7 +731,7 @@ export class StudentsService {
       select: { id: true, fullName: true, photoUrl: true },
     });
 
-    await this.uploads.removeIfReplaced(current.photoUrl, updated.photoUrl);
+    await this.uploads.removeIfReplaced(current.photoUrl, updated.photoUrl, actor.role === Role.ADMIN ? '*' : actor.id);
 
     await this.activity.log({
       userId: actor.id,
@@ -794,7 +824,6 @@ export class StudentsService {
           notes: dto.notes,
           status: dto.status,
           enrollmentDate: dto.enrollmentDate ? new Date(dto.enrollmentDate) : undefined,
-          ...(dto.parentId !== undefined ? { parentId: dto.parentId || null } : {}),
           ...(movingCircle ? { circleId: leavingCircle ? null : dto.circleId || null } : {}),
         },
       });
@@ -889,7 +918,7 @@ export class StudentsService {
       where: {
         studentId: id,
         deletedAt: null,
-        ...(user.role === Role.PARENT ? { isPrivate: false } : {}),
+        ...(user.role === Role.STUDENT ? { isPrivate: false } : {}),
       },
       include: { author: { select: { id: true, fullName: true, role: true } } },
       orderBy: { createdAt: 'desc' },

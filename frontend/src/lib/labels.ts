@@ -20,21 +20,21 @@ import type {
 /** Every enum the API returns, paired with its Arabic label and badge colours. */
 
 export const ROLE_LABELS: Record<Role, string> = {
+  FOUNDER: 'مؤسس النظام',
   ADMIN: 'مدير عام',
   SUPERVISOR: 'مشرف',
   TEACHER: 'معلم',
   EXAM_COMMITTEE: 'لجنة الاختبارات',
-  PARENT: 'ولي أمر',
   STUDENT: 'طالب',
   SUPPORT: 'دعم فني',
 };
 
 export const ROLE_COLORS: Record<Role, string> = {
+  FOUNDER: 'bg-primary-100 text-primary-800',
   ADMIN: 'bg-primary-100 text-primary-800',
   SUPERVISOR: 'bg-indigo-100 text-indigo-800',
   TEACHER: 'bg-sky-100 text-sky-800',
   EXAM_COMMITTEE: 'bg-gold-100 text-gold-800',
-  PARENT: 'bg-purple-100 text-purple-800',
   STUDENT: 'bg-emerald-100 text-emerald-800',
   SUPPORT: 'bg-slate-200 text-slate-700',
 };
@@ -117,6 +117,7 @@ export const WEEKDAY_LABELS: Record<string, string> = {
 };
 
 export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
+  LATE: 'متأخر',
   PRESENT: 'حاضر',
   EXCUSED: 'غياب بعذر',
   ABSENT: 'غياب بدون عذر',
@@ -124,12 +125,14 @@ export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
 
 /** Short forms for tight spots such as table cells and chart legends. */
 export const ATTENDANCE_SHORT: Record<AttendanceStatus, string> = {
+  LATE: 'متأخر',
   PRESENT: 'حاضر',
   EXCUSED: 'بعذر',
   ABSENT: 'بدون عذر',
 };
 
 export const ATTENDANCE_COLORS: Record<AttendanceStatus, string> = {
+  LATE: 'bg-orange-100 text-orange-800',
   PRESENT: 'bg-emerald-100 text-emerald-800',
   EXCUSED: 'bg-amber-100 text-amber-800',
   ABSENT: 'bg-red-100 text-red-800',
@@ -137,18 +140,20 @@ export const ATTENDANCE_COLORS: Record<AttendanceStatus, string> = {
 
 /** Solid variants used by the attendance picker buttons. */
 export const ATTENDANCE_ACTIVE: Record<AttendanceStatus, string> = {
+  LATE: 'bg-orange-500 text-white border-orange-500',
   PRESENT: 'bg-emerald-600 text-white border-emerald-600',
   EXCUSED: 'bg-amber-500 text-white border-amber-500',
   ABSENT: 'bg-red-600 text-white border-red-600',
 };
 
 /** The order the three states are offered in, from best to worst. */
-export const ATTENDANCE_ORDER: AttendanceStatus[] = ['PRESENT', 'EXCUSED', 'ABSENT'];
+export const ATTENDANCE_ORDER: AttendanceStatus[] = ['PRESENT', 'LATE', 'EXCUSED', 'ABSENT'];
 
 export const RECITATION_TYPE_LABELS: Record<RecitationType, string> = {
   MEMORIZATION: 'حفظ جديد',
-  MINOR_REVIEW: 'مراجعة صغرى',
+  MINOR_REVIEW: 'مراجعة',
   MAJOR_REVIEW: 'مراجعة كبرى',
+  CONSOLIDATION: 'تثبيت',
   TAJWEED: 'تجويد',
 };
 
@@ -331,3 +336,5 @@ export function describeExamSections(
   }
   return sorted.map((s) => s.name).join('، ');
 }
+
+export function attendanceRecordLabel(record:{status:AttendanceStatus;customStatus?:string|null;scoringSnapshot?:{label?:string}|null}){return record.customStatus?(record.scoringSnapshot?.label??'حالة إضافية'):ATTENDANCE_SHORT[record.status];}

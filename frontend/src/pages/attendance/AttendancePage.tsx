@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import {attendanceRecordLabel} from '@/lib/labels';
+import {fetchLearningSettings} from '@/lib/learning-settings';
+import type {LearningRules} from '@/lib/learning-rules';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -39,7 +42,15 @@ import type {
   PaginatedResponse,
 } from '@/types';
 
-type Draft = Record<string, { status: AttendanceStatus; note?: string }>;
+type Draft = Record<string, { status: AttendanceStatus; note?: string; customStatus?:string }>;
+
+function mayUseOfflineAttendanceFallback(error: unknown): boolean {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
+  if (!axios.isAxiosError(error)) return false;
+  if (!error.response) return true;
+  const status = error.response.status;
+  return status === 408 || status === 429 || status >= 500;
+}
 
 export default function AttendancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -50,12 +61,27 @@ export default function AttendancePage() {
   const [circleId, setCircleId] = useState(searchParams.get('circleId') ?? '');
   const [date, setDate] = useState(todayInput());
   const [draft, setDraft] = useState<Draft>({});
+  const draftSheet = useRef('');
+  const draftEdited = useRef(false);
+  const editDraft: typeof setDraft = (value) => { draftEdited.current = true; setDraft(value); };
   /** Set the moment a sheet is saved, so the confirmation shows before the refetch lands. */
   const [justSaved, setJustSaved] = useState<{ circleId: string; date: string } | null>(null);
 
   const { data: circles } = useQuery({
     queryKey: ['circles', 'options'],
-    queryFn: async () => (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data,
+    queryFn: async () => {
+      try {
+        return (await api.get<Pick<Circle, 'id' | 'name' | 'code'>[]>('/circles/options')).data;
+      } catch (error) {
+        if (!mayUseOfflineAttendanceFallback(error)) throw error;
+        const bundle = queryClient.getQueryData<{
+          accountId: string;
+          circles: Pick<Circle, 'id' | 'name' | 'code'>[];
+        }>(['offline', 'attendance-bundle', accountId]);
+        if (bundle?.accountId === accountId && bundle.circles.length) return bundle.circles;
+        throw error;
+      }
+    },
   });
 
   // Default to the first circle the user can access.
@@ -66,6 +92,16 @@ export default function AttendancePage() {
   useEffect(() => {
     if (circleId) setSearchParams({ circleId }, { replace: true });
   }, [circleId, setSearchParams]);
+
+  // A student saved offline must immediately join an already-open attendance roster.
+  useEffect(() => {
+    const refresh = () => {
+      void queryClient.invalidateQueries({ queryKey: ['attendance', 'sheet'] });
+      void queryClient.invalidateQueries({ queryKey: ['circles', 'options'] });
+    };
+    window.addEventListener('halaqat:changed', refresh);
+    return () => window.removeEventListener('halaqat:changed', refresh);
+  }, [queryClient]);
 
   // The confirmation belongs to one circle on one day; picking another sheet
   // puts the form back.
@@ -80,24 +116,63 @@ export default function AttendancePage() {
     refetch,
   } = useQuery({
     queryKey: ['attendance', 'sheet', circleId, date],
-    queryFn: async () =>
-      (await api.get<AttendanceSheet>('/attendance/sheet', { params: { circleId, date } })).data,
+    queryFn: async () => {
+      try {
+        return (await api.get<AttendanceSheet>('/attendance/sheet', { params: { circleId, date } })).data;
+      } catch (error) {
+        if (!mayUseOfflineAttendanceFallback(error)) throw error;
+        const bundle = queryClient.getQueryData<{
+          accountId: string;
+          circles: Array<Pick<Circle, 'id' | 'name' | 'code' | 'scheduleDays' | 'startTime'>>;
+          students: Array<{ id: string; circleId: string | null; code: string; fullName: string; status: string; evaluation: string }>;
+        }>(['offline', 'attendance-bundle', accountId]);
+        if (bundle?.accountId !== accountId) throw error;
+        const circle = bundle.circles.find((item) => item.id === circleId);
+        if (!circle) throw error;
+        const students = bundle.students.filter((student) => student.circleId === circleId);
+        // A cached empty circle is a valid roster; render the empty state.
+        // A roster is sufficient to prepare a draft, but not to prove the server
+        // has not already recorded this date. The UI warns before the user queues it.
+        return {
+          circle,
+          date,
+          alreadyRecorded: false,
+          canSubmit: true,
+          submittedAt: null,
+          submittedBy: null,
+          offlineFallback: true,
+          students: students.map((student) => ({ ...student, attendance: null })),
+        } as AttendanceSheet;
+      }
+    },
     enabled: !!circleId && !!date,
   });
 
-  // Reset the draft whenever a new sheet loads, pre-filling saved values.
+  // Refresh roster data without discarding an in-progress sheet.
   useEffect(() => {
     if (!sheet) return;
     const next: Draft = {};
     sheet.students.forEach((s) => {
       next[s.id] = s.attendance
-        ? { status: s.attendance.status, note: s.attendance.note ?? undefined }
+        ? { status: s.attendance.status, customStatus:s.attendance.customStatus??undefined, note: s.attendance.note ?? undefined }
         : { status: 'PRESENT' };
     });
-    setDraft(next);
-  }, [sheet]);
+    const key = `${accountId}:${circleId}:${date}`;
+    if (draftSheet.current !== key) {
+      draftSheet.current = key;
+      draftEdited.current = false;
+      setDraft(next);
+    } else {
+      setDraft(previous => draftEdited.current
+        ? Object.fromEntries(Object.entries(next).map(([id, value]) => [id, previous[id] ?? value])) as Draft
+        : next);
+    }
+  }, [sheet, accountId, circleId, date]);
 
   const save = useMutation({
+    // TanStack must run the handler offline so it can persist the durable outbox.
+    // Default online mode pauses the mutation in memory and never reaches onError.
+    networkMode: 'always',
     mutationFn: () =>
       api.post('/attendance', {
         circleId,
@@ -105,6 +180,7 @@ export default function AttendancePage() {
         entries: Object.entries(draft).map(([studentId, value]) => ({
           studentId,
           status: value.status,
+          customStatus: value.customStatus,
           note: value.status === 'EXCUSED' ? value.note || undefined : undefined,
         })),
       }),
@@ -148,7 +224,7 @@ export default function AttendancePage() {
   });
 
   const counts = useMemo(() => {
-    const base: Record<AttendanceStatus, number> = { PRESENT: 0, EXCUSED: 0, ABSENT: 0 };
+    const base: Record<AttendanceStatus, number> = { PRESENT: 0, LATE: 0, EXCUSED: 0, ABSENT: 0 };
     Object.values(draft).forEach((d) => (base[d.status] += 1));
     return base;
   }, [draft]);
@@ -163,7 +239,7 @@ export default function AttendancePage() {
     (justSaved?.circleId === circleId && justSaved?.date === date);
 
   const setAll = (status: AttendanceStatus) => {
-    setDraft((prev) => Object.fromEntries(Object.keys(prev).map((id) => [id, { status }])) as Draft);
+    editDraft((prev) => Object.fromEntries(Object.keys(prev).map((id) => [id, { status }])) as Draft);
   };
 
   return (
@@ -204,6 +280,12 @@ export default function AttendancePage() {
               )}
             </div>
           </Card>
+
+          {sheet && (sheet as AttendanceSheet & { offlineFallback?: boolean }).offlineFallback && !submitted && (
+            <div role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+              أنت تعمل من نسخة الحضور المحفوظة محلياً. لا يمكن التأكد دون اتصال إن كان كشف هذا اليوم قد سُجّل مسبقاً؛ عند عودة الإنترنت سيتحقق الخادم من التكرار أو التعارض قبل اعتماد التعديل.
+            </div>
+          )}
 
           {!circleId ? (
             <Card>
@@ -249,6 +331,7 @@ export default function AttendancePage() {
             <>
               <div className="mb-5 grid gap-4 sm:grid-cols-3">
                 <StatCard label="حاضر" value={counts.PRESENT} tone="emerald" />
+                <StatCard label="متأخر" value={counts.LATE} tone="amber" />
                 <StatCard label="غياب بعذر" value={counts.EXCUSED} tone="amber" />
                 <StatCard label="غياب بدون عذر" value={counts.ABSENT} tone="red" />
               </div>
@@ -281,9 +364,10 @@ export default function AttendancePage() {
                         </div>
 
                         <StatusPicker
+                          circleId={circleId} customValue={entry.customStatus} onCustomChange={customStatus=>editDraft(d=>({...d,[student.id]:{...d[student.id],status:'PRESENT',customStatus}}))}
                           value={entry.status}
                           onChange={(status) =>
-                            setDraft((prev) => ({ ...prev, [student.id]: { ...prev[student.id], status } }))
+                            editDraft((prev) => ({ ...prev, [student.id]: { ...prev[student.id], status,customStatus:undefined } }))
                           }
                         />
 
@@ -293,7 +377,7 @@ export default function AttendancePage() {
                             placeholder="سبب العذر"
                             value={entry.note ?? ''}
                             onChange={(e) =>
-                              setDraft((prev) => ({
+                              editDraft((prev) => ({
                                 ...prev,
                                 [student.id]: { ...prev[student.id], note: e.target.value },
                               }))
@@ -323,25 +407,30 @@ export default function AttendancePage() {
 
 /** The three-state control shared by the sheet and by a correction in the history. */
 function StatusPicker({
+  circleId, customValue, onCustomChange,
   value,
   onChange,
   size = 'md',
 }: {
+  circleId?:string;customValue?:string;onCustomChange?:(id:string)=>void;
   value: AttendanceStatus;
   onChange: (status: AttendanceStatus) => void;
   size?: 'md' | 'sm';
 }) {
+  const policy=useQuery({queryKey:['recitations','learning-settings',circleId??''],queryFn:()=>fetchLearningSettings(circleId)});
+  const extras=policy.data?.attendance.filter(s=>s.enabled&&!ATTENDANCE_ORDER.includes(s.id as AttendanceStatus))??[];
   return (
     <div className="flex flex-wrap gap-1.5">
-      {ATTENDANCE_ORDER.map((status) => (
+      {ATTENDANCE_ORDER.filter(status=>!policy.data||policy.data.attendance.some(s=>s.id===status&&s.enabled)).map((status) => (
         <button
           key={status}
           type="button"
+          aria-pressed={!customValue && value === status}
           onClick={() => onChange(status)}
           className={cx(
             'rounded-lg border font-bold transition',
             size === 'sm' ? 'px-2.5 py-1 text-[11px]' : 'px-3 py-1.5 text-xs',
-            value === status
+            !customValue && value === status
               ? ATTENDANCE_ACTIVE[status]
               : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50',
           )}
@@ -349,6 +438,7 @@ function StatusPicker({
           {size === 'sm' ? ATTENDANCE_SHORT[status] : ATTENDANCE_LABELS[status]}
         </button>
       ))}
+      {!!extras.length&&onCustomChange&&<Select aria-label="حالة حضور إضافية" value={customValue??''} onChange={e=>onCustomChange(e.target.value)}><option value="">حالة إضافية</option>{extras.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}</Select>}
     </div>
   );
 }
@@ -398,8 +488,8 @@ function AttendanceHistory({ circles }: { circles: Pick<Circle, 'id' | 'name' | 
   // A correction is made one student at a time - the sheet itself is closed
   // once it has been submitted.
   const correct = useMutation({
-    mutationFn: ({ id, status, note }: { id: string; status: AttendanceStatus; note?: string }) =>
-      api.patch(`/attendance/${id}`, { status, note }),
+    mutationFn: ({ id, status, note, customStatus }: { id: string; status: AttendanceStatus; note?: string;customStatus?:string }) =>
+      api.patch(`/attendance/${id}`, { status, note, customStatus }),
     onSuccess: (res) => {
       toast.success(res.data?.message ?? 'تم تحديث سجل الطالب');
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
@@ -590,14 +680,16 @@ function AttendanceHistory({ circles }: { circles: Pick<Circle, 'id' | 'name' | 
                                               {rec.note && (
                                                 <span className="text-[11px] text-slate-400">{rec.note}</span>
                                               )}
+                                              {canEdit&&rec.customStatus&&<Badge className="bg-slate-100 text-slate-700">{attendanceRecordLabel(rec)}</Badge>}
                                               {canEdit ? (
                                                 /* This is where a recorded day is corrected: the
                                                    sheet closes on save, the record stays editable. */
                                                 <StatusPicker
                                                   size="sm"
+                                                  circleId={circleId} customValue={rec.customStatus??undefined} onCustomChange={customStatus=>correct.mutate({id:rec.id,status:'PRESENT',customStatus})}
                                                   value={rec.status}
                                                   onChange={(status) => {
-                                                    if (status === rec.status) return;
+                                                    if (status === rec.status && !rec.customStatus) return;
                                                     const note =
                                                       status === 'EXCUSED'
                                                         ? window.prompt(
@@ -610,7 +702,7 @@ function AttendanceHistory({ circles }: { circles: Pick<Circle, 'id' | 'name' | 
                                                 />
                                               ) : (
                                                 <Badge className={ATTENDANCE_COLORS[rec.status]}>
-                                                  {ATTENDANCE_SHORT[rec.status]}
+                                                  {attendanceRecordLabel(rec)}
                                                 </Badge>
                                               )}
                                             </span>

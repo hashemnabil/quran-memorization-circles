@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { LearningRules } from '../common/learning-rules';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser, Roles } from '../common/decorators';
@@ -12,13 +13,30 @@ import { RecitationsService } from './recitations.service';
 @ApiTags('التسميع اليومي')
 @ApiBearerAuth()
 @Controller('recitations')
+@Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT)
 export class RecitationsController {
   constructor(private readonly service: RecitationsService) {}
+
+  @Get('points-audit') @Roles(Role.ADMIN)
+  pointsAudit(@Query() query:QueryRecitationsDto){return this.service.pointsAudit(query);}
+  @Get('learning-settings')
+  learningSettings(@Query('circleId') circleId?:string) {return this.service.learningSettings(circleId);}
+  @Patch('learning-settings') @Roles(Role.ADMIN)
+  updateLearningSettings(@CurrentUser() user:AuthUser,@Body() rules:LearningRules,@Query('circleId') circleId?:string){return this.service.updateLearningSettings(user,circleId,rules);}
 
   @Get('surahs')
   @ApiOperation({ summary: 'قائمة سور القرآن الكريم وعدد آياتها' })
   surahs() {
     return this.service.surahs();
+  }
+
+  @Get('grading-settings')
+  gradingSettings() { return this.service.gradingSettings(); }
+
+  @Patch('grading-settings')
+  @Roles(Role.ADMIN)
+  updateGradingSettings(@CurrentUser() user: AuthUser, @Body() values: Record<string, number>) {
+    return this.service.updateGradingSettings(user, values);
   }
 
   @Get('student/:studentId/progress')
@@ -62,6 +80,8 @@ export class RecitationsController {
     return this.service.create(user, dto);
   }
 
+  @Patch(':id/tajweed') @Roles(Role.ADMIN,Role.SUPERVISOR,Role.TEACHER)
+  setLegacyTajweed(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body('count') count:number){if(!Number.isInteger(count)||count<0||count>9999)throw new BadRequestException('عدد الأحكام غير صالح');return this.service.update(user,id,{tajweedErrors:count});}
   @Patch(':id')
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   @ApiOperation({ summary: 'تعديل سجل تسميع' })

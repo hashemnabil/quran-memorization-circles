@@ -1,3 +1,4 @@
+import { NewPassword } from '../../common/validators/password';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
@@ -8,6 +9,7 @@ import {
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsNotIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -35,9 +37,9 @@ export class CreateUserDto {
   @MaxLength(160)
   email?: string | null;
 
-  @ApiProperty({ minLength: 6 })
+  @ApiProperty({ minLength: 12 })
   @IsString()
-  @MinLength(6, { message: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' })
+  @NewPassword()
   @MaxLength(128)
   password: string;
 
@@ -47,8 +49,9 @@ export class CreateUserDto {
   @MaxLength(120)
   fullName: string;
 
-  @ApiProperty({ enum: Role })
+  @ApiProperty({ enum: Object.values(Role).filter(role => role !== Role.PARENT) })
   @IsEnum(Role, { message: 'الدور المحدد غير صالح' })
+  @IsNotIn([Role.PARENT])
   role: Role;
 
   @PhoneField()
@@ -81,9 +84,9 @@ export class CreateUserDto {
 export class UpdateUserDto extends PartialType(CreateUserDto) {}
 
 export class ResetPasswordDto {
-  @ApiProperty({ minLength: 6 })
+  @ApiProperty({ minLength: 12 })
   @IsString()
-  @MinLength(6, { message: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' })
+  @NewPassword()
   @MaxLength(128)
   newPassword: string;
 
@@ -105,9 +108,10 @@ export class BulkIdsDto {
 }
 
 export class QueryUsersDto extends PaginationDto {
-  @ApiPropertyOptional({ enum: Role })
+  @ApiPropertyOptional({ enum: Object.values(Role).filter(role => role !== Role.PARENT) })
   @IsOptional()
   @IsEnum(Role)
+  @IsNotIn([Role.PARENT])
   role?: Role;
 
   @ApiPropertyOptional()
@@ -119,9 +123,10 @@ export class QueryUsersDto extends PaginationDto {
 
 /** Unified staff directory: everyone who works at the school, in one list. */
 export class QueryStaffDto extends PaginationDto {
-  @ApiPropertyOptional({ enum: Role, description: 'تصفية حسب الدور داخل الكادر' })
+  @ApiPropertyOptional({ enum: Object.values(Role).filter(role => role !== Role.PARENT), description: 'تصفية حسب الدور داخل الكادر' })
   @IsOptional()
   @IsEnum(Role)
+  @IsNotIn([Role.PARENT])
   role?: Role;
 
   @ApiPropertyOptional()

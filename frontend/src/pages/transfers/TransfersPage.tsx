@@ -1,4 +1,7 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
+import PendingRequestReasonEditor from '@/components/PendingRequestReasonEditor';
+import NotificationRecord from '@/components/NotificationRecord';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -50,8 +53,8 @@ export default function TransfersPage() {
 
   const cancel = useMutation({
     mutationFn: (id: string) => api.patch(`/transfers/${id}/cancel`),
-    onSuccess: () => {
-      toast.success('تم إلغاء الطلب');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم إلغاء الطلب');
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -93,6 +96,7 @@ export default function TransfersPage() {
         subtitle={isAdmin ? 'مراجعة واعتماد طلبات نقل الطلاب والمعلمين' : 'متابعة طلبات النقل التي قدمتها'}
       />
 
+      <NotificationRecord />
       <Card className="mb-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Select
@@ -195,6 +199,7 @@ export default function TransfersPage() {
                               </Button>
                             </>
                           )}
+                          {request.status === 'PENDING' && request.kind === 'STUDENT_TRANSFER' && (isAdmin || request.requestedBy.id === user.id) && <PendingRequestReasonEditor domain="transfers" id={request.id} reason={request.reason} />}
                           {request.status === 'PENDING' && !isAdmin && request.requestedBy.id === user.id && (
                             <Button size="sm" variant="secondary" onClick={() => cancel.mutate(request.id)}>
                               إلغاء
@@ -257,8 +262,8 @@ function DecisionModal({
         decisionNote: note || undefined,
         ...(needsCircle ? { toCircleId } : {}),
       }),
-    onSuccess: () => {
-      toast.success(approve ? 'تم اعتماد الطلب وتنفيذ النقل' : 'تم رفض الطلب');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, approve ? 'تم اعتماد الطلب وتنفيذ النقل' : 'تم رفض الطلب');
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['circles'] });

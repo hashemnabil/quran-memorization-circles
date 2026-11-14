@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'SUPERVISOR' | 'TEACHER' | 'EXAM_COMMITTEE' | 'PARENT' | 'STUDENT' | 'SUPPORT';
+export type Role = 'FOUNDER' | 'ADMIN' | 'SUPERVISOR' | 'TEACHER' | 'EXAM_COMMITTEE' | 'STUDENT' | 'SUPPORT';
 
 export type Evaluation = 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'ACCEPTABLE' | 'UNSATISFACTORY';
 /** ACTIVITY = مُحوَّل إلى برنامج النشاط (خارج الحلقات، وما زال في السجل) */
@@ -19,8 +19,8 @@ export interface ExamChain {
 /** Which part of the school a student belongs to, for the unified profile. */
 export type StudentTrack = 'CIRCLE' | 'COURSE' | 'ACTIVITY' | 'SUSPENDED';
 /** حاضر / غياب بدون عذر / غياب بعذر */
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'EXCUSED';
-export type RecitationType = 'MEMORIZATION' | 'MINOR_REVIEW' | 'MAJOR_REVIEW' | 'TAJWEED';
+export type AttendanceStatus = 'LATE' | 'PRESENT' | 'ABSENT' | 'EXCUSED';
+export type RecitationType = 'MEMORIZATION' | 'MINOR_REVIEW' | 'MAJOR_REVIEW' | 'CONSOLIDATION' | 'TAJWEED';
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export type TransferKind =
   | 'STUDENT_TRANSFER'
@@ -49,12 +49,10 @@ export interface AuthUser {
   isActive: boolean;
   mustChangePassword?: boolean;
   teacherId?: string | null;
-  parentId?: string | null;
   phone?: string | null;
   /** True while the account still uses a password the management set. */
   lastLoginAt?: string | null;
   teacherProfile?: TeacherProfile | null;
-  parentProfile?: ParentProfile | null;
   supervisedCircles?: number;
 }
 
@@ -132,26 +130,6 @@ export interface TeacherProfile {
   studentsCount?: number;
 }
 
-export interface ParentProfile {
-  id: string;
-  userId: string;
-  nationalId?: string | null;
-  phone?: string | null;
-  altPhone?: string | null;
-  address?: string | null;
-  occupation?: string | null;
-  user: {
-    id: string;
-    fullName: string;
-    username?: string;
-    email?: string | null;
-    phone?: string | null;
-    avatarUrl?: string | null;
-    isActive: boolean;
-  };
-  students?: { id: string; code: string; fullName: string; status: StudentStatus; circle?: { id: string; name: string } | null }[];
-}
-
 export interface CircleTeacherLink {
   linkId: string;
   id: string;
@@ -197,10 +175,11 @@ export interface StudentSummary {
 }
 
 export interface Student {
+  user?: { username: string; email?: string | null } | null;
   id: string;
   code: string;
   fullName: string;
-  /** Set by the school or by the guardian from the parent portal. */
+  /** Set by the school or reviewed student self-service. */
   photoUrl?: string | null;
   birthDate?: string | null;
   gender: 'MALE' | 'FEMALE';
@@ -222,7 +201,6 @@ export interface Student {
   guardianName?: string | null;
   guardianPhone?: string | null;
   guardianRelation?: string | null;
-  parentId?: string | null;
   circleId?: string | null;
   circle?: {
     id: string;
@@ -230,20 +208,9 @@ export interface Student {
     code: string;
     supervisor?: { id: string; fullName: string } | null;
   } | null;
-  parentProfile?: {
-    id: string;
-    nationalId?: string | null;
-    phone?: string | null;
-    altPhone?: string | null;
-    address?: string | null;
-    occupation?: string | null;
-    user: { id: string; fullName: string; username?: string; phone?: string | null; email?: string | null };
-  } | null;
   teacherName?: string | null;
   teacherId?: string | null;
   supervisorName?: string | null;
-  parentName?: string | null;
-  parentPhone?: string | null;
   createdAt: string;
   lastRecitation?: Recitation | null;
   activeSuspension?: Suspension | null;
@@ -252,6 +219,8 @@ export interface Student {
   /** Points balance with the breakdown that produced it. */
   points?: PointsSummary;
   surahCompletions?: SurahCompletion[];
+  surahAchievements?: import('../lib/surah-achievements').SurahAchievement[];
+  achievementRecitations?: import('../lib/surah-achievements').AchievementRecitation[];
   /** Both tracks on one record: the circle above, the courses here. */
   courses?: StudentCourse[];
   preparations?: PreparationAssignment[];
@@ -278,6 +247,8 @@ export interface AttendanceRecord {
   id: string;
   date: string;
   status: AttendanceStatus;
+  customStatus?:string|null;
+  scoringSnapshot?:{label?:string}|null;
   note?: string | null;
   student: { id: string; code: string; fullName: string };
   circle: { id: string; name: string; code: string };
@@ -301,12 +272,18 @@ export interface AttendanceSheet {
     attendance: {
       studentId: string;
       status: AttendanceStatus;
+      customStatus?:string|null;
+  scoringSnapshot?:{label?:string}|null;
       note?: string | null;
     } | null;
   }[];
 }
 
 export interface Recitation {
+  typeCounters?: import('../lib/learning-rules').TypeCounter[];
+  wordErrors?: import('../lib/learning-rules').WordError[];
+  gradingSnapshot?: import('../lib/learning-rules').LearningRules;
+  errorRatio?:number;
   id: string;
   date: string;
   type: RecitationType;
@@ -323,6 +300,7 @@ export interface Recitation {
   versesCount?: number | null;
   mistakes?: number;
   warnings?: number;
+  tajweedErrors?: number;
   points?: number;
   /** التسميع اليومي يُقيَّم بتقدير عام فقط — لا درجة رقمية. */
   evaluation?: Evaluation | null;
@@ -438,6 +416,7 @@ export interface ExamEligibility {
 }
 
 export interface ExamRequest {
+  combinedStage?: string | null;
   id: string;
   status: ExamRequestStatus;
   requestedHizb?: number | null;
@@ -463,6 +442,10 @@ export interface ExamRequest {
 }
 
 export interface Exam {
+  combinedStage?: string | null;
+  committeeId?: string | null;
+  committee?: {id:string;number:string;heldAt:string;location:string;members:{name:string;userId?:string|null}[]} | null;
+  grading?: {mistakes:number;alerts:number;mistakePenalty:number;alertPenalty:number;tajweed:number;recitation:number;score:number} | null;
   id: string;
   scheduledAt: string;
   location?: string | null;
@@ -491,8 +474,14 @@ export interface Exam {
 }
 
 export interface SupportTicket {
+  deletionCompletedAt?: string|null;
+  retentionNote?: string|null;
+  pendingUpdate?: boolean;
+  pendingStatus?: TicketStatus | null;
+  synced?: number;
+  syncError?: string;
   id: string;
-  number: number;
+  number: number | null;
   subject: string;
   description: string;
   category?: string | null;
@@ -512,6 +501,7 @@ export interface SupportTicket {
 }
 
 export interface TicketMessage {
+  synced?: number;
   id: string;
   body: string;
   isInternal: boolean;
@@ -537,6 +527,9 @@ export interface ChatMember {
 }
 
 export interface Conversation {
+  synced?: number;
+  syncError?: string;
+  contactRestricted?: boolean;
   id: string;
   type: 'DIRECT' | 'GROUP';
   title: string;
@@ -544,6 +537,7 @@ export interface Conversation {
   avatarUrl?: string | null;
   otherUser?: { id: string; fullName: string; role: Role; avatarUrl?: string | null } | null;
   isOnline: boolean;
+  lastActiveAt?: string | null;
   members: ChatMember[];
   memberCount: number;
   lastMessage?: ChatMessage | null;
@@ -560,6 +554,9 @@ export interface Conversation {
 }
 
 export interface ChatMessage {
+  synced?: number;
+  syncError?: string;
+  rejectedChange?: boolean;
   id: string;
   conversationId: string;
   body: string;
@@ -586,6 +583,18 @@ export interface SchoolSettings {
   whatsapp?: string | null;
   website?: string | null;
   academicYear?: string | null;
+  donationsEnabled?: boolean;
+  donationTitle?: string | null;
+  donationDescription?: string | null;
+  donationGoalAmount?: number | null;
+  donationRaisedAmount?: number | null;
+  donationCurrency?: string | null;
+  donationMethod?: string | null;
+  donationLink?: string | null;
+    donationBankPalestine?: string | null;
+    donationIslamicBank?: string | null;
+    donationJawwal?: string | null;
+    donationPalPay?: string | null;
 }
 
 export interface ActivityEntry {
@@ -602,6 +611,8 @@ export interface ActivityEntry {
 // ---------------------------------------------------------------------------
 
 export interface Course {
+  synced?: number;
+  enrollmentPending?: boolean;
   id: string;
   name: string;
   code: string;
@@ -624,6 +635,7 @@ export interface Course {
 }
 
 export interface CourseStudent {
+  pending?: boolean;
   enrollmentId: string;
   id: string;
   code: string;
@@ -664,6 +676,7 @@ export interface PointsSummary {
   total: number;
   fromRecitations: number;
   fromSurahs: number;
+  fromAttendance?:number;
   sessions?: number;
   verses: number;
   mistakes: number;
@@ -715,6 +728,8 @@ export interface StaffAttendanceRecord {
   id: string;
   date: string;
   status: AttendanceStatus;
+  customStatus?:string|null;
+  scoringSnapshot?:{label?:string}|null;
   note?: string | null;
   user: { id: string; fullName: string; role: Role; jobTitle?: string | null };
   recordedBy?: { id: string; fullName: string } | null;

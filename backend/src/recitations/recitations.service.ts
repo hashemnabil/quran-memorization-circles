@@ -1,5 +1,8 @@
+import { MUSHAF_WORD_POSITIONS } from '../common/mushaf-word-counts';
+import { learningPolicy, savePolicy } from './learning-policy';
+import { LearningRules, scoreSession, WordError, TypeCounter } from '../common/learning-rules';
 import {
-  BadRequestException,
+  BadRequestException, ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -12,6 +15,8 @@ import { AuthUser } from '../common/decorators';
 import { paginate } from '../common/dto/pagination.dto';
 import { SURAHS, countVerses, findSurah } from '../common/quran';
 import { calculatePoints, pointsBreakdown } from '../common/points';
+import { recitationEvaluation } from '../common/grading';
+import { calculateSurahAchievements } from '../common/surah-achievements';
 import { StudentsService } from '../students/students.service';
 import {
   CreateRecitationDto,
@@ -43,6 +48,42 @@ export class RecitationsService {
   /** Reference data for the recitation form. */
   surahs() {
     return SURAHS;
+  }
+
+  async pointsAudit(query:QueryRecitationsDto){return this.prisma.$queryRaw`SELECT a.id::text,a."studentId",a.source,a."sourceId",a.before_points,a.after_points,a."createdAt",s."fullName" FROM learning_points_audit a JOIN students s ON s.id=a."studentId" WHERE (${query.studentId??null}::text IS NULL OR a."studentId"=${query.studentId??null}) ORDER BY a.id DESC LIMIT ${query.take} OFFSET ${query.skip}`;}
+  async offlineLearningPolicies(user:AuthUser){const school=await this.learningSettings();const ids=await this.acl.accessibleCircleIds(user);const circles=await this.prisma.circle.findMany({where:{deletedAt:null,...(ids?{id:{in:ids}}:{})},select:{id:true}});return Object.fromEntries(await Promise.all(circles.map(async c=>[c.id,await learningPolicy(this.prisma,c.id,undefined,school)])));}
+  async learningSettings(circleId?: string) { const rules=await learningPolicy(this.prisma,circleId,undefined,await this.baseGradingSettings());return rules.revision==='legacy'?savePolicy(this.prisma,'system',undefined,rules):rules; }
+  async updateLearningSettings(actor:AuthUser, circleId:string|undefined, rules:LearningRules) { if(actor.role!==Role.ADMIN) throw new ForbiddenException(); if(circleId) await this.acl.assertCircleAccess(actor,circleId); const result=await savePolicy(this.prisma,actor.id,circleId,rules); await this.activity.log({userId:actor.id,action:"LEARNING_RULES_UPDATE",summary:"تحديث أنواع الأخطاء ونقاط الحضور وأوزان لوحة الشرف",entityId:result.revision}); return result; }
+
+  private async baseGradingSettings() {
+    const row = await this.prisma.schoolSettings.findUnique({ where: { id: 'default' } });
+    return {
+      mistakePenalty: row?.recitationMistakePenalty ?? 1,
+      warningPenalty: row?.recitationWarningPenalty ?? 0.25,
+      tajweedPenalty: row?.recitationTajweedPenalty ?? 0.5,
+      excellent: row?.recitationExcellentMin ?? 90,
+      veryGood: row?.recitationVeryGoodMin ?? 80,
+      good: row?.recitationGoodMin ?? 70,
+      acceptable: row?.recitationAcceptableMin ?? 60,
+    };
+  }
+
+  async gradingSettings() {
+    const base=await this.baseGradingSettings();const rules=await learningPolicy(this.prisma,undefined,undefined,base);
+    return {...base,mistakePenalty:rules.mistakePenalty,warningPenalty:rules.warningPenalty,tajweedPenalty:rules.tajweedPenalty,excellent:rules.excellent,veryGood:rules.veryGood,good:rules.good,acceptable:rules.acceptable};
+  }
+
+  async updateGradingSettings(actor: AuthUser, values: Record<string, number>) {
+    if (actor.role !== Role.ADMIN) throw new ForbiddenException('تعديل قواعد التقييم للإدارة فقط');
+    const keys = ['mistakePenalty', 'warningPenalty', 'tajweedPenalty', 'excellent', 'veryGood', 'good', 'acceptable'];
+    if (!values || Object.keys(values).some(key => !keys.includes(key))) throw new BadRequestException('إعدادات تقييم غير صالحة');
+    const next = { ...await this.gradingSettings(), ...values };
+    if (keys.some(key => typeof next[key] !== 'number' || !Number.isFinite(next[key]) || next[key] < 0 || next[key] > 100)
+      || !(next.excellent > next.veryGood && next.veryGood > next.good && next.good > next.acceptable)) throw new BadRequestException('الخصومات بين 0 و100، وحدود التقييم تنازلية');
+    await this.prisma.schoolSettings.update({ where: { id: 'default' }, data: { recitationMistakePenalty: next.mistakePenalty, recitationWarningPenalty: next.warningPenalty, recitationTajweedPenalty: next.tajweedPenalty, recitationExcellentMin: next.excellent, recitationVeryGoodMin: next.veryGood, recitationGoodMin: next.good, recitationAcceptableMin: next.acceptable } });
+    await savePolicy(this.prisma,actor.id,undefined,{...await this.learningSettings(),...next});
+    await this.activity.log({ userId: actor.id, action: 'RECITATION_GRADING_SETTINGS', summary: 'تحديث خصومات وحدود تقييم التسميع' });
+    return next;
   }
 
   async findAll(user: AuthUser, query: QueryRecitationsDto) {
@@ -187,10 +228,11 @@ export class RecitationsService {
   async historyDetail(user: AuthUser, date: string, circleId: string) {
     const real = circleId === 'none' ? null : circleId;
     if (real) await this.acl.assertCircleAccess(user, real);
+    const scope = await this.acl.studentScope(user);
     const day = toDateOnly(date);
 
     const records = await this.prisma.recitation.findMany({
-      where: { deletedAt: null, date: day, circleId: real },
+      where: { deletedAt: null, date: day, circleId: real, student: { AND: [scope, { deletedAt: null }] } },
       include: RECITATION_INCLUDE,
       orderBy: [{ student: { fullName: 'asc' } }, { createdAt: 'asc' }],
     });
@@ -254,11 +296,11 @@ export class RecitationsService {
     // range means the teacher never has to do arithmetic to record a session.
     const verses =
       dto.versesCount ?? countVerses(dto.fromSurah, dto.fromAyah, dto.toSurah, dto.toAyah);
-    const points = calculatePoints({
-      versesCount: verses,
-      mistakes: dto.mistakes,
-      warnings: dto.warnings,
-    });
+    const rules = await learningPolicy(this.prisma,student.circleId,dto.rulesRevision,await this.gradingSettings());
+    const wordErrors=dto.wordErrors??[];this.validateWordRange(wordErrors,dto);
+    let scored:ReturnType<typeof scoreSession>;
+    try {scored=scoreSession({versesCount:verses,mistakes:dto.mistakes??0,warnings:dto.warnings??0,tajweedErrors:dto.tajweedErrors??0,wordErrors,typeCounters:dto.typeCounters},rules);}catch(error){throw new BadRequestException((error as Error).message);}
+    const points=Math.round(scored.points*rules.weights.recitation*100)/100;const evaluation=scored.evaluation;
 
     const recitation = await this.prisma.recitation.create({
       data: {
@@ -275,9 +317,14 @@ export class RecitationsService {
         versesCount: verses,
         mistakes: dto.mistakes ?? 0,
         warnings: dto.warnings ?? 0,
+        tajweedErrors: dto.tajweedErrors ?? 0,
         points,
-        evaluation: dto.evaluation,
+        evaluation,
         notes: dto.notes,
+        typeCounters: (dto.typeCounters??[]) as unknown as Prisma.InputJsonValue,
+        wordErrors: scored.details as unknown as Prisma.InputJsonValue,
+        gradingSnapshot: {...rules,result:{mark:scored.points,percent:scored.percent,base:scored.base,deducted:scored.deducted}} as unknown as Prisma.InputJsonValue,
+        errorRatio: scored.errorRatio,
       },
       include: RECITATION_INCLUDE,
     });
@@ -300,7 +347,7 @@ export class RecitationsService {
       entityId: recitation.id,
     });
 
-    return { ...recitation, breakdown: pointsBreakdown({ versesCount: verses, mistakes: dto.mistakes, warnings: dto.warnings }) };
+    return { ...recitation, breakdown: {...pointsBreakdown({ versesCount: verses, mistakes: dto.mistakes, warnings: dto.warnings, tajweedErrors: dto.tajweedErrors }, rules),earned:scored.base,deducted:scored.deducted,total:points,wordErrors:scored.details,typeCounters:scored.counterDetails} };
   }
 
   async update(actor: AuthUser, id: string, dto: UpdateRecitationDto) {
@@ -308,6 +355,7 @@ export class RecitationsService {
       where: { id, deletedAt: null },
     });
     if (!recitation) throw new NotFoundException('سجل التسميع غير موجود');
+    if(dto.baseUpdatedAt&&new Date(dto.baseUpdatedAt).getTime()!==recitation.updatedAt.getTime())throw new ConflictException('تغيّر سجل التسميع؛ راجع النسخة الحالية قبل حفظ تعديلك');
     await this.acl.assertStudentWriteAccess(actor, recitation.studentId);
 
     // Only the recording teacher (or administration) may edit an entry.
@@ -332,14 +380,21 @@ export class RecitationsService {
     const toAyah = dto.toAyah ?? recitation.toAyah;
     const mistakes = dto.mistakes ?? recitation.mistakes;
     const warnings = dto.warnings ?? recitation.warnings;
+    const tajweedErrors = dto.tajweedErrors ?? recitation.tajweedErrors;
     const verses =
       dto.versesCount ??
       (dto.fromSurah || dto.toSurah || dto.fromAyah !== undefined || dto.toAyah !== undefined
         ? countVerses(fromSurah, fromAyah, toSurah, toAyah)
         : (recitation.versesCount ?? countVerses(fromSurah, fromAyah, toSurah, toAyah)));
 
+    const rules = recitation.gradingSnapshot ? recitation.gradingSnapshot as unknown as LearningRules : await learningPolicy(this.prisma,recitation.circleId,undefined,await this.gradingSettings());
+    const wordErrors=dto.wordErrors??(recitation.wordErrors as unknown as WordError[]??[]);this.validateWordRange(wordErrors,{fromSurah,fromAyah,toSurah,toAyah});
+    let scored:ReturnType<typeof scoreSession>;
+    try{scored=scoreSession({versesCount:verses,mistakes,warnings,tajweedErrors,wordErrors,typeCounters:dto.typeCounters??(recitation.typeCounters as unknown as TypeCounter[]??[])},rules);}catch(error){throw new BadRequestException((error as Error).message);}
+    const scoreChanged=['fromSurah','fromAyah','toSurah','toAyah','versesCount','mistakes','warnings','tajweedErrors','wordErrors','typeCounters'].some(key=>dto[key]!==undefined);
+    const points=scoreChanged?Math.round(scored.points*rules.weights.recitation*100)/100:recitation.points;
     const updated = await this.prisma.recitation.update({
-      where: { id },
+      where: { id, ...(dto.baseUpdatedAt?{updatedAt:new Date(dto.baseUpdatedAt)}:{}) },
       data: {
         date: dto.date ? toDateOnly(dto.date) : undefined,
         type: dto.type,
@@ -351,9 +406,14 @@ export class RecitationsService {
         versesCount: verses,
         mistakes,
         warnings,
-        points: calculatePoints({ versesCount: verses, mistakes, warnings }),
-        evaluation: dto.evaluation,
+        tajweedErrors,
+        points,
+        evaluation: scoreChanged?scored.evaluation:recitation.evaluation,
+        typeCounters: (dto.typeCounters??recitation.typeCounters??[]) as Prisma.InputJsonValue,
         notes: dto.notes,
+        wordErrors: scored.details as unknown as Prisma.InputJsonValue,
+        gradingSnapshot: scoreChanged?{...rules,result:{mark:scored.points,percent:scored.percent,base:scored.base,deducted:scored.deducted}} as unknown as Prisma.InputJsonValue:recitation.gradingSnapshot??Prisma.DbNull,
+        errorRatio: scoreChanged?scored.errorRatio:recitation.errorRatio,
       },
       include: RECITATION_INCLUDE,
     });
@@ -361,7 +421,7 @@ export class RecitationsService {
     await this.students.recalculatePoints(recitation.studentId);
     return {
       ...updated,
-      breakdown: pointsBreakdown({ versesCount: verses, mistakes, warnings }),
+      breakdown: {...pointsBreakdown({ versesCount: verses, mistakes, warnings, tajweedErrors }, rules),earned:scored.base,deducted:scored.deducted,total:points,wordErrors:scored.details,typeCounters:scored.counterDetails},
     };
   }
 
@@ -422,7 +482,7 @@ export class RecitationsService {
       monthMap.set(key, row);
     });
 
-    const [student, surahs] = await Promise.all([
+    const [student, surahs, achievementRecitations] = await Promise.all([
       this.prisma.student.findUnique({
         where: { id: studentId },
         select: { totalPoints: true },
@@ -430,6 +490,10 @@ export class RecitationsService {
       this.prisma.surahCompletion.findMany({
         where: { studentId },
         orderBy: { completedAt: 'desc' },
+      }),
+      this.prisma.recitation.findMany({
+        where: { studentId, deletedAt: null, evaluation: 'EXCELLENT' },
+        select: { id: true, type: true, fromSurah: true, fromAyah: true, toSurah: true, toAyah: true, evaluation: true, date: true, createdAt: true, updatedAt: true },
       }),
     ]);
 
@@ -441,11 +505,14 @@ export class RecitationsService {
         total: student?.totalPoints ?? 0,
         fromRecitations: Math.round(Number(aggregate._sum.points ?? 0) * 100) / 100,
         fromSurahs: Math.round(surahs.reduce((s, c) => s + c.points, 0) * 100) / 100,
+        fromAttendance: Math.round(((student?.totalPoints??0)-(aggregate._sum.points??0)-surahs.reduce((sum,c)=>sum+c.points,0))*100)/100,
         verses: aggregate._sum.versesCount ?? 0,
         mistakes: aggregate._sum.mistakes ?? 0,
         warnings: aggregate._sum.warnings ?? 0,
       },
       surahCompletions: surahs,
+      surahAchievements: calculateSurahAchievements(achievementRecitations),
+      achievementRecitations,
       // Daily recitation is graded by evaluation, so the summary counts each
       // grade instead of averaging a score that no longer exists.
       byEvaluation: byEvaluation.map((e) => ({
@@ -487,6 +554,11 @@ export class RecitationsService {
     });
     if (!any) throw new BadRequestException('لا يوجد معلم مسند لهذه الحلقة');
     return any.teacherId;
+  }
+
+  private validateWordRange(errors:WordError[],range:{fromSurah:string;fromAyah:number;toSurah:string;toAyah:number}) {
+    const start=findSurah(range.fromSurah)!.number*1000+range.fromAyah;const end=findSurah(range.toSurah)!.number*1000+range.toAyah;
+    for(const error of errors){const [surah,ayah,word]=error.wordId.split(':').map(Number);const ref=SURAHS.find(s=>s.number===surah);if(!ref||ayah<1||ayah>ref.ayahs||word<1||!(MUSHAF_WORD_POSITIONS[surah+':'+ayah]??[]).includes(word)||surah*1000+ayah<start||surah*1000+ayah>end)throw new BadRequestException('الكلمة المحددة خارج نطاق التسميع');}
   }
 
   private validateRange(dto: {

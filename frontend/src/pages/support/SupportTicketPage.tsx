@@ -14,6 +14,8 @@ import {
   PageHeader,
   Select,
   cx,
+  Textarea,
+  useConfirm,
 } from '@/components/ui';
 import { IconLifeBuoy, IconSend } from '@/components/ui/Icons';
 import {
@@ -32,6 +34,9 @@ export default function SupportTicketPage() {
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
 
+  const confirm=useConfirm();
+  const [retentionNote,setRetentionNote]=useState('');
+  const [deletingAccount,setDeletingAccount]=useState(false);
   const [body, setBody] = useState('');
   const [isInternal, setIsInternal] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -42,7 +47,6 @@ export default function SupportTicketPage() {
     queryKey: ['support', 'ticket', id],
     queryFn: async () => (await api.get<SupportTicket>(`/support/${id}`)).data,
     enabled: !!id,
-    refetchInterval: 30000,
   });
 
   const { data: staff } = useQuery({
@@ -53,7 +57,8 @@ export default function SupportTicketPage() {
 
   const reply = useMutation({
     mutationFn: () => api.post(`/support/${id}/reply`, { body, isInternal }),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      if (response.data?.synced === 0) toast('حُفظ الرد على الجهاز، بانتظار تأكيد الخادم');
       setBody('');
       setIsInternal(false);
       queryClient.invalidateQueries({ queryKey: ['support', 'ticket', id] });
@@ -64,8 +69,9 @@ export default function SupportTicketPage() {
 
   const update = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.patch(`/support/${id}`, payload),
-    onSuccess: () => {
-      toast.success('تم تحديث التذكرة');
+    onSuccess: (response) => {
+      if (response.data?.synced === 0) toast('حُفظ تعديل التذكرة على الجهاز، بانتظار تأكيد الخادم');
+      else toast.success('تم تحديث التذكرة');
       queryClient.invalidateQueries({ queryKey: ['support'] });
     },
     onError: (error) => toast.error(apiError(error)),
@@ -95,7 +101,7 @@ export default function SupportTicketPage() {
             الدعم الفني
           </Link>
         }
-        subtitle={`تذكرة رقم #${ticket.number} — ${formatDateTime(ticket.createdAt)}`}
+        subtitle={`${ticket.number ? `تذكرة رقم #${ticket.number}` : 'طلب محلي بانتظار تأكيد الخادم'} — ${formatDateTime(ticket.createdAt)}`}
         action={
           <>
             <Badge className={TICKET_PRIORITY_COLORS[ticket.priority]}>{TICKET_PRIORITY_LABELS[ticket.priority]}</Badge>
@@ -104,6 +110,8 @@ export default function SupportTicketPage() {
         }
       />
 
+      {ticket.syncError && <p role="status" className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{ticket.syncError} — طلبك محفوظ على الجهاز.</p>}
+      {ticket.pendingUpdate && <p role="status" className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">تعديل التذكرة بانتظار تأكيد الخادم{ticket.pendingStatus ? ` — الحالة المطلوبة: ${TICKET_STATUS_LABELS[ticket.pendingStatus]}` : ''}. الحالة والإسناد الظاهران هما آخر نسخة معتمدة.</p>}
       <div className="grid gap-5 lg:grid-cols-[1fr_18rem]">
         <Card padded={false} className="flex flex-col overflow-hidden">
           <div
@@ -133,6 +141,7 @@ export default function SupportTicketPage() {
                         <p className="mb-1 text-[10px] font-bold uppercase tracking-wide">ملاحظة داخلية</p>
                       )}
                       <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                      {message.synced === 0 && ticket.synced === 0 && <p className="mt-1 text-[11px]">بانتظار تأكيد الخادم</p>}
                     </div>
                   </div>
                 </div>
@@ -181,6 +190,7 @@ export default function SupportTicketPage() {
         </Card>
 
         <div className="space-y-5">
+          {ticket.category==='ACCOUNT_DELETION'&&user.role==='ADMIN'&&<Card title="معالجة حذف الحساب">{ticket.deletionCompletedAt?<><p className="text-sm">تمت المعالجة في {formatDateTime(ticket.deletionCompletedAt)}</p><p className="mt-3 whitespace-pre-wrap text-sm">{ticket.retentionNote}</p></>:<div className="space-y-3"><p className="text-sm leading-7">يُغلق الحساب وتُنهى جلساته وتُخفى هوية ملفه وتُحذف منشوراته الشخصية وقصصه وتعليقاته. تبقى السجلات التعليمية والإدارية والرسائل ومنشورات المدرسة للتدقيق؛ وضّح سبب الاحتفاظ ومدة المراجعة قبل التأكيد. هذه المعالجة تحتاج اتصالاً.</p><Textarea label="السجلات المحتفظ بها والسبب وموعد مراجعتها" maxLength={2000} minLength={20} value={retentionNote} onChange={event=>setRetentionNote(event.target.value)}/><Button variant="danger" loading={deletingAccount} disabled={retentionNote.trim().length<20||!navigator.onLine} onClick={async()=>{if(!await confirm({title:'تنفيذ طلب حذف الحساب',message:'سيُغلق حساب صاحب الطلب وتُحذف بياناته الاجتماعية الشخصية؛ لا يمكن التراجع عن حذفها. هل راجعت قرار الاحتفاظ؟',variant:'danger'}))return;setDeletingAccount(true);try{await api.post('/support/account-deletion/'+id+'/complete',{retentionNote,confirmed:true});toast.success('تمت معالجة الطلب وتسجيل قرار الاحتفاظ');void queryClient.invalidateQueries({queryKey:['support']});}catch(error){toast.error(apiError(error));}finally{setDeletingAccount(false);}}}>تنفيذ الحذف وإغلاق الحساب</Button></div>}</Card>}
           <Card title="تفاصيل التذكرة">
             <dl className="space-y-2.5 text-xs">
               <Row label="مقدّم الطلب" value={ticketRequesterName(ticket)} />

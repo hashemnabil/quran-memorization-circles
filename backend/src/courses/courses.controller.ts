@@ -29,15 +29,15 @@ export class CoursesController {
   @Get()
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   @ApiOperation({ summary: 'قائمة الدورات' })
-  findAll(@Query() query: QueryCoursesDto) {
-    return this.service.findAll(query);
+  findAll(@CurrentUser() user: AuthUser, @Query() query: QueryCoursesDto) {
+    return this.service.findAll(query, user);
   }
 
   @Get(':id')
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   @ApiOperation({ summary: 'تفاصيل دورة' })
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.findOne(id, user);
   }
 
   @Post()
@@ -93,22 +93,22 @@ export class CoursesController {
   @Get(':id/attendance/sheet')
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   @ApiOperation({ summary: 'كشف حضور الدورة في تاريخ محدد' })
-  attendanceSheet(@Param('id') id: string, @Query() query: CourseAttendanceQueryDto) {
-    return this.service.attendanceSheet(id, query);
+  attendanceSheet(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query() query: CourseAttendanceQueryDto) {
+    return this.service.attendanceSheet(id, query, user);
   }
 
   @Get(':id/attendance/history')
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   @ApiOperation({ summary: 'سجل حضور الدورة مرتّباً حسب التاريخ' })
-  attendanceHistory(@Param('id') id: string) {
-    return this.service.attendanceHistory(id);
+  attendanceHistory(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.attendanceHistory(id, user);
   }
 
   @Get(':id/attendance/:date')
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   @ApiOperation({ summary: 'تفاصيل حضور الدورة في يوم محدد' })
-  attendanceDetail(@Param('id') id: string, @Param('date') date: string) {
-    return this.service.attendanceDetail(id, date);
+  attendanceDetail(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('date') date: string) {
+    return this.service.attendanceDetail(id, date, user);
   }
 
   @Post(':id/attendance')

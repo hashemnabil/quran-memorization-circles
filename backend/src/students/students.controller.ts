@@ -14,6 +14,7 @@ import {
   SetStudentPhotoDto,
   SurahCompletionDto,
   UpdateStudentDto,
+  StudentQuestionnaireDto,
 } from './dto/student.dto';
 import { StudentsService } from './students.service';
 
@@ -35,6 +36,12 @@ export class StudentsController {
   @ApiOperation({ summary: 'ملف الطالب الحالي وسجلاته الخاصة' })
   getMyProfile(@CurrentUser() user: AuthUser) {
     return this.service.getMyProfile(user);
+  }
+
+  @Patch('me/questionnaire')
+  @Roles(Role.STUDENT)
+  updateMyQuestionnaire(@CurrentUser() user: AuthUser, @Body() dto: StudentQuestionnaireDto) {
+    return this.service.updateMyQuestionnaire(user, dto);
   }
 
   @Get('import-template')
@@ -131,6 +138,18 @@ export class StudentsController {
   @ApiOperation({ summary: 'إنشاء حساب دخول لطالب مسجل مسبقاً' })
   createAccount(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.createAccountForStudent(user, id);
+  }
+
+  @Post('accounts/reset-password-bulk')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'إعادة تعيين كلمات مرور حسابات الطلاب المحددين دفعة واحدة' })
+  async resetAccountPasswordsBulk(@CurrentUser() user: AuthUser, @Body() body: { studentIds?: string[]; ids?: string[] }) {
+    const ids = body?.studentIds ?? body?.ids;
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500 ||
+        ids.some(id => typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id))) {
+      throw new BadRequestException('اختر من 1 إلى 500 طالب بمعرفات صحيحة');
+    }
+    return this.service.resetStudentAccountPasswordsBulk(user, [...new Set(ids)]);
   }
 
   @Post(':id/account/reset-password')
@@ -258,9 +277,7 @@ export class StudentsController {
   }
 
   /**
-   * Open to guardians as well as staff: a father uploading his son's photo from
-   * the parent portal is the common case, and `setPhoto` scopes it to his own
-   * children.
+   * Students may maintain their own photo; the service verifies ownership.
    */
   @Patch(':id/photo')
   @ApiOperation({ summary: 'تعيين أو إزالة صورة الطالب' })

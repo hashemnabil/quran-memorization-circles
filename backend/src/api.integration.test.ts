@@ -271,7 +271,8 @@ test('role workflows and production security regressions over HTTP', { timeout: 
       assert.equal(await db.attendance.count({ where: { studentId: student.id } }), 1);
       await request('POST', '/recitations', Role.TEACHER, { studentId: student.id, date: '2026-01-01', fromSurah: 'الفاتحة', fromAyah: 1, toSurah: 'الفاتحة', toAyah: 7, evaluation: 'EXCELLENT', mistakes: 1, warnings: 0 });
       assert.equal((await db.recitation.findFirstOrThrow({ where: { studentId: student.id } })).points, 6);
-      assert.equal((await db.student.findUniqueOrThrow({ where: { id: student.id } })).totalPoints, 6);
+      assert.equal((await db.attendance.findFirstOrThrow({ where: { studentId: student.id } })).points, 1);
+      assert.equal((await db.student.findUniqueOrThrow({ where: { id: student.id } })).totalPoints, 7);
       await request('GET', '/reports?type=students&track=CIRCLE', Role.TEACHER, undefined, 403);
       const report = await request('GET', '/reports?type=students&track=CIRCLE', Role.ADMIN);
       assert.equal(report.rows.some((row: any) => row['الطالب'] === student.fullName), true);

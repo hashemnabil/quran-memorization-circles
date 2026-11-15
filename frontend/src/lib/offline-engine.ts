@@ -323,7 +323,7 @@ async function acknowledge(operation: QueuedWrite, server: any) {
       }
       return;
     }
-    if (['staffAttendance', 'courseAttendance'].includes(operation.table) && operation.action === 'create') {
+    if (operation.table === 'smsCampaigns' || ['staffAttendance', 'courseAttendance'].includes(operation.table) && operation.action === 'create') {
       await table.delete([operation.accountId, operation.entityId]);
       return;
     }

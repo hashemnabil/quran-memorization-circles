@@ -70,7 +70,7 @@ export class SmsService implements OnModuleInit, OnModuleDestroy {
     } catch (error) { if (error instanceof BadRequestException) throw error; throw new BadRequestException('ملف غير صالح؛ حد الاستيراد 5000 صف و100 عمود'); }
   }
   async recipients() {
-    return this.prisma.student.findMany({ where: { deletedAt: null }, select: { id: true, fullName: true, circleId: true, circle: { select: { name: true } }, guardianPhone: true }, orderBy: { fullName: 'asc' } });
+    return this.prisma.student.findMany({ where: { deletedAt: null }, select: { id: true, fullName: true, circleId: true, circle: { select: { name: true } }, guardianPhone: true, userId: true, user: { select: { username: true, isActive: true } } }, orderBy: [{ fullName: 'asc' }, { id: 'asc' }] });
   }
   async preview(body: any) {
     if (!smsTemplates[body?.kind] || !['APP', 'SMS', 'BOTH'].includes(body.channel)) throw new BadRequestException('حدد نوع الرسالة وقناة الإرسال');
@@ -79,7 +79,7 @@ export class SmsService implements OnModuleInit, OnModuleDestroy {
     if (body.kind === 'CREDENTIALS' && body.channel !== 'SMS') throw new BadRequestException('بيانات الدخول المؤقتة عبر SMS فقط');
     if (body.kind === 'SUMMONS' && (!/^\d{4}-\d{2}-\d{2}$/.test(body.date || '') || !/^([01]\d|2[0-3]):[0-5]\d$/.test(body.time || '') || !Number.isFinite(new Date(body.date).getTime()) || new Date(body.date).toISOString().slice(0, 10) !== body.date)) throw new BadRequestException('التاريخ والوقت مطلوبان للاستدعاء');
     if (!body.all && !body.circleId && (!Array.isArray(body.studentIds) || !body.studentIds.length)) throw new BadRequestException('اختر الطلاب');
-    const students = await this.prisma.student.findMany({ where: { deletedAt: null, ...(body.all ? {} : body.circleId ? { circleId: body.circleId } : { id: { in: body.studentIds } }) }, select: { id: true, fullName: true, guardianPhone: true, userId: true, user: { select: { username: true, isActive: true } } } });
+    const students = await this.prisma.student.findMany({ where: { deletedAt: null, ...(body.all ? {} : body.circleId ? { circleId: body.circleId } : { id: { in: body.studentIds } }) }, select: { id: true, fullName: true, guardianPhone: true, userId: true, user: { select: { username: true, isActive: true } } }, orderBy: [{ fullName: 'asc' }, { id: 'asc' }] });
     if (!students.length || students.length > 5000) throw new BadRequestException('حدد من 1 إلى 5000 طالب');
     const templates = await this.templates(), school = await this.prisma.schoolSettings.findUnique({ where: { id: 'default' } });
     return students.map(student => {

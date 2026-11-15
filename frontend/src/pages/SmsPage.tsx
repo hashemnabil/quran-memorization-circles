@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
 import { Button, Card, PageHeader, Textarea } from '@/components/ui';
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 
 type Row = Record<string, string>;
 type Message = { phone: string; title: string; text: string; error?: string; name?: string };
@@ -21,9 +22,12 @@ export function StudentCommunications({ initialKind = 'NOTICE' }: { initialKind?
       if (!Array.isArray(response.data) || response.data.some(student => !student || typeof student.id !== 'string' || typeof student.fullName !== 'string')) {
         throw new Error('Invalid SMS recipient response');
       }
-      if (active) setStudents(response.data);
+      if (active) {
+        setStudents(response.data);
+        setRecipientsError(response.data.length ? '' : 'لا توجد قائمة طلاب محفوظة على الجهاز بعد؛ نزّل النسخة المحلية أثناء الاتصال.');
+      }
     }).catch(() => {
-      if (active) setRecipientsError('تعذر تحميل مستلمي الرسائل. يلزم اتصال بالخادم وخدمة SMS متاحة؛ يمكنك استخدام نموذج الإشعارات المعتاد.');
+      if (active) setRecipientsError('تعذر تحميل مستلمي الرسائل. نزّل النسخة المحلية أثناء الاتصال ثم حاول مجددًا.');
     });
     return () => { active = false; };
   }, []);
@@ -35,7 +39,7 @@ export function StudentCommunications({ initialKind = 'NOTICE' }: { initialKind?
     if (!window.confirm('تأكيد إرسال الرسائل المعروضة بالقناة المختارة؟')) return;
     const body=JSON.stringify({...data,preview}); if(request.current?.body!==body) request.current={body,key:crypto.randomUUID()};
     setBusy(true);
-    try { await api.post('/sms/communications',{...data,preview,confirm:true,requestKey:request.current!.key}); toast.success('تم حفظ العملية؛ راجع سجل SMS لمتابعة المعالجة'); setPreview([]); }
+    try { const result = await api.post('/sms/communications',{...data,preview,confirm:true,requestKey:request.current!.key}); notifyWriteSuccess(result, 'تم حفظ العملية؛ راجع سجل SMS لمتابعة المعالجة'); setPreview([]); window.dispatchEvent(new Event('halaqat:sms-queued')); }
     catch(e){toast.error(apiError(e));} finally{setBusy(false);}
   };
   return <Card title="إشعار أو إنذار أو استدعاء لأولياء الأمور"><div className="space-y-3" onChange={reset}>
@@ -71,6 +75,7 @@ export default function SmsPage() {
   const request = useRef<{body:string;key:string}>();
   const load = () => api.get('/sms/campaigns').then(r=>setHistory(r.data));
   useEffect(()=>{void api.get('/sms/templates').then(r=>setTemplates(r.data)).catch(e=>toast.error(apiError(e))); void load().catch(e=>toast.error(apiError(e)));},[]);
+  useEffect(()=>{const refresh=()=>void load().catch(()=>undefined);window.addEventListener('halaqat:sms-queued',refresh);return()=>window.removeEventListener('halaqat:sms-queued',refresh);},[]);
   useEffect(()=>{ if(!campaign)return; const update=()=>void api.get('/sms/campaigns/'+campaign).then(r=>setStates(r.data)).catch(()=>undefined); update(); const timer=setInterval(update,4000); return()=>clearInterval(timer);},[campaign]);
   const seen=new Set<string>();
   const messages:Message[]=rows.map((row,i)=>{

@@ -1,4 +1,5 @@
 import CommunityImage from '@/pages/community/CommunityImage';
+import LinkedText from '@/components/LinkedText';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import { FormEvent, useEffect, useRef, useState } from 'react';
@@ -465,7 +466,7 @@ export default function ChatPage() {
                                 : 'rounded-tr-md border border-slate-100 bg-white text-slate-700',
                             )}
                           >
-                            <p className="whitespace-pre-wrap break-words">{message.body}</p>{message.attachmentUrl?.startsWith('community-media:')&&<CommunityImage id={message.attachmentUrl.slice(16)}/>}
+                            <p className="whitespace-pre-wrap break-words"><LinkedText text={message.body}/></p>{message.attachmentUrl?.startsWith('community-media:')&&<CommunityImage id={message.attachmentUrl.slice(16)}/>}
                           </div>
                           <p className={cx('mt-1 text-[10px] text-slate-400', mine && 'text-left')}>
                             {timeAgo(message.createdAt)}

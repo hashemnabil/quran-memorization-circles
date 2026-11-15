@@ -149,9 +149,9 @@ export const NAV_GROUPS: NavGroup[] = [
 NAV_GROUPS.push({ title: 'المشاركة', items: [{ to: '/donations', label: 'التبرعات', icon: <IconHeart size={19} />, roles: ALL }] });
 const SECTION_PATHS = [
   ['الرئيسية', ['/','/student-ranking','/mushaf']],
-  ['المتابعة اليومية', ['/attendance','/recitations','/exams','/teacher-duties','/staff/attendance']],
+  ['المتابعة اليومية', ['/attendance','/recitations','/exams','/staff/attendance','/teacher-duties']],
   ['الأذونات', ['/absence-permissions','/student-summons']],
-  ['الطلاب والحلقات', ['/students','/students/achievements','/circles','/courses','/student-accounts','/transfers','/suspensions']],
+  ['الطلاب والحلقات', ['/students','/students/achievements','/student-accounts','/circles','/courses','/transfers','/suspensions']],
   ['ملفي الدراسي', ['/student','/student/achievements','/my-files']],
   ['التقارير والشهادات', ['/documents/attendance','/documents/recitations','/documents/exams','/documents/student','/documents/circles','/certificates-admin','/documents/students','/documents/memorization-students','/documents/activity-students','/documents/suspended-students','/documents/course-students','/documents/courses','/documents/course-attendance']],
   ['التواصل', ['/community','/community/posts','/community/stories','/community/school','/community/users/me','/notifications','/chat','/support']],

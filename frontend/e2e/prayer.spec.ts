@@ -36,7 +36,7 @@ for (const role of ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'SUPPORT
     await page.getByRole('button', { name: '→ رجوع', exact: true }).click();
     await expect(page).toHaveURL(url => ['/', '/student'].includes(url.pathname));
     await page.getByRole('link', { name: /الصلاة القادمة.*عرض جميع المواقيت/ }).click();
-    await page.locator('.prayer-row').first().getByRole('link', { name: /تعديل/ }).click();
+    await page.getByRole('link', { name: 'إعدادات التذكير', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'إعدادات تذكيرات الصلاة', exact: true })).toBeVisible();
     await page.getByLabel('تفعيل تذكيرات الصلاة', { exact: true }).check();
     await page.getByLabel('تشغيل الأذان عند دخول وقت الصلاة', { exact: true }).check();

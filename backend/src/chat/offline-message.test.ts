@@ -8,6 +8,7 @@ const baseline = { body: 'Original', editedAt: '2026-10-28T08:00:00.000Z' };
 function fixture(count: number, senderId = actor.id) {
   const mutations: any[] = [], emissions: any[] = [];
   const prisma = {
+    conversation: { findUnique: async () => ({ type: 'DIRECT' }) },
     message: {
       findFirst: async () => ({ id: 'message', conversationId: 'conversation', senderId, body: 'Original' }),
       updateMany: async (query: any) => { mutations.push(query); return { count }; },

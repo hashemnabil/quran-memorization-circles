@@ -524,11 +524,13 @@ export interface AppNotification {
 export interface ChatMember {
   id: string;
   isAdmin: boolean;
+  isMuted: boolean;
   lastReadAt?: string | null;
   user: { id: string; fullName: string; role: Role; avatarUrl?: string | null };
 }
 
 export interface Conversation {
+  inviteCode?: string | null;
   synced?: number;
   syncError?: string;
   contactRestricted?: boolean;

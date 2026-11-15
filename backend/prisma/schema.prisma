@@ -1085,6 +1085,7 @@ model PushDelivery {
 
 model Conversation {
   id          String           @id @default(uuid())
+  inviteCode  String?          @unique
   type        ConversationType @default(DIRECT)
   title       String?
   description String?
@@ -1111,6 +1112,7 @@ model ConversationMember {
   conversationId String
   userId         String
   isAdmin        Boolean   @default(false)
+  isMuted        Boolean   @default(false)
   lastReadAt     DateTime?
   joinedAt       DateTime  @default(now())
   leftAt         DateTime?

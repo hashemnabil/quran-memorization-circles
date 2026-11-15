@@ -10,6 +10,7 @@ import {
   QueryMessagesDto,
   SendMessageDto,
   SetMemberAdminDto,
+  SetMemberMuteDto,
   UpdateConversationDto,
 } from './dto/chat.dto';
 
@@ -18,6 +19,11 @@ import {
 @Controller('chat')
 export class ChatController {
   constructor(private readonly service: ChatService) {}
+
+  @Post('join/:code')
+  joinByInvite(@CurrentUser() user: AuthUser, @Param('code') code: string) {
+    return this.service.joinByInvite(user, code);
+  }
 
   @Get('conversations')
   @ApiOperation({ summary: 'قائمة المحادثات' })
@@ -75,6 +81,16 @@ export class ChatController {
     @Body() dto: UpdateConversationDto,
   ) {
     return this.service.updateConversation(user, id, dto);
+  }
+
+  @Post('conversations/:id/invite')
+  rotateInvite(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body('enabled') enabled: boolean) {
+    return this.service.rotateInvite(user, id, enabled === true);
+  }
+
+  @Patch('conversations/:id/members/:userId/mute')
+  setMemberMute(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('userId') userId: string, @Body() dto: SetMemberMuteDto) {
+    return this.service.setMemberMute(user, id, userId, dto.isMuted);
   }
 
   @Post('conversations/:id/members')

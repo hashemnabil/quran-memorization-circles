@@ -680,6 +680,9 @@ function AttendanceHistory({ circles }: { circles: Pick<Circle, 'id' | 'name' | 
                                               {rec.note && (
                                                 <span className="text-[11px] text-slate-400">{rec.note}</span>
                                               )}
+                                              <span className="text-[11px] text-slate-500">
+                                                بواسطة {rec.recordedBy?.fullName ?? '—'}
+                                              </span>
                                               {canEdit&&rec.customStatus&&<Badge className="bg-slate-100 text-slate-700">{attendanceRecordLabel(rec)}</Badge>}
                                               {canEdit ? (
                                                 /* This is where a recorded day is corrected: the

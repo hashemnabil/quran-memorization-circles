@@ -611,6 +611,7 @@ function AttendanceTab({ records, summary, student, canManage }: { records: Atte
                   <th>الحالة</th>
                   <th>الحلقة</th>
                   <th>سبب العذر</th>
+                  <th>بواسطة</th>
                 </tr>
               </thead>
               <tbody>
@@ -622,6 +623,7 @@ function AttendanceTab({ records, summary, student, canManage }: { records: Atte
                     </td>
                     <td className="text-xs text-slate-500">{rec.circle?.name}</td>
                     <td className="text-xs text-slate-500">{rec.note ?? '—'}</td>
+                    <td className="text-xs text-slate-500">{rec.recordedBy?.fullName ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>

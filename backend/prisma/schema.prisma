@@ -632,11 +632,14 @@ model GuardianSummons {
   issuedById String
   title      String
   body       String
+  channel    String   @default("UNKNOWN")
+  smsMessageId String?
   createdAt  DateTime @default(now())
   student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   issuedBy   User     @relation("GuardianSummonIssuer", fields: [issuedById], references: [id], onDelete: Cascade)
 
   @@index([studentId, createdAt])
+  @@index([smsMessageId])
   @@map("guardian_summons")
 }
 

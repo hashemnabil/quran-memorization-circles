@@ -1,6 +1,6 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -48,6 +48,7 @@ import type {
 
 export default function StudentsPage() {
   const user = useAuthStore((s) => s.user)!;
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
 
@@ -55,7 +56,7 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [evaluation, setEvaluation] = useState('');
-  const [approvalFilter, setApprovalFilter] = useState('');
+  const [approvalFilter, setApprovalFilter] = useState(() => searchParams.get('approval') === 'false' ? 'false' : searchParams.get('approval') === 'true' ? 'true' : '');
   const [circleId, setCircleId] = useState('');
   const [track, setTrack] = useState<StudentTrack | ''>('');
   const [showForm, setShowForm] = useState(false);
@@ -404,6 +405,7 @@ export default function StudentsPage() {
                   <div><p className="text-slate-500">الحلقة</p><p className="mt-1 font-semibold text-slate-700">{student.circle?.name || 'غير مسجل في حلقة'}</p></div>
                   <div><p className="text-slate-500">المعلّم</p><p className="mt-1 font-semibold text-slate-700">{student.teacherName || '—'}</p></div>
                 </div>
+                <div className="mt-3 flex flex-wrap gap-2"><Badge className={student.isApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>{student.isApproved ? 'معتمد' : 'غير معتمد'}</Badge>{student.evaluation && <Badge className={EVALUATION_COLORS[student.evaluation]}>{EVALUATION_LABELS[student.evaluation]}</Badge>}</div>
                 <p className="mt-4 text-xs font-bold text-primary-700">عرض ملف الطالب ←</p>
               </Link>)}
             </div>}

@@ -13,6 +13,7 @@ import { RecitationFormModal } from '@/pages/recitations/RecitationsPage';
 import { StudentAttendanceEditor } from './StudentAttendanceEditor';
 import { StudentReviewSection } from './StudentReviewSection';
 import StudentTimeline from './StudentTimeline';
+import './student-profile.css';
 import { ExamResultDialog } from '@/components/ExamResultDialog';
 import { ExamProgressionTable } from '@/pages/exams/ExamProgressionTable';
 import {
@@ -157,13 +158,13 @@ export default function StudentDetailsPage() {
   const { data: history } = useQuery({
     queryKey: ['students', id, 'history'],
     queryFn: async () => (await api.get(`/students/${id}/history`)).data,
-    enabled: !!id && tab === 'history',
+    enabled: !!id && (tab === 'history' || tab === 'overview'),
   });
 
   const { data: studentExamRequests } = useQuery({
     queryKey: ['exams', 'requests', id],
     queryFn: async () => (await api.get('/exams/requests', { params: { studentId: id, limit: 50 } })).data,
-    enabled: !!id && tab === 'history',
+    enabled: !!id && (tab === 'history' || tab === 'overview'),
   });
 
   const { data: attendance } = useQuery({
@@ -251,32 +252,34 @@ export default function StudentDetailsPage() {
   ];
 
   return (
-    <>
-      <div className="mb-4 flex items-center gap-3">
-        <StudentPhoto
-          studentId={student.id}
-          fullName={student.fullName}
-          photoUrl={student.photoUrl}
-          size={56}
-          editable={canManage}
-          onChanged={() => queryClient.invalidateQueries({ queryKey: ['students', id] })}
-        />
-        <div className="text-sm text-slate-400">
-          {student.photoUrl ? 'صورة الطالب' : 'لا توجد صورة للطالب بعد'}
-        </div>
-      </div>
-
+    <div className="student-profile">
       <PageHeader
-        title={student.fullName}
+        title="ملف الطالب"
         breadcrumb={
           <Link to="/students" className="hover:text-primary-700">
             الطلاب
           </Link>
         }
-        subtitle={`${student.code.replace(/^ST-/i, '')} • ${calcAge(student.birthDate)} • ${student.circle?.name ?? 'غير مسجل في حلقة'} • رقم الهوية: ${student.nationalId ?? 'غير مسجل'} • تاريخ الميلاد: ${student.birthDate ? formatDate(student.birthDate) : 'غير مسجل'}`}
-        action={
-          canManage && (
-            <>
+      />
+      <div className="student-profile-identity">
+        <div className="student-profile-photo">
+          <StudentPhoto
+            studentId={student.id}
+            fullName={student.fullName}
+            photoUrl={student.photoUrl}
+            size={64}
+            editable={canManage}
+            onChanged={() => queryClient.invalidateQueries({ queryKey: ['students', id] })}
+          />
+          <span className="student-profile-photo-caption">{student.photoUrl ? 'صورة الطالب' : 'لا توجد صورة للطالب بعد'}</span>
+        </div>
+        <div className="student-profile-person">
+          <h2>{student.fullName}</h2>
+          <p><span className="numeric">رقم الطالب {student.code.replace(/^ST-/i, '')}</span><span>{calcAge(student.birthDate)}</span><span>{student.circle?.name ?? 'غير مسجل في حلقة'}</span></p>
+          <p><span>رقم الهوية: {student.nationalId ?? 'غير مسجل'}</span><span>تاريخ الميلاد: {student.birthDate ? formatDate(student.birthDate) : 'غير مسجل'}</span></p>
+          <div className="student-profile-badges"><Badge className={STUDENT_STATUS_COLORS[student.status]}>{STUDENT_STATUS_LABELS[student.status]}</Badge><Badge className={student.isApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>{student.isApproved ? 'معتمد' : 'غير معتمد'}</Badge>{student.evaluation && <Badge className={EVALUATION_COLORS[student.evaluation]}>{EVALUATION_LABELS[student.evaluation]}</Badge>}</div>
+        </div>
+        {canManage && <div className="student-profile-actions">
               <Button variant="secondary" size="sm" icon={<IconEdit size={15} />} onClick={() => setModal('edit')}>
                 تعديل
               </Button>
@@ -293,10 +296,8 @@ export default function StudentDetailsPage() {
                 <option value="suspend">طلب فصل أو إيقاف</option>
                 <option value="exam">طلب اختبار</option>
               </Select>
-            </>
-          )
-        }
-      />
+        </div>}
+      </div>
       <div className="mb-5"><Link to={`/students/achievements/${student.id}`} className="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-900"><IconAward size={18} />إنجازات الطالب</Link></div>
       <MemorizationPlans studentId={student.id}/>
 
@@ -341,7 +342,7 @@ export default function StudentDetailsPage() {
         </div>
       )}
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="student-profile-stats mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard
           label="نسبة الحضور"
           value={`${student.attendanceSummary?.attendanceRate ?? 0}%`}
@@ -392,11 +393,14 @@ export default function StudentDetailsPage() {
         />
       </div>
 
-      <Tabs tabs={tabs} active={tab} onChange={setTab} />
+      <div className="student-profile-tabs"><Tabs tabs={tabs} active={tab} onChange={setTab} /></div>
       {tab === 'review' && <StudentReviewSection key="review" mode="review" student={student} canManage={canManage} />}
       {tab === 'consolidation' && <StudentReviewSection key="consolidation" mode="consolidation" student={student} canManage={canManage} />}
 
-      {tab === 'overview' && <OverviewTab student={student} progress={progress} />}
+      {tab === 'overview' && <>
+        {history && <StudentTimeline history={history} examRequests={studentExamRequests?.data ?? []} preview />}
+        <OverviewTab student={student} progress={progress} />
+      </>}
       {tab === 'attendance' && <AttendanceTab records={attendance?.data ?? []} summary={student.attendanceSummary} student={student} canManage={canManage} />}
       {tab === 'recitations' && <RecitationsTabComponent records={recitations?.data ?? []} progress={progress} student={student} canManage={canManage} />}
       {tab === 'exams' && (
@@ -472,7 +476,7 @@ export default function StudentDetailsPage() {
       {modal === 'suspend' && <SuspendModal student={student} onClose={() => setModal(null)} />}
       {modal === 'edit' && <EditStudentModal student={student} onClose={() => setModal(null)} />}
       {modal === 'exam' && <StudentExamRequestModal student={student} onClose={() => setModal(null)} />}
-    </>
+    </div>
   );
 }
 

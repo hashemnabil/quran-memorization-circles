@@ -42,7 +42,7 @@ export function StudentCommunications({ initialKind = 'NOTICE' }: { initialKind?
     try { const result = await api.post('/sms/communications',{...data,preview,confirm:true,requestKey:request.current!.key}); notifyWriteSuccess(result, 'تم حفظ العملية؛ راجع سجل SMS لمتابعة المعالجة'); setPreview([]); window.dispatchEvent(new Event('halaqat:sms-queued')); }
     catch(e){toast.error(apiError(e));} finally{setBusy(false);}
   };
-  return <Card title="إشعار أو إنذار أو استدعاء لأولياء الأمور"><div className="space-y-3" onChange={reset}>
+  return <Card title="إشعارات رسمية"><div className="space-y-3" onChange={reset}>
     {recipientsError && <p role="alert" className="text-red-700">{recipientsError}</p>}
     <div className="grid gap-3 sm:grid-cols-2"><label>النوع<select className="block w-full rounded border p-2" value={kind} onChange={e=>setKind(e.target.value)}><option value="NOTICE">إشعار</option><option value="WARNING">إنذار</option><option value="SUMMONS">استدعاء</option><option value="CREDENTIALS">إصدار وإرسال بيانات دخول مؤقتة</option></select></label>
     <label>قناة الإرسال<select className="block w-full rounded border p-2" value={channel} onChange={e=>setChannel(e.target.value)}><option value="APP">داخل التطبيق فقط</option><option value="SMS">SMS فقط لولي الأمر</option><option value="BOTH">التطبيق وSMS</option></select></label></div>

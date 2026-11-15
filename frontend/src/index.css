@@ -428,6 +428,20 @@ html[data-theme-transition='dark']::view-transition-new(root), html[data-theme-t
 .login-theme { position: absolute; top: -52px; inset-inline-end: 0; }
 .login-screen { padding-top: max(80px, env(safe-area-inset-top, 0px)); }
 .page-heading { align-items: center; padding-block: 4px 22px; }
+.app-workspace .page-heading { position: relative; overflow: hidden; padding: clamp(18px, 2.2vw, 28px); border: 1px solid #dbe8df; border-radius: 22px; background: linear-gradient(115deg, #fff 55%, #f0f7f1); box-shadow: 0 7px 24px #173d2909; }
+.app-workspace .page-heading::before { content: ''; position: absolute; inset-block: 18px; inset-inline-start: 0; width: 4px; border-radius: 4px; background: linear-gradient(#237550, #b3a05e); }
+.app-workspace .page-heading h1 { color: #153e30; font-size: clamp(1.3rem, 2.2vw, 1.8rem); line-height: 1.35; }
+.app-workspace .page-heading p { max-width: 65ch; }
+.app-workspace .page-heading-actions { align-self: center; }
+.app-workspace .card { border-color: #dce8e0; border-radius: 18px; box-shadow: 0 6px 22px #183b2909; }
+.app-workspace .card > header { border-bottom-color: #e4eee6; background: linear-gradient(90deg, #fbfdfb, #f3f8f4); }
+.app-workspace .table-wrap { border-radius: 18px; border-color: #dce8e0; box-shadow: 0 5px 20px #183b2908; }
+.app-workspace :is(.input, .field):focus { border-color: #398a61; box-shadow: 0 0 0 3px #398a6124; }
+.app-workspace :is(button, a, select):focus-visible { outline: 3px solid #b8a15a; outline-offset: 2px; }
+[data-theme='dark'] .app-workspace .page-heading { background: linear-gradient(115deg, #172720, #203b2b); border-color: #385346; box-shadow: 0 7px 24px #0002; }
+[data-theme='dark'] .app-workspace .page-heading h1 { color: #e4eee8; }
+[data-theme='dark'] .app-workspace .card > header { background: linear-gradient(90deg, #20382b, #20342a); border-color: #385346; }
+@media (max-width: 639px) { .app-workspace .page-heading { padding: 18px 16px; border-radius: 18px; } .app-workspace .page-heading-actions { width: 100%; } }
 .card { overflow-wrap: anywhere; }
 .table thead th { font-size: 12px; }
 .table tbody td { padding-block: 15px; }

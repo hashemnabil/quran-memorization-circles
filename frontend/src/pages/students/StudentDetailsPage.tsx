@@ -274,6 +274,7 @@ export default function StudentDetailsPage() {
           <span className="student-profile-photo-caption">{student.photoUrl ? 'صورة الطالب' : 'لا توجد صورة للطالب بعد'}</span>
         </div>
         <div className="student-profile-person">
+          <span className="student-profile-kicker">الملف الدراسي للطالب</span>
           <h2>{student.fullName}</h2>
           <p><span className="numeric">رقم الطالب {student.code.replace(/^ST-/i, '')}</span><span>{calcAge(student.birthDate)}</span><span>{student.circle?.name ?? 'غير مسجل في حلقة'}</span></p>
           <p><span>رقم الهوية: {student.nationalId ?? 'غير مسجل'}</span><span>تاريخ الميلاد: {student.birthDate ? formatDate(student.birthDate) : 'غير مسجل'}</span></p>
@@ -298,7 +299,7 @@ export default function StudentDetailsPage() {
               </Select>
         </div>}
       </div>
-      <div className="mb-5"><Link to={`/students/achievements/${student.id}`} className="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-900"><IconAward size={18} />إنجازات الطالب</Link></div>
+      <div className="student-profile-quick-links"><Link to={`/students/achievements/${student.id}`} className="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-900"><IconAward size={18} />إنجازات الطالب</Link></div>
       <MemorizationPlans studentId={student.id}/>
 
       <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
@@ -342,6 +343,7 @@ export default function StudentDetailsPage() {
         </div>
       )}
 
+      <div className="student-profile-section-heading"><div><span>ملخص الأداء</span><h2>الطالب بالأرقام</h2></div><p>الحضور والحفظ والتسميع والنقاط في مكان واحد</p></div>
       <div className="student-profile-stats mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard
           label="نسبة الحضور"

@@ -47,7 +47,7 @@ export interface LearningRules {
 export const DEFAULT_LEARNING_RULES: LearningRules = {
     revision: 'legacy', base: 'verses', baseMark: 100, mistakePenalty: 1, warningPenalty: 0.25, tajweedPenalty: 0.5, excellent: 90, veryGood: 80, good: 70, acceptable: 60,
     types: [['word', 'خطأ في كلمة', 'mistake', 1], ['omission', 'كلمة متروكة', 'mistake', 0.5], ['addition', 'زيادة', 'mistake', 0.75], ['warning', 'تنبيه', 'warning', 0.25], ['letter', 'خطأ في حرف', 'mistake', 0.25], ['tajweed', 'خطأ في حكم أو تشكيل', 'tajweed', 0.5]].map(([id, label, category, penalty]) => ({ id, label, category, penalty, enabled: true, mode: 'both', freeFirst: false })) as ErrorType[],
-    attendance: [{ id: 'PRESENT', label: 'حاضر', points: 0, enabled: true }, { id: 'LATE', label: 'متأخر', points: 0, enabled: true }, { id: 'ABSENT', label: 'غائب', points: 0, enabled: true }, { id: 'EXCUSED', label: 'بعذر', points: 0, enabled: true }], weights: { recitation: 1, attendance: 1, achievement: 1 }
+    attendance: [{ id: 'PRESENT', label: 'حاضر', points: 1, enabled: true }, { id: 'LATE', label: 'متأخر', points: 0.5, enabled: true }, { id: 'ABSENT', label: 'غائب', points: 0, enabled: true }, { id: 'EXCUSED', label: 'بعذر', points: 0, enabled: true }], weights: { recitation: 1, attendance: 1, achievement: 1 }
 };
 export function resolveRules(value?: Partial<LearningRules> | null): LearningRules { return { ...DEFAULT_LEARNING_RULES, ...value, weights: { ...DEFAULT_LEARNING_RULES.weights, ...value?.weights }, types: value?.types ?? DEFAULT_LEARNING_RULES.types, attendance: value?.attendance ?? DEFAULT_LEARNING_RULES.attendance }; }
 export function scoreSession(input: {

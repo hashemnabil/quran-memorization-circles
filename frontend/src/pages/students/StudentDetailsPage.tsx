@@ -240,11 +240,11 @@ export default function StudentDetailsPage() {
   const tabs = [
     { key: 'overview', label: 'نظرة عامة' },
     { key: 'attendance', label: 'الحضور' },
+    { key: 'points', label: 'النقاط' },
     { key: 'recitations', label: 'التسميع' },
     { key: 'review', label: 'المراجعة' },
     { key: 'consolidation', label: 'التثبيت' },
     { key: 'exams', label: 'الاختبارات' },
-    { key: 'points', label: 'النقاط' },
     { key: 'courses', label: 'الدورات' },
     { key: 'preparations', label: 'التحضير' },
     { key: 'notes', label: 'الملاحظات' },

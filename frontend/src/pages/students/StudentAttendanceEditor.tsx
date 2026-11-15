@@ -40,7 +40,7 @@ export function StudentAttendanceEditor({ student }: { student: Student }) {
       {day.isError&&<ErrorState message="تعذر تحميل حضور اليوم" onRetry={()=>day.refetch()}/>}
       <fieldset disabled={day.isPending||day.isError||save.isPending||!date} className="space-y-3">
         <legend className="mb-2 text-sm font-bold">حالة الحضور</legend>
-        <div className="flex flex-wrap gap-2">{(['PRESENT','EXCUSED','ABSENT'] as const).map(value=><button key={value} type="button" aria-pressed={status===value} onClick={()=>setStatus(value)} className={cx('min-h-11 rounded-xl border px-4 py-2 text-sm font-bold',status===value?'border-primary-600 bg-primary-50 text-primary-800':'border-slate-200 text-slate-600')}>{ATTENDANCE_LABELS[value]}</button>)}</div>
+        <div className="flex flex-wrap gap-2">{(['PRESENT','LATE','EXCUSED','ABSENT'] as const).map(value=><button key={value} type="button" aria-pressed={status===value} onClick={()=>setStatus(value)} className={cx('min-h-11 rounded-xl border px-4 py-2 text-sm font-bold',status===value?'border-primary-600 bg-primary-50 text-primary-800':'border-slate-200 text-slate-600')}>{ATTENDANCE_LABELS[value]}</button>)}</div>
         {status==='EXCUSED'&&<Textarea label="سبب العذر" maxLength={300} rows={2} value={note} onChange={event=>setNote(event.target.value)}/>}
         <p role="status" className="text-xs text-slate-500">{day.isPending?'جارٍ تحميل سجل اليوم…':existing?'هذا اليوم مسجّل؛ سيُعدّل حضور هذا الطالب فقط.':'لا يوجد حضور مسجّل لهذا الطالب في اليوم المختار.'}</p>
         {!student.circleId&&!existing&&<p className="text-sm text-amber-700">اربط الطالب بحلقة لتسجيل حضور جديد.</p>}

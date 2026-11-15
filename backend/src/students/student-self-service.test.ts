@@ -41,7 +41,7 @@ test('only administration can change student approval', async () => {
   } };
   const service = new StudentsService(prisma, {} as any, { log: async () => undefined } as any, {} as any);
   service.findOne = async () => ({ id: 'one', isApproved: writes.at(-1) }) as any;
-  await assert.rejects(service.setApproval({ id: 'teacher', role: Role.TEACHER } as any, 'one', { isApproved: true }), /الإدارة/);
+  await assert.rejects(service.setApproval({ id: 'teacher', role: Role.TEACHER } as any, 'one', { isApproved: true }), /اعتماد الطلاب/);
   assert.deepEqual(writes, []);
   assert.equal((await service.setApproval({ id: 'admin', role: Role.ADMIN } as any, 'one', { isApproved: true })).isApproved, true);
   assert.deepEqual(writes, [true]);

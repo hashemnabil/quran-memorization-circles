@@ -73,6 +73,7 @@ import type {
   Recitation,
   Student,
   StudentNote,
+  SuspensionAction,
 } from '@/types';
 
 // ============================================================================
@@ -285,14 +286,12 @@ export default function StudentDetailsPage() {
               <Select aria-label="إجراءات الطالب" value="" onChange={event => {
                 const action = event.target.value;
                 if (action === 'transfer' || action === 'suspend' || action === 'exam') setModal(action);
-                if (action === 'committees') navigate('/exams?tab=committees');
                 event.target.value = '';
               }}>
                 <option value="">إجراء للطالب…</option>
                 <option value="transfer">طلب نقل</option>
                 <option value="suspend">طلب فصل أو إيقاف</option>
                 <option value="exam">طلب اختبار</option>
-                {user.role === 'ADMIN' && <option value="committees">اختيار لجنة الاختبار</option>}
               </Select>
             </>
           )
@@ -1201,13 +1200,27 @@ function NoteModal({ studentId, onClose }: { studentId: string; onClose: () => v
 
 function TransferModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const isAdmin = useAuthStore((state) => state.user?.role === 'ADMIN');
   const [reason, setReason] = useState('');
+  const [mode, setMode] = useState<'request' | 'direct'>('request');
+  const [toCircleId, setToCircleId] = useState('');
+  const circles = useQuery({ queryKey: ['circles', 'options'], queryFn: async () => (await api.get<Pick<Circle, 'id' | 'name'>[]>('/circles/options')).data, enabled: isAdmin && mode === 'direct' });
 
   const mutation = useMutation({
-    mutationFn: () => api.post('/transfers/students', { studentId: student.id, reason }),
+    mutationFn: async () => {
+      const request = await api.post<{ id: string; synced?: number }>('/transfers/students', { studentId: student.id, reason });
+      if (mode === 'direct') {
+        if (request.data.synced === 0) throw Object.assign(new Error('حُفظ طلب النقل على الجهاز؛ يلزم الاتصال لتنفيذه مباشرة.'), { localWriteRejected: true });
+        try { await api.patch(`/transfers/${request.data.id}/approve`, { toCircleId }); }
+        catch (error) { throw Object.assign(new Error(`حُفظ طلب النقل وبقي بانتظار الإدارة: ${apiError(error)}`), { localWriteRejected: true }); }
+      }
+      return request;
+    },
     onSuccess: (_offlineWriteResult) => {
-      notifyWriteSuccess(_offlineWriteResult, 'تم إرسال طلب النقل إلى الإدارة');
+      notifyWriteSuccess(_offlineWriteResult, mode === 'direct' ? 'تم نقل الطالب إلى الحلقة المختارة' : 'تم إرسال طلب النقل إلى الإدارة');
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       onClose();
     },
     onError: (error) => toast.error(apiError(error)),
@@ -1227,17 +1240,19 @@ function TransferModal({ student, onClose }: { student: Student; onClose: () => 
           <Button
             onClick={() => mutation.mutate()}
             loading={mutation.isPending}
-            disabled={!reason.trim()}
+            disabled={!reason.trim() || (mode === 'direct' && !toCircleId)}
           >
-            إرسال الطلب
+            {mode === 'direct' ? 'نقل الطالب الآن' : 'رفع طلب النقل'}
           </Button>
         </>
       }
     >
+      {isAdmin && <Select label="الإجراء" value={mode} onChange={event => setMode(event.target.value as 'request' | 'direct')}><option value="request">رفع طلب نقل للمراجعة</option><option value="direct">نقل الطالب إلى حلقة الآن</option></Select>}
+      {isAdmin && mode === 'direct' && <Select label="الحلقة الجديدة" required value={toCircleId} onChange={event => setToCircleId(event.target.value)}><option value="">اختر الحلقة</option>{circles.data?.filter(circle => circle.id !== student.circleId).map(circle => <option key={circle.id} value={circle.id}>{circle.name}</option>)}</Select>}
       <p className="mb-4 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-500">
         الحلقة الحالية: <span className="font-bold text-slate-700">{student.circle?.name ?? 'غير مسجل'}</span>
         <br />
-        اذكر سبب النقل فقط — الإدارة هي من تحدد الحلقة الجديدة عند اعتماد الطلب.
+        {mode === 'direct' ? 'سيُنقل الطالب إلى الحلقة المحددة بعد حفظ الإجراء.' : 'اذكر سبب النقل فقط — الإدارة هي من تحدد الحلقة الجديدة عند اعتماد الطلب.'}
       </p>
       <Textarea
         label="سبب النقل"
@@ -1253,13 +1268,27 @@ function TransferModal({ student, onClose }: { student: Student; onClose: () => 
 
 function SuspendModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const isAdmin = useAuthStore((state) => state.user?.role === 'ADMIN');
   const [reason, setReason] = useState('');
+  const [mode, setMode] = useState<'request' | 'direct'>('request');
+  const [action, setAction] = useState<SuspensionAction>('SUSPEND');
+  const [durationDays, setDurationDays] = useState(14);
 
   const mutation = useMutation({
-    mutationFn: () => api.post('/suspensions', { studentId: student.id, reason }),
+    mutationFn: async () => {
+      const request = await api.post<{ id: string; synced?: number }>('/suspensions', { studentId: student.id, reason });
+      if (mode === 'direct') {
+        if (request.data.synced === 0) throw Object.assign(new Error('حُفظ طلب الفصل على الجهاز؛ يلزم الاتصال لتنفيذه مباشرة.'), { localWriteRejected: true });
+        try { await api.patch(`/suspensions/${request.data.id}/approve`, { action, ...(action === 'SUSPEND' ? { durationDays } : {}) }); }
+        catch (error) { throw Object.assign(new Error(`حُفظ الطلب وبقي بانتظار الإدارة: ${apiError(error)}`), { localWriteRejected: true }); }
+      }
+      return request;
+    },
     onSuccess: (_offlineWriteResult) => {
-      notifyWriteSuccess(_offlineWriteResult, 'تم إرسال الطلب إلى الإدارة');
+      notifyWriteSuccess(_offlineWriteResult, mode === 'direct' ? 'تم تنفيذ الإجراء وحفظه في سجل الطالب' : 'تم إرسال الطلب إلى الإدارة');
       queryClient.invalidateQueries({ queryKey: ['suspensions'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       onClose();
     },
     onError: (error) => toast.error(apiError(error)),
@@ -1280,16 +1309,17 @@ function SuspendModal({ student, onClose }: { student: Student; onClose: () => v
             variant="danger"
             onClick={() => mutation.mutate()}
             loading={mutation.isPending}
-            disabled={!reason.trim()}
+            disabled={!reason.trim() || (mode === 'direct' && action === 'SUSPEND' && (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 365))}
           >
-            إرسال الطلب
+            {mode === 'direct' ? 'تنفيذ الإجراء الآن' : 'رفع الطلب'}
           </Button>
         </>
       }
     >
+      {isAdmin && <Select label="الإجراء" value={mode} onChange={event => setMode(event.target.value as 'request' | 'direct')}><option value="request">رفع طلب للمراجعة</option><option value="direct">اتخاذ قرار وتنفيذه الآن</option></Select>}
+      {isAdmin && mode === 'direct' && <><Select label="نوع الإجراء" value={action} onChange={event => setAction(event.target.value as SuspensionAction)}><option value="SUSPEND">إيقاف مؤقت</option><option value="ACTIVITY_PROGRAM">تحويل لبرنامج النشاط</option><option value="PERMANENT">فصل نهائي</option></Select>{action === 'SUSPEND' && <Input label="مدة الإيقاف بالأيام" type="number" min={1} max={365} value={durationDays} onChange={event => setDurationDays(Number(event.target.value))}/>}</>}
       <p className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-800">
-        اذكر السبب فقط. بعد مراجعة الطلب تختار الإدارة الإجراء المناسب: التحويل إلى برنامج النشاط،
-        أو الإيقاف لمدة تحددها، أو رفض الطلب. وسيُشعَر ولي الأمر بالقرار.
+        {mode === 'direct' ? 'سيُنفذ الإجراء المختار بعد حفظ السبب، وسيظهر في سجل الطالب.' : 'اذكر السبب فقط. بعد مراجعة الطلب تختار الإدارة الإجراء المناسب: التحويل إلى برنامج النشاط، أو الإيقاف لمدة تحددها، أو رفض الطلب. وسيُشعَر ولي الأمر بالقرار.'}
       </p>
       <Textarea
         label="سبب الطلب"
@@ -1859,8 +1889,12 @@ function PreparationModal({ student, onClose }: { student: Student; onClose: () 
 
 function StudentExamRequestModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const isAdmin = useAuthStore((state) => state.user?.role === 'ADMIN');
   const [sectionIds, setSectionIds] = useState<string[]>([]);
   const [note, setNote] = useState('');
+  const [mode, setMode] = useState<'request' | 'direct'>('request');
+  const [committeeId, setCommitteeId] = useState('');
+  const committees = useQuery({ queryKey: ['examCommittees'], queryFn: async () => (await api.get<Array<{ id: string; number: string; heldAt: string; location: string }>>('/examCommittees')).data, enabled: isAdmin && mode === 'direct' });
 
   const eligibilityQuery = useQuery({
     queryKey: ['exams', 'eligibility', student.id],
@@ -1874,13 +1908,19 @@ function StudentExamRequestModal({ student, onClose }: { student: Student; onClo
   const selectable = nextBlockEnd < 0 ? remaining : remaining.slice(0, nextBlockEnd);
 
   const mutation = useMutation({
-    mutationFn: () => api.post('/exams/requests', {
-      studentId: student.id,
-      sectionIds,
-      note: note || undefined,
-    }),
+    mutationFn: async () => {
+      const request = await api.post<{ id: string; synced?: number }>('/exams/requests', { studentId: student.id, sectionIds, note: note || undefined });
+      if (mode === 'direct') {
+        if (request.data.synced === 0) throw Object.assign(new Error('حُفظ طلب الاختبار على الجهاز؛ يلزم الاتصال لجدولته مباشرة.'), { localWriteRejected: true });
+        const committee = committees.data?.find(item => item.id === committeeId);
+        if (!committee) throw Object.assign(new Error('اختر لجنة اختبار صالحة.'), { localWriteRejected: true });
+        try { await api.post(`/exams/requests/${request.data.id}/schedule`, { committeeId, scheduledAt: committee.heldAt, location: committee.location || undefined }); }
+        catch (error) { throw Object.assign(new Error(`حُفظ طلب الاختبار وبقي بانتظار الجدولة: ${apiError(error)}`), { localWriteRejected: true }); }
+      }
+      return request;
+    },
     onSuccess: async (_offlineWriteResult) => {
-      notifyWriteSuccess(_offlineWriteResult, 'تم تقديم طلب الاختبار وحفظه');
+      notifyWriteSuccess(_offlineWriteResult, mode === 'direct' ? 'تم اختيار اللجنة وجدولة الاختبار' : 'تم تقديم طلب الاختبار وحفظه');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['exams'] }),
         queryClient.invalidateQueries({ queryKey: ['students', student.id] }),
@@ -1901,15 +1941,17 @@ function StudentExamRequestModal({ student, onClose }: { student: Student; onClo
           <Button variant="secondary" onClick={onClose}>إلغاء</Button>
           <Button
             loading={mutation.isPending}
-            disabled={!sectionIds.length || eligibilityQuery.isLoading || !selectable.length}
+            disabled={!sectionIds.length || eligibilityQuery.isLoading || !selectable.length || (mode === 'direct' && !committeeId)}
             onClick={() => mutation.mutate()}
           >
-            تقديم الطلب ({sectionIds.length})
+            {mode === 'direct' ? 'جدولة الاختبار' : `رفع طلب الاختبار (${sectionIds.length})`}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
+        {isAdmin && <Select label="الإجراء" value={mode} onChange={event => setMode(event.target.value as 'request' | 'direct')}><option value="request">رفع طلب اختبار للمراجعة</option><option value="direct">اختيار لجنة وجدولة الاختبار</option></Select>}
+        {isAdmin && mode === 'direct' && <Select label="لجنة الاختبار" required value={committeeId} onChange={event => setCommitteeId(event.target.value)}><option value="">اختر اللجنة</option>{committees.data?.map(committee => <option key={committee.id} value={committee.id}>لجنة {committee.number} · {committee.heldAt.slice(0, 10)} · {committee.location}</option>)}</Select>}
         <p className="text-sm text-slate-500">اختر المقررات المطلوبة. سيُحفظ الطلب ويظهر في طلبات الاختبار بملف الطالب وقسم الاختبارات.</p>
         {eligibilityQuery.isLoading ? <LoadingState rows={3} /> : !selectable.length ? (
           <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">لا توجد مقررات متاحة للطلب حالياً. تحقق من تسلسل الاختبارات أو من وجود طلب قائم.</p>

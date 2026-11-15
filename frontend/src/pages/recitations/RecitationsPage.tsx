@@ -135,7 +135,7 @@ export default function RecitationsPage() {
           )
         }
       />
-      {user.role === 'ADMIN' && <Button variant="secondary" className="mb-4" onClick={() => setEditingRules(true)}>ضبط خصومات وتقييم التسميع</Button>}
+      {(user.role === 'ADMIN' || user.role === 'FOUNDER') && <Button variant="secondary" className="mb-4" onClick={() => setEditingRules(true)}>ضبط خصومات وتقييم التسميع</Button>}
       {editingRules && <LearningSettingsModal onClose={() => setEditingRules(false)} />}
 
       <Card className="mb-5">

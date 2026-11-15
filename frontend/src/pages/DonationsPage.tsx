@@ -1,4 +1,4 @@
-﻿import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { ErrorState, LoadingState } from '@/components/ui';
@@ -14,7 +14,7 @@ function amount(value: number, currency?: string | null) {
 
 export default function DonationsPage() {
   const user = useAuthStore(state => state.user);
-  const admin = user?.role === 'ADMIN';
+  const admin = (user?.role === 'ADMIN' || user?.role === 'FOUNDER');
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['settings', 'donations'],
     queryFn: async () => (await api.get<SchoolSettings>('/settings/public')).data,

@@ -5,7 +5,7 @@ import { draftPdf } from './draft-pdf';
 function reject(message: string): never { throw Object.assign(new Error(message), { localWriteRejected: true }); }
 export async function queueCertificateDraft(action: 'issue' | 'publish-monthly-report', data: any, render = draftPdf) {
   const account = accountId(), actor = readActiveIdentity();
-  if (!actor || actor.id !== account || actor.role !== 'ADMIN') reject('إصدار الشهادات والتقارير متاح للإدارة فقط');
+  if (!actor || actor.id !== account || !['ADMIN', 'FOUNDER'].includes(actor.role)) reject('إصدار الشهادات والتقارير متاح للإدارة فقط');
   const student = (await get('students')).find(row => row.id === data?.studentId);
   if (!student) reject('حمّل بيانات الطالب قبل تجهيز الملف دون اتصال');
   if (typeof data.fileUrl !== 'string' || !data.fileUrl.startsWith('data:application/pdf;base64,')) reject('جهّز ملف PDF محليًا قبل حفظ طلب الإصدار');

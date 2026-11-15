@@ -12,15 +12,23 @@ export class FounderController {
 
   @Get('overview')
   async overview() {
-    const [users, students, teachers, supervisors, circles, courses] = await Promise.all([
+    const [users, students, teachers, supervisors, circles, courses, attendance, recitations, exams, transferRequests, suspensionRequests, supportTickets, announcements, certificates] = await Promise.all([
       this.prisma.user.count({ where: { deletedAt: null } }),
       this.prisma.student.count({ where: { deletedAt: null } }),
       this.prisma.user.count({ where: { deletedAt: null, role: Role.TEACHER } }),
       this.prisma.user.count({ where: { deletedAt: null, role: Role.SUPERVISOR } }),
       this.prisma.circle.count({ where: { deletedAt: null } }),
       this.prisma.course.count({ where: { deletedAt: null } }),
+      this.prisma.attendance.count(),
+      this.prisma.recitation.count(),
+      this.prisma.exam.count(),
+      this.prisma.transferRequest.count(),
+      this.prisma.suspensionRequest.count(),
+      this.prisma.supportTicket.count(),
+      this.prisma.announcement.count(),
+      this.prisma.certificateRecord.count(),
     ]);
-    return { users, students, teachers, supervisors, circles, courses, checkedAt: new Date().toISOString() };
+    return { users, students, teachers, supervisors, circles, courses, attendance, recitations, exams, transferRequests, suspensionRequests, supportTickets, announcements, certificates, checkedAt: new Date().toISOString() };
   }
 
   @Get('audit')

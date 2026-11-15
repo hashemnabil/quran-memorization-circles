@@ -22,12 +22,21 @@ export class RolesGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
     const request = context.switchToHttp().getRequest();
     if (user?.mustChangePassword && !/\/auth\/(me|change-password|logout)(?:\?|$)/.test(request.originalUrl || request.url || '')) throw new ForbiddenException('يجب تغيير كلمة المرور المؤقتة أولاً');
-    if (!required || required.length === 0) return true;
     if (!user) throw new ForbiddenException('غير مصرح');
+    if (!required || required.length === 0) {
+      if (user.role === Role.FOUNDER && !/\/auth(?:\/|$)/.test(request.originalUrl || request.url || '')) {
+        request.user = { ...user, role: Role.ADMIN };
+      }
+      return true;
+    }
 
-    // Preserve school administrator access without granting founder ownership.
     if (!rolePermitted(user.role, required)) {
       throw new ForbiddenException('لا تملك الصلاحية للقيام بهذا الإجراء');
+    }
+    // The founder retains the founder identity on owner-only endpoints. School
+    // services receive the administrator view on ordinary management endpoints.
+    if (user.role === Role.FOUNDER && !(required.includes(Role.FOUNDER) && !required.includes(Role.ADMIN))) {
+      request.user = { ...user, role: Role.ADMIN };
     }
     return true;
   }

@@ -411,7 +411,7 @@ export default function StudentDetailsPage() {
           canManage={['ADMIN', 'EXAM_COMMITTEE'].includes(user.role)}
           onReject={(requestId, reason) => rejectRequest.mutate({ requestId, reason })}
           onDelete={deleteExam.mutate}
-          canEditMilestones={user.role === 'ADMIN'}
+          canEditMilestones={(user.role === 'ADMIN' || user.role === 'FOUNDER')}
           onRequestExam={() => setModal('exam')}
           isPending={rejectRequest.isPending || deleteExam.isPending}
         />
@@ -444,7 +444,7 @@ export default function StudentDetailsPage() {
                       )}
                     </p>
                   </div>
-                  {canManage && (note.author.id === user.id || user.role === 'ADMIN') && (
+                  {canManage && (note.author.id === user.id || (user.role === 'ADMIN' || user.role === 'FOUNDER')) && (
                     <button
                       onClick={async () => {
                         const ok = await confirm({
@@ -1205,7 +1205,7 @@ function NoteModal({ studentId, onClose }: { studentId: string; onClose: () => v
 
 function TransferModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const isAdmin = useAuthStore((state) => state.user?.role === 'ADMIN');
+  const isAdmin = useAuthStore((state) => (state.user?.role === 'ADMIN' || state.user?.role === 'FOUNDER'));
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'request' | 'direct'>('request');
   const [toCircleId, setToCircleId] = useState('');
@@ -1273,7 +1273,7 @@ function TransferModal({ student, onClose }: { student: Student; onClose: () => 
 
 function SuspendModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const isAdmin = useAuthStore((state) => state.user?.role === 'ADMIN');
+  const isAdmin = useAuthStore((state) => (state.user?.role === 'ADMIN' || state.user?.role === 'FOUNDER'));
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'request' | 'direct'>('request');
   const [action, setAction] = useState<SuspensionAction>('SUSPEND');
@@ -1341,7 +1341,7 @@ function SuspendModal({ student, onClose }: { student: Student; onClose: () => v
 function EditStudentModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
-  const isAdmin = user.role === 'ADMIN';
+  const isAdmin = (user.role === 'ADMIN' || user.role === 'FOUNDER');
 
   const [form, setForm] = useState({
     fullName: student.fullName,
@@ -1894,7 +1894,7 @@ function PreparationModal({ student, onClose }: { student: Student; onClose: () 
 
 function StudentExamRequestModal({ student, onClose }: { student: Student; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const isAdmin = useAuthStore((state) => state.user?.role === 'ADMIN');
+  const isAdmin = useAuthStore((state) => (state.user?.role === 'ADMIN' || state.user?.role === 'FOUNDER'));
   const [sectionIds, setSectionIds] = useState<string[]>([]);
   const [note, setNote] = useState('');
   const [mode, setMode] = useState<'request' | 'direct'>('request');

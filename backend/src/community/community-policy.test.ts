@@ -26,7 +26,7 @@ test('student chat contacts stay limited to administration and current-circle te
     circle: {findMany: async () => [{supervisorId: 'own-supervisor'}]},
   } as any);
   assert.deepEqual(await access.contactableUserFilter({id: 'student', role: Role.STUDENT} as any), {OR: [
-    {role: Role.ADMIN},
+    {role: {in: [Role.FOUNDER, Role.ADMIN]}},
     {role: Role.TEACHER, id: {in: ['own-teacher']}},
     {role: Role.SUPERVISOR, id: {in: ['own-supervisor']}},
   ]});

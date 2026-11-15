@@ -15,18 +15,18 @@ const key = (account: string, path: string, params: Record<string, any> = {}) =>
 
 /** Read-only boot download. Every request still passes server authorization. */
 export async function prefetchSections(send: Send, account: string, currentAccount: () => string, role: string, changedEntities?: string[]) {
-  const staff = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role);
-  const manager = ['ADMIN', 'SUPERVISOR'].includes(role);
+  const staff = ['ADMIN', 'FOUNDER', 'SUPERVISOR', 'TEACHER'].includes(role);
+  const manager = ['ADMIN', 'FOUNDER', 'SUPERVISOR'].includes(role);
   const today = new Date().toISOString().slice(0, 10);
   const paths = new Set(['/settings/public', '/settings', '/announcements/active', '/users/directory', '/support', '/support/stats', '/chat/conversations', '/chat/unread-count', '/dashboard/overview']);
   paths.add('/attendance/absence-permissions');
   if (staff) ['/transfers', '/suspensions', '/suspensions/active', '/preparations', '/attendance/stats', '/exams/upcoming'].forEach(path => paths.add(path));
   if (manager) ['/users/staff', '/courses/stats', '/staff-attendance', '/staff-attendance/history', '/staff-attendance/summary', '/media-activities'].forEach(path => paths.add(path));
   if (manager) paths.add(`/staff-attendance/sheet?date=${today}`);
-  if (['ADMIN', 'SUPPORT'].includes(role)) paths.add('/support/staff');
-  if (['ADMIN', 'EXAM_COMMITTEE'].includes(role)) paths.add('/exams/examiners');
-  if (role === 'ADMIN') ['/users', '/users/stats', '/announcements', '/certificates/templates', '/certificates/issued', '/certificates/requests', '/dashboard/activity', '/students/accounts', '/notifications/recipients', '/sms/recipients', '/sms/templates', '/sms/campaigns'].forEach(path => paths.add(path));
-  if (role === 'ADMIN') {
+  if (['ADMIN', 'FOUNDER', 'SUPPORT'].includes(role)) paths.add('/support/staff');
+  if (['ADMIN', 'FOUNDER', 'EXAM_COMMITTEE'].includes(role)) paths.add('/exams/examiners');
+  if (['ADMIN', 'FOUNDER'].includes(role)) ['/users', '/users/stats', '/announcements', '/certificates/templates', '/certificates/issued', '/certificates/requests', '/dashboard/activity', '/students/accounts', '/notifications/recipients', '/sms/recipients', '/sms/templates', '/sms/campaigns'].forEach(path => paths.add(path));
+  if (['ADMIN', 'FOUNDER'].includes(role)) {
     paths.add('/registry/admin/stats'); paths.add('/registry/admin/users');
     paths.add(`/certificates/monthly-report-data?from=${today.slice(0, 7)}-01&to=${today}`);
   }

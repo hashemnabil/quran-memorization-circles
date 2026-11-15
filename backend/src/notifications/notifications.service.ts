@@ -47,7 +47,7 @@ export class NotificationsService {
       if (!dto.circleId || !await this.prisma.circle.findFirst({ where: { id: dto.circleId, deletedAt: null }, select: { id: true } })) throw new BadRequestException('اختر حلقة موجودة');
     } else if (dto.circleId) throw new BadRequestException('اختيار الحلقة متاح لفئة الحلقات فقط');
     const users = await this.prisma.user.findMany({ where: { isActive: true, deletedAt: null,
-      ...(dto.audience === 'ALL' ? { role: { not: Role.PARENT } } : dto.audience === 'STAFF' ? { role: { in: [Role.ADMIN, Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE] } } : dto.audience === 'CIRCLE' ? { role: Role.STUDENT, studentProfile: { circleId: dto.circleId, deletedAt: null } } : { role: dto.audience as Role }),
+      ...(dto.audience === 'ALL' ? { role: { not: Role.PARENT } } : dto.audience === 'STAFF' ? { role: { in: [Role.FOUNDER, Role.ADMIN, Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE] } } : dto.audience === 'ADMIN' ? { role: { in: [Role.FOUNDER, Role.ADMIN] } } : dto.audience === 'CIRCLE' ? { role: Role.STUDENT, studentProfile: { circleId: dto.circleId, deletedAt: null } } : { role: dto.audience as Role }),
       ...(dto.selection === 'SELECTED' ? { id: { in: dto.userIds } } : {}),
     }, select: { id: true } });
     if (!users.length || dto.selection === 'SELECTED' && users.length !== dto.userIds.length)
@@ -126,7 +126,10 @@ export class NotificationsService {
 
   /** Convenience helper: notify everyone holding one of the given roles. */
   async notifyRoles(roles: Role[], input: Omit<CreateNotificationInput, 'userId'>) {
-    const activeRoles = roles.filter(role => role !== Role.PARENT);
+    const activeRoles = [...new Set([
+      ...roles.filter(role => role !== Role.PARENT),
+      ...(roles.includes(Role.ADMIN) ? [Role.FOUNDER] : []),
+    ])];
     if (!activeRoles.length) return [];
     const users = await this.prisma.user.findMany({
       where: { role: { in: activeRoles }, isActive: true, deletedAt: null },

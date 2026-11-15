@@ -66,7 +66,7 @@ export default function StudentsPage() {
   const debouncedSearch = useDebounce(search);
   // A teacher may register a student too — the backend pins them to the
   // teacher's own circle, so there is no way to reach another one.
-  const canCreate = user.role === 'ADMIN' || user.role === 'SUPERVISOR' || user.role === 'TEACHER';
+  const canCreate = (user.role === 'ADMIN' || user.role === 'FOUNDER') || user.role === 'SUPERVISOR' || user.role === 'TEACHER';
 
   const { data: circles } = useQuery({
     queryKey: ['circles', 'options'],
@@ -198,7 +198,7 @@ export default function StudentsPage() {
    * shown to them at all. (The API scopes the rows either way; this keeps the
    * screen from promising a view the teacher does not have.)
    */
-  const isUnified = user.role === 'ADMIN' || user.role === 'SUPERVISOR';
+  const isUnified = (user.role === 'ADMIN' || user.role === 'FOUNDER') || user.role === 'SUPERVISOR';
 
   return (
     <>
@@ -211,7 +211,7 @@ export default function StudentsPage() {
         }
         action={
           <div className="flex flex-wrap gap-2">
-            {user.role === 'ADMIN' && !bulk.active && (
+            {(user.role === 'ADMIN' || user.role === 'FOUNDER') && !bulk.active && (
               <>
                 <Button variant="secondary" onClick={async () => {
                   try {
@@ -258,7 +258,7 @@ export default function StudentsPage() {
                   }} />
               </>
             )}
-            {user.role === 'ADMIN' && !bulk.active && (
+            {(user.role === 'ADMIN' || user.role === 'FOUNDER') && !bulk.active && (
               <Button variant="secondary" icon={<IconTrash size={16} />} onClick={bulk.enable}>
                 حذف جماعي
               </Button>
@@ -524,7 +524,7 @@ export default function StudentsPage() {
                           {/* A student in the activity programme (or serving a
                               suspension) is outside every circle; this is how
                               the administration brings them back into one. */}
-                          {user.role === 'ADMIN' &&
+                          {(user.role === 'ADMIN' || user.role === 'FOUNDER') &&
                             (student.status === 'ACTIVITY' || student.status === 'SUSPENDED') && (
                               <button
                                 onClick={() => setReturning(student)}
@@ -534,7 +534,7 @@ export default function StudentsPage() {
                                 <IconExchange size={16} />
                               </button>
                             )}
-                          {user.role === 'ADMIN' && (
+                          {(user.role === 'ADMIN' || user.role === 'FOUNDER') && (
                             <button
                               onClick={() => handleDelete(student)}
                               className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
@@ -583,7 +583,7 @@ function StudentFormModal({
 }) {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user)!;
-  const canChooseTrack = user.role === 'ADMIN' || user.role === 'SUPERVISOR';
+  const canChooseTrack = (user.role === 'ADMIN' || user.role === 'FOUNDER') || user.role === 'SUPERVISOR';
   const [registrationTrack, setRegistrationTrack] = useState<'CIRCLE' | 'COURSE' | 'ACTIVITY'>('CIRCLE');
   const [courseId, setCourseId] = useState('');
   const { data: courses } = useQuery({ queryKey: ['courses', 'student-registration'], queryFn: async () => (await api.get('/courses', { params: { limit: 100, isActive: true } })).data.data as Array<{ id: string; name: string; code: string; isActive: boolean }>, enabled: canChooseTrack });

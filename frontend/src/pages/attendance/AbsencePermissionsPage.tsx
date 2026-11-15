@@ -12,7 +12,7 @@ import { notifyWriteSuccess } from '@/lib/write-feedback';
 type Permission = { id: string; requesterId: string; date: string; endDate?: string; durationMinutes?: number; reason: string; note?: string; status: string; synced?: number; pendingDecision?: string; decisionNote?: string; requester?: { fullName: string }; student?: { fullName: string } };
 export default function AbsencePermissionsPage() {
   const user = useAuthStore(state => state.user)!;
-  const admin = user.role === 'ADMIN';
+  const admin = (user.role === 'ADMIN' || user.role === 'FOUNDER');
   const client = useQueryClient();
   const [date, setDate] = useState(todayInput());
   const [endDate, setEndDate] = useState(todayInput());

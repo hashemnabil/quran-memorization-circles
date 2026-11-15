@@ -6,7 +6,7 @@ import { SURAHS } from './quran-surahs';
 const reject = (message: string): never => { throw Object.assign(new Error(message), { localWriteRejected: true }); };
 export async function writeLocalPlan(method: string, route: string[], data: any) {
   const actor = readActiveIdentity();
-  if (!actor || !['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(actor.role)) return reject('إدارة الخطط للمسؤول عن الطالب فقط');
+  if (!actor || !['ADMIN', 'FOUNDER', 'SUPERVISOR', 'TEACHER'].includes(actor.role)) return reject('إدارة الخطط للمسؤول عن الطالب فقط');
   const studentId = (await db.meta.get(`${accountId()}:id:${route[1]}`))?.value || route[1];
   if (!(await get('students')).some(student => student.id === studentId)) return reject('نزّل بيانات الطالب أولًا');
   const id = route[3] ? (await db.meta.get(`${accountId()}:id:${route[3]}`))?.value || route[3] : crypto.randomUUID();

@@ -42,7 +42,7 @@ export default function TeachersPage() {
   const [modal, setModal] = useState<'create' | 'swap' | null>(null);
 
   const debouncedSearch = useDebounce(search);
-  const isAdmin = user.role === 'ADMIN';
+  const isAdmin = (user.role === 'ADMIN' || user.role === 'FOUNDER');
   const canSwap = isAdmin || user.role === 'SUPERVISOR';
 
   const { data, isLoading, isError, refetch } = useQuery({

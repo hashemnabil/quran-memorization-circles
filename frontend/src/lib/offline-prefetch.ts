@@ -25,7 +25,7 @@ export async function prefetchSections(send: Send, account: string, currentAccou
   if (manager) paths.add(`/staff-attendance/sheet?date=${today}`);
   if (['ADMIN', 'SUPPORT'].includes(role)) paths.add('/support/staff');
   if (['ADMIN', 'EXAM_COMMITTEE'].includes(role)) paths.add('/exams/examiners');
-  if (role === 'ADMIN') ['/users', '/users/stats', '/announcements', '/certificates/templates', '/certificates/issued', '/certificates/requests', '/dashboard/activity', '/students/accounts', '/notifications/recipients'].forEach(path => paths.add(path));
+  if (role === 'ADMIN') ['/users', '/users/stats', '/announcements', '/certificates/templates', '/certificates/issued', '/certificates/requests', '/dashboard/activity', '/students/accounts', '/notifications/recipients', '/sms/recipients', '/sms/templates', '/sms/campaigns'].forEach(path => paths.add(path));
   if (role === 'ADMIN') {
     paths.add('/registry/admin/stats'); paths.add('/registry/admin/users');
     paths.add(`/certificates/monthly-report-data?from=${today.slice(0, 7)}-01&to=${today}`);
@@ -60,8 +60,9 @@ export async function prefetchSections(send: Send, account: string, currentAccou
     registry: ['registry_users'], circles: ['circles', 'circle_teachers', 'circle_memberships', 'students', 'attendance', 'recitations', 'exams'],
     students: ['students', 'student_evaluations', 'student_notes', 'attendance', 'recitations', 'exams', 'exam_requests', 'preparation_assignments', 'surah_completions', 'memorization_plans', 'memorization_progress'],
     teachers: ['teacher_profiles', 'users', 'students', 'attendance', 'recitations', 'circle_teachers'],
+    sms: ['students', 'users', 'school_settings', 'sms_templates', 'sms_campaigns'],
   };
-  const affected = (path: string) => !changedEntities || path.startsWith('/dashboard/') ||
+  const affected = (path: string) => !changedEntities || path.startsWith('/dashboard/') || path.startsWith('/sms/') ||
     (dependencies[path.split('/')[1]] || []).some(entity => changedEntities.includes(entity));
   if (['STUDENT', 'TEACHER'].includes(role)) paths.add('/profile-reviews/me');
   const pending = [...paths].filter(path => path === '/profile-reviews/me' ? !changedEntities || changedEntities.some(entity => ['profile_reviews', 'students', 'teacher_profiles', 'users'].includes(entity)) : affected(path));

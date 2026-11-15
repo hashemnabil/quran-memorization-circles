@@ -59,6 +59,17 @@ test('broadcast replay validates role and reuses the transaction receipt after a
   assert.equal((await service.push(user, { operations: [{ ...op, opId: randomUUID(), data: { ...op.data, audience: 'INVALID' } }] })).outcomes[0].status, 'rejected');
 });
 
+test('offline SMS communication is applied once for administration after reconnect', async () => {
+  const { service } = fixture(); let sends = 0;
+  (service as any).apply = (FullSyncService.prototype as any).apply.bind(service);
+  (service as any).services = () => ({ sms: { communicate: async () => { sends++; return { id: randomUUID() }; } } });
+  const op = { ...operation(), table: 'smsCampaigns', action: 'communicate', data: { kind: 'SUMMONS', channel: 'SMS', confirm: true, requestKey: randomUUID(), preview: [] } };
+  assert.equal((await service.push(user, { operations: [op] })).outcomes[0].status, 'applied');
+  assert.equal((await service.push(user, { operations: [op] })).outcomes[0].status, 'applied');
+  assert.equal(sends, 1);
+  assert.equal((await service.push({ ...user, role: Role.TEACHER }, { operations: [{ ...op, opId: randomUUID() }] })).outcomes[0].status, 'rejected');
+});
+
 const user = { id: randomUUID(), role: Role.ADMIN, fullName: 'Admin', username: 'admin', email: null };
 function fixture() {
   const receipts = new Map<string, any>(); let calls = 0;

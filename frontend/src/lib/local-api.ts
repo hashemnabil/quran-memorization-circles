@@ -8,6 +8,7 @@ import { localConversation, createLocalConversation } from './local-conversation
 import { cacheConversations } from './conversation-cache';
 import { queueCertificateDraft } from './local-certificates';
 import { calculateSurahAchievements } from './surah-achievements';
+import { localSmsRecipients, localSmsTemplates, localSmsCampaigns, localSmsCampaignStatus, localSmsPreview, queueSmsCommunication, pendingSmsSummons } from './local-sms';
 
 async function withLocalAchievements(student: any) {
   if (!student) return student;
@@ -35,6 +36,10 @@ export async function cancelRejectedMessageChange(messageId: string) {
 }
 
 export async function localRead(path: string, params: Record<string, any> = {}): Promise<any | undefined> {
+  if (path === '/sms/recipients') return localSmsRecipients();
+  if (path === '/sms/templates') return localSmsTemplates();
+  if (path === '/sms/campaigns') return localSmsCampaigns();
+  if (/^\/sms\/campaigns\/[^/]+$/.test(path)) return localSmsCampaignStatus(path.split('/')[3]);
   if (path.split('?')[0].startsWith('/support')) return readLocalSupport(path, params);
   if (path.split('?')[0] === '/profile-reviews') { const kind = new URL(path, 'https://local.invalid').searchParams.get('kind') || params.kind; const data = (await get('profileReviews')).filter(row => !kind || row.kind === kind).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))); const queue = await db.queue.where('accountId').equals(accountId()).filter(op => op.table === 'profileReviews').toArray(); return { data: data.map(row => ({ ...row, syncError: queue.find(op => op.entityId === row.id)?.error })), meta: { total: data.length, hasNextPage: false } }; }
   if (path === '/profile-reviews/me') {
@@ -142,7 +147,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   }
   if (segments[0] === 'students' && segments[2] === 'surahs') return (await get('surahCompletions')).filter(row => row.studentId === segments[1]);
   if (url.pathname === '/attendance/absence-permissions') return (await get('absencePermissions')).filter(row => readActiveIdentity()?.role === 'ADMIN' || row.requesterId === accountId()).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
-  if (url.pathname === '/attendance/summons') return (await get('guardianSummons')).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  if (url.pathname === '/attendance/summons') return [...await get('guardianSummons'), ...await pendingSmsSummons()].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   if (url.pathname === '/suspensions/active') return (await get('suspensions')).filter(row => row.status === 'APPROVED' && !row.returnedAt);
   if (['/meetings','/examCommittees'].includes(url.pathname)) return (await get(segments[0] as EntityTable)).sort((a,b) => String(b.heldAt).localeCompare(String(a.heldAt)));
   if (url.pathname === '/students/me/history') return (await get('students')).find(row => row.selfAccountId === accountId())?._offline?.history;
@@ -164,7 +169,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   if (segments[0] === 'students' && segments[2] === 'history') {
     const history = (await get('students')).find((row) => row.id === segments[1])?._offline?.history;
     if (!history) return history;
-    const summons = (await get('guardianSummons')).filter((row) => row.studentId === segments[1]);
+    const summons = [...await get('guardianSummons'), ...await pendingSmsSummons()].filter((row) => row.studentId === segments[1]);
     return { ...history, summons: summons.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))) };
   }
   if (segments[0] === 'students' && segments[2] === 'notes') return (await get('behaviors')).filter((row) => row.studentId === segments[1]);
@@ -289,6 +294,8 @@ export function responseKey(account: string, path: string, params: any) {
   return JSON.stringify([account, path, Object.entries(params || {}).sort(([a], [b]) => a.localeCompare(b))]);
 }
 export async function localWrite(method: string, path: string, data: any): Promise<any | undefined> {
+  if (method === 'post' && path === '/sms/preview') return localSmsPreview(data);
+  if (method === 'post' && path === '/sms/communications') return queueSmsCommunication(data);
   if (path.startsWith('/support')) return writeLocalSupport(method, path, data);
   const route = path.split('/').filter(Boolean);
   if (route[0] === 'students' && route[2] === 'plans') return writeLocalPlan(method, route, data);

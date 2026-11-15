@@ -19,6 +19,7 @@ import { AuthUser } from '../common/decorators';
 import { AccessControlService } from '../common/services/access-control.service';
 import { ActivityService } from '../common/services/activity.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SmsService } from '../notifications/sms.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { UploadsService } from '../uploads/uploads.service';
 import { StudentsService } from '../students/students.service';
@@ -77,7 +78,7 @@ export class FullSyncService {
     const announcements = new AnnouncementsService(prisma, activity);
     const mediaActivities = new MediaActivitiesService(prisma);
     const certificates = new CertificatesService(prisma, { emitToUser() {} } as unknown as RealtimeGateway);
-    return { prisma, acl, students, chat: new ChatService(prisma, { emitToConversation() {}, emitToUser() {}, isOnline() { return false; } } as unknown as RealtimeGateway, notifications, acl), community: new CommunityController(prisma), transfers, suspensions, operations, users: new UsersService(prisma, this.config, activity, acl, new UploadsService(this.config)), notifications, schedules: new SchedulesService(prisma, notifications), circles: new CirclesService(prisma, acl, activity, notifications),
+    return { prisma, acl, students, chat: new ChatService(prisma, { emitToConversation() {}, emitToUser() {}, isOnline() { return false; } } as unknown as RealtimeGateway, notifications, acl), community: new CommunityController(prisma), transfers, suspensions, operations, users: new UsersService(prisma, this.config, activity, acl, new UploadsService(this.config)), notifications, sms: new SmsService(prisma), schedules: new SchedulesService(prisma, notifications), circles: new CirclesService(prisma, acl, activity, notifications),
       plans: new MemorizationPlansController(prisma, acl),
       support: new SupportService(prisma, activity, notifications, { emitToUser() {} } as unknown as RealtimeGateway),
       teachers: new TeachersService(prisma, this.config, activity, acl),
@@ -329,6 +330,7 @@ export class FullSyncService {
     const staff = [Role.ADMIN, Role.SUPERVISOR, Role.TEACHER].includes(user.role as any);
     const admin = user.role === Role.ADMIN;
     const id = op.entityId;
+    if (op.table === 'smsCampaigns' && admin && op.action === 'communicate') return s.sms.communicate(user, op.data);
     if (op.table === 'memorizationPlans' && staff) {
       const studentId = op.data.studentId;
       if (typeof studentId !== 'string') throw new BadRequestException('الطالب غير صالح');

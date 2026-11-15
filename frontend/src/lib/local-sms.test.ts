@@ -40,6 +40,6 @@ test('offline SMS cannot queue with changed preview or from a non-admin account'
   const preview = await localWrite('post', '/sms/preview', body);
   await assert.rejects(localWrite('post', '/sms/communications', { ...body, preview: [], confirm: true, requestKey: 'offline-summons-12345' }), /أعد المعاينة/);
   role = 'TEACHER';
-  await assert.rejects(localRead('/sms/recipients'), /الإدارة فقط/);
+  await assert.rejects(localRead('/sms/recipients'), /للإدارة فقط/);
   assert.equal(await db.queue.count(), 0);
 });

@@ -33,18 +33,22 @@ test('student notes exclude staff-private entries', async () => {
   assert.equal((await service.listNotes(actor, 'one')).length, 1);
 });
 
-test('only administration can change student approval', async () => {
+test('administration and the assigned teacher can change student approval', async () => {
   const writes: boolean[] = [];
+  const checked: string[] = [];
   const prisma: any = { student: {
     findFirst: async () => ({ id: 'one', fullName: 'طالب' }),
     update: async ({ data }: any) => { writes.push(data.isApproved); return { id: 'one', ...data }; },
   } };
-  const service = new StudentsService(prisma, {} as any, { log: async () => undefined } as any, {} as any);
+  const service = new StudentsService(prisma, { assertStudentWriteAccess: async (actor: any, id: string) => { checked.push(`${actor.id}:${id}`); if (actor.id !== 'teacher') throw new Error('outside circle'); } } as any, { log: async () => undefined } as any, {} as any);
   service.findOne = async () => ({ id: 'one', isApproved: writes.at(-1) }) as any;
-  await assert.rejects(service.setApproval({ id: 'teacher', role: Role.TEACHER } as any, 'one', { isApproved: true }), /اعتماد الطلاب/);
+  await assert.rejects(service.setApproval({ id: 'supervisor', role: Role.SUPERVISOR } as any, 'one', { isApproved: true }), /اعتماد الطلاب/);
   assert.deepEqual(writes, []);
+  assert.equal((await service.setApproval({ id: 'teacher', role: Role.TEACHER } as any, 'one', { isApproved: true })).isApproved, true);
+  await assert.rejects(service.setApproval({ id: 'other-teacher', role: Role.TEACHER } as any, 'one', { isApproved: false }), /outside circle/);
   assert.equal((await service.setApproval({ id: 'admin', role: Role.ADMIN } as any, 'one', { isApproved: true })).isApproved, true);
-  assert.deepEqual(writes, [true]);
+  assert.deepEqual(writes, [true, true]);
+  assert.deepEqual(checked, ['teacher:one', 'other-teacher:one']);
 });
 
 test('student profile exposes evaluations and summons without exposing legacy account data', async () => {

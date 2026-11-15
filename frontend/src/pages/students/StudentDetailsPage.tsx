@@ -303,7 +303,7 @@ export default function StudentDetailsPage() {
       <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
         <span className="text-sm font-semibold text-slate-600">اعتماد الطالب</span>
         <Badge className={student.isApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>{student.isApproved ? 'معتمد' : 'غير معتمد'}</Badge>
-        {user.role === 'ADMIN' && <Button className="ms-auto" size="sm" variant="secondary" loading={approval.isPending} onClick={() => approval.mutate(!student.isApproved)}>{student.isApproved ? 'إلغاء الاعتماد' : 'اعتماد الطالب'}</Button>}
+        {['ADMIN', 'TEACHER'].includes(user.role) && <Button className="ms-auto" size="sm" variant="secondary" loading={approval.isPending} onClick={() => approval.mutate(!student.isApproved)}>{student.isApproved ? 'إلغاء الاعتماد' : 'اعتماد الطالب'}</Button>}
       </div>
 
       {student.status === 'ACTIVITY' && (

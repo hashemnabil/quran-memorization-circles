@@ -530,7 +530,7 @@ export class FullSyncService {
       return s.students.updateMyQuestionnaire(user, await this.dto(StudentQuestionnaireDto, op.data), id);
     }
     if (op.table === 'students' && staff) {
-      if (op.action === 'approval' && admin) return s.students.setApproval(user, id, await this.dto(SetStudentApprovalDto, op.data));
+      if (op.action === 'approval' && (admin || user.role === Role.TEACHER)) return s.students.setApproval(user, id, await this.dto(SetStudentApprovalDto, op.data));
       if (op.action === 'evaluation') return s.students.setEvaluation(user, id, await this.dto(SetEvaluationDto, { evaluation: op.data.evaluation, note: op.data.note }));
       if (op.action === 'create') return s.students.create(user, await this.dto(CreateStudentDto, op.data));
       if (op.action === 'update') return s.students.update(user, id, await this.dto(UpdateStudentDto, op.data));

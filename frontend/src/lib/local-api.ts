@@ -502,7 +502,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
     return save('students', { id: student.id, evaluation: data.evaluation, note: data.note }, 'evaluation');
   }
   if (route[0] === 'students' && route[2] === 'approval' && method === 'patch') {
-    if (readActiveIdentity()?.role !== 'ADMIN' || typeof data?.isApproved !== 'boolean') throw Object.assign(new Error('اعتماد الطلاب متاح للإدارة فقط'), { localWriteRejected: true });
+    if (!['ADMIN', 'TEACHER'].includes(readActiveIdentity()?.role || '') || typeof data?.isApproved !== 'boolean') throw Object.assign(new Error('اعتماد الطلاب متاح للإدارة ومحفظ الحلقة فقط'), { localWriteRejected: true });
     const student = (await get('students')).find(row => row.id === route[1]);
     if (!student) throw Object.assign(new Error('حمّل ملف الطالب قبل تعديل الاعتماد دون اتصال'), { localWriteRejected: true });
     return save('students', { id: student.id, isApproved: data.isApproved }, 'approval');

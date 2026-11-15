@@ -278,7 +278,7 @@ export class StudentsController {
   }
 
   @Patch(':id/approval')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.TEACHER)
   @ApiOperation({ summary: 'اعتماد الطالب أو إلغاء اعتماده' })
   setApproval(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SetStudentApprovalDto) {
     return this.service.setApproval(user, id, dto);

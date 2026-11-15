@@ -893,7 +893,8 @@ export class StudentsService {
   }
 
   async setApproval(actor: AuthUser, id: string, dto: SetStudentApprovalDto) {
-    if (actor.role !== Role.ADMIN) throw new ForbiddenException('اعتماد الطلاب متاح للإدارة فقط');
+    if (actor.role !== Role.ADMIN && actor.role !== Role.TEACHER) throw new ForbiddenException('اعتماد الطلاب متاح للإدارة ومحفظ الحلقة فقط');
+    if (actor.role === Role.TEACHER) await this.acl.assertStudentWriteAccess(actor, id);
     const student = await this.prisma.student.findFirst({ where: { id, deletedAt: null }, select: { id: true, fullName: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
     await this.prisma.student.update({ where: { id }, data: { isApproved: dto.isApproved } });

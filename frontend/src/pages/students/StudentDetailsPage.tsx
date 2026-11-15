@@ -126,7 +126,7 @@ export default function StudentDetailsPage() {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
 
-  const [tab, setTab] = useState('overview');
+  const [tab, setTab] = useState('history');
   const [modal, setModal] = useState<'evaluation' | 'note' | 'transfer' | 'suspend' | 'exam' | 'edit' | null>(null);
 
   const canManage = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(user.role);
@@ -238,6 +238,7 @@ export default function StudentDetailsPage() {
   if (isError || !student) return <ErrorState message="تعذر تحميل ملف الطالب" onRetry={() => refetch()} />;
 
   const tabs = [
+    { key: 'history', label: 'السجل' },
     { key: 'overview', label: 'نظرة عامة' },
     { key: 'attendance', label: 'الحضور' },
     { key: 'points', label: 'النقاط' },
@@ -248,7 +249,6 @@ export default function StudentDetailsPage() {
     { key: 'courses', label: 'الدورات' },
     { key: 'preparations', label: 'التحضير' },
     { key: 'notes', label: 'الملاحظات' },
-    { key: 'history', label: 'السجل' },
   ];
 
   return (
@@ -274,7 +274,6 @@ export default function StudentDetailsPage() {
           <span className="student-profile-photo-caption">{student.photoUrl ? 'صورة الطالب' : 'لا توجد صورة للطالب بعد'}</span>
         </div>
         <div className="student-profile-person">
-          <span className="student-profile-kicker">الملف الدراسي للطالب</span>
           <h2>{student.fullName}</h2>
           <p><span className="numeric">رقم الطالب {student.code.replace(/^ST-/i, '')}</span><span>{calcAge(student.birthDate)}</span><span>{student.circle?.name ?? 'غير مسجل في حلقة'}</span></p>
           <p><span>رقم الهوية: {student.nationalId ?? 'غير مسجل'}</span><span>تاريخ الميلاد: {student.birthDate ? formatDate(student.birthDate) : 'غير مسجل'}</span></p>
@@ -299,14 +298,7 @@ export default function StudentDetailsPage() {
               </Select>
         </div>}
       </div>
-      <div className="student-profile-quick-links"><Link to={`/students/achievements/${student.id}`} className="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-900"><IconAward size={18} />إنجازات الطالب</Link></div>
-      <MemorizationPlans studentId={student.id}/>
-
-      <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-        <span className="text-sm font-semibold text-slate-600">اعتماد الطالب</span>
-        <Badge className={student.isApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>{student.isApproved ? 'معتمد' : 'غير معتمد'}</Badge>
-        {['ADMIN', 'TEACHER'].includes(user.role) && <Button className="ms-auto" size="sm" variant="secondary" loading={approval.isPending} onClick={() => approval.mutate(!student.isApproved)}>{student.isApproved ? 'إلغاء الاعتماد' : 'اعتماد الطالب'}</Button>}
-      </div>
+      <div className="student-profile-tabs"><Tabs tabs={tabs} active={tab} onChange={setTab} /></div>
 
       {student.status === 'ACTIVITY' && (
         <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
@@ -343,7 +335,6 @@ export default function StudentDetailsPage() {
         </div>
       )}
 
-      <div className="student-profile-section-heading"><div><span>ملخص الأداء</span><h2>الطالب بالأرقام</h2></div><p>الحضور والحفظ والتسميع والنقاط في مكان واحد</p></div>
       <div className="student-profile-stats mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard
           label="نسبة الحضور"
@@ -395,11 +386,17 @@ export default function StudentDetailsPage() {
         />
       </div>
 
-      <div className="student-profile-tabs"><Tabs tabs={tabs} active={tab} onChange={setTab} /></div>
       {tab === 'review' && <StudentReviewSection key="review" mode="review" student={student} canManage={canManage} />}
       {tab === 'consolidation' && <StudentReviewSection key="consolidation" mode="consolidation" student={student} canManage={canManage} />}
 
       {tab === 'overview' && <>
+        <div className="mb-5"><Link to={`/students/achievements/${student.id}`} className="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-900"><IconAward size={18} />إنجازات الطالب</Link></div>
+        <MemorizationPlans studentId={student.id}/>
+        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+          <span className="text-sm font-semibold text-slate-600">اعتماد الطالب</span>
+          <Badge className={student.isApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>{student.isApproved ? 'معتمد' : 'غير معتمد'}</Badge>
+          {['ADMIN', 'TEACHER'].includes(user.role) && <Button className="ms-auto" size="sm" variant="secondary" loading={approval.isPending} onClick={() => approval.mutate(!student.isApproved)}>{student.isApproved ? 'إلغاء الاعتماد' : 'اعتماد الطالب'}</Button>}
+        </div>
         {history && <StudentTimeline history={history} examRequests={studentExamRequests?.data ?? []} preview />}
         <OverviewTab student={student} progress={progress} />
       </>}

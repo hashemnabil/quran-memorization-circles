@@ -459,6 +459,14 @@ html[data-theme-transition='dark']::view-transition-new(root), html[data-theme-t
 [data-theme='dark'] .donation-copy-button { color: #b5ddc5; }
 [data-theme='dark'] [class~='bg-primary-50'], [data-theme='dark'] [class~='bg-primary-100'], [data-theme='dark'] [class~='bg-emerald-50'], [data-theme='dark'] [class~='bg-emerald-50/70'], [data-theme='dark'] [class~='bg-emerald-100'] { background-color: #254533; }
 [data-theme='dark'] [class~='text-primary-700'], [data-theme='dark'] [class~='text-primary-800'], [data-theme='dark'] [class~='text-emerald-700'], [data-theme='dark'] [class~='text-emerald-800'], [data-theme='dark'] [class~='text-emerald-900'], [data-theme='dark'] [class~='text-emerald-950'] { color: #ace5c2; }
+[data-theme='dark'] [class~='text-primary-500'], [data-theme='dark'] [class~='text-primary-600'], [data-theme='dark'] [class~='text-emerald-500'], [data-theme='dark'] [class~='text-emerald-600'] { color: #9de4bd; }
+[data-theme='dark'] .app-workspace button[class~='text-slate-300'], [data-theme='dark'] .app-workspace button[class~='text-slate-400'], [data-theme='dark'] .app-workspace button[class~='text-slate-500'] { color: #b9cfc0; }
+[data-theme='dark'] .app-workspace button[class~='text-slate-300']:hover, [data-theme='dark'] .app-workspace button[class~='text-slate-400']:hover { color: #e4eee8; }
+[data-theme='dark'] .post-actions button { color: #c8d9ce; }
+[data-theme='dark'] .post-actions button[aria-pressed='true'] { color: #b5edca; }
+.content-link { color: #176b52; }
+[data-theme='dark'] .content-link { color: #a8efc4; }
+.chat-conversation .bg-primary-700 .content-link { color: #fff; }
 @media (max-width: 639px) { .app-topbar > div { gap: 4px; padding-inline: 8px; } .theme-control select { max-width: 86px; font-size: 11px; padding-inline: 4px; } }
 @media print { [data-theme='dark'] { --surface: #fff; --ink: #000; --canvas: #fff; } .theme-control { display: none; } }
 

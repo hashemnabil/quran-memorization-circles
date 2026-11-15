@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
@@ -9,6 +9,8 @@ import { IconHeart, IconChat, IconEdit, IconTrash } from '@/components/ui/Icons'
 
 import CommunityImage from './CommunityImage';
 import MentionText, { type Mention } from './MentionText';
+import LinkedText from '@/components/LinkedText';
+import type { Conversation } from '@/types';
 
 type Person = { id: string; fullName: string; avatarUrl?: string | null };
 export type CommunityPost = {
@@ -24,6 +26,7 @@ export default function PostCard({post, userId, school, expanded = false, highli
   const confirm = useConfirm();
   const [showComments, setShowComments] = useState(expanded);
   const [showLikers, setShowLikers] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const [draft, setDraft] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [reply, setReply] = useState('');
@@ -33,6 +36,21 @@ export default function PostCard({post, userId, school, expanded = false, highli
   useEffect(() => () => clearTimeout(heartTimer.current), []);
   useEffect(() => { if (expanded) setShowComments(true); }, [expanded]);
   const liked = post.likes.some(like => like.user.id === userId);
+  const postUrl = `${window.location.origin}/community/posts?post=${encodeURIComponent(post.id)}`;
+  const conversations = useQuery({
+    queryKey: ['chat', 'conversations'],
+    queryFn: async () => (await api.get<Conversation[]>('/chat/conversations')).data,
+    enabled: showShare,
+  });
+  const sendToChat = useMutation({
+    mutationFn: (conversationId: string) => api.post(`/chat/conversations/${conversationId}/messages`, { body: `منشور من ${post.schoolPost ? school?.name || 'المدرسة' : post.author.fullName}\n${postUrl}` }),
+    onSuccess: (response) => {
+      toast.success(response.data?.synced === 0 ? 'حُفظت المشاركة وستُرسل عند عودة الاتصال' : 'تمت مشاركة المنشور في المحادثة');
+      void queryClient.invalidateQueries({ queryKey: ['chat'] });
+      setShowShare(false);
+    },
+    onError: error => toast.error(apiError(error)),
+  });
   const action = useMutation({
     mutationFn: async ({path, body, method = 'post'}: {path: string; body?: string; method?: 'post' | 'patch' | 'delete'}) =>
       method === 'delete' ? api.delete(path) : method === 'patch' ? api.patch(path, {body}) : api.post(path, body === undefined ? undefined : {body}),
@@ -50,10 +68,9 @@ export default function PostCard({post, userId, school, expanded = false, highli
     if (!double || !liked) action.mutate({path: `/community/posts/${post.id}/like`});
   };
   const share = async () => {
-    const url = `${window.location.origin}/community/posts?post=${encodeURIComponent(post.id)}`;
     try {
-      if (navigator.share) await navigator.share({title: 'منشور من دوائر القرآن الكريم', url});
-      else { await navigator.clipboard.writeText(url); toast.success('تم نسخ رابط المنشور'); }
+      if (navigator.share) await navigator.share({title: 'منشور من دوائر القرآن الكريم', url: postUrl});
+      else { await navigator.clipboard.writeText(postUrl); toast.success('تم نسخ رابط المنشور'); }
     } catch (error) { if (!(error instanceof DOMException && error.name === 'AbortError')) toast.error('تعذرت المشاركة؛ حاول مجددًا'); }
   };
   const name = post.schoolPost ? school?.name || 'المدرسة' : post.author.fullName;
@@ -78,12 +95,12 @@ export default function PostCard({post, userId, school, expanded = false, highli
       <div className="post-actions">
         <button type="button" disabled={action.isPending} aria-pressed={liked} onClick={() => like()}><IconHeart size={19}/>{liked ? 'أعجبني' : 'إعجاب'}</button>
         <button type="button" aria-expanded={showComments} onClick={() => setShowComments(value => !value)}><IconChat size={19}/>التعليقات</button>
-        <button type="button" onClick={() => void share()}><span aria-hidden="true">↗</span>مشاركة</button>
+        <button type="button" onClick={() => setShowShare(true)}><span aria-hidden="true">↗</span>مشاركة</button>
       </div>
       {showLikers && <div className="post-likers"><h3 className="mb-3 text-sm font-bold">الأشخاص الذين أعجبوا بالمنشور</h3><div className="flex flex-wrap gap-3">{post.likes.map(like => <Link key={like.user.id} to={`/community/users/${like.user.id}`} className="flex items-center gap-2 text-sm"><Avatar name={like.user.fullName} src={like.user.avatarUrl} size={28}/>{like.user.fullName}</Link>)}</div>{post._count.likes > post.likes.length && <p className="text-xs text-slate-500">يتم عرض أول {post.likes.length} إعجاب</p>}</div>}
       {showComments && <div className="post-comments">
         {post.comments.map(comment => <div key={comment.id} id={`community-comment-${comment.id}`} className={`post-comment ${comment.parentId ? 'post-comment-reply' : ''} ${highlightedComment === comment.id ? 'ring-2 ring-emerald-500' : ''}`}>
-          <Link className="font-bold" to={`/community/users/${comment.user.id}`}>{comment.user.fullName}</Link><p className="whitespace-pre-wrap break-words">{comment.body}</p>
+          <Link className="font-bold" to={`/community/users/${comment.user.id}`}>{comment.user.fullName}</Link><p className="whitespace-pre-wrap break-words"><LinkedText text={comment.body}/></p>
           {comment.synced === 0 && <small>بانتظار المزامنة</small>}
           <div className="flex flex-wrap gap-3 text-xs text-slate-600">
             <button type="button" disabled={action.isPending} onClick={() => action.mutate({path: `/community/comments/${comment.id}/like`})}>♡ إعجاب {comment._count?.likes ?? 0}</button>
@@ -99,6 +116,21 @@ export default function PostCard({post, userId, school, expanded = false, highli
       </form>
       <Modal open={!!edit} onClose={() => { if (!action.isPending) setEdit(null); }} title={edit?.kind === 'posts' ? 'تعديل المنشور' : 'تعديل التعليق'}>
         {edit && <form className="space-y-4" onSubmit={event => { event.preventDefault(); if (edit.body.trim()) action.mutate({path: `/community/${edit.kind}/${edit.id}`, method: 'patch', body: edit.body}); }}><Textarea label="المحتوى" rows={5} value={edit.body} maxLength={edit.kind === 'posts' ? 2000 : 500} onChange={event => setEdit({...edit, body: event.target.value})}/><Button type="submit" loading={action.isPending} disabled={!edit.body.trim()}>حفظ التعديل</Button></form>}
+      </Modal>
+      <Modal open={showShare} onClose={() => setShowShare(false)} title="مشاركة المنشور" size="sm">
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600">اختر محادثة لإرسال رابط المنشور داخل التطبيق.</p>
+          {conversations.isLoading && <p className="text-sm">جارٍ تحميل المحادثات...</p>}
+          {conversations.isError && <p role="alert" className="text-sm text-red-700">تعذر تحميل المحادثات. <button type="button" className="underline" onClick={() => void conversations.refetch()}>إعادة المحاولة</button></p>}
+          {conversations.data?.length === 0 && <p className="text-sm text-slate-600">لا توجد محادثات متاحة بعد.</p>}
+          <div className="max-h-64 space-y-1 overflow-y-auto">
+            {conversations.data?.filter(conversation => conversation.canPost).map(conversation =>
+              <button key={conversation.id} type="button" disabled={sendToChat.isPending} onClick={() => sendToChat.mutate(conversation.id)} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-start hover:bg-primary-50 disabled:opacity-50">
+                <Avatar name={conversation.title} src={conversation.avatarUrl} size={32}/><span className="truncate">{conversation.title}</span>
+              </button>)}
+          </div>
+          <Button variant="secondary" onClick={() => void share()}>مشاركة خارج التطبيق أو نسخ الرابط</Button>
+        </div>
       </Modal>
     </Card>
   </article>;

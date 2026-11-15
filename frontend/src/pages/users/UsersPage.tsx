@@ -1,6 +1,7 @@
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { passwordError } from '@/lib/validation';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -35,6 +36,7 @@ export default function UsersPage() {
   const currentUser = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
   const [role, setRole] = useState('');
@@ -273,21 +275,23 @@ export default function UsersPage() {
                       </td>
                       <td>
                         <div className="flex items-center justify-center gap-1">
-                          <button
+                          {account.role !== 'FOUNDER' && <button
                             onClick={() => setEditing(account)}
                             className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-primary-700"
                             title="تعديل"
                           >
                             <IconEdit size={16} />
-                          </button>
-                          <button
-                            onClick={() => setResetting(account)}
+                          </button>}
+                          {(account.role !== 'FOUNDER' || account.id === currentUser.id) && <button
+                            onClick={() => account.role === 'FOUNDER'
+                              ? navigate('/profile/settings?section=password')
+                              : setResetting(account)}
                             className="rounded-lg p-2 text-slate-400 transition hover:bg-amber-50 hover:text-amber-600"
-                            title="إعادة تعيين كلمة المرور"
+                            title={account.role === 'FOUNDER' ? 'تغيير كلمة مروري' : 'إعادة تعيين كلمة المرور'}
                           >
                             <IconLock size={16} />
-                          </button>
-                          {account.id !== currentUser.id && (
+                          </button>}
+                          {account.id !== currentUser.id && account.role !== 'FOUNDER' && (
                             <>
                               <button
                                 onClick={async () => {

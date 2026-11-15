@@ -112,12 +112,13 @@ test('school branding, the donation entry and mosque image render locally', asyn
   const image = await page.request.get('/prayer-mosque.jpg');
   expect(image.ok()).toBe(true); expect(image.headers()['content-type']).toContain('image/jpeg');
 });
-test('the compact prayer card opens all prayer times and keeps the prayer assets available offline', async ({ page, context }, info) => {
+test('the prayer schedule shows the next prayer and keeps prayer assets available offline', async ({ page, context }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page);
   await gotoWithLocalUnlock(page, '/prayer-times');
   await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
-  await expect(page.getByRole('link', { name: /الصلاة القادمة.*عرض جميع المواقيت/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'الصلاة القادمة' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'إعدادات التذكير' })).toBeVisible();
   await expect(page.locator('.prayer-row')).toHaveCount(6);
   await page.evaluate(() => navigator.serviceWorker.ready);
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);

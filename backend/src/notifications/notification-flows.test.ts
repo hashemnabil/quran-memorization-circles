@@ -30,9 +30,9 @@ test('educational staff and circle broadcasts resolve current membership and rej
   const actor: any = { id: 'admin', role: Role.ADMIN };
   const dto: any = { title: 'Notice', body: 'Body', selection: 'ALL', userIds: [], audience: 'STAFF' };
   await service.broadcast(actor, dto);
-  assert.deepEqual(where.role.in, [Role.ADMIN, Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE]);
+  assert.deepEqual(where.role.in, [Role.FOUNDER, Role.ADMIN, Role.TEACHER, Role.SUPERVISOR, Role.EXAM_COMMITTEE]);
   await service.broadcast(actor, { ...dto, audience: 'ADMIN' });
-  assert.equal(where.role, Role.ADMIN);
+  assert.deepEqual(where.role.in, [Role.FOUNDER, Role.ADMIN]);
   await service.broadcast(actor, { ...dto, audience: 'ALL' });
   assert.deepEqual(where.role, { not: Role.PARENT });
   await service.broadcast(actor, { ...dto, audience: 'CIRCLE', circleId: 'circle' });

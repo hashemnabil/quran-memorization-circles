@@ -16,7 +16,7 @@ export default function BroadcastPage() {
   const [sending, setSending] = useState(false); const [notice, setNotice] = useState('');
   const [rejected, setRejected] = useState<number[]>([]);
   const users = useQuery({ queryKey: ['broadcast-recipients'], queryFn: async () => (await api.get('/notifications/recipients')).data });
-  const available = (users.data?.users || []).filter((user: any) => audience === 'ALL' || audience === 'STAFF' && ['ADMIN', 'TEACHER', 'SUPERVISOR', 'EXAM_COMMITTEE'].includes(user.role) || audience === 'CIRCLE' && user.role === 'STUDENT' && !!circleId && user.circleId === circleId || user.role === audience);
+  const available = (users.data?.users || []).filter((user: any) => audience === 'ALL' || audience === 'STAFF' && ['FOUNDER', 'ADMIN', 'TEACHER', 'SUPERVISOR', 'EXAM_COMMITTEE'].includes(user.role) || audience === 'ADMIN' && ['FOUNDER', 'ADMIN'].includes(user.role) || audience === 'CIRCLE' && user.role === 'STUDENT' && !!circleId && user.circleId === circleId || user.role === audience);
   const withoutAccounts = (users.data?.studentsWithoutAccounts || []).filter((student: any) => audience === 'ALL' || audience === 'STUDENT' || audience === 'CIRCLE' && !!circleId && student.circleId === circleId);
   const shown = available.filter((user: any) => `${user.fullName} ${user.username}`.toLowerCase().includes(search.toLowerCase()));
   const send = async (event: React.FormEvent) => {

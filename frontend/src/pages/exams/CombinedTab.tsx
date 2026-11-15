@@ -9,7 +9,7 @@ import type {Student,Exam,ExamEligibility,PaginatedResponse} from '@/types';
 export default function CombinedTab({canRequest}:{canRequest:boolean}) {
   const [search,setSearch]=useState('');
   const [student,setStudent]=useState<Student>();
-  const canEdit=useAuthStore(state=>state.user?.role==='ADMIN');
+  const canEdit=useAuthStore(state=>(state.user?.role === 'ADMIN' || state.user?.role === 'FOUNDER'));
   const students=useQuery({
     queryKey:['students','combined',search],enabled:search.trim().length>0&&!student,
     queryFn:async()=>(await api.get<PaginatedResponse<Student>>('/students',{params:{search,limit:10}})).data,

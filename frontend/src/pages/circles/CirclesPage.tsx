@@ -40,7 +40,7 @@ export default function CirclesPage() {
   const [showForm, setShowForm] = useState(false);
 
   const debouncedSearch = useDebounce(search);
-  const isAdmin = user.role === 'ADMIN';
+  const isAdmin = (user.role === 'ADMIN' || user.role === 'FOUNDER');
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['circles', { page, debouncedSearch, isActive }],

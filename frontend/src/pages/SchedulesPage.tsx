@@ -54,7 +54,7 @@ export function MediaSchedulePage() {
 }
 export function TeacherDutyPage() {
   const qc = useQueryClient();
-  const admin = useAuthStore(s => s.user?.role === 'ADMIN');
+  const admin = useAuthStore(s => (s.user?.role === 'ADMIN' || s.user?.role === 'FOUNDER'));
   const [form, setForm] = useState({ date: localDate(), day: dayName(localDate()), note: '', teacherUserIds: [] as string[] });
   const [editing, setEditing] = useState<string | null>(null);
   const duties = useQuery({ queryKey: ['teacher-duties'], queryFn: async () => (await api.get<Duty[]>('/schedules/duties')).data });

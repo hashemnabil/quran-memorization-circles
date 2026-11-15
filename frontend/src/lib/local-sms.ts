@@ -17,14 +17,14 @@ async function cached(path: string): Promise<any> {
 }
 
 export async function localSmsRecipients(): Promise<Recipient[]> {
-  if (readActiveIdentity()?.role !== 'ADMIN') throw rejected('قائمة مستلمي الرسائل متاحة للإدارة فقط');
+  if (!['ADMIN', 'FOUNDER'].includes(readActiveIdentity()?.role || '')) throw rejected('قائمة مستلمي الرسائل متاحة للإدارة فقط');
   const recipients = await cached('/sms/recipients');
   if (Array.isArray(recipients)) return recipients;
   return (await get('students')).map(row => ({ id: row.id, fullName: row.fullName, circleId: row.circleId, circle: row.circle }));
 }
 
 export async function localSmsTemplates(): Promise<Record<string, string> | undefined> {
-  if (readActiveIdentity()?.role !== 'ADMIN') throw rejected('قوالب الرسائل متاحة للإدارة فقط');
+  if (!['ADMIN', 'FOUNDER'].includes(readActiveIdentity()?.role || '')) throw rejected('قوالب الرسائل متاحة للإدارة فقط');
   return cached('/sms/templates');
 }
 
@@ -38,7 +38,7 @@ function normalizedPhone(value: unknown): string {
 }
 
 export async function localSmsPreview(body: any): Promise<PreviewRow[]> {
-  if (readActiveIdentity()?.role !== 'ADMIN') throw rejected('إرسال الرسائل متاح للإدارة فقط');
+  if (!['ADMIN', 'FOUNDER'].includes(readActiveIdentity()?.role || '')) throw rejected('إرسال الرسائل متاح للإدارة فقط');
   if (!templates.includes(body?.kind) || !channels.includes(body?.channel)) throw rejected('حدد نوع الرسالة وقناة الإرسال');
   if (body.all != null && typeof body.all !== 'boolean') throw rejected('اختيار الجميع غير صالح');
   if (body.studentIds != null && (!Array.isArray(body.studentIds) || body.studentIds.length > 5000 || body.studentIds.some((id: unknown) => typeof id !== 'string'))) throw rejected('قائمة الطلاب غير صالحة');
@@ -67,7 +67,7 @@ export async function localSmsPreview(body: any): Promise<PreviewRow[]> {
 }
 
 export async function queueSmsCommunication(body: any) {
-  if (readActiveIdentity()?.role !== 'ADMIN' || body?.confirm !== true || !/^[\w-]{16,100}$/.test(body.requestKey || '')) throw rejected('تأكيد الإدارة ومعرّف العملية مطلوبان');
+  if (!['ADMIN', 'FOUNDER'].includes(readActiveIdentity()?.role || '') || body?.confirm !== true || !/^[\w-]{16,100}$/.test(body.requestKey || '')) throw rejected('تأكيد الإدارة ومعرّف العملية مطلوبان');
   const preview = await localSmsPreview(body);
   if (JSON.stringify(body.preview) !== JSON.stringify(preview)) throw rejected('تغيرت بيانات المعاينة؛ أعد المعاينة قبل التأكيد');
   if (preview.some(row => row.error)) throw rejected('راجع أخطاء المعاينة');
@@ -75,13 +75,13 @@ export async function queueSmsCommunication(body: any) {
 }
 
 export async function localSmsCampaigns(): Promise<any[]> {
-  if (readActiveIdentity()?.role !== 'ADMIN') throw rejected('سجل الرسائل متاح للإدارة فقط');
+  if (!['ADMIN', 'FOUNDER'].includes(readActiveIdentity()?.role || '')) throw rejected('سجل الرسائل متاح للإدارة فقط');
   const remote = await cached('/sms/campaigns');
   return [...(await get('smsCampaigns')), ...(Array.isArray(remote) ? remote : [])].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
 export async function localSmsCampaignStatus(id: string): Promise<any[] | undefined> {
-  if (readActiveIdentity()?.role !== 'ADMIN') throw rejected('سجل الرسائل متاح للإدارة فقط');
+  if (!['ADMIN', 'FOUNDER'].includes(readActiveIdentity()?.role || '')) throw rejected('سجل الرسائل متاح للإدارة فقط');
   const campaign = (await get('smsCampaigns')).find(row => row.id === id);
   if (campaign) {
     const queue = await db.queue.where('accountId').equals(accountId()).filter(op => op.table === 'smsCampaigns' && op.entityId === id).first();
@@ -91,7 +91,7 @@ export async function localSmsCampaignStatus(id: string): Promise<any[] | undefi
 }
 
 export async function pendingSmsSummons(): Promise<any[]> {
-  if (readActiveIdentity()?.role !== 'ADMIN') return [];
+  if (!['ADMIN', 'FOUNDER'].includes(readActiveIdentity()?.role || '')) return [];
   return (await get('smsCampaigns')).filter(row => ['SUMMONS', 'WARNING'].includes(row.kind))
     .flatMap(row => (row.preview || []).map((preview: PreviewRow) => ({ id: `${row.id}:${preview.studentId}`, studentId: preview.studentId, student: { id: preview.studentId, fullName: preview.name }, title: preview.title, body: preview.text, channel: row.channel, createdAt: row.createdAt, synced: 0 })));
 }

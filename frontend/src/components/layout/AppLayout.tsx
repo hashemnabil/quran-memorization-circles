@@ -115,7 +115,7 @@ export default function AppLayout() {
     notifications: unreadNotifications ?? 0,
     chat: unreadChat ?? 0,
     support:
-      user.role === 'SUPPORT' || user.role === 'ADMIN'
+      user.role === 'SUPPORT' || (user.role === 'ADMIN' || user.role === 'FOUNDER')
         ? (supportStats?.OPEN ?? 0) + (supportStats?.IN_PROGRESS ?? 0)
         : 0,
   };
@@ -398,7 +398,7 @@ export default function AppLayout() {
                       <IconUser size={17} /> الملف الشخصي
                     </NavLink>
                     <NavLink to="/profile/settings" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"><IconSettings size={17} /> إعدادات حسابي</NavLink>
-                    {user.role === 'ADMIN' && (
+                    {(user.role === 'ADMIN' || user.role === 'FOUNDER') && (
                       <NavLink
                         to="/settings"
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"

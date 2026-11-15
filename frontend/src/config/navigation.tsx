@@ -161,7 +161,14 @@ const SECTION_PATHS = [
 ] as const;
 
 export function navigationFor(role: Role): NavGroup[] {
-  if (role === 'FOUNDER') return [{ title: 'إدارة النظام', items: [{ to: '/founder', label: 'لوحة المؤسس', icon: <IconDashboard size={19} />, roles: ['FOUNDER'] }, { to: '/mushaf', label: 'المصحف الشريف', icon: <IconBook size={19} />, roles: ['FOUNDER'] }] }];
+  if (role === 'FOUNDER') {
+    const founder = { to: '/founder', label: 'لوحة المؤسس', icon: <IconDashboard size={19} />, roles: ['FOUNDER'] as Role[] };
+    const items = new Map(NAV_GROUPS.flatMap(group => group.items).map(item => [item.to, item]));
+    return [{ title: 'إدارة النظام', items: [founder] }, ...SECTION_PATHS.map(([title, paths]) => ({ title, items: paths.flatMap(path => {
+      const item = items.get(path);
+      return item && (item.roles.includes('ADMIN') || item.roles.includes('FOUNDER')) ? [item] : [];
+    }) })).filter(group => group.items.length > 0)];
+  }
   const items = new Map(NAV_GROUPS.flatMap(group => group.items).map(item => [item.to, item]));
   return SECTION_PATHS.map(([title, paths]) => ({ title, items: paths.flatMap(path => {
     const item = items.get(path);
@@ -201,6 +208,7 @@ export function rolesForPath(path?: string | null): Role[] | null {
  * them by the school's own notice.
  */
 export function canOpenPath(role: Role, path?: string | null): boolean {
+  if (role === 'FOUNDER') return true;
   if (role === 'STUDENT') return !!path && canVisitStudentRoute(path.split(/[?#]/)[0].replace(/\/+$/, '') || '/');
   const roles = rolesForPath(path);
   return roles === null ? true : roles.includes(role);
@@ -211,5 +219,5 @@ export function rolesWithoutAccess(path: string | undefined | null, audience: Ro
   const roles = rolesForPath(path);
   if (!roles) return [];
   const targeted = audience.length ? audience : ALL;
-  return targeted.filter((r) => !roles.includes(r));
+  return targeted.filter((r) => r !== 'FOUNDER' && !roles.includes(r));
 }

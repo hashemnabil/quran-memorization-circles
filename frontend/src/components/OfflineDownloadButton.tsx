@@ -103,7 +103,7 @@ export default function OfflineDownloadButton() {
       });
 
       // Attendance has a separate roster contract and is only available to these roles.
-      if (role === 'ADMIN' || role === 'SUPERVISOR' || role === 'TEACHER') {
+      if (role === 'ADMIN' || role === 'FOUNDER' || role === 'SUPERVISOR' || role === 'TEACHER') {
         const bundleCircles = new Map<string, any>();
         const bundleStudents = new Map<string, any>();
         const seenCursors = new Set<string>();

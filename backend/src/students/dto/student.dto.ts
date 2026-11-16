@@ -193,9 +193,12 @@ export enum StudentTrack {
 export class QueryStudentsDto extends PaginationDto {
   @ApiPropertyOptional({ description: 'تصفية الطلاب حسب اعتماد الإدارة' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' ? true : value === 'false' ? false : value)
+  // Keep the reflected type as a union (`Object`) so Nest's global implicit
+  // conversion cannot turn the non-empty string "false" into boolean true
+  // before this explicit parser runs.
+  @Transform(({ value }) => value === true || value === 'true' ? true : value === false || value === 'false' ? false : value)
   @IsBoolean()
-  isApproved?: boolean;
+  isApproved?: boolean | 'true' | 'false';
   @ApiPropertyOptional({ enum: StudentStatus })
   @IsOptional()
   @IsEnum(StudentStatus)

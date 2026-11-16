@@ -130,13 +130,18 @@ export class StudentsService {
 
   async findAll(user: AuthUser, query: QueryStudentsDto) {
     const scope = await this.acl.studentScope(user);
+    const approval = query.isApproved === true || query.isApproved === 'true'
+      ? true
+      : query.isApproved === false || query.isApproved === 'false'
+        ? false
+        : undefined;
 
     const where: Prisma.StudentWhereInput = {
       AND: [
         scope,
         { deletedAt: null },
         query.status ? { status: query.status } : {},
-        query.isApproved === undefined ? {} : { isApproved: query.isApproved },
+        approval === undefined ? {} : { isApproved: approval },
         query.evaluation ? { evaluation: query.evaluation } : {},
         query.circleId ? { circleId: query.circleId } : {},
         query.unassigned ? { circleId: null } : {},

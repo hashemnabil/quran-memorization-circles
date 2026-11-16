@@ -68,6 +68,25 @@ import type { Evaluation } from '@/types';
 
 const CHART_COLORS = ['#1d7c55', '#dc2626', '#d98c26', '#0284c7'];
 
+export function dashboardGreeting(fullName: string, role: string, date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Gaza', weekday: 'short', hour: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  const weekday = parts.find(part => part.type === 'weekday')?.value;
+  const hour = Number(parts.find(part => part.type === 'hour')?.value ?? 12);
+  const name = role === 'TEACHER' ? `شيخ ${fullName}` : fullName;
+  const salutation = weekday === 'Fri'
+    ? 'جمعة مباركة'
+    : hour >= 5 && hour < 12
+      ? 'صباح الخير'
+      : hour >= 12 && hour < 18
+        ? 'طاب يومك'
+        : hour >= 18 && hour < 23
+          ? 'مساء الخير'
+          : 'ليلة مباركة';
+  return `${salutation}، ${name} · ${ROLE_LABELS[role as keyof typeof ROLE_LABELS] ?? role}`;
+}
+
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)!;
 
@@ -102,7 +121,7 @@ export default function DashboardPage() {
     return <><HonorRoll /><CircleHonorRoll /><PrayerCard /><ErrorState message="تعذر تحميل لوحة المعلومات" onRetry={() => refetch()} /></>;
   }
 
-  const greeting = `أهلًا بك، ${user.fullName} · ${ROLE_LABELS[user.role]}`;
+  const greeting = dashboardGreeting(user.fullName, user.role);
 
   return (
     <>
@@ -116,7 +135,8 @@ export default function DashboardPage() {
         }
       />
 
-      <section className="mb-5 overflow-hidden rounded-3xl border border-emerald-100 bg-gradient-to-l from-emerald-50 via-white to-white p-4 shadow-sm sm:p-6" aria-label="ملخص المدرسة">
+      <div className="dashboard-home-hero mb-5 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
+      <section className="overflow-hidden rounded-3xl border border-emerald-100 bg-gradient-to-l from-emerald-50 via-white to-white p-4 shadow-sm sm:p-6" aria-label="ملخص المدرسة">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div><p className="text-xs font-bold text-emerald-700">مدرستنا بالأرقام</p><h2 className="mt-1 text-xl font-extrabold text-slate-800">مجتمع القرآن الكريم</h2></div>
           <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">إحصائيات المدرسة</span>
@@ -133,8 +153,11 @@ export default function DashboardPage() {
         </div>
       </section>
       <PrayerCard />
-      <HonorRoll />
-      <CircleHonorRoll />
+      </div>
+      <section className="dashboard-honor-grid mb-5 grid items-start gap-4 xl:grid-cols-2" aria-label="لوحات الشرف">
+        <HonorRoll />
+        <CircleHonorRoll />
+      </section>
       <DailyOverview/>
 
       <section className="mb-6">

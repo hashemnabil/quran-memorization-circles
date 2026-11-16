@@ -46,7 +46,7 @@ export default function HonorRoll() {
     <div className="p-3 sm:p-4">
       <RankingFilters period={period} circleId={rankingCircle} onChange={(p,c)=>{setPeriod(p);setRankingCircle(c)}}/>
       {query.isLoading ? <LoadingState rows={3} /> : !query.data && query.isError ? <div role="status" className="space-y-3 py-4 text-center"><p className="text-sm text-slate-600">تعذر تحميل لوحة الشرف</p><Button variant="secondary" size="sm" onClick={() => void query.refetch()}>إعادة المحاولة</Button></div> : !students.length ? <EmptyState title="ننتظر نجوم لوحة الشرف" message="تظهر أسماء الطلاب عند حصولهم على النقاط." icon={<IconAward size={28} />} /> : <>
-        <HonorRollRows students={students} />
+        <HonorRollRows students={students.slice(0, 3)} />
       </>}
       <footer className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-[#e6e6db] pt-3 text-[11px] leading-5 text-slate-500"><span>{online ? 'يتغير الترتيب تلقائيًا حسب مجموع النقاط' : 'آخر ترتيب محفوظ · يتحدث عند الاتصال'}</span>{query.data?.updatedAt && <span>آخر تحديث: {new Intl.DateTimeFormat('ar', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(new Date(query.data.updatedAt))}</span>}<span className="w-full">عند تساوي النقاط يتساوى المركز، وتُرتب الأسماء أبجديًا.</span>{query.isError && query.data && <span role="status" className="text-amber-700">تعذر تحديث الترتيب؛ المعروض آخر نسخة محفوظة.</span>}</footer>
       <div className="mt-2 flex justify-end"><Link to="/student-ranking" aria-label="عرض جميع الطلاب" title="عرض جميع الطلاب" className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"><IconUsers size={16} /><span>عرض الجميع</span></Link></div>
@@ -100,7 +100,7 @@ export function CircleHonorRoll() {
         circlesQuery.isError || ranking.isError ? <div role="status" className="text-sm text-red-700">تعذر تحميل لوحة شرف الحلقة <Button variant="secondary" size="sm" onClick={() => { void circlesQuery.refetch(); void ranking.refetch(); }}>إعادة المحاولة</Button></div> :
         !activeCircle ? <EmptyState title="لا توجد حلقة متاحة" message="تظهر لوحة الحلقة عند ربط حسابك بحلقة." icon={<IconAward size={28} />} /> :
         !ranking.data?.students?.length ? <EmptyState title="لا توجد نقاط بعد" message="تظهر أسماء طلاب الحلقة عند حصولهم على النقاط." icon={<IconAward size={28} />} /> :
-        <HonorRollRows students={ranking.data.students} label="ترتيب لوحة شرف الحلقة" />}
+        <HonorRollRows students={ranking.data.students.slice(0, 3)} label="أوائل لوحة شرف الحلقة" />}
     </div>
   </section>;
 }

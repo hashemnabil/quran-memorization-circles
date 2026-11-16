@@ -34,13 +34,14 @@ function NextPrayerCountdown({ onChange }: { onChange: () => void }) {
 }
 export default function PrayerCard() {
   const [now, setNow] = useState(Date.now);
-  useEffect(() => { const tick = () => setNow(Date.now()); const timer = window.setInterval(tick, 30000); document.addEventListener('visibilitychange', tick); return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', tick); }; }, []);
+  useEffect(() => { const tick = () => setNow(Date.now()); const timer = window.setInterval(tick, 1000); document.addEventListener('visibilitychange', tick); return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', tick); }; }, []);
   const next = nextPrayer(new Date(now));
-  return <Link to="/prayer-times" className="prayer-compact group mb-5 flex w-full items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-l from-emerald-950 to-emerald-800 px-4 py-3 text-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600" dir="rtl" aria-label={`الصلاة القادمة ${next.label} الساعة ${prayerTimeLabel(next.at)}، اضغط لعرض جميع المواقيت`}>
-    <span className="flex min-w-0 items-center gap-3">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/15"><PrayerTimeIcon id={next.id} size={23} /></span>
-      <span className="min-w-0"><span className="block text-xs text-emerald-100">الصلاة القادمة · غزة</span><strong className="block text-base font-extrabold">{next.label} <span className="mr-1 text-sm font-semibold text-emerald-100">{prayerTimeLabel(next.at)}</span></strong></span>
+  return <Link to="/prayer-times" className="prayer-compact group mb-5" dir="rtl" aria-label={`الصلاة القادمة ${next.label} الساعة ${prayerTimeLabel(next.at)}، اضغط لعرض جميع المواقيت`}>
+    <span className="prayer-compact__identity">
+      <span className="prayer-compact__icon"><PrayerTimeIcon id={next.id} size={27} /></span>
+      <span className="min-w-0"><span className="prayer-compact__eyebrow">الصلاة القادمة · غزة</span><strong className="prayer-compact__name">{next.label}</strong><span className="prayer-compact__time">الساعة {prayerTimeLabel(next.at)}</span></span>
     </span>
-    <span className="shrink-0 text-left"><span className="block text-[11px] text-emerald-100">عرض كل الصلوات</span><span className="text-sm font-bold" aria-hidden="true">←</span></span>
+    <span className="prayer-compact__countdown"><small>متبقي على الأذان</small><time dir="ltr">{countdown(next.at, now)}</time></span>
+    <span className="prayer-compact__open"><span>جميع المواقيت</span><b aria-hidden="true">←</b></span>
   </Link>;
 }

@@ -2,6 +2,7 @@ import { ThemeProvider } from '@/components/ThemeSelect';
 import AppSecurityGate from '@/components/AppSecurityGate';
 import ProfileVerificationPage, { ProfileReviewsPage } from '@/pages/ProfileVerificationPage';
 import NativeBackNavigation from '@/components/NativeBackNavigation';
+import NativeDeepLinks from '@/components/NativeDeepLinks';
 import MeetingsPage from '@/pages/MeetingsPage';
 import { lazy, Suspense, useEffect } from 'react';
 import { LoadingState } from '@/components/ui';
@@ -106,6 +107,7 @@ export default function App() {
   return (
     <AppLaunchGate><ThemeProvider />
       <NativeBackNavigation />
+      <NativeDeepLinks />
       <AppSecurityGate><PopupAnnouncements /><CuratedWebAudio /><Suspense fallback={<LoadingState />}>
       <Routes>
       <Route path="/privacy" element={<PrivacyPage />} />

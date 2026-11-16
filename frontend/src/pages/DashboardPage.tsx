@@ -135,7 +135,7 @@ export default function DashboardPage() {
         }
       />
 
-      <div className="dashboard-home-hero mb-4 grid items-stretch gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
+      <div className="dashboard-home-hero mb-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
       <section className="overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-l from-emerald-50 via-white to-white p-3 shadow-sm sm:p-4" aria-label="ملخص المدرسة">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div><p className="text-[11px] font-bold text-emerald-700">مدرستنا بالأرقام</p><h2 className="mt-0.5 text-lg font-extrabold text-slate-800">مجتمع القرآن الكريم</h2></div>
@@ -154,7 +154,7 @@ export default function DashboardPage() {
       </section>
       <PrayerCard />
       </div>
-      <section className="dashboard-honor-grid mb-4 grid items-start gap-3 xl:grid-cols-2" aria-label="لوحات الشرف">
+      <section className="dashboard-honor-grid mb-3 grid items-start gap-3 xl:grid-cols-2" aria-label="لوحات الشرف">
         <HonorRoll />
         <CircleHonorRoll />
       </section>

@@ -87,6 +87,26 @@ export function dashboardGreeting(fullName: string, role: string, date = new Dat
   return `${salutation}، ${name} · ${ROLE_LABELS[role as keyof typeof ROLE_LABELS] ?? role}`;
 }
 
+const DAILY_ENCOURAGEMENTS = [
+  'خطوة صغيرة مع القرآن اليوم تصنع أثراً كبيراً غداً.',
+  'بارك الله في وقتك، واجعل إنجازك اليوم خالصاً ومثمراً.',
+  'كل آية تُتقنها نور، وكل طالب تعينه أجر ممتد.',
+  'ابدأ يومك بنية طيبة؛ فالبركة تسكن البدايات الصادقة.',
+  'إنجاز اليوم يبني ثمرة الغد، فامضِ بهدوء وثبات.',
+  'جعلك الله مفتاحاً للخير، وكتب لك أثر ما تعلّم وتعلّم.',
+  'يوم جديد وفرصة أجمل لخدمة كتاب الله وأهله.',
+  'بالاستمرار تصنع الفرق، وبالإخلاص يبارك الله في القليل.',
+  'رتّب أولوياتك، وابدأ بالأهم، واستعن بالله في كل خطوة.',
+  'أحسن العمل اليوم؛ فالأثر الجميل يبقى وإن مضى الوقت.',
+] as const;
+
+export function dashboardEncouragement(accountKey: string, date = new Date()) {
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Gaza', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  const seed = `${accountKey}:${day}`;
+  const hash = [...seed].reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 0);
+  return DAILY_ENCOURAGEMENTS[hash % DAILY_ENCOURAGEMENTS.length];
+}
+
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)!;
 
@@ -129,6 +149,7 @@ export default function DashboardPage() {
         <div className="min-w-0">
           <p className="mb-1 text-[11px] font-bold text-emerald-700">الرئيسية</p>
           <h1 className="text-xl font-extrabold leading-snug text-slate-800 sm:text-2xl">{greeting}</h1>
+          <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">{dashboardEncouragement(user.id)}</p>
         </div>
         <Badge className="bg-emerald-50 text-emerald-800">
           {new Intl.DateTimeFormat('ar-EG', { dateStyle: 'full', numberingSystem: 'latn', timeZone: 'Asia/Gaza' }).format(new Date())}

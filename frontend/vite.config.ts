@@ -3,7 +3,7 @@ import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
 import { productionCsp } from './src/lib/security-csp';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
 const BACKEND = process.env.VITE_PROXY_TARGET || 'http://127.0.0.1:3000';
@@ -64,6 +64,12 @@ export default defineConfig({
       const siteUrl = (process.env.VITE_SITE_URL || 'https://quran-frontend-sknr.onrender.com').replace(/\/$/, '');
       this.emitFile({ type: 'asset', fileName: 'robots.txt', source: `User-agent: *\nAllow: /\nSitemap: ${siteUrl}/sitemap.xml\n` });
       this.emitFile({ type: 'asset', fileName: 'sitemap.xml', source: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${siteUrl}/</loc></url><url><loc>${siteUrl}/about</loc></url><url><loc>${siteUrl}/privacy</loc></url></urlset>\n` });
+    },
+    writeBundle(options) {
+      const output = typeof options.dir === 'string' ? options.dir : path.resolve(__dirname, 'dist');
+      const wellKnown = path.resolve(output, '.well-known');
+      mkdirSync(wellKnown, { recursive: true });
+      writeFileSync(path.resolve(wellKnown, 'assetlinks.json'), readFileSync(path.resolve(__dirname, 'public/.well-known/assetlinks.json')));
     },
   }],
   resolve: {

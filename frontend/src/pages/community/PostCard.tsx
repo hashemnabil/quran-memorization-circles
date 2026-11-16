@@ -27,6 +27,9 @@ export default function PostCard({post, userId, school, expanded = false, highli
   const [showComments, setShowComments] = useState(expanded);
   const [showLikers, setShowLikers] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [shareNote, setShareNote] = useState('');
+  const [shareSearch, setShareSearch] = useState('');
+  const [shareTargets, setShareTargets] = useState<string[]>([]);
   const [draft, setDraft] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [reply, setReply] = useState('');
@@ -43,10 +46,14 @@ export default function PostCard({post, userId, school, expanded = false, highli
     enabled: showShare,
   });
   const sendToChat = useMutation({
-    mutationFn: (conversationId: string) => api.post(`/chat/conversations/${conversationId}/messages`, { body: `منشور من ${post.schoolPost ? school?.name || 'المدرسة' : post.author.fullName}\n${postUrl}` }),
+    mutationFn: (conversationIds: string[]) => Promise.all(conversationIds.map(conversationId => api.post(`/chat/conversations/${conversationId}/messages`, {
+      body: shareNote.trim() || 'شارك منشورًا معك',
+      attachmentUrl: `community-post:${post.id}`,
+    }))),
     onSuccess: (response) => {
       toast.success(response.data?.synced === 0 ? 'حُفظت المشاركة وستُرسل عند عودة الاتصال' : 'تمت مشاركة المنشور في المحادثة');
       void queryClient.invalidateQueries({ queryKey: ['chat'] });
+      setShareTargets([]); setShareNote(''); setShareSearch('');
       setShowShare(false);
     },
     onError: error => toast.error(apiError(error)),
@@ -119,16 +126,22 @@ export default function PostCard({post, userId, school, expanded = false, highli
       </Modal>
       <Modal open={showShare} onClose={() => setShowShare(false)} title="مشاركة المنشور" size="sm">
         <div className="space-y-3">
-          <p className="text-sm text-slate-600">اختر محادثة لإرسال رابط المنشور داخل التطبيق.</p>
+          <div className="share-post-preview">
+            <div className="flex items-center gap-2"><Avatar name={name} src={post.schoolPost ? school?.logoUrl : post.author.avatarUrl} size={34}/><strong className="text-sm">{name}</strong></div>
+            <p>{post.body}</p>
+          </div>
+          <Input aria-label="بحث عن شخص أو مجموعة" placeholder="ابحث عن شخص أو مجموعة…" value={shareSearch} onChange={event=>setShareSearch(event.target.value)}/>
           {conversations.isLoading && <p className="text-sm">جارٍ تحميل المحادثات...</p>}
           {conversations.isError && <p role="alert" className="text-sm text-red-700">تعذر تحميل المحادثات. <button type="button" className="underline" onClick={() => void conversations.refetch()}>إعادة المحاولة</button></p>}
           {conversations.data?.length === 0 && <p className="text-sm text-slate-600">لا توجد محادثات متاحة بعد.</p>}
           <div className="max-h-64 space-y-1 overflow-y-auto">
-            {conversations.data?.filter(conversation => conversation.canPost).map(conversation =>
-              <button key={conversation.id} type="button" disabled={sendToChat.isPending} onClick={() => sendToChat.mutate(conversation.id)} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-start hover:bg-primary-50 disabled:opacity-50">
-                <Avatar name={conversation.title} src={conversation.avatarUrl} size={32}/><span className="truncate">{conversation.title}</span>
+            {conversations.data?.filter(conversation => conversation.canPost && conversation.title.toLocaleLowerCase('ar').includes(shareSearch.trim().toLocaleLowerCase('ar'))).map(conversation =>
+              <button key={conversation.id} type="button" disabled={sendToChat.isPending} aria-pressed={shareTargets.includes(conversation.id)} onClick={() => setShareTargets(current=>current.includes(conversation.id)?current.filter(id=>id!==conversation.id):[...current,conversation.id])} className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-start hover:bg-primary-50 disabled:opacity-50 ${shareTargets.includes(conversation.id)?'bg-primary-50 ring-1 ring-primary-300':''}`}>
+                <Avatar name={conversation.title} src={conversation.avatarUrl} size={36}/><span className="min-w-0 flex-1 truncate">{conversation.title}</span><span className={`grid h-5 w-5 place-items-center rounded-full border ${shareTargets.includes(conversation.id)?'border-primary-600 bg-primary-600 text-white':'border-slate-300'}`}>{shareTargets.includes(conversation.id)?'✓':''}</span>
               </button>)}
           </div>
+          <Textarea label="اكتب رسالة (اختياري)" rows={2} maxLength={500} value={shareNote} onChange={event=>setShareNote(event.target.value)} placeholder="اكتب شيئًا مع المنشور…"/>
+          <Button className="w-full" loading={sendToChat.isPending} disabled={!shareTargets.length} onClick={()=>sendToChat.mutate(shareTargets)}>إرسال إلى {shareTargets.length || ''}</Button>
           <Button variant="secondary" onClick={() => void share()}>مشاركة خارج التطبيق أو نسخ الرابط</Button>
         </div>
       </Modal>

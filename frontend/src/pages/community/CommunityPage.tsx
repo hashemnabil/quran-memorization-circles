@@ -35,14 +35,14 @@ export default function CommunityPage({ ownProfile = false }: { ownProfile?: boo
  });
  const profile=useQuery({queryKey:['community','profile',userId],queryFn:async()=>(await api.get<Person>('/community/users/'+userId)).data,enabled:!!userId});
  const isStories=location.pathname==='/community/stories';const showSchool=location.pathname==='/community/school';
- const feed=useQuery({queryKey:['community','feed',userId,showSchool],queryFn:async()=>(await api.get<Post[]>('/community/feed',{params:{...(userId?{userId}:{}),...(!userId&&showSchool?{school:'true'}:{})}})).data});
+ const targetPost=new URLSearchParams(location.search).get('post');
+ const feed=useQuery({queryKey:['community','feed',userId,showSchool,targetPost],queryFn:async()=>(await api.get<Post[]>('/community/feed',{params:{...(userId?{userId}:{}),...(!userId&&showSchool?{school:'true'}:{}),...(targetPost?{post:targetPost}:{})}})).data});
  const school=useQuery({queryKey:['community','school'],queryFn:async()=>(await api.get<School>('/community/school')).data});
  const stories=useQuery({queryKey:['community','stories'],queryFn:async()=>(await api.get<Story[]>('/community/stories')).data});
  const replies=useQuery({queryKey:['community','story-replies',selectedStory],queryFn:async()=>(await api.get<{id:string;body:string;user:Person}[]>('/community/stories/'+selectedStory+'/replies')).data,enabled:!!selectedStory&&selectedStory!=='new'&&!!stories.data?.find(st=>st.id===selectedStory)?.schoolStory});
  const targetStory=new URLSearchParams(location.search).get('story');
  const openedStory=useRef<string|null>(null);
  useEffect(()=>{if(!targetStory||!stories.data||openedStory.current===targetStory)return;openedStory.current=targetStory;if(stories.data.some(story=>story.id===targetStory)){setSelectedStory(targetStory);setStoryProgress(0);action.mutate({path:'/community/stories/'+targetStory+'/view'});}else toast('انتهت القصة أو لم تعد متاحة');},[targetStory,stories.data]);
- const targetPost=new URLSearchParams(location.search).get('post');
  const targetComment=new URLSearchParams(location.search).get('comment');
  useEffect(()=>{
   if(!targetPost||!feed.data)return;

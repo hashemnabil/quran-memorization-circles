@@ -43,6 +43,7 @@ import {
 import { ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { timeAgo } from '@/lib/format';
 import type { ChatMessage, Conversation, PaginatedResponse, Role } from '@/types';
+import { groupInviteUrl } from '@/lib/app-links';
 
 type SharedPost = { id:string; body:string; mediaIds?:string[]; schoolPost:boolean; createdAt:string; author:{id:string;fullName:string;avatarUrl?:string|null} };
 
@@ -914,8 +915,8 @@ function GroupSettingsModal({ conversation, canModerate, onClose }: { conversati
       {canModerate && <div className="mt-5 rounded-xl border border-slate-200 p-3">
         <p className="mb-2 text-sm font-bold">رابط دعوة المجموعة</p>
         {inviteCode ? <>
-          <Input readOnly value={`${window.location.origin}/chat?join=${encodeURIComponent(inviteCode)}`} dir="ltr" />
-          <div className="mt-2 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/chat?join=${encodeURIComponent(inviteCode)}`).then(() => toast.success('تم نسخ رابط المجموعة')); }}>نسخ الرابط</Button><Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate(true)}>تجديد الرابط</Button><Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate(false)}>إيقاف الرابط</Button></div>
+          <Input readOnly value={groupInviteUrl(inviteCode)} dir="ltr" />
+          <div className="mt-2 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => { void navigator.clipboard.writeText(groupInviteUrl(inviteCode)).then(() => toast.success('تم نسخ رابط المجموعة')); }}>نسخ الرابط</Button><Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate(true)}>تجديد الرابط</Button><Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate(false)}>إيقاف الرابط</Button></div>
         </> : <Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate(true)}>إنشاء رابط دعوة</Button>}
         <p className="mt-2 text-xs text-slate-500">يمكن لمن يملك الرابط الانضمام إذا كانت صلاحيات التواصل تسمح له بذلك.</p>
       </div>}

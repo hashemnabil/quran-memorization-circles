@@ -20,7 +20,10 @@
   body,
   #root {
     height: 100%;
+    max-width: 100%;
   }
+
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overflow-x: clip; }
 
   body {
     @apply text-slate-800 font-sans antialiased;
@@ -328,6 +331,33 @@
   .app-dialog header > button { min-height: 44px; min-width: 44px; }
   .table-wrap { max-width: 100%; overscroll-behavior-x: contain; }
   .app-workspace .btn-sm { min-height: 44px; }
+  .page-transition, .page-transition > *, .app-workspace { min-width: 0; max-width: 100%; }
+
+  /* Attendance rows must stack on phones. Keeping person details and four
+     state buttons in one flex line squeezes Arabic names down to one letter. */
+  .attendance-person-row { display: grid; grid-template-columns: minmax(0, 1fr); padding-inline: 14px; }
+  .attendance-person-copy { width: 100%; }
+  .attendance-person-copy a { display: block; overflow-wrap: normal; word-break: normal; }
+  .attendance-status-picker { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .attendance-status-picker > button { min-height: 44px; padding-inline: 8px; white-space: nowrap; }
+  .attendance-status-picker > label, .attendance-status-picker > select { grid-column: 1 / -1; min-width: 0; }
+
+  .staff-attendance-filters { width: min(100%, 21rem); flex-wrap: wrap; }
+  .staff-attendance-filters > * { min-width: 0; flex: 1 1 9rem; }
+  .staff-attendance-row { display: grid; grid-template-columns: auto minmax(0, 1fr); padding-inline: 14px; }
+  .staff-attendance-statuses { grid-column: 1 / -1; display: grid; width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .staff-attendance-statuses > button { min-height: 44px; padding-inline: 6px; white-space: nowrap; }
+  .staff-attendance-row > input { grid-column: 1 / -1; width: 100%; }
+}
+
+@media (max-width: 479px) {
+  .app-topbar > div { padding-inline: 8px; gap: 4px; }
+  .app-topbar .app-icon-button { width: 34px; min-width: 34px; height: 38px; }
+  .app-topbar .app-icon-button svg { width: 18px; height: 18px; }
+  .app-topbar div.min-w-0.flex-1 > p:first-child { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 12px; line-height: 1.35; }
+  .app-topbar div.min-w-0.flex-1 > p:last-child { display: none; }
+  .app-topbar button[aria-label='قائمة الحساب'] { padding: 0; }
+  .app-workspace { padding-inline: 10px !important; }
 }
 
 .login-screen {

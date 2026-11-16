@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Role } from '@prisma/client';
+import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AccessControlService } from '../common/services/access-control.service';
 import { StudentsService } from './students.service';
@@ -9,8 +10,18 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AttendanceService } from '../attendance/attendance.service';
 import { CreateUserDto } from '../users/dto/user.dto';
 import { CreateAnnouncementDto } from '../announcements/dto/announcement.dto';
+import { QueryStudentsDto } from './dto/student.dto';
 
 const actor: any = { id: 'account-one', role: Role.STUDENT };
+test('student approval query preserves false with Nest implicit conversion enabled', async () => {
+  const approved = plainToInstance(QueryStudentsDto, { isApproved: 'true' }, { enableImplicitConversion: true });
+  const unapproved = plainToInstance(QueryStudentsDto, { isApproved: 'false' }, { enableImplicitConversion: true });
+  assert.equal(approved.isApproved, true);
+  assert.equal(unapproved.isApproved, false);
+  assert.deepEqual(await validate(approved), []);
+  assert.deepEqual(await validate(unapproved), []);
+});
+
 test('student scope is bound to the authenticated account and retired parents have no scope', async () => {
   const prisma: any = { student: { findFirst: async ({ where }: any) => {
     if (where.userId) { assert.equal(where.userId, actor.id); assert.equal(where.deletedAt, null); return { id: 'one' }; }

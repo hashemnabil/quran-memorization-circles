@@ -350,8 +350,8 @@ export default function AttendancePage() {
                   {sheet.students.map((student) => {
                     const entry = draft[student.id] ?? { status: 'PRESENT' as AttendanceStatus };
                     return (
-                      <li key={student.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
-                        <div className="min-w-0 flex-1">
+                      <li key={student.id} className="attendance-person-row flex flex-wrap items-center gap-3 px-5 py-3.5">
+                        <div className="attendance-person-copy min-w-0 flex-1">
                           <Link to={`/students/${student.id}`} className="font-semibold text-slate-800 hover:text-primary-700">
                             {student.fullName}
                           </Link>
@@ -420,7 +420,7 @@ function StatusPicker({
   const policy=useQuery({queryKey:['recitations','learning-settings',circleId??''],queryFn:()=>fetchLearningSettings(circleId)});
   const extras=policy.data?.attendance.filter(s=>s.enabled&&!ATTENDANCE_ORDER.includes(s.id as AttendanceStatus))??[];
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="attendance-status-picker flex flex-wrap gap-1.5">
       {ATTENDANCE_ORDER.filter(status=>!policy.data||policy.data.attendance.some(s=>s.id===status&&s.enabled)).map((status) => (
         <button
           key={status}

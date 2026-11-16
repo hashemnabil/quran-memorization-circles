@@ -95,6 +95,48 @@ test('student files render on a phone-sized viewport without horizontal overflow
   await expect(page.getByRole('heading', { name: 'ملفاتي', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2)).toBe(true);
 });
+
+test('all administration pages stay inside phone, tablet and desktop viewports', async ({ page }) => {
+  test.setTimeout(300000);
+  await login(page, 'ADMIN');
+  const paths = [...new Set([
+    '/', '/profile', '/notifications', '/chat', '/support',
+    ...destinations.ADMIN,
+    ...reports.map(report => `/documents/${report}`),
+  ])];
+  for (const path of paths) {
+    await gotoWithLocalUnlock(page, path);
+    await expect(page.locator('[data-security-blocked]')).toHaveCount(0);
+    for (const width of [320, 360, 390, 768, 1440]) {
+      await page.setViewportSize({ width, height: width < 700 ? 844 : 900 });
+      await expect.poll(async () => page.evaluate(() => ({
+        viewport: window.innerWidth,
+        document: document.documentElement.scrollWidth,
+      })), { message: `${path} overflows at ${width}px` }).toEqual({ viewport: width, document: width });
+    }
+  }
+});
+
+test('attendance names and controls use readable mobile rows', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await login(page, 'TEACHER');
+  await gotoWithLocalUnlock(page, `/attendance?circleId=${fixtures.circle.id}`);
+  const row = page.locator('.attendance-person-row').first();
+  await expect(row).toBeVisible();
+  const layout = await row.evaluate(element => {
+    const name = element.querySelector<HTMLElement>('.attendance-person-copy');
+    const picker = element.querySelector<HTMLElement>('.attendance-status-picker');
+    return {
+      rowWidth: element.getBoundingClientRect().width,
+      nameWidth: name?.getBoundingClientRect().width ?? 0,
+      pickerWidth: picker?.getBoundingClientRect().width ?? 0,
+      buttons: [...(picker?.querySelectorAll('button') ?? [])].map(button => button.getBoundingClientRect().width),
+    };
+  });
+  expect(layout.nameWidth).toBeGreaterThan(layout.rowWidth * .8);
+  expect(layout.pickerWidth).toBeGreaterThan(layout.rowWidth * .8);
+  expect(layout.buttons.every(width => width >= 80)).toBe(true);
+});
 test('student can reload the cached shell and file screen in airplane mode and reconnect', async ({ page, context }) => {
   await login(page, 'STUDENT'); await gotoWithLocalUnlock(page,'/my-files');
   await expect(page.getByRole('heading', { name: 'ملفاتي', exact: true })).toBeVisible();

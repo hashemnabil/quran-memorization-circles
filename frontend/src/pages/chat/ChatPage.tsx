@@ -435,14 +435,14 @@ export default function ChatPage() {
                     >
                       <IconUsers size={18} />
                     </button>
-                      <button
+                      {canModerate && <button
                         onClick={() => setPanel('settings')}
                         className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
                         title="إعدادات المجموعة"
                         aria-label="إعدادات المجموعة"
                       >
                         <IconSettings size={18} />
-                      </button>
+                      </button>}
                   </>
                 )}
                 <div className="chat-background-choice absolute bottom-2 end-3"><BackgroundChoice value={background} label="خلفية المحادثة" /></div>
@@ -600,7 +600,7 @@ export default function ChatPage() {
       {panel === 'members' && active && (
         <MembersModal conversation={active} canModerate={canModerate} onClose={() => setPanel(null)} />
       )}
-      {panel === 'settings' && active && (
+      {panel === 'settings' && active && canModerate && (
         <GroupSettingsModal conversation={active} canModerate={canModerate} onClose={() => setPanel(null)} />
       )}
     </>

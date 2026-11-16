@@ -125,23 +125,15 @@ export default function DashboardPage() {
 
   return (
     <>
-      <section className="dashboard-welcome relative mb-3 overflow-hidden rounded-[26px] border border-emerald-800/40 bg-[linear-gradient(125deg,#0b3027_0%,#124c3b_55%,#1c6a4e_100%)] px-5 py-5 text-white shadow-[0_16px_38px_rgba(10,55,42,.18)] sm:px-7 sm:py-6" dir="rtl" aria-labelledby="dashboard-welcome-title">
-        <span aria-hidden="true" className="absolute -left-10 -top-20 h-52 w-52 rounded-full border-[34px] border-white/[.035]" />
-        <span aria-hidden="true" className="absolute -bottom-24 right-1/3 h-44 w-44 rounded-full bg-emerald-300/[.04] blur-sm" />
-        <div className="relative flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <p className="mb-1.5 text-[11px] font-bold tracking-wide text-[#e4cd8b] sm:text-xs">الرئيسية · ملخص يومك</p>
-            <h1 id="dashboard-welcome-title" className="text-2xl font-black leading-tight text-white sm:text-3xl lg:text-[38px]">{greeting}</h1>
-            <p className="mt-2 text-xs leading-6 text-emerald-50/80 sm:text-sm">نسأل الله لك يوماً مباركاً عامراً بالقرآن والإنجاز.</p>
-          </div>
-          <div className="hidden shrink-0 flex-col items-end gap-3 sm:flex">
-            <span className="grid h-14 w-14 place-items-center rounded-2xl border border-[#e6cf8d]/30 bg-white/10 text-[#f0d991] shadow-inner"><IconBook size={28}/></span>
-            <Badge className="border border-white/10 bg-white/10 text-emerald-50">
-              {new Intl.DateTimeFormat('ar-EG', { dateStyle: 'full', numberingSystem: 'latn', timeZone: 'Asia/Gaza' }).format(new Date())}
-            </Badge>
-          </div>
+      <header className="mb-3 flex flex-wrap items-end justify-between gap-3 border-b border-emerald-900/10 pb-3" dir="rtl">
+        <div className="min-w-0">
+          <p className="mb-1 text-[11px] font-bold text-emerald-700">الرئيسية</p>
+          <h1 className="text-xl font-extrabold leading-snug text-slate-800 sm:text-2xl">{greeting}</h1>
         </div>
-      </section>
+        <Badge className="bg-emerald-50 text-emerald-800">
+          {new Intl.DateTimeFormat('ar-EG', { dateStyle: 'full', numberingSystem: 'latn', timeZone: 'Asia/Gaza' }).format(new Date())}
+        </Badge>
+      </header>
 
       <div className="dashboard-home-hero mb-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
       <section className="overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-l from-emerald-50 via-white to-white p-3 shadow-sm sm:p-4" aria-label="ملخص المدرسة">

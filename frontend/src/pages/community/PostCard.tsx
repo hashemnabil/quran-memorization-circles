@@ -50,8 +50,8 @@ export default function PostCard({post, userId, school, expanded = false, highli
       body: shareNote.trim() || 'شارك منشورًا معك',
       attachmentUrl: `community-post:${post.id}`,
     }))),
-    onSuccess: (response) => {
-      toast.success(response.data?.synced === 0 ? 'حُفظت المشاركة وستُرسل عند عودة الاتصال' : 'تمت مشاركة المنشور في المحادثة');
+    onSuccess: (responses) => {
+      toast.success(responses.some(response => response.data?.synced === 0) ? 'حُفظت المشاركة وستُرسل عند عودة الاتصال' : 'تمت مشاركة المنشور في المحادثة');
       void queryClient.invalidateQueries({ queryKey: ['chat'] });
       setShareTargets([]); setShareNote(''); setShareSearch('');
       setShowShare(false);

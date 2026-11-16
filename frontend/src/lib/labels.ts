@@ -23,7 +23,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   FOUNDER: 'مؤسس النظام',
   ADMIN: 'مدير عام',
   SUPERVISOR: 'مشرف',
-  TEACHER: 'معلم',
+  TEACHER: 'محفّظ',
   EXAM_COMMITTEE: 'لجنة الاختبارات',
   STUDENT: 'طالب',
   SUPPORT: 'دعم فني',

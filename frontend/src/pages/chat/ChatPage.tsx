@@ -3,7 +3,7 @@ import LinkedText from '@/components/LinkedText';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -43,6 +43,20 @@ import {
 import { ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { timeAgo } from '@/lib/format';
 import type { ChatMessage, Conversation, PaginatedResponse, Role } from '@/types';
+
+type SharedPost = { id:string; body:string; mediaIds?:string[]; schoolPost:boolean; createdAt:string; author:{id:string;fullName:string;avatarUrl?:string|null} };
+
+function SharedPostCard({postId}:{postId:string}) {
+  const post=useQuery({queryKey:['community','shared-post',postId],queryFn:async()=>(await api.get<SharedPost>(`/community/posts/${postId}`)).data,staleTime:60_000,retry:1});
+  if(post.isLoading)return <div className="shared-post-card shared-post-loading">جارٍ تحميل المنشور…</div>;
+  if(!post.data)return <div className="shared-post-card text-xs">المنشور غير متاح أو تم حذفه.</div>;
+  const author=post.data.schoolPost?'المدرسة':post.data.author.fullName;
+  return <Link to={`/community/posts?post=${encodeURIComponent(postId)}`} className="shared-post-card" aria-label={`فتح منشور ${author}`}>
+    <div className="shared-post-author"><Avatar name={author} src={post.data.schoolPost?null:post.data.author.avatarUrl} size={34}/><span><strong>{author}</strong><small>منشور تمت مشاركته</small></span></div>
+    <p>{post.data.body}</p>
+    {post.data.mediaIds?.[0]&&<CommunityImage id={post.data.mediaIds[0]}/>}<span className="shared-post-open">عرض المنشور</span>
+  </Link>;
+}
 
 export default function ChatPage() {
   const background = useCuratedBackground('CHAT_BACKGROUND');
@@ -476,7 +490,9 @@ export default function ChatPage() {
                                 : 'rounded-tr-md border border-slate-100 bg-white text-slate-700',
                             )}
                           >
-                            <p className="whitespace-pre-wrap break-words"><LinkedText text={message.body}/></p>{message.attachmentUrl?.startsWith('community-media:')&&<CommunityImage id={message.attachmentUrl.slice(16)}/>}
+                            <p className="whitespace-pre-wrap break-words"><LinkedText text={message.body}/></p>
+                            {message.attachmentUrl?.startsWith('community-media:')&&<CommunityImage id={message.attachmentUrl.slice(16)}/>}
+                            {message.attachmentUrl?.startsWith('community-post:')&&<SharedPostCard postId={message.attachmentUrl.slice(15)}/>}
                           </div>
                           <p className={cx('mt-1 text-[10px] text-slate-400', mine && 'text-left')}>
                             {timeAgo(message.createdAt)}

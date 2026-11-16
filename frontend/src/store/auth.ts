@@ -90,37 +90,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw error;
     }
     await restoreDataSession(data.user.id).catch(() => undefined);
-    let localSnapshotLocked = false;
-    let localStage = 'حفظ الدخول دون إنترنت';
-    try {
-      await rememberOfflineLogin(username, password, data.user, data);
-      localStage = 'فتح وتشفير بيانات الحساب المحلية';
-      await protectLocalAccount(data.user.id);
-      localStage = 'حفظ جلسة الحساب المحلية';
-      await persistDataSession(data.user.id);
-    } catch (cause) {
-      // A server-verified password reset must not be rejected because this device
-      // still has an encrypted offline snapshot protected by the old password.
-      // Keep the old snapshot and offline credentials intact: never replace its
-      // encryption key or discard pending offline writes without user consent.
-      const oldPasswordSnapshot = localStage === 'حفظ الدخول دون إنترنت'
-        && cause instanceof Error
-        && cause.message.includes('البيانات المحلية محفوظة بكلمة مرور سابقة')
-        && encryptedAccount(data.user.id)
-        && !dataKey(data.user.id);
-      if (!oldPasswordSnapshot) {
-        const name = cause instanceof Error ? cause.name : 'UnknownError';
-        const detail = cause instanceof Error && cause.name === 'Error' ? cause.message : name;
-        throw Object.assign(new Error(`نجح التحقق من الحساب، وتعذر ${localStage}: ${detail}`), { offlineLoginError: true });
-      }
-      // Show the warning only after online authentication has actually completed.
-      localSnapshotLocked = true;
-    }
     const user = await adoptSession(data, set);
-    await import('@/lib/local-lock').then(module => module.resetLockAfterOnlineLogin(user.id)).catch(() => undefined);
-    if (localSnapshotLocked) toast('تم الدخول عبر الإنترنت. بياناتك المحلية القديمة ما زالت مقفلة بكلمة المرور السابقة؛ لم تُحذف أو تُستبدل. للدخول دون إنترنت، افتحها بالكلمة القديمة أولًا أو احذف بيانات هذا الموقع بعد التأكد من عدم حاجتك للتعديلات المحلية.', { duration: 12000 });
     reconnectCredentials = undefined;
     clearReconnectCredentials();
+    // The server has already authenticated the user. Prepare encrypted offline
+    // access after rendering the app so slow device storage never blocks login.
+    void (async () => {
+      try {
+        await rememberOfflineLogin(username, password, data.user, data);
+        await protectLocalAccount(data.user.id);
+        await persistDataSession(data.user.id);
+        await import('@/lib/local-lock').then(module => module.resetLockAfterOnlineLogin(user.id));
+      } catch (cause) {
+        const oldPasswordSnapshot = cause instanceof Error
+          && cause.message.includes('البيانات المحلية محفوظة بكلمة مرور سابقة')
+          && encryptedAccount(data.user.id) && !dataKey(data.user.id);
+        toast(oldPasswordSnapshot
+          ? 'تم الدخول. بياناتك المحلية القديمة ما زالت مقفلة بكلمة المرور السابقة ولم تُحذف.'
+          : 'تم الدخول، لكن تعذر تجهيز الدخول دون إنترنت على هذا الجهاز.', { duration: 8000 });
+      }
+    })();
     return user;
   },
 
@@ -327,17 +316,9 @@ async function adoptSession(
   resetQueryCache();
   await tokenStore.set(data.accessToken, data.refreshToken, data.user?.id);
   sessionStorage.removeItem('qc.localUnlocked');
-  // The login endpoint has already verified the new password and returned an
-  // authenticated identity. A separate /auth/me request or a locked local
-  // IndexedDB snapshot must not turn that successful login into a failure.
-  let user = data.user;
-  try {
-    const me = await api.get<AuthUser>('/auth/me');
-    user = me.data;
-  } catch (error) {
-    // Do not bypass an explicit server-side rejection or accept an absent identity.
-    if (!user || (axios.isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0))) throw error;
-  }
+  // Login already returns the complete public identity. Avoid a second network
+  // round-trip before opening the authenticated shell.
+  const user = data.user;
   if (!user) throw new Error('لم يرجع الخادم بيانات الحساب بعد تسجيل الدخول');
   cacheOfflineUser(user);
   // Keep encrypted offline data untouched when its old key is unavailable.

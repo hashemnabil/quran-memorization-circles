@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_USER: postgres
           POSTGRES_HOST_AUTH_METHOD: trust
@@ -41,13 +41,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Match PostgreSQL client to the test server
-        run: |
-          if [ ! -x /usr/lib/postgresql/16/bin/pg_dump ]; then
-            sudo apt-get update
-            sudo apt-get install -y postgresql-client-16
-          fi
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
       - run: node backend/scripts/check-secrets.mjs --history
       - run: npm ci --prefix backend
       - run: npm ci --prefix frontend

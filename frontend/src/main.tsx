@@ -18,7 +18,15 @@ import './styles/premium.css';
 // plugin bridge injection. The browser build still uses the service worker.
 if (!Capacitor.isNativePlatform() && import.meta.env.PROD && 'serviceWorker' in navigator) {
   let reloadingForUpdate = false;
+  let hasActiveController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {
+    // A first installation starts controlling the open page too. Reloading at
+    // that point can erase an in-progress login form. Only reload when a page
+    // that was already controlled receives a replacement worker.
+    if (!hasActiveController) {
+      hasActiveController = true;
+      return;
+    }
     if (reloadingForUpdate) return;
     reloadingForUpdate = true;
     window.location.reload();

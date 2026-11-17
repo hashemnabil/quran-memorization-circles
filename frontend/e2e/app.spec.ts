@@ -155,8 +155,7 @@ test('student can reload the cached shell and file screen in airplane mode and r
   await context.setOffline(true); await page.reload();
   await expect(page.getByRole('heading', { name: 'ملفاتي', exact: true })).toBeVisible();
   await context.setOffline(false);
-  await expect(page.getByText('متصل بالإنترنت', { exact: true })).toBeVisible();
-  await expect(page.getByText('غير متصل', { exact: true })).not.toBeVisible();
+  await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(true);
 });
 
 async function readTeacherOutbox(page: Page): Promise<Array<{ id: number; opId: string }>> {

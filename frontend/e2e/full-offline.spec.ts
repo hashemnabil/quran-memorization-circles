@@ -838,7 +838,7 @@ test('student edits remain pending offline and online until administrative appro
     }
     return route.fulfill({ status: 403, json: { message: 'Not used' } });
   });
-  await gotoWithLocalUnlock(page,'/');
+  await gotoWithLocalUnlock(page,'/student');
   await expect(page.getByRole('heading', { name: 'التحضير المطلوب' })).toBeVisible();
   await expect(page.getByText('تحضير محفوظ للطالب')).toBeVisible();
   await expect(page.getByText('قاعة الاختبار التجريبية', { exact: false })).toBeVisible();
@@ -852,7 +852,7 @@ test('student edits remain pending offline and online until administrative appro
   await expect(page).toHaveURL(/\/community\/users\/me$/);
   await expect(page.getByRole('heading', { name: identity.fullName, exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'الرجوع للصفحة السابقة', exact: true }).click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/student$/);
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(departureScroll);
   await expect(page.getByRole('status', { name: 'بدء التطبيق', exact: true })).not.toBeVisible();
   await page.getByRole('button', { name: 'تعديل بياناتي', exact: true }).click();

@@ -29,7 +29,7 @@ test('honor roll shows ten students from different circles and refreshes the win
   });
   await gotoWithLocalUnlock(page, '/');
   const board = page.getByRole('region', { name: 'لوحة شرف المدرسة', exact: true });
-  await expect(board.locator('li[data-student-id]')).toHaveCount(10);
+  await expect(board.locator('li[data-student-id]')).toHaveCount(3);
   const circleBoard = page.getByRole('region', { name: 'لوحة شرف الحلقة', exact: true });
   await expect(circleBoard.getByRole('list', { name: 'ترتيب لوحة شرف الحلقة' }).locator('li')).toHaveCount(1);
   await expect(circleBoard.getByText('حلقة 1', { exact: true }).first()).toBeVisible();

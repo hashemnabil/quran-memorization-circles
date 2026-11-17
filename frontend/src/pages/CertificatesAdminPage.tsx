@@ -213,7 +213,7 @@ export default function CertificatesAdminPage() {
     return urls;
   },onSuccess:async(urls)=>{const printWindow=printWindowRef.current;printWindowRef.current=null;try{await mergePdfDataUrls(urls);if(printWindow&&!printWindow.closed)printWindow.close();if(urls.some(item=>item.pending))toast('تم تجهيز '+urls.length+' ملف PDF؛ المسودات المحفوظة على الجهاز بانتظار اعتماد الخادم.');else toast.success('تم إصدار '+urls.length+' شهادة وتنزيلها في ملف PDF واحد، وحُفظت النسخ الفردية بحسابات الطلاب.');}catch{if(printWindow&&!printWindow.closed)printWindow.close();toast.error('الملفات محفوظة، لكن تعذر تجهيز PDF الجماعي؛ يمكنك تنزيل كل ملف من القائمة.');}setSelectedStudentIds(old=>old.filter(id=>!urls.some(item=>item.studentId===id)));await refresh();},onError:e=>{if(printWindowRef.current&&!printWindowRef.current.closed)printWindowRef.current.close();printWindowRef.current=null;toast.error(e instanceof Error?e.message:apiError(e));}});
 
-  return <div className="space-y-6" dir="rtl">
+  return <div className="min-w-0 max-w-full space-y-6 overflow-x-hidden [&_input]:min-w-0 [&_input]:max-w-full [&_select]:min-w-0 [&_select]:max-w-full" dir="rtl">
     <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-end sm:justify-between">
       <div><h1 className="text-xl font-bold text-slate-900">الشهادات والتقارير</h1><p className="mt-1 text-sm text-slate-500">إدارة القوالب والشهادات وتقارير الطلاب.</p></div>
       <div className="flex flex-wrap items-end gap-2">

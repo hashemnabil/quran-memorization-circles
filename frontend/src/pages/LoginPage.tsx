@@ -111,7 +111,7 @@ function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser
       <form onSubmit={submit} className="video-login-form" noValidate>
         {error && <Alert>{error}</Alert>}
         <div className="video-pill-stage">
-          <div className="video-pill video-pill-sequential" key={activeStep}>
+          <div className="video-pill video-pill-sequential">
             <span className="video-pill-icon" aria-hidden="true">{activeStep === 'username' ? <IconUser size={20} /> : <IconLock size={20} />}</span>
             <div className="video-pill-entry">
               {activeStep === 'username' ? (

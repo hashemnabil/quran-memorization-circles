@@ -58,6 +58,7 @@ import SuspensionsPage from '@/pages/suspensions/SuspensionsPage';
 const CommunityComposer = lazy(() => import('@/pages/community/CommunityComposer'));
 const CommunityPage = lazy(() => import('@/pages/community/CommunityPage'));
 const ChatPage = lazy(() => import('@/pages/chat/ChatPage'));
+const ModerationPage = lazy(() => import('@/pages/ModerationPage'));
 import NotificationsPage from '@/pages/NotificationsPage';
 import SupportPage from '@/pages/support/SupportPage';
 import SupportTicketPage from '@/pages/support/SupportTicketPage';
@@ -179,6 +180,7 @@ export default function App() {
         <Route path="community/users/:userId" element={<CommunityPage />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="chat/:id" element={<ChatPage />} />
+        <Route path="moderation" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'FOUNDER']}><ModerationPage /></RequireRole>} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="support" element={<SupportPage />} />
         <Route path="support/:id" element={<SupportTicketPage />} />

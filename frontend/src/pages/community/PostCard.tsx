@@ -11,6 +11,7 @@ import CommunityImage from './CommunityImage';
 import MentionText, { type Mention } from './MentionText';
 import LinkedText from '@/components/LinkedText';
 import type { Conversation } from '@/types';
+import ReportContentDialog, { type ReportTarget } from '@/components/ReportContentDialog';
 
 type Person = { id: string; fullName: string; avatarUrl?: string | null };
 export type CommunityPost = {
@@ -35,6 +36,7 @@ export default function PostCard({post, userId, school, expanded = false, highli
   const [reply, setReply] = useState('');
   const [edit, setEdit] = useState<{id: string; kind: 'posts' | 'comments'; body: string} | null>(null);
   const [heart, setHeart] = useState(false);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const heartTimer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(heartTimer.current), []);
   useEffect(() => { if (expanded) setShowComments(true); }, [expanded]);
@@ -87,10 +89,11 @@ export default function PostCard({post, userId, school, expanded = false, highli
       <header className="post-author">
         <Link to={profileUrl}><Avatar name={name} src={post.schoolPost ? school?.logoUrl : post.author.avatarUrl} size={44}/></Link>
         <div className="min-w-0 flex-1"><Link className="font-bold hover:underline" to={profileUrl}>{name}</Link><span className="text-xs text-slate-500">{post.audience==='SELECTED'?'أشخاص محددون · ':''}</span><time className="block text-xs text-slate-500" dateTime={post.createdAt}>{new Date(post.createdAt).toLocaleString('ar')}</time></div>
-        {post.author.id === userId && <details className="post-options"><summary aria-label="خيارات المنشور">•••</summary><div>
-          <button type="button" onClick={() => setEdit({id: post.id, kind: 'posts', body: post.body})}><IconEdit size={16}/>تعديل</button>
-          <button type="button" disabled={action.isPending} className="text-red-600" onClick={async () => { if (await confirm({title: 'حذف المنشور', message: 'هل تريد حذف هذا المنشور؟', variant: 'danger'})) action.mutate({path: `/community/posts/${post.id}`, method: 'delete'}); }}><IconTrash size={16}/>حذف</button>
-        </div></details>}
+        <details className="post-options"><summary aria-label="خيارات المنشور">•••</summary><div>
+          {post.author.id === userId ? <><button type="button" onClick={() => setEdit({id: post.id, kind: 'posts', body: post.body})}><IconEdit size={16}/>تعديل</button>
+          <button type="button" disabled={action.isPending} className="text-red-600" onClick={async () => { if (await confirm({title: 'حذف المنشور', message: 'هل تريد حذف هذا المنشور؟', variant: 'danger'})) action.mutate({path: `/community/posts/${post.id}`, method: 'delete'}); }}><IconTrash size={16}/>حذف</button></>:
+          <button type="button" className="text-red-600" onClick={() => setReportTarget({type:'POST',id:post.id,label:'المنشور'})}>⚑ إبلاغ</button>}
+        </div></details>
       </header>
       {post.synced === 0 && <p role="status" className="mt-3 text-xs text-amber-700">بانتظار المزامنة — محفوظ على الجهاز</p>}
       <div className="post-content" onDoubleClick={() => like(true)}>
@@ -113,6 +116,7 @@ export default function PostCard({post, userId, school, expanded = false, highli
             <button type="button" disabled={action.isPending} onClick={() => action.mutate({path: `/community/comments/${comment.id}/like`})}>♡ إعجاب {comment._count?.likes ?? 0}</button>
             <button type="button" onClick={() => { setReplyTo(replyTo === comment.id ? null : comment.id); setReply(''); }}>رد</button>
             {comment.user.id === userId && <button type="button" onClick={() => setEdit({id: comment.id, kind: 'comments', body: comment.body})}>تعديل</button>}
+            {comment.user.id !== userId && <button type="button" className="text-red-600" onClick={() => setReportTarget({type:'COMMENT',id:comment.id,label:'التعليق'})}>⚑ إبلاغ</button>}
           </div>
           {replyTo === comment.id && <form className="mt-2 flex gap-2" onSubmit={event => { event.preventDefault(); if (reply.trim()) action.mutate({path: `/community/comments/${comment.id}/replies`, body: reply}); }}><Input aria-label="اكتب ردك" maxLength={500} value={reply} onChange={event => setReply(event.target.value)} className="min-w-0 flex-1"/><Button type="submit" loading={action.isPending} disabled={!reply.trim()}>رد</Button></form>}
         </div>)}
@@ -124,6 +128,7 @@ export default function PostCard({post, userId, school, expanded = false, highli
       <Modal open={!!edit} onClose={() => { if (!action.isPending) setEdit(null); }} title={edit?.kind === 'posts' ? 'تعديل المنشور' : 'تعديل التعليق'}>
         {edit && <form className="space-y-4" onSubmit={event => { event.preventDefault(); if (edit.body.trim()) action.mutate({path: `/community/${edit.kind}/${edit.id}`, method: 'patch', body: edit.body}); }}><Textarea label="المحتوى" rows={5} value={edit.body} maxLength={edit.kind === 'posts' ? 2000 : 500} onChange={event => setEdit({...edit, body: event.target.value})}/><Button type="submit" loading={action.isPending} disabled={!edit.body.trim()}>حفظ التعديل</Button></form>}
       </Modal>
+      <ReportContentDialog target={reportTarget} onClose={() => setReportTarget(null)}/>
       <Modal open={showShare} onClose={() => setShowShare(false)} title="مشاركة المنشور" size="sm">
         <div className="space-y-3">
           <div className="share-post-preview">

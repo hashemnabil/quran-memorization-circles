@@ -44,6 +44,7 @@ import { ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { timeAgo } from '@/lib/format';
 import type { ChatMessage, Conversation, PaginatedResponse, Role } from '@/types';
 import { groupInviteUrl } from '@/lib/app-links';
+import ReportContentDialog, { type ReportTarget } from '@/components/ReportContentDialog';
 
 type SharedPost = { id:string; body:string; mediaIds?:string[]; schoolPost:boolean; createdAt:string; author:{id:string;fullName:string;avatarUrl?:string|null} };
 
@@ -74,6 +75,7 @@ export default function ChatPage() {
   const [panel, setPanel] = useState<'members' | 'settings' | null>(null);
   const [search, setSearch] = useState('');
   const [body, setBody] = useState('');
+  const [reportTarget,setReportTarget]=useState<ReportTarget|null>(null);
   const [soundsEnabled,setSoundsEnabled]=useState(()=>localStorage.getItem('chat-sounds-enabled')!=='false');
   const soundContext=useRef<AudioContext|null>(null);
   const lastSound=useRef(0);
@@ -511,7 +513,7 @@ export default function ChatPage() {
                         </div>
 
                         {/* Actions appear on hover / focus; only what the user may actually do. */}
-                        {(canEdit || canDelete) && (
+                        {(canEdit || canDelete || !mine) && (
                           <div className="flex shrink-0 gap-0.5 self-center opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
                             {canEdit && (
                               <button
@@ -533,6 +535,13 @@ export default function ChatPage() {
                                 <IconTrash size={14} />
                               </button>
                             )}
+                            {!mine && message.synced !== 0 && <button
+                              type="button"
+                              onClick={()=>setReportTarget({type:'MESSAGE',id:message.id,label:'الرسالة'})}
+                              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-100 hover:text-red-600"
+                              title="إبلاغ"
+                              aria-label="الإبلاغ عن الرسالة"
+                            >⚑</button>}
                           </div>
                         )}
                       </div>
@@ -603,6 +612,7 @@ export default function ChatPage() {
       {panel === 'settings' && active && canModerate && (
         <GroupSettingsModal conversation={active} canModerate={canModerate} onClose={() => setPanel(null)} />
       )}
+      <ReportContentDialog target={reportTarget} onClose={()=>setReportTarget(null)}/>
     </>
   );
 }

@@ -61,6 +61,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/sms', label: 'رسائل SMS', icon: <IconChat size={19} />, roles: ['ADMIN'] },
       { to: '/admin/notifications', label: 'إرسال الإشعارات', icon: <IconBell size={19} />, roles: ['ADMIN'] },
       { to: '/admin/activity', label: 'سجل النشاط', icon: <IconCalendar size={19} />, roles: ['ADMIN'] },
+      { to: '/moderation', label: 'مركز الإشراف', icon: <IconClipboard size={19} />, roles: ['ADMIN', 'SUPERVISOR'] },
       { to: '/admin/password-requests', label: 'طلبات تغيير كلمة المرور', icon: <IconUser size={19} />, roles: ['ADMIN'] },
       { to: '/profile-reviews/teachers', label: 'تحقق من بيانات المحفظ', icon: <IconUser size={19} />, roles: ['ADMIN'] },
       { to: '/teacher-duties', label: 'جدول انضباط المحفّظين', icon: <IconCalendar size={19} />, roles: ['ADMIN', 'SUPERVISOR', 'TEACHER'] },
@@ -155,7 +156,7 @@ const SECTION_PATHS = [
   ['ملفي الدراسي', ['/student','/student/achievements','/my-files']],
   ['التقارير والشهادات', ['/documents/attendance','/documents/recitations','/documents/exams','/documents/student','/documents/circles','/certificates-admin','/documents/students','/documents/memorization-students','/documents/activity-students','/documents/suspended-students','/documents/course-students','/documents/courses','/documents/course-attendance']],
   ['التواصل', ['/community','/community/posts','/community/stories','/community/school','/community/users/me','/notifications','/chat','/support']],
-  ['الكادر والإدارة', ['/teachers','/supervisors','/staff','/meetings','/profile-reviews/students','/profile-reviews/teachers','/admin/password-requests','/admin/notifications','/admin/sms','/admin/activity']],
+  ['الكادر والإدارة', ['/teachers','/supervisors','/staff','/meetings','/profile-reviews/students','/profile-reviews/teachers','/admin/password-requests','/admin/notifications','/admin/sms','/admin/activity','/moderation']],
   ['الإعلام والمشاركة', ['/announcements','/media-schedule','/media-activities','/donations']],
   ['الإعدادات والحساب', ['/users','/settings','/profile','/verify-profile','/about']],
 ] as const;

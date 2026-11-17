@@ -222,6 +222,25 @@ enum NotificationType {
   SYSTEM
 }
 
+enum ModerationTargetType {
+  POST
+  COMMENT
+  STORY
+  MESSAGE
+}
+
+enum ModerationReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+enum ModerationActionType {
+  KEEP
+  REMOVE
+  WARN
+}
+
 // ---------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------
@@ -278,6 +297,9 @@ model User {
   communityStories CommunityStory[]
   communityStoryViews CommunityStoryView[]
   communityCommentLikes CommunityCommentLike[]
+  moderationReports ModerationReport[] @relation("ModerationReporter")
+  moderationReviews ModerationReport[] @relation("ModerationReviewer")
+  moderationActions ModerationAction[] @relation("ModerationActor")
   ticketsCreated       SupportTicket[]       @relation("TicketCreator")
   ticketsAssigned      SupportTicket[]       @relation("TicketAssignee")
   ticketMessages       TicketMessage[]
@@ -1745,6 +1767,40 @@ model CommunityStoryReply {
   story CommunityStory @relation(fields:[storyId],references:[id],onDelete:Cascade)
   user User @relation(fields:[userId],references:[id],onDelete:Cascade)
   @@index([storyId,createdAt])
+}
+
+model ModerationReport {
+  id String @id @default(uuid())
+  reporterId String
+  targetType ModerationTargetType
+  targetId String
+  reason String @db.VarChar(40)
+  details String? @db.VarChar(500)
+  status ModerationReportStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  reporter User @relation("ModerationReporter", fields:[reporterId], references:[id], onDelete:Cascade)
+  reviewedBy User? @relation("ModerationReviewer", fields:[reviewedById], references:[id], onDelete:SetNull)
+  actions ModerationAction[]
+  @@unique([reporterId,targetType,targetId])
+  @@index([status,createdAt])
+  @@index([targetType,targetId])
+  @@map("moderation_reports")
+}
+
+model ModerationAction {
+  id String @id @default(uuid())
+  reportId String
+  actorId String
+  action ModerationActionType
+  note String? @db.VarChar(500)
+  createdAt DateTime @default(now())
+  report ModerationReport @relation(fields:[reportId],references:[id],onDelete:Cascade)
+  actor User @relation("ModerationActor",fields:[actorId],references:[id],onDelete:Restrict)
+  @@index([reportId,createdAt])
+  @@index([actorId,createdAt])
+  @@map("moderation_actions")
 }
 
 model MemorizationPlan {

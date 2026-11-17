@@ -54,7 +54,7 @@ export class ModerationController {
     this.staff(user);
     const status = Object.values(ModerationReportStatus).includes(rawStatus as ModerationReportStatus) ? rawStatus as ModerationReportStatus : ModerationReportStatus.PENDING;
     const rows = await this.prisma.moderationReport.findMany({ where: { status }, orderBy: { createdAt: 'desc' }, take: 100, include: { reporter: { select: { id: true, fullName: true } }, reviewedBy: { select: { id: true, fullName: true } }, actions: { orderBy: { createdAt: 'desc' }, include: { actor: { select: { fullName: true } } } } } });
-    return Promise.all(rows.map(async report => ({ ...report, target: await this.targetPreview(report.targetType, report.targetId) }));
+    return Promise.all(rows.map(async report => ({ ...report, target: await this.targetPreview(report.targetType, report.targetId) })));
   }
 
   @Get('stats')
@@ -98,3 +98,4 @@ export class ModerationController {
     });
   }
 }
+

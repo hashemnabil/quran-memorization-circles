@@ -37,15 +37,64 @@
 .video-login-screen .video-pill-stage{width:100%;display:grid;justify-items:center;gap:12px}
 .video-login-screen .video-pill-sequential{animation:video-pill-expand .55s cubic-bezier(.2,.8,.2,1) both;overflow:hidden;transform-origin:center}
 .video-login-screen .video-pill-sequential .video-pill-entry{animation:video-entry-reveal .35s .2s both}
-@keyframes video-pill-expand{0%{width:60px;opacity:.75}100%{width:min(100%,330px);opacity:1}}
+@keyframes video-pill-expand{0%{width:60px;opacity:.75}100%{width:min(100%,460px);opacity:1}}
 @keyframes video-entry-reveal{0%{opacity:0;transform:translateX(-8px)}100%{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.video-login-screen .video-pill-sequential,.video-login-screen .video-pill-sequential .video-pill-entry{animation:none!important}}
+
+/* Keep the last cascade layer responsive as well. */
+.video-login-screen .video-pill,
+.video-login-screen .video-pill-sequential,
+.video-login-screen .video-login-form [role=alert]{width:min(100%,420px);max-width:100%}
+@media(min-width:960px){
+  .video-login-screen .video-pill,
+  .video-login-screen .video-pill-sequential,
+  .video-login-screen .video-login-form [role=alert]{width:min(100%,460px)}
+}
+
+/* Let the sign-in experience use each device instead of assuming one card size. */
+.login-screen.video-login-screen{
+  width:100%;
+  min-height:100vh;
+  min-height:100dvh;
+  padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+  overflow-x:hidden;
+}
+.video-login-screen .login-panel{
+  width:min(100%,1100px);
+  max-width:1100px;
+  min-width:0;
+  max-height:none;
+}
+.video-login-screen .video-pill,
+.video-login-screen .video-pill-sequential,
+.video-login-screen .video-login-form [role=alert]{width:min(100%,420px);max-width:100%}
+@media(min-width:960px){
+  .video-login-screen .login-panel{grid-template-columns:minmax(280px,.85fr) minmax(360px,1.15fr);column-gap:clamp(32px,5vw,72px)}
+  .video-login-screen .video-pill,
+  .video-login-screen .video-pill-sequential,
+  .video-login-screen .video-login-form [role=alert]{width:min(100%,460px)}
+}
+@media(max-width:639px){
+  .login-screen.video-login-screen{place-items:start center;align-content:start;padding-inline:max(8px,env(safe-area-inset-left)) max(8px,env(safe-area-inset-right))}
+  .video-login-screen .login-panel{--login-padding:clamp(16px,5vw,24px);border-radius:clamp(16px,5vw,24px)}
+  .video-login-screen .login-brand .login-brand-mark{width:clamp(82px,26vw,120px);height:clamp(82px,26vw,120px)}
+  .video-login-screen .video-pill{height:clamp(54px,15vw,60px)}
+  .video-login-screen .login-secondary-actions{grid-template-columns:1fr}
+  .video-login-screen .login-secondary-actions>*{grid-column:1!important}
+}
+@media(max-height:700px) and (min-width:640px){
+  .login-screen.video-login-screen{align-content:start;padding-block:10px}
+  .video-login-screen .login-panel{--login-padding:24px}
+  .video-login-screen .login-brand .login-brand-mark{width:96px;height:96px}
+  .video-login-screen .login-brand .login-school-name{margin-top:12px}
+  .video-login-screen .video-login-form{margin-block:12px 6px;gap:10px}
+}
 
 /* Brand header stays visible above the animation on all screen sizes. */
 .video-login-screen .login-brand{display:flex!important;visibility:visible!important;opacity:1!important;position:relative;z-index:2}
 .video-login-screen .login-school-name{display:block!important;visibility:visible!important;opacity:1!important;font-weight:800;line-height:1.55;text-align:center;max-width:100%;overflow-wrap:anywhere}
 /* Animate the shell once, then smoothly crossfade fields without collapsing width. */
-.video-login-screen .video-pill-sequential{width:min(100%,330px);animation:video-pill-expand .55s cubic-bezier(.22,1,.36,1) both;will-change:width,opacity}
+.video-login-screen .video-pill-sequential{width:min(100%,460px);animation:video-pill-expand .55s cubic-bezier(.22,1,.36,1) both;will-change:width,opacity}
 .video-login-screen .video-pill-sequential .video-pill-entry{animation:video-entry-reveal .32s .14s both}
 .video-login-screen .video-pill-next{transition:background .2s ease,transform .25s cubic-bezier(.22,1,.36,1)}
 @media(prefers-reduced-motion:reduce){.video-login-screen .video-pill-sequential,.video-login-screen .video-pill-sequential .video-pill-entry{animation:none!important}}

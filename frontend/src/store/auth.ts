@@ -42,7 +42,7 @@ function readOfflineUser(): AuthUser | null {
         typeof user.fullName !== 'string' || !allowedRoles.includes(user.role as Role) ||
         user.isActive !== true) return null;
     return { id: user.id, username: user.username, fullName: user.fullName,
-      role: user.role as Role, isActive: true, mustChangePassword: !!user.mustChangePassword };
+      role: user.role as Role, avatarUrl: user.avatarUrl ?? null, isActive: true, mustChangePassword: !!user.mustChangePassword };
   } catch { return null; }
 }
 

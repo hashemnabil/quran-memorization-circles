@@ -18,7 +18,7 @@ import { StudentPhoto } from '@/components/StudentPhoto';
 import { EVALUATION_LABELS } from '@/lib/labels';
 import type { Evaluation } from '@/types';
 import { passwordError as newPasswordError } from '@/lib/validation';
-import { rememberOfflineLogin } from '@/lib/offline-login';
+import { rotateOfflineLoginPassword } from '@/lib/offline-login';
 
 export default function StudentPortalPage() {
   const [now, setNow] = useState(Date.now);
@@ -35,7 +35,7 @@ export default function StudentPortalPage() {
   const changePassword = useMutation({
     mutationFn: async () => {
       const result = await api.patch('/auth/change-password', { currentPassword, newPassword });
-      if (user) await rememberOfflineLogin(user.username, newPassword, { ...user, mustChangePassword: false });
+      if (user) await rotateOfflineLoginPassword(user.username, currentPassword, newPassword, { ...user, mustChangePassword: false });
       return result;
     },
     onSuccess: async (_offlineWriteResult) => {

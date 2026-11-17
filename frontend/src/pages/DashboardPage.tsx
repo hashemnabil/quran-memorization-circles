@@ -165,11 +165,11 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-2.5">
           <div className="flex items-center gap-2.5 rounded-xl border border-emerald-100 bg-white p-3 shadow-sm">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700"><IconGraduation size={20}/></span>
-            <div><p className="text-[11px] font-semibold text-slate-500">عدد الطلاب</p><strong className="numeric text-xl font-black text-slate-800">{data.schoolStats?.students ?? '—'}</strong></div>
+            <div><p className="text-[11px] font-semibold text-slate-500">عدد الطلاب</p><strong className="numeric text-xl font-black text-slate-800">{data.schoolStats?.students ?? data.counts?.students ?? '—'}</strong></div>
           </div>
           <div className="flex items-center gap-2.5 rounded-xl border border-sky-100 bg-white p-3 shadow-sm">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-700"><IconCircleGroup size={20}/></span>
-            <div><p className="text-[11px] font-semibold text-slate-500">عدد الحلقات</p><strong className="numeric text-xl font-black text-slate-800">{data.schoolStats?.circles ?? '—'}</strong></div>
+            <div><p className="text-[11px] font-semibold text-slate-500">عدد الحلقات</p><strong className="numeric text-xl font-black text-slate-800">{data.schoolStats?.circles ?? data.counts?.circles ?? '—'}</strong></div>
           </div>
         </div>
       </section>

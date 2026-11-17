@@ -93,12 +93,11 @@ test('standalone mushaf is available from navigation for students and supports p
     element.dispatchEvent(new TouchEvent('touchend', { bubbles: true, changedTouches: [new Touch({ identifier: 2, target: element, clientX: 90, clientY: 356 })] }));
   });
   await expect(reader.getByRole('article', { name: 'صفحة 1' })).toBeVisible();
-  await reader.getByRole('button', { name: 'التالية' }).click();
-  await expect(reader.getByRole('article', { name: 'صفحة 2' })).toBeVisible();
+  await expect(reader.getByRole('button', { name: /التالية|السابقة/ })).toHaveCount(0);
   await page.reload();
   await unlockLocalGate(page);
   const restored = page.getByRole('dialog', { name: 'المصحف الشريف' });
-  await expect(restored.getByRole('article', { name: 'صفحة 2' })).toBeVisible();
+  await expect(restored.getByRole('article', { name: 'صفحة 1' })).toBeVisible();
   await restored.getByRole('button', { name: 'العودة للرئيسية' }).click();
   await expect(page).toHaveURL(url => url.pathname === '/');
 });

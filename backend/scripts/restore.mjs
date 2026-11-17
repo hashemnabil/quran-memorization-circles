@@ -21,5 +21,8 @@ if (url.searchParams.has('sslmode')) env.PGSSLMODE = url.searchParams.get('sslmo
 const probe = spawnSync('psql', ['-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-c', "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema') AND table_type = 'BASE TABLE'"], { env, encoding: 'utf8' });
 if (probe.error || probe.status !== 0 || probe.stdout.trim() !== '0') throw new Error('Restore requires a reachable empty database; existing data is never dropped');
 const restored = spawnSync('pg_restore', ['--dbname', database, '--single-transaction', '--exit-on-error', '--no-owner', '--no-privileges', dump], { env, stdio: ['ignore', 'ignore', 'pipe'] });
-if (restored.error || restored.status !== 0) throw new Error('Restore failed and was rolled back; check PostgreSQL client compatibility');
+if (restored.error || restored.status !== 0) {
+  const detail = restored.stderr?.toString('utf8').trim().slice(-2000) || restored.error?.message || 'unknown pg_restore error';
+  throw new Error(`Restore failed and was rolled back: ${detail}`);
+}
 console.log('Database restored. Reconcile upload checksums and verify migrations, record counts and application roles before using it.');

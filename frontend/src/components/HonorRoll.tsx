@@ -41,7 +41,7 @@ export default function HonorRoll() {
   return <section aria-labelledby="honor-roll-title" className="dashboard-honor-card mb-3 overflow-hidden rounded-2xl border border-[#ddd5bf] bg-[#fffcf5] shadow-sm" dir="rtl">
     <header className="relative overflow-hidden bg-[#123f32] px-4 py-2.5 text-white sm:px-5">
       <div aria-hidden="true" className="pointer-events-none absolute -left-16 -top-32 h-64 w-64 rounded-full border-[24px] border-white/[.03]" />
-      <div className="relative flex items-center gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl border border-[#d3ba73]/40 bg-[#d3ba73]/10 text-[#ead494]"><IconAward size={21} /></span><div className="min-w-0 flex-1"><h2 id="honor-roll-title" className="text-base font-extrabold sm:text-lg">لوحة شرف المدرسة</h2></div><span className="rounded-full border border-white/15 px-3 py-1.5 text-xs text-emerald-50">أفضل ١٠ طلاب</span></div>
+      <div className="relative flex items-center gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl border border-[#d3ba73]/40 bg-[#d3ba73]/10 text-[#ead494]"><IconAward size={21} /></span><div className="min-w-0 flex-1"><h2 id="honor-roll-title" className="text-base font-extrabold sm:text-lg">لوحة شرف المدرسة</h2></div><span className="rounded-full border border-white/15 px-3 py-1.5 text-xs text-emerald-50">أفضل ٣ طلاب</span></div>
     </header>
     <div className="p-2.5 sm:p-3">
       <RankingFilters period={period} circleId={rankingCircle} onChange={(p,c)=>{setPeriod(p);setRankingCircle(c)}}/>

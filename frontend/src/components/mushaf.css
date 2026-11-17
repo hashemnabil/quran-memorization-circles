@@ -95,3 +95,63 @@
 .mushaf-review-nav button:disabled{opacity:.45}.mushaf-review-nav span{text-align:center;font-variant-numeric:tabular-nums}
 @media(max-width:540px){.mushaf-icon-action{width:44px;min-width:44px;height:44px}.mushaf-review-nav{gap:5px;padding:7px}.mushaf-review-nav button{min-width:74px;padding-inline:6px}.mushaf-footer>button{min-height:44px}.mushaf-page-nav button{min-height:44px}}
 @media(prefers-reduced-motion:reduce){.mushaf-icon-action,.mushaf-word,.mushaf-error-option,.mushaf-panel-list>button{transition:none}}
+
+/* Standalone reading is one responsive page: the Quran page fits the visible
+   viewport and navigation stays gesture-first on every device. */
+.mushaf-reading-mode{
+  height:100vh;
+  height:100dvh;
+  min-height:0;
+  padding-bottom:0;
+  overflow:hidden;
+  display:grid;
+  grid-template-rows:auto 4px minmax(0,1fr);
+}
+.mushaf-reading-mode .mushaf-toolbar{
+  position:relative;
+  padding-top:max(8px,env(safe-area-inset-top));
+}
+.mushaf-reading-mode .mushaf-main{
+  min-height:0;
+  height:100%;
+  overflow:hidden;
+  display:grid;
+  place-items:stretch center;
+  padding:clamp(4px,1.2vmin,12px);
+  touch-action:pan-y;
+  user-select:none;
+}
+.mushaf-reading-mode .mushaf-paper{
+  width:min(100%,720px);
+  max-width:none;
+  height:100%;
+  min-height:0;
+  margin:0 auto;
+  padding:clamp(10px,2.2vmin,24px) clamp(10px,3vmin,30px) clamp(6px,1.4vmin,14px);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.mushaf-reading-mode .mushaf-page-heading,
+.mushaf-reading-mode .mushaf-paper-footer{flex:0 0 auto}
+.mushaf-reading-mode .mushaf-page-heading{padding-block:2px 4px;margin-bottom:1px;font-size:clamp(9px,1.4vmin,12px)}
+.mushaf-reading-mode .mushaf-line{
+  flex:1 1 0;
+  min-height:0;
+  line-height:1.35;
+  font-size:clamp(11px,min(5.1cqi,2.75dvh),34px);
+}
+.mushaf-reading-mode .mushaf-decoration{min-height:0;font-size:clamp(11px,min(4cqi,2.35dvh),25px)}
+.mushaf-reading-mode .mushaf-paper-footer{margin-top:1px;font-size:clamp(9px,1.5vmin,13px);line-height:1.2}
+@media(max-width:540px){
+  .mushaf-reading-mode .mushaf-toolbar{min-height:58px;padding-inline:8px}
+  .mushaf-reading-mode .mushaf-toolbar-title small{font-size:10px}
+  .mushaf-reading-mode .mushaf-icon-action{width:38px;min-width:38px;height:38px}
+  .mushaf-reading-mode .mushaf-paper{border-width:3px;outline-offset:-7px}
+}
+@media(max-height:600px){
+  .mushaf-reading-mode .mushaf-toolbar{min-height:50px;padding-block:max(5px,env(safe-area-inset-top)) 5px}
+  .mushaf-reading-mode .mushaf-surah-trigger{min-height:34px;padding-block:4px}
+  .mushaf-reading-mode .mushaf-toolbar-title small{display:none}
+  .mushaf-reading-mode .mushaf-line{line-height:1.2;font-size:clamp(10px,min(4.8cqi,2.6dvh),29px)}
+}

@@ -29,7 +29,7 @@ for (const role of ['ADMIN', 'SUPERVISOR', 'TEACHER', 'EXAM_COMMITTEE', 'SUPPORT
     const card = page.getByRole('link', { name: /الصلاة القادمة.*عرض جميع المواقيت/ });
     await expect(card).toBeVisible();
     await expect(card).toContainText('الصلاة القادمة');
-    await expect(card).toContainText('عرض كل الصلوات');
+    await expect(card).toContainText('جميع المواقيت');
     if (role === 'ADMIN') await page.screenshot({ path: info.outputPath('prayer-home.png'), fullPage: true });
     await card.click();
     await expect(page).toHaveURL(/\/prayer-times$/); await expect(page.locator('.prayer-row')).toHaveCount(6);

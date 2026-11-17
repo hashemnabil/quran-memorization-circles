@@ -17,12 +17,6 @@ import './styles/premium.css';
 // service worker inside the native WebView: it can interfere with startup and
 // plugin bridge injection. The browser build still uses the service worker.
 if (!Capacitor.isNativePlatform() && import.meta.env.PROD && 'serviceWorker' in navigator) {
-  let reloadingForUpdate = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloadingForUpdate) return;
-    reloadingForUpdate = true;
-    window.location.reload();
-  });
   const prepareOfflineShell = async () => {
     try {
       const registration = await navigator.serviceWorker.register('/service-worker.js', { updateViaCache: 'none' });

@@ -95,7 +95,10 @@ export default function StudentPortalPage() {
 
   return (
     <>
-      <><PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
+      <><PageHeader
+        title={`أهلًا بك${data.fullName ? ` يا ${data.fullName}` : ''}`}
+        subtitle="رحلتك مع القرآن مستمرة؛ تابع حفظك وتسميعك وإنجازاتك من هنا."
+      />
       <HonorRoll />
       <CircleHonorRoll />
       <PrayerCard />

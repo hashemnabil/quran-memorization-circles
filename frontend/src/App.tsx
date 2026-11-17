@@ -33,6 +33,7 @@ const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const StudentRankingPage = lazy(() => import('@/pages/StudentRankingPage'));
 const MushafPage = lazy(() => import('@/pages/MushafPage'));
 import StudentPortalPage from '@/pages/StudentPortalPage';
+import StudentHomePage from '@/pages/StudentHomePage';
 const ReportsPage = lazy(() => import('@/pages/ReportsPage'));
 import StudentAccountsPage from '@/pages/students/StudentAccountsPage';
 import StudentFilesPage from '@/pages/StudentFilesPage';
@@ -136,7 +137,7 @@ export default function App() {
         <Route path="meetings" element={<RequireRole roles={['ADMIN']}><MeetingsPage /></RequireRole>} />
         <Route path="admin/activity" element={<RequireRole roles={['ADMIN']}><ActivityPage /></RequireRole>} />
         <Route path="admin/password-requests" element={<RequireRole roles={['ADMIN']}><PasswordRequestsPage /></RequireRole>} />
-        <Route index element={currentUser?.role === 'FOUNDER' ? <FounderPage /> : currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
+        <Route index element={currentUser?.role === 'FOUNDER' ? <FounderPage /> : currentUser?.role === 'STUDENT' ? <StudentHomePage /> : <DashboardPage />} />
         <Route path="student/achievements" element={<RequireRole roles={['STUDENT']}><StudentPersonalAchievementsPage /></RequireRole>} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="student-ranking" element={<StudentRankingPage />} />

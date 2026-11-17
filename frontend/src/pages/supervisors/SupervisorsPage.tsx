@@ -48,7 +48,7 @@ export default function SupervisorsPage() {
   ).length;
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden">
       <PageHeader
         title="المشرفون"
         subtitle="المشرف قد يُسند إليه حلقة خاصة به إلى جانب إشرافه على حلقات أخرى"
@@ -148,15 +148,15 @@ export default function SupervisorsPage() {
                       </dd>
                     </div>
 
-                    <div className="flex items-center justify-between border-t border-slate-100 pt-2.5">
+                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
                       <span className="text-xs text-slate-400">الجوال</span>
                       <span className="numeric text-slate-700" dir="ltr">
                         {person.phone ?? '—'}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                       <span className="text-xs text-slate-400">آخر دخول</span>
-                      <span className="text-slate-700">
+                      <span className="min-w-0 break-words text-slate-700">
                         {person.lastLoginAt ? formatDate(person.lastLoginAt) : 'لم يسجّل الدخول بعد'}
                       </span>
                     </div>

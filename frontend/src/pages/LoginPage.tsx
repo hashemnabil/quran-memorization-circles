@@ -2,7 +2,7 @@ import '@/styles/video-login.css';
 import axios from 'axios';
 import PasswordRequestModal from '@/components/PasswordRequestModal';
 import React, { FormEvent, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -18,6 +18,7 @@ const DONATION_CACHE_KEY = 'qc.publicDonationInfo';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [cachedBranding] = useState(cachedSchoolBranding);
   const [passwordRequestOpen, setPasswordRequestOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(() => new URLSearchParams(window.location.search).get('support') === '1');
@@ -39,7 +40,8 @@ export default function LoginPage() {
 
   const onAuthenticated = (user: AuthUser) => {
     toast.success(`أهلاً بك، ${user.fullName}`);
-    navigate('/', { replace: true });
+    const from=(location.state as {from?:{pathname?:string;search?:string}}|null)?.from;
+    navigate(from?.pathname ? `${from.pathname}${from.search || ''}` : '/', { replace: true });
   };
 
   return (
@@ -109,7 +111,7 @@ function CredentialsStep({ onAuthenticated }: { onAuthenticated: (user: AuthUser
       <form onSubmit={submit} className="video-login-form" noValidate>
         {error && <Alert>{error}</Alert>}
         <div className="video-pill-stage">
-          <div className="video-pill video-pill-sequential" key={activeStep}>
+          <div className="video-pill video-pill-sequential">
             <span className="video-pill-icon" aria-hidden="true">{activeStep === 'username' ? <IconUser size={20} /> : <IconLock size={20} />}</span>
             <div className="video-pill-entry">
               {activeStep === 'username' ? (

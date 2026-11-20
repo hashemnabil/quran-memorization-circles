@@ -70,6 +70,16 @@ test('administrator cannot open founder interface', async ({ page }) => {
   await expect(page).toHaveURL(/\/forbidden$/);
   await expect(page.getByRole('heading', { name: 'لوحة المؤسس' })).not.toBeVisible();
 });
+test('founder opens school management from the control center', async ({ page }) => {
+  await setup(page, [], 'FOUNDER');
+  await gotoWithLocalUnlock(page, '/founder');
+  await page.getByRole('button', { name: 'كل الأقسام', exact: true }).click();
+  const outgoing = page.locator('main').getByRole('link', { name: 'إرسال الإشعارات' });
+  await expect(outgoing).toBeVisible();
+  await outgoing.click();
+  await expect(page).toHaveURL(/\/admin\/notifications$/);
+  await expect(page.getByRole('heading', { name: 'إرسال الإشعارات', exact: true })).toBeVisible();
+});
 test('founder can preview without publishing and sees no device image upload outside library', async ({ page }, info) => {
   const { saves } = await setup(page, [], 'FOUNDER');
   await gotoWithLocalUnlock(page, '/founder');

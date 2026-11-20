@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaClient, Role, AttendanceStatus } from '@prisma/client';
 import { OfflineSyncService } from './offline-sync.service';
 import { AccessControlService } from '../common/services/access-control.service';
+import { FullSyncService } from './sync-all.service';
 
 // Run only against the disposable test database created by CI. Never production.
 test('sync push commits domain writes and durable outcomes atomically', { timeout: 60000 }, async (t) => {
@@ -128,6 +129,26 @@ test('sync push commits domain writes and durable outcomes atomically', { timeou
       assert.equal(warnings.filter(n => (n.data as any)?.alertKey?.endsWith(':warning')).length, 2);
       assert.equal(await db.notification.count({ where: { userId: parentId } }), 0);
       assert.equal((await db.student.findUniqueOrThrow({ where: { id: studentId } })).status, 'ACTIVE');
+    });
+    await t.test('offline plans and progress commit once, resolve local IDs and journal changes on PostgreSQL', async () => {
+      const full = new FullSyncService(db as any, { get: () => 'test-only-key' } as any);
+      const localId = randomUUID();
+      const create = { opId: randomUUID(), table: 'memorizationPlans', action: 'create', entityId: localId, data: { studentId, title: 'Offline goal', period: 'WEEKLY', unit: 'TASKS', target: 2 } };
+      const first = await full.push(actor, { operations: [create] });
+      assert.equal(first.outcomes[0].status, 'applied');
+      const id = (first.outcomes[0] as any).data.id;
+      assert.deepEqual(await full.push(actor, { operations: [create] }), first);
+      assert.equal(await db.memorizationPlan.count({ where: { studentId } }), 1);
+      const progress = { opId: randomUUID(), table: 'memorizationPlans', action: 'progress', entityId: localId, data: { studentId, requestId: randomUUID(), amount: 1 } };
+      const outcomes = await Promise.all([full.push(actor, { operations: [progress] }), full.push(actor, { operations: [progress] })]);
+      assert(outcomes.every(result => result.outcomes[0].status === 'applied'));
+      assert.equal((await db.memorizationPlan.findUniqueOrThrow({ where: { id } })).completed, 1);
+      assert.equal(await db.memorizationProgress.count({ where: { planId: id } }), 1);
+      // A new operation receipt still cannot double-count the same progress request.
+      await full.push(actor, { operations: [{ ...progress, opId: randomUUID() }] });
+      assert.equal((await db.memorizationPlan.findUniqueOrThrow({ where: { id } })).completed, 1);
+      assert.equal(await db.syncChange.count({ where: { entity: 'memorization_plans', entityId: id } }) > 0, true);
+      assert.equal((await full.push({ ...actor, role: Role.STUDENT }, { operations: [{ ...create, opId: randomUUID() }] })).outcomes[0].status, 'rejected');
     });
     await t.test('revoked teacher assignments prevent new offline writes', async () => {
       await db.circleTeacher.updateMany({ where: { teacherId }, data: { endedAt: new Date() } });

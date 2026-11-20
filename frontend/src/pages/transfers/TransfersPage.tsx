@@ -39,7 +39,7 @@ export default function TransfersPage() {
   const [page, setPage] = useState(1);
   const [decision, setDecision] = useState<{ request: TransferRequest; approve: boolean } | null>(null);
 
-  const isAdmin = user.role === 'ADMIN';
+  const isAdmin = (user.role === 'ADMIN' || user.role === 'FOUNDER');
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['transfers', { status, kind, page }],

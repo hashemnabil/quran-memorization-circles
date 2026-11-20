@@ -19,7 +19,8 @@ export async function localDashboard(role: string) {
     assistants: circle.teachers?.filter((link: any) => link.role === 'ASSISTANT').map((link: any) => link.teacher?.user?.fullName) || [],
     _count: { students: students.filter((student) => (student.circleId || student.circle?.id) === circle.id).length },
     attendanceToday: statuses(current.filter((row) => row.circleId === circle.id)) }));
-  return { role, counts: { students: students.length, activeStudents: students.filter((row) => row.status === 'ACTIVE').length,
+  return { role, schoolStats: { students: students.length, circles: circles.length },
+    counts: { students: students.length, activeStudents: students.filter((row) => row.status === 'ACTIVE').length,
     suspendedStudents: students.filter((row) => row.status === 'SUSPENDED').length, circles: circles.length, activeCircles: circles.filter((row) => row.isActive).length,
     teachers: teachers.length, recitationsLast7Days: recitations.filter((row) => day(row.date) >= weeklyAttendance[7].date).length,
     pendingExamRequests: pending.length, waitingList: pending.length, scheduled: exams.filter((row) => row.status === 'SCHEDULED').length,

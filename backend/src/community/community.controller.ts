@@ -116,8 +116,13 @@ export class CommunityController {
     return {...(settings??{name:'صفحة المدرسة',logoUrl:null,about:null,address:null,phone:null}),stats:{circles,students,teachers}};
   }
   @Get('feed')
-  feed(@CurrentUser() user:AuthUser,@Query('userId') userId?:string,@Query('school') school?:string){
-    return this.prisma.communityPost.findMany({where:{AND:[visibility(user.id)],...(userId?{authorId:userId,schoolPost:false}:{}),...(school==='true'?{schoolPost:true}:{})},orderBy:{createdAt:'desc'},take:100,include:{author:{select:{id:true,fullName:true,nickname:true,avatarUrl:true,role:true}},_count:{select:{likes:true,comments:true}},likes:{take:100,include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}}}},comments:{take:100,orderBy:{createdAt:'asc'},include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}},_count:{select:{likes:true}}}}}});
+  feed(@CurrentUser() user:AuthUser,@Query('userId') userId?:string,@Query('school') school?:string,@Query('post') postId?:string){
+    return this.prisma.communityPost.findMany({where:{AND:[visibility(user.id)],...(postId?{id:postId}:{}),...(userId?{authorId:userId,schoolPost:false}:{}),...(school==='true'?{schoolPost:true}:{})},orderBy:{createdAt:'desc'},take:postId?1:100,include:{author:{select:{id:true,fullName:true,nickname:true,avatarUrl:true,role:true}},_count:{select:{likes:true,comments:true}},likes:{take:100,include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}}}},comments:{take:100,orderBy:{createdAt:'asc'},include:{user:{select:{id:true,fullName:true,nickname:true,avatarUrl:true}},_count:{select:{likes:true}}}}}});
+  }
+  @Get('posts/:id')
+  async postPreview(@CurrentUser() user:AuthUser,@Param('id') id:string){
+    await this.readable(user,id);
+    return this.prisma.communityPost.findUnique({where:{id},select:{id:true,body:true,mediaIds:true,schoolPost:true,createdAt:true,author:{select:{id:true,fullName:true,avatarUrl:true}}}});
   }
   @Get('users/:id')
   async profile(@Param('id') id:string){

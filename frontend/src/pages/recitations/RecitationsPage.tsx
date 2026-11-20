@@ -1,6 +1,7 @@
 import {fetchLearningSettings} from '@/lib/learning-settings';
 import {RecitationMushafHistory} from '@/components/RecitationMushafHistory';
 import {MushafReader} from '@/components/MushafReader';
+import {SURAHS} from '@/lib/quran-surahs';
 import {LearningSettingsModal} from '@/components/LearningSettingsModal';
 import {db} from '@/lib/db';
 import {dataKey} from '@/lib/local-encryption';
@@ -134,7 +135,7 @@ export default function RecitationsPage() {
           )
         }
       />
-      {user.role === 'ADMIN' && <Button variant="secondary" className="mb-4" onClick={() => setEditingRules(true)}>ضبط خصومات وتقييم التسميع</Button>}
+      {(user.role === 'ADMIN' || user.role === 'FOUNDER') && <Button variant="secondary" className="mb-4" onClick={() => setEditingRules(true)}>ضبط خصومات وتقييم التسميع</Button>}
       {editingRules && <LearningSettingsModal onClose={() => setEditingRules(false)} />}
 
       <Card className="mb-5">
@@ -457,8 +458,9 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
     onError: (error) => toast.error(apiError(error)),
   });
 
-  const fromSurah = surahs?.find((s) => s.name === form.fromSurah);
-  const toSurah = surahs?.find((s) => s.name === form.toSurah);
+  const availableSurahs = surahs?.length ? surahs : SURAHS;
+  const fromSurah = availableSurahs.find((s) => s.name === form.fromSurah);
+  const toSurah = availableSurahs.find((s) => s.name === form.toSurah);
 
   /**
    * Live mirror of the server's scoring rule: one point per ayah, minus one per
@@ -473,7 +475,7 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
     }
     if (fromSurah.number > toSurah.number) return 0;
     let total = Math.max(0, fromSurah.ayahs - form.fromAyah + 1);
-    for (const s of surahs ?? []) {
+    for (const s of availableSurahs) {
       if (s.number > fromSurah.number && s.number < toSurah.number) total += s.ayahs;
     }
     return total + Math.max(0, Math.min(form.toAyah, toSurah.ayahs));
@@ -489,6 +491,17 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
   const changeWordErrors=(next:WordError[])=>{setDirty(true);const count=(list:WordError[],category:string)=>list.filter(e=>learning.types.find(t=>t.id===e.typeId)?.category===category).length;setForm(f=>({...f,mistakes:Math.max(0,f.mistakes-count(wordErrors,'mistake'))+count(next,'mistake'),warnings:Math.max(0,f.warnings-count(wordErrors,'warning'))+count(next,'warning'),tajweedErrors:Math.max(0,f.tajweedErrors-count(wordErrors,'tajweed'))+count(next,'tajweed')}));setWordErrors(next)};
 
   const changeTypeCounter=(typeId:string,count:number)=>{setDirty(true);const type=learning.types.find(t=>t.id===typeId)!;setForm(f=>{const previous=f.typeCounters?.find(t=>t.typeId===typeId)?.count??0;const key=type.category==='mistake'?'mistakes':type.category==='warning'?'warnings':'tajweedErrors';return {...f,[key]:Math.max(0,f[key]-previous)+count,typeCounters:[...(f.typeCounters??[]).filter(t=>t.typeId!==typeId),{typeId,count}]}})};
+  const counterControl=(label:string,value:number,increment:()=>void,decrement:()=>void,hint?:string)=>(
+    <div className="rounded-xl border p-3">
+      <p className="mb-2 text-sm font-semibold">{label}</p>
+      <div className="flex items-center gap-3" role="group" aria-label={label}>
+        <button type="button" aria-label={'إنقاص '+label} disabled={value<=0} className="flex h-11 w-11 items-center justify-center rounded-lg border text-xl disabled:opacity-40" onClick={decrement}>−</button>
+        <output aria-live="polite" className="min-w-12 text-center text-2xl font-bold tabular-nums">{value}</output>
+        <button type="button" aria-label={'زيادة '+label} disabled={value>=9999} className="flex h-11 w-11 items-center justify-center rounded-lg border text-xl" onClick={increment}>+</button>
+      </div>
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+    </div>
+  );
   const submit = () => {
     const next: Record<string, string> = {};
     if (!form.studentId) next.studentId = 'اختر الطالب';
@@ -560,7 +573,7 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
 
         <p className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-7 text-amber-900">يتلوّن القلب بعد إتمام السورة كاملة بتقدير ممتاز: الحفظ أصفر، ثم المراجعة أحمر، ثم التثبيت أخضر. يمكن إتمام كل مرحلة على عدة جلسات دون تكرار احتساب الآيات.</p>
         <Select label="من سورة" required value={form.fromSurah} onChange={(e) => set('fromSurah', e.target.value)}>
-          {surahs?.map((s) => (
+          {availableSurahs.map((s) => (
             <option key={s.number} value={s.name}>
               {s.number}. {s.name}
             </option>
@@ -579,7 +592,7 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
         />
 
         <Select label="إلى سورة" required value={form.toSurah} onChange={(e) => set('toSurah', e.target.value)} error={errors.toSurah}>
-          {surahs?.map((s) => (
+          {availableSurahs.map((s) => (
             <option key={s.number} value={s.name}>
               {s.number}. {s.name}
             </option>
@@ -606,25 +619,10 @@ export function RecitationFormModal({ defaultCircleId, student, defaultType = 'M
           onChange={(e) => set('pagesCount', Number(e.target.value))}
         />
         {/* التسميع اليومي يُقيَّم بتقدير عام فقط — الدرجة الرقمية تخص الاختبارات. */}
-        <Input
-          label="عدد الأخطاء"
-          type="number"
-          min={0}
-          value={form.mistakes}
-          onChange={(e) => set('mistakes', Number(e.target.value))}
-          hint={`الخصم لكل خطأ: ${learning.mistakePenalty}`}
-        />
-        <Input
-          label="عدد التنبيهات"
-          type="number"
-          min={0}
-          value={form.warnings}
-          onChange={(e) => set('warnings', Number(e.target.value))}
-          hint={`الخصم لكل تنبيه: ${learning.warningPenalty}`}
-        />
-        <Input label="أخطاء الأحكام والتجويد" type="number" min={0} value={form.tajweedErrors} onChange={(e) => set('tajweedErrors', Number(e.target.value))} hint={`الخصم لكل خطأ أحكام: ${learning.tajweedPenalty}`}/>
-
-        <details className="sm:col-span-2 rounded-xl border p-3"><summary className="cursor-pointer font-bold">تفصيل العدادات حسب نوع الخطأ</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{learning.types.filter(t=>t.enabled&&t.mode!=='mushaf').map(t=><Input key={t.id} label={t.label+' · خصم '+t.penalty} type="number" min={0} max={9999} value={form.typeCounters?.find(c=>c.typeId===t.id)?.count??0} onChange={e=>changeTypeCounter(t.id,Math.max(0,Math.trunc(Number(e.target.value))))}/>)}</div></details>
+        {counterControl('عدد الأخطاء',form.mistakes,()=>set('mistakes',Math.min(9999,form.mistakes+1)),()=>set('mistakes',Math.max(0,form.mistakes-1)),`الخصم لكل خطأ: ${learning.mistakePenalty}`)}
+        {counterControl('عدد التنبيهات',form.warnings,()=>set('warnings',Math.min(9999,form.warnings+1)),()=>set('warnings',Math.max(0,form.warnings-1)),`الخصم لكل تنبيه: ${learning.warningPenalty}`)}
+        {counterControl('أخطاء الأحكام والتجويد',form.tajweedErrors,()=>set('tajweedErrors',Math.min(9999,form.tajweedErrors+1)),()=>set('tajweedErrors',Math.max(0,form.tajweedErrors-1)),`الخصم لكل خطأ أحكام: ${learning.tajweedPenalty}`)}
+        <details className="sm:col-span-2 rounded-xl border p-3"><summary className="cursor-pointer font-bold">تفصيل العدادات حسب نوع الخطأ</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{learning.types.filter(t=>t.enabled&&t.mode!=='mushaf').map(t=>{const count=form.typeCounters?.find(c=>c.typeId===t.id)?.count??0;return <div key={t.id}>{counterControl(t.label,count,()=>changeTypeCounter(t.id,Math.min(9999,count+1)),()=>changeTypeCounter(t.id,Math.max(0,count-1)),`خصم ${t.penalty}`)}</div>;})}</div></details>
         <div className="sm:col-span-2"><Button variant="secondary" onClick={()=>setShowMushaf(true)}>الأخطاء على المصحف ({wordErrors.length})</Button><p className="mt-2 text-xs text-slate-500">العدادات تشمل أخطاء المصحف؛ لا تُحتسب مرتين. المسودة تُحفظ على هذا الجهاز.</p></div>
         <div className="sm:col-span-2 rounded-xl bg-gold-50 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">

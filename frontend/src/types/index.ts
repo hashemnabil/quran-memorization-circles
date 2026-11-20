@@ -169,6 +169,7 @@ export interface StudentSummary {
   code: string;
   fullName: string;
   status: StudentStatus;
+  isApproved?: boolean;
   evaluation?: Evaluation | null;
   memorizedParts: number;
   guardianPhone?: string | null;
@@ -188,6 +189,7 @@ export interface Student {
   address?: string | null;
   phone?: string | null;
   status: StudentStatus;
+  isApproved?: boolean;
   evaluation?: Evaluation | null;
   evaluationNote?: string | null;
   evaluatedAt?: string | null;
@@ -522,11 +524,13 @@ export interface AppNotification {
 export interface ChatMember {
   id: string;
   isAdmin: boolean;
+  isMuted: boolean;
   lastReadAt?: string | null;
   user: { id: string; fullName: string; role: Role; avatarUrl?: string | null };
 }
 
 export interface Conversation {
+  inviteCode?: string | null;
   synced?: number;
   syncError?: string;
   contactRestricted?: boolean;

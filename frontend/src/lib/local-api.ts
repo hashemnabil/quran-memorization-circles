@@ -1,4 +1,5 @@
 import { readActiveIdentity } from './active-identity';
+import { writeLocalPlan } from './local-plans';
 import { absencePeriod } from './absence-period';
 import { db, entityTables, type EntityTable } from './db';
 import { accountId, get, mergeRows, remove, save, update } from './offline-engine';
@@ -7,6 +8,9 @@ import { localConversation, createLocalConversation } from './local-conversation
 import { cacheConversations } from './conversation-cache';
 import { queueCertificateDraft } from './local-certificates';
 import { calculateSurahAchievements } from './surah-achievements';
+import { localSmsRecipients, localSmsTemplates, localSmsCampaigns, localSmsCampaignStatus, localSmsPreview, queueSmsCommunication, pendingSmsSummons } from './local-sms';
+
+const isManagementRole = (role?: string | null) => role === 'ADMIN' || role === 'FOUNDER';
 
 async function withLocalAchievements(student: any) {
   if (!student) return student;
@@ -34,6 +38,10 @@ export async function cancelRejectedMessageChange(messageId: string) {
 }
 
 export async function localRead(path: string, params: Record<string, any> = {}): Promise<any | undefined> {
+  if (path === '/sms/recipients') return localSmsRecipients();
+  if (path === '/sms/templates') return localSmsTemplates();
+  if (path === '/sms/campaigns') return localSmsCampaigns();
+  if (/^\/sms\/campaigns\/[^/]+$/.test(path)) return localSmsCampaignStatus(path.split('/')[3]);
   if (path.split('?')[0].startsWith('/support')) return readLocalSupport(path, params);
   if (path.split('?')[0] === '/profile-reviews') { const kind = new URL(path, 'https://local.invalid').searchParams.get('kind') || params.kind; const data = (await get('profileReviews')).filter(row => !kind || row.kind === kind).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))); const queue = await db.queue.where('accountId').equals(accountId()).filter(op => op.table === 'profileReviews').toArray(); return { data: data.map(row => ({ ...row, syncError: queue.find(op => op.entityId === row.id)?.error })), meta: { total: data.length, hasNextPage: false } }; }
   if (path === '/profile-reviews/me') {
@@ -44,6 +52,11 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   url.searchParams.forEach((value, key) => { params[key] ??= value; });
   const segments = url.pathname.split('/').filter(Boolean);
   if (['students','courses','circles','teachers','exams','recitations','media-activities','transfers','suspensions','preparations'].includes(segments[0]) && /^[0-9a-f-]{36}$/i.test(segments[1] || '')) segments[1] = (await db.meta.get(`${accountId()}:id:${segments[1]}`))?.value || segments[1];
+  if (segments[0] === 'students' && segments[2] === 'plans' && segments.length === 3) {
+    const plans = (await get('memorizationPlans')).filter(plan => plan.studentId === segments[1]);
+    if (plans.length || (await db.meta.get(`${accountId()}:downloadedAt`)) && !(await db.meta.get(`${accountId()}:needsPlansBootstrap`))) return plans.sort((a, b) => Number(a.archived) - Number(b.archived) || String(b.createdAt).localeCompare(String(a.createdAt)));
+    return undefined;
+  }
   if (segments[0] === 'chat' && segments[1] === 'conversations') {
     if (segments[2]) segments[2] = (await db.meta.get(`${accountId()}:id:${segments[2]}`))?.value || segments[2];
     if (segments.length <= 3) return localConversation(url.pathname);
@@ -135,8 +148,8 @@ export async function localRead(path: string, params: Record<string, any> = {}):
     return { data: rows.slice((page-1)*limit,page*limit), meta: { page, limit, total: rows.length, totalPages: Math.max(1,Math.ceil(rows.length/limit)), hasNextPage: page*limit < rows.length, hasPreviousPage: page > 1 } };
   }
   if (segments[0] === 'students' && segments[2] === 'surahs') return (await get('surahCompletions')).filter(row => row.studentId === segments[1]);
-  if (url.pathname === '/attendance/absence-permissions') return (await get('absencePermissions')).filter(row => readActiveIdentity()?.role === 'ADMIN' || row.requesterId === accountId()).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
-  if (url.pathname === '/attendance/summons') return (await get('guardianSummons')).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  if (url.pathname === '/attendance/absence-permissions') return (await get('absencePermissions')).filter(row => isManagementRole(readActiveIdentity()?.role) || row.requesterId === accountId()).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  if (url.pathname === '/attendance/summons') return [...await get('guardianSummons'), ...await pendingSmsSummons()].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   if (url.pathname === '/suspensions/active') return (await get('suspensions')).filter(row => row.status === 'APPROVED' && !row.returnedAt);
   if (['/meetings','/examCommittees'].includes(url.pathname)) return (await get(segments[0] as EntityTable)).sort((a,b) => String(b.heldAt).localeCompare(String(a.heldAt)));
   if (url.pathname === '/students/me/history') return (await get('students')).find(row => row.selfAccountId === accountId())?._offline?.history;
@@ -155,7 +168,12 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   if(url.pathname==='/recitations/learning-settings'){return (await db.meta.get(accountId()+':learning-policy:'+(params.circleId??'')))?.value??(await db.meta.get(accountId()+':reference:/recitations/learning-policies'))?.value?.[params.circleId]??(params.circleId?undefined:(await db.meta.get(accountId()+':reference:/recitations/learning-settings'))?.value);}
   const reference = await db.meta.get(`${accountId()}:reference:${url.pathname}`);
   if (reference) return reference.value;
-  if (segments[0] === 'students' && segments[2] === 'history') return (await get('students')).find((row) => row.id === segments[1])?._offline?.history;
+  if (segments[0] === 'students' && segments[2] === 'history') {
+    const history = (await get('students')).find((row) => row.id === segments[1])?._offline?.history;
+    if (!history) return history;
+    const summons = [...await get('guardianSummons'), ...await pendingSmsSummons()].filter((row) => row.studentId === segments[1]);
+    return { ...history, summons: summons.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))) };
+  }
   if (segments[0] === 'students' && segments[2] === 'notes') return (await get('behaviors')).filter((row) => row.studentId === segments[1]);
   if (segments[0] === 'exams' && ['eligibility', 'milestones'].includes(segments[1])) return (await get('students')).find((row) => row.id === segments[2])?._offline?.[segments[1]];
   if (segments[0] === 'recitations' && segments[1] === 'student' && segments[3] === 'progress') {
@@ -223,7 +241,7 @@ export async function localRead(path: string, params: Record<string, any> = {}):
   if (id === 'options') return rows.map((row) => ({ id: row.id, name: row.name, code: row.code }));
   let filtered = rows.filter((row) => {
     if (params.search && ![row.fullName, row.name, row.username, row.email, row.code, row.nationalId, row.guardianName, row.guardianPhone, row.phone, row.user?.fullName].filter(Boolean).join(' ').toLocaleLowerCase().includes(String(params.search).toLocaleLowerCase())) return false;
-    for (const field of ['status', 'evaluation', 'circleId', 'studentId', 'teacherId', 'type', 'gender', 'isActive', 'role', 'kind', 'committeeId']) {
+    for (const field of ['status', 'evaluation', 'isApproved', 'circleId', 'studentId', 'teacherId', 'type', 'gender', 'isActive', 'role', 'kind', 'committeeId']) {
       const value = params[field]; if (value === '' || value === undefined) continue;
       const actual = field === 'circleId' ? row.circleId ?? row.circle?.id : row[field];
       if (String(actual) !== String(value)) return false;
@@ -250,6 +268,13 @@ export async function rememberRead(path: string, params: any, data: any) {
   const account = accountId();
   if (path === '/recitations/grading-settings') await db.meta.put({ key: `${account}:reference:/recitations/grading-settings`, value: data });
   await db.responses.put({ key: responseKey(account, path, params), accountId: account, data });
+  const plansPath = path.split('?')[0].match(/^\/students\/([^/]+)\/plans$/);
+  if (plansPath && Array.isArray(data)) {
+    const visible = new Set(data.map(plan => plan.id));
+    await db.table('memorizationPlans').where('accountId').equals(account).filter(row => row.studentId === plansPath[1] && row.synced === 1 && !visible.has(row.id)).delete();
+    await mergeRows('memorizationPlans', data.map(plan => ({ ...plan, studentId: plansPath[1] })), account);
+    return;
+  }
   if (path.split('?')[0] === '/media-activities' && Array.isArray(data)) await mergeRows('mediaActivities', data, account);
   if (path === '/chat/conversations' && Array.isArray(data)) await cacheConversations(account, data, true);
   if (/^\/chat\/conversations\/[^/]+$/.test(path) && data?.id) await cacheConversations(account, [data]);
@@ -271,8 +296,11 @@ export function responseKey(account: string, path: string, params: any) {
   return JSON.stringify([account, path, Object.entries(params || {}).sort(([a], [b]) => a.localeCompare(b))]);
 }
 export async function localWrite(method: string, path: string, data: any): Promise<any | undefined> {
+  if (method === 'post' && path === '/sms/preview') return localSmsPreview(data);
+  if (method === 'post' && path === '/sms/communications') return queueSmsCommunication(data);
   if (path.startsWith('/support')) return writeLocalSupport(method, path, data);
   const route = path.split('/').filter(Boolean);
+  if (route[0] === 'students' && route[2] === 'plans') return writeLocalPlan(method, route, data);
   if (route[0] === 'chat' && route[1] === 'conversations' && route.length === 3 && ['direct', 'group'].includes(route[2]) && method === 'post') return createLocalConversation(route[2], data);
   if (route[0] === 'chat' && route[1] === 'conversations' && route[2] && !['direct', 'group'].includes(route[2])) route[2] = (await db.meta.get(`${accountId()}:id:${route[2]}`))?.value || route[2];
   if (route[0] === 'chat' && route[1] === 'conversations' && route[3] === 'read' && method === 'patch') {
@@ -286,7 +314,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
     if (!actor || !message || !detail) throw Object.assign(new Error('حمّل الرسالة والمحادثة قبل تعديلها دون اتصال'), { localWriteRejected: true });
     if (message.synced === 0) throw Object.assign(new Error('انتظر مزامنة التغيير السابق على الرسالة'), { localWriteRejected: true });
     const mine = (message.senderId || message.sender?.id) === actor.id;
-    if (method === 'patch' && (!mine || detail.canPost === false) || method === 'delete' && !mine && !detail.isAdmin && actor.role !== 'ADMIN')
+    if (method === 'patch' && (!mine || detail.canPost === false) || method === 'delete' && !mine && !detail.isAdmin && !isManagementRole(actor.role))
       throw Object.assign(new Error('لا تملك صلاحية تعديل هذه الرسالة'), { localWriteRejected: true });
     if (method === 'patch' && (typeof data?.body !== 'string' || !data.body.trim() || data.body.length > 4000)) throw Object.assign(new Error('نص الرسالة غير صالح'), { localWriteRejected: true });
     return save('chatMessages', { id: message.id, conversationId: route[2], previousBody: message.body, previousEditedAt: message.editedAt || null,
@@ -304,7 +332,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
     return save('accountPreferences',{id:accountId(),nickname:data.nickname.trim()},'update');
   }
   if (path==='/community/posts' && method==='post') {
-    const actor=readActiveIdentity();if(!actor || data.schoolPost&&actor.role!=='ADMIN')throw Object.assign(new Error('النشر باسم المدرسة للإدارة فقط'),{localWriteRejected:true});
+    const actor=readActiveIdentity();if(!actor || data.schoolPost&&!isManagementRole(actor.role))throw Object.assign(new Error('النشر باسم المدرسة للإدارة فقط'),{localWriteRejected:true});
     if(typeof data?.body!=='string'||!data.body.trim()||data.body.length>2000)throw Object.assign(new Error('المنشور غير صالح'),{localWriteRejected:true});
     if(data.audience && !['ALL','SELECTED'].includes(data.audience) || data.audience==='SELECTED'&&(!Array.isArray(data.recipientIds)||!data.recipientIds.length))throw Object.assign(new Error('حدد الجمهور أولاً'),{localWriteRejected:true});
     return save('communityPosts',{body:data.body.trim(),schoolPost:!!data.schoolPost,audience:data.audience||'ALL',recipientIds:data.audience==='SELECTED'?data.recipientIds:[],mentionIds:data.mentionIds||[],mediaIds:data.mediaIds||[],authorId:actor.id,author:actor,comments:[],likes:[],_count:{likes:0,comments:0},createdAt:new Date().toISOString()},'create');
@@ -331,7 +359,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
     return save('communityComments',{body:data.body.trim(),postId,parentId:parent?.id||null,user:readActiveIdentity(),createdAt:new Date().toISOString(),_count:{likes:0}},'create');
   }
   if (method === 'patch' && path === '/settings') {
-    if (readActiveIdentity()?.role !== 'ADMIN') throw Object.assign(new Error('تعديل إعدادات الحملة متاح للإدارة فقط'), { localWriteRejected: true });
+    if (!isManagementRole(readActiveIdentity()?.role)) throw Object.assign(new Error('تعديل إعدادات الحملة متاح للإدارة فقط'), { localWriteRejected: true });
     const allowed = ['name','mosqueName','logoUrl','phone','email','address','about','facebook','twitter','instagram','youtube','telegram','whatsapp','website','academicYear','donationsEnabled','donationTitle','donationDescription','donationGoalAmount','donationRaisedAmount','donationCurrency','donationMethod','donationLink','donationBankPalestine','donationIslamicBank','donationJawwal','donationPalPay'];
     const payload = Object.fromEntries(allowed.filter(key => data?.[key] !== undefined).map(key => [key, data[key]]));
     const rows = await get('schoolSettings');
@@ -343,7 +371,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (method === 'post' && route[0] === 'courses' && route[2] === 'attendance' && route.length === 3) {
     const actor = readActiveIdentity();
-    if (!['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(actor?.role || '') || !data?.date || !Array.isArray(data.entries) || !data.entries.length) throw Object.assign(new Error('سجّل حضور الطلاب في الدورة بشكل صحيح'), { localWriteRejected: true });
+    if (!['ADMIN', 'FOUNDER', 'SUPERVISOR', 'TEACHER'].includes(actor?.role || '') || !data?.date || !Array.isArray(data.entries) || !data.entries.length) throw Object.assign(new Error('سجّل حضور الطلاب في الدورة بشكل صحيح'), { localWriteRejected: true });
     const courseId = route[1], date = String(data.date).slice(0, 10);
     const snapshots = await db.responses.where('accountId').equals(accountId()).toArray();
     const cached = snapshots.find(item => {
@@ -356,7 +384,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (route[0] === 'courses' && route[2] === 'students' && (method === 'post' && route.length === 3 || method === 'delete' && route.length === 4)) {
     const actor = readActiveIdentity();
-    if (!actor || !['ADMIN','SUPERVISOR'].includes(actor.role)) throw Object.assign(new Error('تسجيل الطلاب في الدورات متاح للإدارة والإشراف'), { localWriteRejected: true });
+    if (!actor || !['ADMIN','FOUNDER','SUPERVISOR'].includes(actor.role)) throw Object.assign(new Error('تسجيل الطلاب في الدورات متاح للإدارة والإشراف'), { localWriteRejected: true });
     const account = accountId();
     const courseId = (await db.meta.get(`${account}:id:${route[1]}`))?.value || route[1];
     const course = (await get('courses')).find(row => row.id === courseId);
@@ -383,7 +411,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (method === 'post' && route[0] === 'staff-attendance' && route.length === 1) {
     const actor = readActiveIdentity();
-    if (!['ADMIN', 'SUPERVISOR'].includes(actor?.role || '') || !data?.date || !Array.isArray(data.entries) || !data.entries.length) throw Object.assign(new Error('سجّل حضورًا صحيحًا للكادر قبل الحفظ'), { localWriteRejected: true });
+    if (!['ADMIN', 'FOUNDER', 'SUPERVISOR'].includes(actor?.role || '') || !data?.date || !Array.isArray(data.entries) || !data.entries.length) throw Object.assign(new Error('سجّل حضورًا صحيحًا للكادر قبل الحفظ'), { localWriteRejected: true });
     const date = String(data.date).slice(0, 10);
     const cachedSheets = await db.responses.where('accountId').equals(accountId()).toArray();
     const staff = cachedSheets.find(item => {
@@ -406,23 +434,23 @@ export async function localWrite(method: string, path: string, data: any): Promi
       return save('certificateRequests', { ...data, studentId: student.id, student: { id: student.id, fullName: student.fullName, code: student.code }, status: 'PENDING', createdAt: new Date().toISOString() }, 'create');
     }
     if (route[1] === 'requests' && route[3] === 'decision' && method === 'patch') {
-      if (actor?.role !== 'ADMIN') throw Object.assign(new Error('البت بطلبات الشهادات متاح للإدارة'), { localWriteRejected: true });
+      if (!isManagementRole(actor?.role)) throw Object.assign(new Error('البت بطلبات الشهادات متاح للإدارة'), { localWriteRejected: true });
       const request = (await get('certificateRequests')).find(row => row.id === route[2]);
       if (!request) throw Object.assign(new Error('حمّل طلب الشهادة قبل البت به دون اتصال'), { localWriteRejected: true });
       return save('certificateRequests', { ...data, id: request.id, pendingDecision: true }, 'decision');
     }
     if (route[1] === 'templates' && method === 'post' && route.length === 2) {
-      if (actor?.role !== 'ADMIN') throw Object.assign(new Error('إدارة قوالب الشهادات متاحة للإدارة'), { localWriteRejected: true });
+      if (!isManagementRole(actor?.role)) throw Object.assign(new Error('إدارة قوالب الشهادات متاحة للإدارة'), { localWriteRejected: true });
       if (!data?.name || !data?.kind || !data?.design) throw Object.assign(new Error('بيانات قالب الشهادة غير مكتملة'), { localWriteRejected: true });
       return save('certificateTemplates', { ...data, isActive: true, createdById: actor.id }, 'create');
     }
     if (route[1] === 'templates' && route[3] === 'deactivate' && method === 'patch') {
-      if (actor?.role !== 'ADMIN') throw Object.assign(new Error('إدارة قوالب الشهادات متاحة للإدارة'), { localWriteRejected: true });
+      if (!isManagementRole(actor?.role)) throw Object.assign(new Error('إدارة قوالب الشهادات متاحة للإدارة'), { localWriteRejected: true });
       return save('certificateTemplates', { id: route[2], isActive: false }, 'deactivate');
     }
   }
   if (route[0] === 'announcements') {
-    if (readActiveIdentity()?.role !== 'ADMIN') throw Object.assign(new Error('إدارة الإعلانات متاحة للإدارة فقط'), { localWriteRejected: true });
+    if (!isManagementRole(readActiveIdentity()?.role)) throw Object.assign(new Error('إدارة الإعلانات متاحة للإدارة فقط'), { localWriteRejected: true });
     if (method === 'post' && route.length === 1) {
       if (!String(data?.title || '').trim()) throw Object.assign(new Error('عنوان الإعلان مطلوب'), { localWriteRejected: true });
       return save('announcements', { ...data, title: data.title.trim(), audience: data.audience || [], isActive: data.isActive ?? true, publishedAt: new Date().toISOString(), createdBy: readActiveIdentity() }, 'create');
@@ -431,7 +459,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
     if (method === 'delete' && route.length === 2) return remove('announcements', route[1]);
   }
   if (route[0] === 'media-activities') {
-    if (!['ADMIN','SUPERVISOR'].includes(readActiveIdentity()?.role || '')) throw Object.assign(new Error('إدارة الأنشطة متاحة للإدارة والإشراف'), { localWriteRejected: true });
+    if (!['ADMIN','FOUNDER','SUPERVISOR'].includes(readActiveIdentity()?.role || '')) throw Object.assign(new Error('إدارة الأنشطة متاحة للإدارة والإشراف'), { localWriteRejected: true });
     if (method === 'post' && route.length === 1 || method === 'patch' && route.length === 2) {
       if (!data?.title?.trim() || !data?.description?.trim() || !data?.activityDate || !data?.type) throw Object.assign(new Error('أكمل بيانات النشاط الإعلامي قبل الحفظ'), { localWriteRejected: true });
       if (!['REPORT_FILLING','PHOTOGRAPHY','PUBLISHING','EDITING','DESIGN'].includes(data.type) || !Number.isFinite(Date.parse(data.activityDate)) || data.workUrl && !/^https?:\/\//i.test(data.workUrl.trim())) throw Object.assign(new Error('نوع النشاط أو تاريخه أو رابطه غير صالح'), { localWriteRejected: true });
@@ -449,7 +477,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (route[0] === 'preparations') {
     const actor = readActiveIdentity();
-    if (!actor || !['ADMIN','SUPERVISOR','TEACHER'].includes(actor.role)) throw Object.assign(new Error('لا تملك صلاحية تعديل التحضير'), { localWriteRejected: true });
+    if (!actor || !['ADMIN','FOUNDER','SUPERVISOR','TEACHER'].includes(actor.role)) throw Object.assign(new Error('لا تملك صلاحية تعديل التحضير'), { localWriteRejected: true });
     if (method === 'post' && route.length === 1) {
       const student = (await get('students')).find(row => row.id === data?.studentId);
       if (!student || !data.fromSurah || !data.toSurah || !data.fromAyah || !data.toAyah) throw Object.assign(new Error('بيانات التحضير غير مكتملة أو الطالب غير محفوظ محلياً'), { localWriteRejected: true });
@@ -465,7 +493,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (route[0] === 'students' && route[2] === 'surahs' && route[1]) {
     const actor = readActiveIdentity();
-    if (!actor || !['ADMIN','SUPERVISOR','TEACHER'].includes(actor.role)) throw Object.assign(new Error('تسجيل السور المكتملة متاح للكادر التعليمي'), { localWriteRejected: true });
+    if (!actor || !['ADMIN','FOUNDER','SUPERVISOR','TEACHER'].includes(actor.role)) throw Object.assign(new Error('تسجيل السور المكتملة متاح للكادر التعليمي'), { localWriteRejected: true });
     const student = (await get('students')).find(row => row.id === route[1]);
     if (!student) throw Object.assign(new Error('حمّل ملف الطالب قبل تعديل السور دون اتصال'), { localWriteRejected: true });
     if (method === 'post' && route.length === 3) {
@@ -477,10 +505,16 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (route[0] === 'students' && route[2] === 'evaluation' && method === 'patch') {
     const actor = readActiveIdentity();
-    if (!actor || !['ADMIN','SUPERVISOR','TEACHER'].includes(actor.role)) throw Object.assign(new Error('تعديل تقييم الطالب متاح للكادر التعليمي'), { localWriteRejected: true });
+    if (!actor || !['ADMIN','FOUNDER','SUPERVISOR','TEACHER'].includes(actor.role)) throw Object.assign(new Error('تعديل تقييم الطالب متاح للكادر التعليمي'), { localWriteRejected: true });
     const student = (await get('students')).find(row => row.id === route[1]);
     if (!student) throw Object.assign(new Error('حمّل ملف الطالب أولاً'), { localWriteRejected: true });
     return save('students', { id: student.id, evaluation: data.evaluation, note: data.note }, 'evaluation');
+  }
+  if (route[0] === 'students' && route[2] === 'approval' && method === 'patch') {
+    if (!['ADMIN', 'FOUNDER', 'TEACHER'].includes(readActiveIdentity()?.role || '') || typeof data?.isApproved !== 'boolean') throw Object.assign(new Error('اعتماد الطلاب متاح للإدارة ومحفظ الحلقة فقط'), { localWriteRejected: true });
+    const student = (await get('students')).find(row => row.id === route[1]);
+    if (!student) throw Object.assign(new Error('حمّل ملف الطالب قبل تعديل الاعتماد دون اتصال'), { localWriteRejected: true });
+    return save('students', { id: student.id, isApproved: data.isApproved }, 'approval');
   }
   if (route[0] === 'attendance' && route[1] === 'absence-permissions') {
     const actor = readActiveIdentity();
@@ -498,7 +532,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
       return save('absencePermissions', { date: data.date, endDate: endDate || data.date, durationMinutes: days, reason: data.reason.trim(), note: data.note?.trim() || null, studentId: student?.id || null, student, requesterId: actor.id, requester: { id: actor.id, fullName: actor.fullName, role: actor.role }, status: 'PENDING', createdAt: new Date().toISOString() }, 'create');
     }
     if (method === 'patch' && route.length === 4 && ['approve','reject'].includes(route[3])) {
-      if (actor?.role !== 'ADMIN') throw Object.assign(new Error('قرار طلب الإذن متاح للإدارة فقط'), { localWriteRejected: true });
+      if (!isManagementRole(actor?.role)) throw Object.assign(new Error('قرار طلب الإذن متاح للإدارة فقط'), { localWriteRejected: true });
       const request = (await get('absencePermissions')).find(row => row.id === route[2]);
       if (!request || request.status !== 'PENDING') throw Object.assign(new Error('الطلب غير موجود أو سبق اتخاذ قرار فيه'), { localWriteRejected: true });
       return save('absencePermissions', { ...data, id: route[2], status: route[3] === 'approve' ? 'APPROVED' : 'REJECTED', decidedById: actor.id, decidedAt: new Date().toISOString(), pendingDecision: route[3] }, route[3]);
@@ -506,7 +540,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (route[0] === 'attendance' && route[1] === 'summons') {
     const actor = readActiveIdentity();
-    if (actor?.role !== 'ADMIN') throw Object.assign(new Error('إرسال الاستدعاء متاح للإدارة فقط'), { localWriteRejected: true });
+    if (!isManagementRole(actor?.role)) throw Object.assign(new Error('إرسال الاستدعاء متاح للإدارة فقط'), { localWriteRejected: true });
     if (method === 'post' && route.length === 2) {
       const student = (await get('students')).find(row => row.id === data?.studentId);
       if (!student || !data?.title?.trim() || !data?.body?.trim()) throw Object.assign(new Error('اختر طالبًا واكتب عنوان الاستدعاء ونصه'), { localWriteRejected: true });
@@ -514,13 +548,13 @@ export async function localWrite(method: string, path: string, data: any): Promi
     }
   }
   if(method==='post'&&path==='/exams/historical') {
-    if(readActiveIdentity()?.role!=='ADMIN')throw Object.assign(new Error('إدخال النتائج القديمة للإدارة فقط'),{localWriteRejected:true});
+    if(!isManagementRole(readActiveIdentity()?.role))throw Object.assign(new Error('إدخال النتائج القديمة للإدارة فقط'),{localWriteRejected:true});
     const student=(await get('students')).find(row=>row.id===data.studentId);const committee=(await get('examCommittees')).find(row=>row.id===data.committeeId);const sections=(await db.meta.get(`${accountId()}:reference:/exams/sections`))?.value||[];const section=sections.find((row:any)=>row.id===data.sectionId);
     if(!student||!committee||!section)throw Object.assign(new Error('اختر الطالب واللجنة والمقرر'),{localWriteRejected:true});
     return save('exams',{...data,student,section,committee,scheduledAt:committee.heldAt,status:'COMPLETED',result:data.score>=80?'PASSED':'FAILED'},'historical');
   }
   if (method === 'post' && route[0] === 'exams' && route[1] === 'requests' && route[3] === 'schedule') {
-    if (!['ADMIN','EXAM_COMMITTEE'].includes(readActiveIdentity()?.role || '')) throw Object.assign(new Error('جدولة الاختبار للإدارة ولجنة الاختبارات'), {localWriteRejected:true});
+    if (!['ADMIN','FOUNDER','EXAM_COMMITTEE'].includes(readActiveIdentity()?.role || '')) throw Object.assign(new Error('جدولة الاختبار للإدارة ولجنة الاختبارات'), {localWriteRejected:true});
     const request = (await get('examRequests')).find(row=>row.id===route[2]);
     if (!request || request.pendingDecision || request.status!=='PENDING') throw Object.assign(new Error('الطلب غير متاح للجدولة محليًا'), {localWriteRejected:true});
     const committee = data.committeeId ? (await get('examCommittees')).find(row=>row.id===data.committeeId) : null;
@@ -529,18 +563,18 @@ export async function localWrite(method: string, path: string, data: any): Promi
     return exam;
   }
   if (method === 'patch' && route[0] === 'exams' && route[1] === 'requests' && ['reject','cancel'].includes(route[3])) {
-    if (route[3]==='reject' && !['ADMIN','EXAM_COMMITTEE'].includes(readActiveIdentity()?.role||'')) throw Object.assign(new Error('لا تملك صلاحية رفض الطلب'), {localWriteRejected:true});
+    if (route[3]==='reject' && !['ADMIN','FOUNDER','EXAM_COMMITTEE'].includes(readActiveIdentity()?.role||'')) throw Object.assign(new Error('لا تملك صلاحية رفض الطلب'), {localWriteRejected:true});
     return save('examRequests', {id:route[2],...data,pendingDecision:route[3]},route[3]);
   }
   if (['transfers', 'suspensions'].includes(route[0])) {
     const actor = readActiveIdentity();
-    if (!actor || !['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(actor.role)) throw Object.assign(new Error('لا تملك صلاحية تقديم الطلب'), { localWriteRejected: true });
+    if (!actor || !['ADMIN', 'FOUNDER', 'SUPERVISOR', 'TEACHER'].includes(actor.role)) throw Object.assign(new Error('لا تملك صلاحية تقديم الطلب'), { localWriteRejected: true });
     const table = route[0] as 'transfers' | 'suspensions';
     if (method === 'patch' && route.length === 2) {
       const id = (await db.meta.get(`${accountId()}:id:${route[1]}`))?.value || route[1];
       const current = (await get(table)).find(row => row.id === id);
       if (!current || current.status !== 'PENDING' || current.pendingDecision || table === 'transfers' && current.kind !== 'STUDENT_TRANSFER') throw Object.assign(new Error('يمكن تعديل سبب طلب طالب معلق فقط'), { localWriteRejected: true });
-      if ((current.requestedById || current.requestedBy?.id) !== actor.id && actor.role !== 'ADMIN') throw Object.assign(new Error('يمكن تعديل الطلب من قبل منشئه أو الإدارة فقط'), { localWriteRejected: true });
+      if ((current.requestedById || current.requestedBy?.id) !== actor.id && !isManagementRole(actor.role)) throw Object.assign(new Error('يمكن تعديل الطلب من قبل منشئه أو الإدارة فقط'), { localWriteRejected: true });
       if (typeof data?.reason !== 'string' || !data.reason.trim() || data.reason.length > 1000 || Object.keys(data).some(key => !['reason','previousReason'].includes(key))) throw Object.assign(new Error('اكتب سببًا صالحًا لا يتجاوز 1000 حرف'), { localWriteRejected: true });
       return save(table, { id, reason: data.reason.trim(), previousReason: data.previousReason !== undefined ? data.previousReason : current.reason ?? null }, 'update');
     }
@@ -552,12 +586,12 @@ export async function localWrite(method: string, path: string, data: any): Promi
       return save(table, { ...data, student, fromCircle: student.circle || null, fromCircleId: student.circleId, kind: 'STUDENT_TRANSFER', status: 'PENDING', requestedBy: { id: actor.id, fullName: actor.fullName } });
     }
     if (method === 'patch' && route.length === 3 && ['approve', 'reject', 'cancel', 'return'].includes(route[2])) {
-      if (route[2] !== 'cancel' && actor.role !== 'ADMIN') throw Object.assign(new Error('قرار الطلب للإدارة فقط'), { localWriteRejected: true });
+      if (route[2] !== 'cancel' && !isManagementRole(actor.role)) throw Object.assign(new Error('قرار الطلب للإدارة فقط'), { localWriteRejected: true });
       return save(table, { ...data, id: route[1], pendingDecision: route[2] }, route[2]);
     }
   }
   if (['meetings', 'examCommittees'].includes(route[0])) {
-    if (readActiveIdentity()?.role !== 'ADMIN') throw Object.assign(new Error('الإضافة والتعديل للإدارة فقط'), { localWriteRejected: true });
+    if (!isManagementRole(readActiveIdentity()?.role)) throw Object.assign(new Error('الإضافة والتعديل للإدارة فقط'), { localWriteRejected: true });
     const table = route[0] as EntityTable;
     if (method === 'post' && route.length === 1) return save(table, data);
     if (method === 'patch' && route.length === 2) return update(table, route[1], data);
@@ -565,7 +599,7 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (path === '/notifications/broadcast' && method === 'post') {
     const actor = readActiveIdentity();
-    if (actor?.role !== 'ADMIN') throw Object.assign(new Error('إرسال الإشعارات متاح للإدارة فقط'), { localWriteRejected: true });
+    if (!isManagementRole(actor?.role)) throw Object.assign(new Error('إرسال الإشعارات متاح للإدارة فقط'), { localWriteRejected: true });
     return save('notifications', { ...data, pendingDelete: 1 }, 'broadcast');
   }
   const parts = path.split('/').filter(Boolean);
@@ -577,21 +611,21 @@ export async function localWrite(method: string, path: string, data: any): Promi
   }
   if (method === 'patch' && parts[0] === 'profile-reviews' && parts[2] === 'decision') {
     const user = readActiveIdentity();
-    if (user?.role !== 'ADMIN') throw Object.assign(new Error('المراجعة للإدارة فقط'), { localWriteRejected: true });
+    if (!isManagementRole(user?.role)) throw Object.assign(new Error('المراجعة للإدارة فقط'), { localWriteRejected: true });
     const pending = await db.queue.where('accountId').equals(accountId()).filter(op => op.table === 'profileReviews' && op.entityId === parts[1]).first();
     if (pending && !pending.error) throw Object.assign(new Error('لديك قرار بانتظار المزامنة'), { localWriteRejected: true });
     return save('profileReviews', { ...data, id: parts[1] }, 'decision');
   }
   if (parts[0] === 'users' && (method === 'post' && parts.length === 1 || method === 'patch' && parts.length <= 3 && (!parts[2] || parts[2] === 'reset-password'))) {
     const user = readActiveIdentity();
-    if (user?.role !== 'ADMIN') throw Object.assign(new Error('إدارة الحسابات متاحة للإدارة فقط'), { localWriteRejected: true });
+    if (!isManagementRole(user?.role)) throw Object.assign(new Error('إدارة الحسابات متاحة للإدارة فقط'), { localWriteRejected: true });
     return save('users', { ...data, ...(parts[1] ? { id: parts[1] } : {}), credentialPending: true, ...(method === 'post' ? { activationPending: true } : {}) },
       method === 'post' ? 'create' : parts[2] === 'reset-password' ? 'reset-password' : 'update');
   }
   if (parts[0] === 'students' && parts[2] === 'account' && method === 'post' &&
       (parts.length === 3 || parts.length === 4 && parts[3] === 'reset-password')) {
     const user = readActiveIdentity();
-    if (user?.role !== 'ADMIN') throw Object.assign(new Error('إدارة الحسابات متاحة للإدارة فقط'), { localWriteRejected: true });
+    if (!isManagementRole(user?.role)) throw Object.assign(new Error('إدارة الحسابات متاحة للإدارة فقط'), { localWriteRejected: true });
     const student = (await get('students')).find(row => row.id === parts[1]);
     const existing = (await get('studentAccounts')).find(row => row.id === parts[1]);
     if (!student && !existing) throw Object.assign(new Error('نزّل ملف الطالب مرة واحدة قبل إدارة حسابه بدون نت'), { localWriteRejected: true });

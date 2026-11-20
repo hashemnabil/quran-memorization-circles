@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/Icons';
 import { EMPLOYMENT_LABELS, ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { formatDate, formatDateTime, formatParts } from '@/lib/format';
-import { rememberOfflineLogin } from '@/lib/offline-login';
+import { rotateOfflineLoginPassword } from '@/lib/offline-login';
 
 export default function ProfilePage(props: { settings?: boolean; settingsSection?: 'identity'|'password' }) {
   // Keep /profile as the stable account route used by offline and account workflows.
@@ -59,7 +59,7 @@ function AccountProfilePage({ settings = false, settingsSection='identity' }: { 
   const changePassword = useMutation({
     mutationFn: async () => {
       const result = await api.patch('/auth/change-password', { currentPassword, newPassword });
-      if (user) await rememberOfflineLogin(user.username, newPassword, { ...user, mustChangePassword: false });
+      if (user) await rotateOfflineLoginPassword(user.username, currentPassword, newPassword, { ...user, mustChangePassword: false });
       return result;
     },
     onSuccess: async (_offlineWriteResult) => {

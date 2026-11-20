@@ -36,6 +36,7 @@ import { MediaActivitiesModule } from './media-activities/media-activities.modul
 import { OfflineSyncModule } from './offline-sync/offline-sync.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { SchoolOperationsModule } from './school-operations/school-operations.module';
+import { ModerationModule } from './moderation/moderation.module';
 
 @Module({
   controllers: [HealthController],
@@ -64,6 +65,7 @@ import { SchoolOperationsModule } from './school-operations/school-operations.mo
     SupportModule,
     ChatModule,
     CommunityModule,
+    ModerationModule,
     SettingsModule,
     DashboardModule,
     CoursesModule,

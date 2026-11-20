@@ -40,14 +40,16 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 export function RequireRole({ roles, children }: { roles: Role[]; children: ReactNode }) {
   const user = useAuthStore((s) => s.user);
   if (!user) return <Navigate to="/login" replace />;
-  if (!roles.includes(user.role)) return <Navigate to="/forbidden" replace />;
+  if (user.role !== 'FOUNDER' && !roles.includes(user.role)) return <Navigate to="/forbidden" replace />;
   return <>{children}</>;
 }
 
 /** Sends already-authenticated users away from the login screen. */
 export function RedirectIfAuthenticated({ children }: { children: ReactNode }) {
   const { user, status } = useAuthStore();
+  const location = useLocation();
   if (status === 'idle' || status === 'loading') return <FullScreenLoader />;
-  if (user) return <Navigate to="/" replace />;
+  const from=(location.state as {from?:{pathname?:string;search?:string}}|null)?.from;
+  if (user) return <Navigate to={from?.pathname ? `${from.pathname}${from.search || ''}` : '/'} replace />;
   return <>{children}</>;
 }

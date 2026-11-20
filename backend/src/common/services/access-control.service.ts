@@ -15,7 +15,7 @@ export class AccessControlService {
   constructor(private readonly prisma: PrismaService) {}
 
   isAdmin(user: AuthUser) {
-    return user.role === Role.ADMIN;
+    return user.role === Role.ADMIN || user.role === Role.FOUNDER;
   }
 
   /** Circles a teacher currently teaches (primary or assistant). */
@@ -61,6 +61,7 @@ export class AccessControlService {
   async accessibleCircleIds(user: AuthUser): Promise<string[] | null> {
     switch (user.role) {
       case Role.ADMIN:
+      case Role.FOUNDER:
         return null;
       case Role.SUPERVISOR:
       case Role.TEACHER:
@@ -87,7 +88,7 @@ export class AccessControlService {
 
   /** Throws unless the user may *modify* circle data (teachers of the circle, its supervisor, admin). */
   async assertCircleWriteAccess(user: AuthUser, circleId: string): Promise<void> {
-    if (user.role === Role.ADMIN) return;
+    if (this.isAdmin(user)) return;
     if (user.role === Role.TEACHER || user.role === Role.SUPERVISOR) {
       const ids = await this.ownCircleIds(user);
       if (!ids.includes(circleId)) throw new ForbiddenException('لا تملك صلاحية التعديل على هذه الحلقة');
@@ -103,6 +104,7 @@ export class AccessControlService {
   async studentScope(user: AuthUser): Promise<Prisma.StudentWhereInput> {
     switch (user.role) {
       case Role.ADMIN:
+      case Role.FOUNDER:
         return {};
       case Role.EXAM_COMMITTEE:
         // Keep the shared pending queue functional, but never authorize unrelated students.
@@ -151,7 +153,7 @@ export class AccessControlService {
       select: { id: true, circleId: true, fullName: true, status: true },
     });
     if (!student) throw new NotFoundException('الطالب غير موجود');
-    if (user.role === Role.ADMIN) return student;
+    if (this.isAdmin(user)) return student;
     if (user.role === Role.PARENT || user.role === Role.SUPPORT) {
       throw new ForbiddenException('لا تملك صلاحية تعديل بيانات الطالب');
     }
@@ -176,6 +178,7 @@ export class AccessControlService {
 
   /** Staff roles — these may always talk to one another. */
   private static readonly STAFF: Role[] = [
+    Role.FOUNDER,
     Role.ADMIN,
     Role.SUPERVISOR,
     Role.TEACHER,
@@ -214,6 +217,7 @@ export class AccessControlService {
   async contactableUserFilter(user: AuthUser): Promise<Prisma.UserWhereInput | null> {
     switch (user.role) {
       // The administration and technical support answer to everyone.
+      case Role.FOUNDER:
       case Role.ADMIN:
       case Role.SUPPORT:
         return {};
@@ -224,7 +228,7 @@ export class AccessControlService {
         const circleIds = await this.ownCircleIds(user);
         return {
           OR: [
-            { role: { in: [Role.ADMIN, Role.TEACHER] } },
+            { role: { in: [Role.FOUNDER, Role.ADMIN, Role.TEACHER] } },
             { role: Role.STUDENT, studentProfile: { is: { circleId: { in: circleIds }, deletedAt: null } } },
           ],
         };
@@ -240,7 +244,7 @@ export class AccessControlService {
           this.teacherUserIdsOfCircles(circleIds), this.supervisorUserIdsOfCircles(circleIds),
         ]);
         return { OR: [
-          { role: Role.ADMIN },
+          { role: { in: [Role.FOUNDER, Role.ADMIN] } },
           { role: Role.TEACHER, id: { in: teacherIds } },
           { role: Role.SUPERVISOR, id: { in: supervisorIds } },
         ] };

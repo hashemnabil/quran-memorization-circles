@@ -8,6 +8,9 @@
   padding: max(28px, env(safe-area-inset-top, 0px)) 20px max(28px, env(safe-area-inset-bottom, 0px));
 }
 .chat-keyboard-open .chat-background-choice { display: none; }
+/* In short keyboard viewports, padding must not force the message list taller
+   than its flex allocation and push the composer outside its clipped panel. */
+.chat-keyboard-open .chat-messages { padding-block: 0; }
 .login-panel {
   --login-padding: 32px;
   min-width: 0;

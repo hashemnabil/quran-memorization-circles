@@ -41,7 +41,7 @@ export default function CoursesPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const user = useAuthStore((s) => s.user)!;
-  const isAdmin = user.role === 'ADMIN';
+  const isAdmin = (user.role === 'ADMIN' || user.role === 'FOUNDER');
   const canManage = isAdmin || user.role === 'SUPERVISOR';
 
   const [search, setSearch] = useState('');

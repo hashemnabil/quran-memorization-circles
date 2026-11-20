@@ -1,0 +1,21 @@
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { api, apiError } from '@/lib/api';
+import { Button, Card, LoadingState, PageHeader, Textarea } from '@/components/ui';
+
+type Report = { id:string; targetType:'POST'|'COMMENT'|'STORY'|'MESSAGE'; reason:string; details?:string|null; createdAt:string; reporter:{fullName:string}; target?:{body:string;author?:{fullName:string};user?:{fullName:string};sender?:{fullName:string}}|null };
+const typeLabel={POST:'منشور',COMMENT:'تعليق',STORY:'ستوري',MESSAGE:'رسالة خاصة'};
+const reasonLabel:Record<string,string>={ABUSE:'إساءة أو ألفاظ غير لائقة',BULLYING:'تنمّر أو مضايقة',INAPPROPRIATE:'محتوى غير مناسب',SPAM:'إزعاج أو تكرار',IMPERSONATION:'انتحال شخصية',OTHER:'سبب آخر'};
+
+export default function ModerationPage(){
+ const qc=useQueryClient();const [note,setNote]=useState<Record<string,string>>({});
+ const reports=useQuery({queryKey:['moderation','reports'],queryFn:async()=>(await api.get<Report[]>('/moderation/reports?status=PENDING')).data});
+ const stats=useQuery({queryKey:['moderation','stats'],queryFn:async()=>(await api.get<{pending:number;reviewedToday:number;removedToday:number}>('/moderation/stats')).data});
+ const decide=useMutation({mutationFn:({id,action}:{id:string;action:'KEEP'|'REMOVE'|'WARN'})=>api.patch(`/moderation/reports/${id}/decision`,{action,note:note[id]?.trim()||undefined}),onSuccess:()=>{toast.success('تم حفظ القرار في سجل الإشراف');void qc.invalidateQueries({queryKey:['moderation']});},onError:e=>toast.error(apiError(e))});
+ return <div className="space-y-5"><PageHeader title="مركز الإشراف" subtitle="مراجعة البلاغات واتخاذ قرارات موثقة مع حماية خصوصية الرسائل"/>
+  <section className="grid gap-3 sm:grid-cols-3"><Card><span className="text-sm text-slate-500">بانتظار المراجعة</span><strong className="mt-2 block text-3xl">{stats.data?.pending??'—'}</strong></Card><Card><span className="text-sm text-slate-500">تمت مراجعتها اليوم</span><strong className="mt-2 block text-3xl">{stats.data?.reviewedToday??'—'}</strong></Card><Card><span className="text-sm text-slate-500">محتوى حُذف اليوم</span><strong className="mt-2 block text-3xl">{stats.data?.removedToday??'—'}</strong></Card></section>
+  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-7 text-emerald-950"><b>خصوصية الرسائل:</b> تظهر الرسالة المبلّغ عنها فقط. لا تتيح هذه الصفحة فتح سجل المحادثة أو قراءة الرسائل الأخرى.</div>
+  {reports.isLoading?<LoadingState/>:reports.isError?<Card><p role="alert">تعذر تحميل البلاغات.</p><Button className="mt-3" onClick={()=>void reports.refetch()}>إعادة المحاولة</Button></Card>:!reports.data?.length?<Card><p className="py-8 text-center text-slate-500">لا توجد بلاغات بانتظار المراجعة.</p></Card>:<section className="space-y-3">{reports.data.map(report=><Card key={report.id}><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">{typeLabel[report.targetType]}</span><strong>{reasonLabel[report.reason]||report.reason}</strong></div><p className="mt-2 text-xs text-slate-500">أرسله {report.reporter.fullName} · {new Date(report.createdAt).toLocaleString('ar')}</p></div></div><blockquote className="my-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-7">{report.target?.body||'تم حذف المحتوى قبل المراجعة'}</blockquote>{report.details&&<p className="mb-3 text-sm"><b>تفاصيل البلاغ:</b> {report.details}</p>}<Textarea label="ملاحظة القرار (اختياري)" rows={2} maxLength={500} value={note[report.id]||''} onChange={e=>setNote(v=>({...v,[report.id]:e.target.value}))}/><div className="mt-3 flex flex-wrap gap-2"><Button disabled={decide.isPending} onClick={()=>decide.mutate({id:report.id,action:'KEEP'})}>إبقاء المحتوى</Button><Button variant="secondary" disabled={decide.isPending} onClick={()=>decide.mutate({id:report.id,action:'WARN'})}>تحذير وإغلاق</Button><Button variant="danger" disabled={decide.isPending} onClick={()=>decide.mutate({id:report.id,action:'REMOVE'})}>حذف المحتوى</Button></div></Card>)}</section>}
+ </div>;
+}

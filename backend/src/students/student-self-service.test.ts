@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Role } from '@prisma/client';
+import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AccessControlService } from '../common/services/access-control.service';
 import { StudentsService } from './students.service';
@@ -9,8 +10,18 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AttendanceService } from '../attendance/attendance.service';
 import { CreateUserDto } from '../users/dto/user.dto';
 import { CreateAnnouncementDto } from '../announcements/dto/announcement.dto';
+import { QueryStudentsDto } from './dto/student.dto';
 
 const actor: any = { id: 'account-one', role: Role.STUDENT };
+test('student approval query preserves false with Nest implicit conversion enabled', async () => {
+  const approved = plainToInstance(QueryStudentsDto, { isApproved: 'true' }, { enableImplicitConversion: true });
+  const unapproved = plainToInstance(QueryStudentsDto, { isApproved: 'false' }, { enableImplicitConversion: true });
+  assert.equal(approved.isApproved, true);
+  assert.equal(unapproved.isApproved, false);
+  assert.deepEqual(await validate(approved), []);
+  assert.deepEqual(await validate(unapproved), []);
+});
+
 test('student scope is bound to the authenticated account and retired parents have no scope', async () => {
   const prisma: any = { student: { findFirst: async ({ where }: any) => {
     if (where.userId) { assert.equal(where.userId, actor.id); assert.equal(where.deletedAt, null); return { id: 'one' }; }
@@ -31,6 +42,24 @@ test('student notes exclude staff-private entries', async () => {
   } } };
   const service = new StudentsService(prisma, { assertStudentAccess: async () => ({ id: 'one' }) } as any, {} as any, {} as any);
   assert.equal((await service.listNotes(actor, 'one')).length, 1);
+});
+
+test('administration and the assigned teacher can change student approval', async () => {
+  const writes: boolean[] = [];
+  const checked: string[] = [];
+  const prisma: any = { student: {
+    findFirst: async () => ({ id: 'one', fullName: 'طالب' }),
+    update: async ({ data }: any) => { writes.push(data.isApproved); return { id: 'one', ...data }; },
+  } };
+  const service = new StudentsService(prisma, { assertStudentWriteAccess: async (actor: any, id: string) => { checked.push(`${actor.id}:${id}`); if (actor.id !== 'teacher') throw new Error('outside circle'); } } as any, { log: async () => undefined } as any, {} as any);
+  service.findOne = async () => ({ id: 'one', isApproved: writes.at(-1) }) as any;
+  await assert.rejects(service.setApproval({ id: 'supervisor', role: Role.SUPERVISOR } as any, 'one', { isApproved: true }), /اعتماد الطلاب/);
+  assert.deepEqual(writes, []);
+  assert.equal((await service.setApproval({ id: 'teacher', role: Role.TEACHER } as any, 'one', { isApproved: true })).isApproved, true);
+  await assert.rejects(service.setApproval({ id: 'other-teacher', role: Role.TEACHER } as any, 'one', { isApproved: false }), /outside circle/);
+  assert.equal((await service.setApproval({ id: 'admin', role: Role.ADMIN } as any, 'one', { isApproved: true })).isApproved, true);
+  assert.deepEqual(writes, [true, true]);
+  assert.deepEqual(checked, ['teacher:one', 'other-teacher:one']);
 });
 
 test('student profile exposes evaluations and summons without exposing legacy account data', async () => {

@@ -18,7 +18,7 @@ import { StudentPhoto } from '@/components/StudentPhoto';
 import { EVALUATION_LABELS } from '@/lib/labels';
 import type { Evaluation } from '@/types';
 import { passwordError as newPasswordError } from '@/lib/validation';
-import { rememberOfflineLogin } from '@/lib/offline-login';
+import { rotateOfflineLoginPassword } from '@/lib/offline-login';
 
 export default function StudentPortalPage() {
   const [now, setNow] = useState(Date.now);
@@ -35,7 +35,7 @@ export default function StudentPortalPage() {
   const changePassword = useMutation({
     mutationFn: async () => {
       const result = await api.patch('/auth/change-password', { currentPassword, newPassword });
-      if (user) await rememberOfflineLogin(user.username, newPassword, { ...user, mustChangePassword: false });
+      if (user) await rotateOfflineLoginPassword(user.username, currentPassword, newPassword, { ...user, mustChangePassword: false });
       return result;
     },
     onSuccess: async (_offlineWriteResult) => {
@@ -95,7 +95,10 @@ export default function StudentPortalPage() {
 
   return (
     <>
-      <><PageHeader title={data.fullName ?? 'ملفي الدراسي'} subtitle="متابعة الحضور والحفظ والتسميع والاختبارات" />
+      <><PageHeader
+        title={`أهلًا بك${data.fullName ? ` يا ${data.fullName}` : ''}`}
+        subtitle="رحلتك مع القرآن مستمرة؛ تابع حفظك وتسميعك وإنجازاتك من هنا."
+      />
       <HonorRoll />
       <CircleHonorRoll />
       <PrayerCard />
@@ -172,6 +175,7 @@ export default function StudentPortalPage() {
           <Info label="الصفحة الحالية" value={data.currentPage} />
           <Info label="النقاط" value={data.points?.total ?? data.totalPoints ?? 0} />
           <Info label="التقييم الحالي" value={data.evaluation ? EVALUATION_LABELS[data.evaluation as Evaluation] : null} />
+          <Info label="اعتماد الإدارة" value={data.isApproved ? 'معتمد' : 'غير معتمد'} />
           <Info label="ملاحظة التقييم" value={data.evaluationNote} />
           <Info label="آخر تسميع" value={data.lastRecitation ? `${data.lastRecitation.fromSurah} — ${data.lastRecitation.toSurah} (${formatDateShort(data.lastRecitation.date)})` : 'لا يوجد تسميع مسجل'} />
           <Info label="آخر اختبار مجتاز" value={data.examSummary?.lastPassedSection} />

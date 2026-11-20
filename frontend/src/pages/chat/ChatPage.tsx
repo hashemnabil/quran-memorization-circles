@@ -1,8 +1,9 @@
 import CommunityImage from '@/pages/community/CommunityImage';
+import LinkedText from '@/components/LinkedText';
 import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
@@ -42,11 +43,30 @@ import {
 import { ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { timeAgo } from '@/lib/format';
 import type { ChatMessage, Conversation, PaginatedResponse, Role } from '@/types';
+import { groupInviteUrl } from '@/lib/app-links';
+import ReportContentDialog, { type ReportTarget } from '@/components/ReportContentDialog';
+
+type SharedPost = { id:string; body:string; mediaIds?:string[]; schoolPost:boolean; createdAt:string; author:{id:string;fullName:string;avatarUrl?:string|null} };
+
+function SharedPostCard({postId}:{postId:string}) {
+  const post=useQuery({queryKey:['community','shared-post',postId],queryFn:async()=>(await api.get<SharedPost>(`/community/posts/${postId}`)).data,staleTime:60_000,retry:1});
+  if(post.isLoading)return <div className="shared-post-card shared-post-loading">جارٍ تحميل المنشور…</div>;
+  if(!post.data)return <div className="shared-post-card text-xs">المنشور غير متاح أو تم حذفه.</div>;
+  const author=post.data.schoolPost?'المدرسة':post.data.author.fullName;
+  return <Link to={`/community/posts?post=${encodeURIComponent(postId)}`} className="shared-post-card" aria-label={`فتح منشور ${author}`}>
+    <div className="shared-post-author"><Avatar name={author} src={post.data.schoolPost?null:post.data.author.avatarUrl} size={34}/><span><strong>{author}</strong><small>منشور تمت مشاركته</small></span></div>
+    <p>{post.data.body}</p>
+    {post.data.mediaIds?.[0]&&<CommunityImage id={post.data.mediaIds[0]}/>}<span className="shared-post-open">عرض المنشور</span>
+  </Link>;
+}
 
 export default function ChatPage() {
   const background = useCuratedBackground('CHAT_BACKGROUND');
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteCode = searchParams.get('join');
+  const attemptedInvite = useRef<string | null>(null);
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -55,6 +75,7 @@ export default function ChatPage() {
   const [panel, setPanel] = useState<'members' | 'settings' | null>(null);
   const [search, setSearch] = useState('');
   const [body, setBody] = useState('');
+  const [reportTarget,setReportTarget]=useState<ReportTarget|null>(null);
   const [soundsEnabled,setSoundsEnabled]=useState(()=>localStorage.getItem('chat-sounds-enabled')!=='false');
   const soundContext=useRef<AudioContext|null>(null);
   const lastSound=useRef(0);
@@ -99,6 +120,15 @@ export default function ChatPage() {
     refetchInterval: 30_000,
     queryFn: async () => (await api.get<Conversation[]>('/chat/conversations')).data,
   });
+  useEffect(() => {
+    if (!inviteCode || attemptedInvite.current === inviteCode) return;
+    attemptedInvite.current = inviteCode;
+    void api.post(`/chat/join/${encodeURIComponent(inviteCode)}`).then(response => {
+      void queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
+      navigate(`/chat/${response.data.id}`, { replace: true });
+      toast.success('انضممت إلى المجموعة');
+    }).catch(error => { toast.error(apiError(error)); navigate('/chat', { replace: true }); });
+  }, [inviteCode, navigate, queryClient]);
 
   // The detail endpoint carries the member list and the moderation flags.
   const { data: active } = useQuery({
@@ -270,7 +300,7 @@ export default function ChatPage() {
 
   const filtered = conversations?.filter((c) => c.title.toLowerCase().includes(search.toLowerCase())) ?? [];
   const isGroup = active?.type === 'GROUP';
-  const canModerate = !!active?.isAdmin && active?.synced !== 0;
+  const canModerate = !!active && active.synced !== 0 && (active.isAdmin || user.role === 'ADMIN' || user.role === 'FOUNDER');
   const otherMember = active?.type === 'DIRECT' ? active.members?.find((member) => member.user.id !== user.id) : undefined;
   const otherLastReadAt = otherMember?.lastReadAt ? new Date(otherMember.lastReadAt).getTime() : 0;
 
@@ -407,16 +437,14 @@ export default function ChatPage() {
                     >
                       <IconUsers size={18} />
                     </button>
-                    {canModerate && (
-                      <button
+                      {canModerate && <button
                         onClick={() => setPanel('settings')}
                         className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
                         title="إعدادات المجموعة"
                         aria-label="إعدادات المجموعة"
                       >
                         <IconSettings size={18} />
-                      </button>
-                    )}
+                      </button>}
                   </>
                 )}
                 <div className="chat-background-choice absolute bottom-2 end-3"><BackgroundChoice value={background} label="خلفية المحادثة" /></div>
@@ -465,7 +493,9 @@ export default function ChatPage() {
                                 : 'rounded-tr-md border border-slate-100 bg-white text-slate-700',
                             )}
                           >
-                            <p className="whitespace-pre-wrap break-words">{message.body}</p>{message.attachmentUrl?.startsWith('community-media:')&&<CommunityImage id={message.attachmentUrl.slice(16)}/>}
+                            <p className="whitespace-pre-wrap break-words"><LinkedText text={message.body}/></p>
+                            {message.attachmentUrl?.startsWith('community-media:')&&<CommunityImage id={message.attachmentUrl.slice(16)}/>}
+                            {message.attachmentUrl?.startsWith('community-post:')&&<SharedPostCard postId={message.attachmentUrl.slice(15)}/>}
                           </div>
                           <p className={cx('mt-1 text-[10px] text-slate-400', mine && 'text-left')}>
                             {timeAgo(message.createdAt)}
@@ -483,7 +513,7 @@ export default function ChatPage() {
                         </div>
 
                         {/* Actions appear on hover / focus; only what the user may actually do. */}
-                        {(canEdit || canDelete) && (
+                        {(canEdit || canDelete || !mine) && (
                           <div className="flex shrink-0 gap-0.5 self-center opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
                             {canEdit && (
                               <button
@@ -505,6 +535,13 @@ export default function ChatPage() {
                                 <IconTrash size={14} />
                               </button>
                             )}
+                            {!mine && message.synced !== 0 && <button
+                              type="button"
+                              onClick={()=>setReportTarget({type:'MESSAGE',id:message.id,label:'الرسالة'})}
+                              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-100 hover:text-red-600"
+                              title="إبلاغ"
+                              aria-label="الإبلاغ عن الرسالة"
+                            >⚑</button>}
                           </div>
                         )}
                       </div>
@@ -517,7 +554,7 @@ export default function ChatPage() {
               {active && !active.canPost ? (
                 <p className="flex items-center justify-center gap-2 border-t border-slate-100 px-4 py-4 text-center text-xs text-slate-500">
                   <IconLock size={14} />
-                  {active.contactRestricted ? 'التواصل مع أعضاء هذه المحادثة غير متاح حسب صلاحياتك الحالية.' : active.isClosed
+                  {active.contactRestricted ? 'التواصل مع أعضاء هذه المحادثة غير متاح حسب صلاحياتك الحالية.' : active.members?.find(member => member.user.id === user.id)?.isMuted ? 'أوقف مشرف المجموعة إرسال الرسائل من حسابك.' : active.isClosed
                     ? 'هذه المجموعة مغلقة، لا يمكن إرسال رسائل جديدة.'
                     : 'الإرسال في هذه المجموعة متاح لمشرفيها فقط.'}
                 </p>
@@ -572,9 +609,10 @@ export default function ChatPage() {
       {panel === 'members' && active && (
         <MembersModal conversation={active} canModerate={canModerate} onClose={() => setPanel(null)} />
       )}
-      {panel === 'settings' && active && (
-        <GroupSettingsModal conversation={active} onClose={() => setPanel(null)} />
+      {panel === 'settings' && active && canModerate && (
+        <GroupSettingsModal conversation={active} canModerate={canModerate} onClose={() => setPanel(null)} />
       )}
+      <ReportContentDialog target={reportTarget} onClose={()=>setReportTarget(null)}/>
     </>
   );
 }
@@ -609,6 +647,12 @@ function MembersModal({
       refresh();
     },
     onError: (error) => toast.error(apiError(error)),
+  });
+  const setMute = useMutation({
+    mutationFn: ({ userId, isMuted }: { userId: string; isMuted: boolean }) =>
+      api.patch(`/chat/conversations/${conversation.id}/members/${userId}/mute`, { isMuted }),
+    onSuccess: (_, value) => { toast.success(value.isMuted ? 'تم كتم العضو' : 'تم السماح للعضو بالحديث'); refresh(); },
+    onError: error => toast.error(apiError(error)),
   });
 
   const removeMember = useMutation({
@@ -655,9 +699,11 @@ function MembersModal({
                 </div>
 
                 {member.isAdmin && <Badge className="bg-primary-100 text-primary-800">مشرف</Badge>}
+                {member.isMuted && <Badge className="bg-amber-100 text-amber-800">مكتوم</Badge>}
 
                 {canModerate && !isSelf && (
                   <div className="flex shrink-0 gap-1">
+                    {!member.isAdmin && <button type="button" disabled={setMute.isPending} onClick={() => setMute.mutate({ userId: member.user.id, isMuted: !member.isMuted })} className="rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-500 hover:bg-slate-100">{member.isMuted ? 'إلغاء الكتم' : 'كتم'}</button>}
                     <button
                       onClick={() => setAdmin.mutate({ userId: member.user.id, isAdmin: !member.isAdmin })}
                       className="rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-500 transition hover:bg-slate-100"
@@ -780,19 +826,22 @@ function AddMembersModal({ conversation, onClose }: { conversation: Conversation
 
 // --- group settings ---------------------------------------------------------
 
-function GroupSettingsModal({ conversation, onClose }: { conversation: Conversation; onClose: () => void }) {
+function GroupSettingsModal({ conversation, canModerate, onClose }: { conversation: Conversation; canModerate: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const confirm = useConfirm();
 
   const [title, setTitle] = useState(conversation.title);
   const [description, setDescription] = useState(conversation.description ?? '');
+  const [avatarUrl, setAvatarUrl] = useState(conversation.avatarUrl ?? '');
+  const [uploading, setUploading] = useState(false);
+  const [inviteCode, setInviteCode] = useState(conversation.inviteCode ?? '');
   const [adminOnly, setAdminOnly] = useState(conversation.adminOnly);
   const [isClosed, setIsClosed] = useState(conversation.isClosed);
 
   const save = useMutation({
     mutationFn: () =>
-      api.patch(`/chat/conversations/${conversation.id}`, { title, description, adminOnly, isClosed }),
+      api.patch(`/chat/conversations/${conversation.id}`, { title, description, avatarUrl, adminOnly, isClosed }),
     onSuccess: (_offlineWriteResult) => {
       notifyWriteSuccess(_offlineWriteResult, 'تم حفظ إعدادات المجموعة');
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', conversation.id] });
@@ -812,6 +861,21 @@ function GroupSettingsModal({ conversation, onClose }: { conversation: Conversat
     },
     onError: (error) => toast.error(apiError(error)),
   });
+  const invite = useMutation({
+    mutationFn: (enabled: boolean) => api.post(`/chat/conversations/${conversation.id}/invite`, { enabled }),
+    onSuccess: response => { setInviteCode(response.data.inviteCode ?? ''); queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', conversation.id] }); toast.success(response.data.inviteCode ? 'رابط الدعوة جاهز' : 'تم إيقاف رابط الدعوة'); },
+    onError: error => toast.error(apiError(error)),
+  });
+  const uploadImage = async (file?: File) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData(); form.append('file', file);
+      const response = await api.post('/uploads/image', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setAvatarUrl(response.data.url);
+      toast.success('تم رفع الصورة، اضغط حفظ لتطبيقها');
+    } catch (error) { toast.error(apiError(error)); } finally { setUploading(false); }
+  };
 
   return (
     <Modal
@@ -824,21 +888,27 @@ function GroupSettingsModal({ conversation, onClose }: { conversation: Conversat
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
-          <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!title.trim()}>
+          {canModerate && <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!title.trim() || uploading}>
             حفظ
-          </Button>
+          </Button>}
         </>
       }
     >
-      <Input label="اسم المجموعة" required value={title} onChange={(e) => setTitle(e.target.value)} />
+      <div className="mb-4 flex items-center gap-3">
+        <Avatar name={title} src={avatarUrl || null} size={56} preview />
+        {canModerate && <label className="cursor-pointer text-sm font-semibold text-primary-700">{uploading ? 'جارٍ رفع الصورة...' : 'تغيير صورة المجموعة'}<input type="file" accept="image/*" disabled={uploading} className="sr-only" onChange={event => void uploadImage(event.target.files?.[0])}/></label>}
+        {canModerate && avatarUrl && <button type="button" className="text-xs text-red-600" onClick={() => setAvatarUrl('')}>إزالة</button>}
+      </div>
+      <Input label="اسم المجموعة" required value={title} readOnly={!canModerate} onChange={(e) => setTitle(e.target.value)} />
       <Textarea
         label="الوصف"
         className="mt-3"
         value={description}
+        readOnly={!canModerate}
         onChange={(e) => setDescription(e.target.value)}
       />
 
-      <div className="mt-4 space-y-2">
+      {canModerate && <div className="mt-4 space-y-2">
         <Toggle
           checked={adminOnly}
           onChange={setAdminOnly}
@@ -851,7 +921,15 @@ function GroupSettingsModal({ conversation, onClose }: { conversation: Conversat
           label="إغلاق المجموعة"
           hint="إيقاف الرسائل الجديدة نهائياً مع الاحتفاظ بالسجل"
         />
-      </div>
+      </div>}
+      {canModerate && <div className="mt-5 rounded-xl border border-slate-200 p-3">
+        <p className="mb-2 text-sm font-bold">رابط دعوة المجموعة</p>
+        {inviteCode ? <>
+          <Input readOnly value={groupInviteUrl(inviteCode)} dir="ltr" />
+          <div className="mt-2 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => { void navigator.clipboard.writeText(groupInviteUrl(inviteCode)).then(() => toast.success('تم نسخ رابط المجموعة')); }}>نسخ الرابط</Button><Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate(true)}>تجديد الرابط</Button><Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate(false)}>إيقاف الرابط</Button></div>
+        </> : <Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate(true)}>إنشاء رابط دعوة</Button>}
+        <p className="mt-2 text-xs text-slate-500">يمكن لمن يملك الرابط الانضمام إذا كانت صلاحيات التواصل تسمح له بذلك.</p>
+      </div>}
 
       <button
         onClick={async () => {

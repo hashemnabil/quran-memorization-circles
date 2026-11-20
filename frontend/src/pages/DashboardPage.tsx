@@ -68,6 +68,45 @@ import type { Evaluation } from '@/types';
 
 const CHART_COLORS = ['#1d7c55', '#dc2626', '#d98c26', '#0284c7'];
 
+export function dashboardGreeting(fullName: string, role: string, date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Gaza', weekday: 'short', hour: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  const weekday = parts.find(part => part.type === 'weekday')?.value;
+  const hour = Number(parts.find(part => part.type === 'hour')?.value ?? 12);
+  const name = role === 'TEACHER' ? `شيخ ${fullName}` : fullName;
+  const salutation = weekday === 'Fri'
+    ? 'جمعة مباركة'
+    : hour >= 5 && hour < 12
+      ? 'صباح الخير'
+      : hour >= 12 && hour < 18
+        ? 'طاب يومك'
+        : hour >= 18 && hour < 23
+          ? 'مساء الخير'
+          : 'ليلة مباركة';
+  return `${salutation}، ${name} · ${ROLE_LABELS[role as keyof typeof ROLE_LABELS] ?? role}`;
+}
+
+const DAILY_ENCOURAGEMENTS = [
+  'خطوة صغيرة مع القرآن اليوم تصنع أثراً كبيراً غداً.',
+  'بارك الله في وقتك، واجعل إنجازك اليوم خالصاً ومثمراً.',
+  'كل آية تُتقنها نور، وكل طالب تعينه أجر ممتد.',
+  'ابدأ يومك بنية طيبة؛ فالبركة تسكن البدايات الصادقة.',
+  'إنجاز اليوم يبني ثمرة الغد، فامضِ بهدوء وثبات.',
+  'جعلك الله مفتاحاً للخير، وكتب لك أثر ما تعلّم وتعلّم.',
+  'يوم جديد وفرصة أجمل لخدمة كتاب الله وأهله.',
+  'بالاستمرار تصنع الفرق، وبالإخلاص يبارك الله في القليل.',
+  'رتّب أولوياتك، وابدأ بالأهم، واستعن بالله في كل خطوة.',
+  'أحسن العمل اليوم؛ فالأثر الجميل يبقى وإن مضى الوقت.',
+] as const;
+
+export function dashboardEncouragement(accountKey: string, date = new Date()) {
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Gaza', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  const seed = `${accountKey}:${day}`;
+  const hash = [...seed].reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 0);
+  return DAILY_ENCOURAGEMENTS[hash % DAILY_ENCOURAGEMENTS.length];
+}
+
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)!;
 
@@ -102,23 +141,44 @@ export default function DashboardPage() {
     return <><HonorRoll /><CircleHonorRoll /><PrayerCard /><ErrorState message="تعذر تحميل لوحة المعلومات" onRetry={() => refetch()} /></>;
   }
 
-  const greeting = `أهلًا بك، ${user.fullName} · ${ROLE_LABELS[user.role]}`;
+  const greeting = dashboardGreeting(user.fullName, user.role);
 
   return (
     <>
-      <PageHeader
-        title="الرئيسية"
-        subtitle={greeting}
-        action={
-          <Badge className="bg-primary-50 text-primary-700">
-            {new Intl.DateTimeFormat('ar-EG', { dateStyle: 'full', numberingSystem: 'latn' }).format(new Date())}
-          </Badge>
-        }
-      />
+      <header className="mb-3 flex flex-wrap items-end justify-between gap-3 border-b border-emerald-900/10 pb-3" dir="rtl">
+        <div className="min-w-0">
+          <p className="mb-1 text-[11px] font-bold text-emerald-700">الرئيسية</p>
+          <h1 className="text-xl font-extrabold leading-snug text-slate-800 sm:text-2xl">{greeting}</h1>
+          <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">{dashboardEncouragement(user.id)}</p>
+        </div>
+        <Badge className="bg-emerald-50 text-emerald-800">
+          {new Intl.DateTimeFormat('ar-EG', { dateStyle: 'full', numberingSystem: 'latn', timeZone: 'Asia/Gaza' }).format(new Date())}
+        </Badge>
+      </header>
 
-      <HonorRoll />
-      <CircleHonorRoll />
+      <div className="dashboard-home-hero mb-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
+      <section className="overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-l from-emerald-50 via-white to-white p-3 shadow-sm sm:p-4" aria-label="ملخص المدرسة">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div><p className="text-[11px] font-bold text-emerald-700">مدرستنا بالأرقام</p><h2 className="mt-0.5 text-lg font-extrabold text-slate-800">مجتمع القرآن الكريم</h2></div>
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">إحصائيات المدرسة</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="flex items-center gap-2.5 rounded-xl border border-emerald-100 bg-white p-3 shadow-sm">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700"><IconGraduation size={20}/></span>
+            <div><p className="text-[11px] font-semibold text-slate-500">عدد الطلاب</p><strong className="numeric text-xl font-black text-slate-800">{data.schoolStats?.students ?? data.counts?.students ?? '—'}</strong></div>
+          </div>
+          <div className="flex items-center gap-2.5 rounded-xl border border-sky-100 bg-white p-3 shadow-sm">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-700"><IconCircleGroup size={20}/></span>
+            <div><p className="text-[11px] font-semibold text-slate-500">عدد الحلقات</p><strong className="numeric text-xl font-black text-slate-800">{data.schoolStats?.circles ?? data.counts?.circles ?? '—'}</strong></div>
+          </div>
+        </div>
+      </section>
       <PrayerCard />
+      </div>
+      <section className="dashboard-honor-grid mb-3 grid items-start gap-3 xl:grid-cols-2" aria-label="لوحات الشرف">
+        <HonorRoll />
+        <CircleHonorRoll />
+      </section>
       <DailyOverview/>
 
       <section className="mb-6">
@@ -340,9 +400,12 @@ function AdminDashboard({ data }: { data: any }) {
       <div className="grid gap-5 lg:grid-cols-3">
         <Card title="الطلبات المعلقة" subtitle="بانتظار قرار الإدارة" className="lg:col-span-1">
           <div className="space-y-2">
+            <PendingRow to="/students?approval=false" label="طلاب بانتظار الاعتماد" count={data.counts.unapprovedStudents ?? 0} icon={<IconGraduation size={17} />} tone="bg-amber-50 text-amber-700" />
+            <PendingRow to="/student-summons" label="إنذارات آخر 30 يومًا" count={data.counts.recentWarnings ?? 0} icon={<IconBell size={17} />} tone="bg-rose-50 text-rose-700" />
             <PendingRow to="/transfers" label="طلبات النقل" count={data.pending.transfers} icon={<IconExchange size={17} />} tone="bg-sky-50 text-sky-600" />
             <PendingRow to="/suspensions" label="طلبات الإيقاف" count={data.pending.suspensions} icon={<IconPause size={17} />} tone="bg-red-50 text-red-600" />
             <PendingRow to="/exams" label="طلبات الاختبار" count={data.pending.examRequests} icon={<IconAward size={17} />} tone="bg-gold-50 text-gold-700" />
+            <PendingRow to="/exams" label="اختبارات قادمة" count={data.upcomingExamsCount ?? 0} icon={<IconCalendar size={17} />} tone="bg-violet-50 text-violet-700" />
             <PendingRow to="/support" label="تذاكر الدعم المفتوحة" count={data.pending.supportTickets} icon={<IconLifeBuoy size={17} />} tone="bg-slate-100 text-slate-600" />
           </div>
         </Card>

@@ -81,6 +81,7 @@ export class OfflineSyncService {
             code: true,
             fullName: true,
             status: true,
+            isApproved: true,
             evaluation: true,
             memorizedParts: true,
             currentSurah: true,
@@ -182,7 +183,7 @@ export class OfflineSyncService {
       STUDENT_ROLES.has(user.role) ? this.prisma.student.findMany({
         where: studentWhere,
         select: {
-          id: true, circleId: true, code: true, fullName: true, status: true,
+          id: true, circleId: true, code: true, fullName: true, status: true, isApproved: true,
           evaluation: true, memorizedParts: true, currentSurah: true, currentPage: true,
           updatedAt: true, deletedAt: true,
         },
@@ -272,7 +273,7 @@ export class OfflineSyncService {
         changes.push({ seq: row.seq.toString(), entity: 'student', id: row.entityId, operation: row.operation,
           data: row.operation === 'DELETE' ? null : {
             id: row.entityId, circleId, code: payload.code, fullName: payload.fullName,
-            status: payload.status, evaluation: payload.evaluation,
+            status: payload.status, isApproved: payload.isApproved, evaluation: payload.evaluation,
             memorizedParts: payload.memorizedParts, currentSurah: payload.currentSurah,
             currentPage: payload.currentPage, updatedAt: payload.updatedAt,
           } });

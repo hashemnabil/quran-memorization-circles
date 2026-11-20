@@ -36,3 +36,11 @@ keystore.properties
 /.worktrees/
 /.verify-mushaf-preview/
 /.verify-prisma-client/
+/.codex-artifacts/
+
+# Local review previews and one-off repository maintenance helpers
+/work/
+/.release-founder
+/.release-upload
+/.sound-*.cjs
+/.student-transfer.cjs

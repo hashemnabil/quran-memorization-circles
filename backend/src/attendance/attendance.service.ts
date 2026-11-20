@@ -103,7 +103,7 @@ export class AttendanceService {
     if (!input?.studentId || !input.title?.trim() || !input.body?.trim()) throw new BadRequestException('الطالب والعنوان ونص الاستدعاء مطلوبة');
     const student = await this.prisma.student.findUnique({ where: { id: input.studentId }, select: { id: true, fullName: true, userId: true } });
     if (!student) throw new NotFoundException('الطالب غير موجود');
-    const row = await this.prisma.guardianSummons.create({ data: { studentId: student.id, issuedById: actor.id, title: input.title.trim(), body: input.body.trim() } });
+    const row = await this.prisma.guardianSummons.create({ data: { studentId: student.id, issuedById: actor.id, title: input.title.trim(), body: input.body.trim(), channel: 'APP' } });
     await this.notifications.notifyStudent(student.id, { type: NotificationType.ATTENDANCE, title: row.title, body: row.body, data: { studentId: student.id, guardianSummonsId: row.id, warning: true } });
     await this.activity.log({ userId: actor.id, action: 'GUARDIAN_SUMMON_ISSUED', summary: `إرسال استدعاء للطالب ${student.fullName}`, entityType: 'GuardianSummon', entityId: row.id });
     return row;

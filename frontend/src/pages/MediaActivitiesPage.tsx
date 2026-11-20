@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
 import { Button, Card, Input, LoadingState, PageHeader } from '@/components/ui';
 
-type Activity = { id: string; type: string; title: string; description: string; activityDate: string; workUrl?: string | null; createdAt: string; createdBy?: { fullName: string } };
+type Activity = { id: string; synced?: number; type: string; title: string; description: string; activityDate: string; workUrl?: string | null; createdAt: string; createdBy?: { fullName: string } };
 const types: Record<string, string> = {
   REPORT_FILLING: 'تعبئة تقارير',
   PHOTOGRAPHY: 'تصوير',
@@ -64,15 +64,19 @@ export default function MediaActivitiesPage() {
   const [reportFrom, setReportFrom] = useState('');
   const [reportTo, setReportTo] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [editing, setEditing] = useState<Activity | null>(null);
   const activities = useQuery({ queryKey: ['media-activities'], queryFn: async () => (await api.get<Activity[]>('/media-activities')).data });
   const create = useMutation({
-    mutationFn: async () => (await api.post('/media-activities', { type, title, description, activityDate, workUrl: workUrl.trim() || undefined })).data,
-    onSuccess: async () => { toast.success('تم حفظ النشاط الإعلامي'); setTitle(''); setDescription(''); setWorkUrl(''); await qc.invalidateQueries({ queryKey: ['media-activities'] }); },
+    mutationFn: async () => {
+      const payload = { type, title, description, activityDate, workUrl: workUrl.trim() || undefined };
+      return editing ? (await api.patch('/media-activities/' + editing.id, { ...payload, previous: { type: editing.type, title: editing.title, description: editing.description, activityDate: editing.activityDate, workUrl: editing.workUrl || null } })).data : (await api.post('/media-activities', payload)).data;
+    },
+    onSuccess: async data => { if (data?.synced === 0) toast('حُفظ النشاط على الجهاز، بانتظار تأكيد الخادم'); else toast.success('تم حفظ النشاط الإعلامي'); setEditing(null); setTitle(''); setDescription(''); setWorkUrl(''); await qc.invalidateQueries({ queryKey: ['media-activities'] }); },
     onError: e => toast.error(apiError(e)),
   });
   const remove = useMutation({
     mutationFn: (id: string) => api.delete('/media-activities/' + id),
-    onSuccess: async () => { toast.success('تم حذف السجل'); await qc.invalidateQueries({ queryKey: ['media-activities'] }); },
+    onSuccess: async response => { if (response.data?.synced === 0) toast('حُفظ طلب الحذف على الجهاز، بانتظار تأكيد الخادم'); else toast.success('تم حذف السجل'); await qc.invalidateQueries({ queryKey: ['media-activities'] }); },
     onError: e => toast.error(apiError(e)),
   });
 
@@ -113,7 +117,7 @@ export default function MediaActivitiesPage() {
         </Button>
       </div>
     </Card>
-    <Card title="إضافة نشاط إعلامي">
+    <Card title={editing ? 'تعديل النشاط الإعلامي' : 'إضافة نشاط إعلامي'}>
       <form className="grid gap-4 md:grid-cols-2" onSubmit={e => { e.preventDefault(); create.mutate(); }}>
         <label className="grid gap-1 text-sm font-medium">نوع العمل
           <select className="rounded-lg border border-slate-300 bg-white p-2.5" value={type} onChange={e => setType(e.target.value)}>
@@ -126,7 +130,7 @@ export default function MediaActivitiesPage() {
         <label className="grid gap-1 text-sm font-medium md:col-span-2">شو تم تصويره أو تصميمه أو نشره أو مونتاجه؟
           <textarea className="min-h-28 rounded-lg border border-slate-300 p-3" value={description} onChange={e => setDescription(e.target.value)} required placeholder="اكتب تفاصيل العمل، المكان أو المناسبة، والمخرجات..." />
         </label>
-        <div><Button type="submit" disabled={create.isPending || !title.trim() || !description.trim()}>{create.isPending ? 'جارٍ الحفظ...' : 'حفظ النشاط'}</Button></div>
+        <div className="flex gap-2"><Button type="submit" disabled={create.isPending || !title.trim() || !description.trim()}>{create.isPending ? 'جارٍ الحفظ...' : 'حفظ النشاط'}</Button>{editing && <Button type="button" variant="secondary" disabled={create.isPending} onClick={() => { setEditing(null); setTitle(''); setDescription(''); setWorkUrl(''); }}>إلغاء التعديل</Button>}</div>
       </form>
     </Card>
     <Card title="سجل الأعمال">
@@ -136,11 +140,12 @@ export default function MediaActivitiesPage() {
             <div className="min-w-0 flex-1">
               <div className="mb-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-800">{types[a.type] || a.type}</span><span className="text-xs text-slate-500">{new Date(a.activityDate).toLocaleDateString('ar')}</span></div>
               <h3 className="font-bold text-slate-900">{a.title}</h3>
+              {a.synced === 0 && <p className="mt-1 text-xs text-amber-700" role="status">بانتظار المزامنة وتأكيد الخادم</p>}
               <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">{a.description}</p>
               <p className="mt-2 text-xs text-slate-400">أضافه: {a.createdBy?.fullName || '—'}</p>
               {a.workUrl && <a className="mt-2 inline-block text-sm text-primary-700 underline" href={a.workUrl} target="_blank" rel="noreferrer">فتح رابط العمل</a>}
             </div>
-            <Button variant="secondary" onClick={() => { if (window.confirm('هل تريد حذف هذا السجل؟')) remove.mutate(a.id); }} disabled={remove.isPending}>حذف</Button>
+            <div className="flex gap-2"><Button variant="secondary" disabled={create.isPending} onClick={() => { setEditing(a); setType(a.type); setTitle(a.title); setDescription(a.description); setActivityDate(a.activityDate.slice(0,10)); setWorkUrl(a.workUrl || ''); window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); }}>تعديل</Button><Button variant="secondary" onClick={() => { if (window.confirm('هل تريد حذف هذا السجل؟')) remove.mutate(a.id); }} disabled={remove.isPending}>حذف</Button></div>
           </div>
         </article>)}
       </div> : <p className="text-sm text-slate-500">لا توجد أعمال مسجلة حتى الآن.</p>}

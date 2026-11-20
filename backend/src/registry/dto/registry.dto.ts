@@ -5,6 +5,8 @@ export class RegistryAccessDto {
   @MinLength(3)
   @MaxLength(40)
   nationalId!: string;
+  @IsString() @MinLength(20) @MaxLength(2000)
+  invitation!: string;
 }
 
 export class UpdateRegistryUserDto {
@@ -20,6 +22,6 @@ export class UpdateRegistryUserDto {
 
 export class QueryRegistryUsersDto {
   @IsOptional() @IsString() search?: string;
-  @IsOptional() @Matches(/^\\d+$/) page?: string;
-  @IsOptional() @Matches(/^\\d+$/) pageSize?: string;
+  @IsOptional() @Matches(/^\d+$/) page?: string;
+  @IsOptional() @Matches(/^\d+$/) pageSize?: string;
 }

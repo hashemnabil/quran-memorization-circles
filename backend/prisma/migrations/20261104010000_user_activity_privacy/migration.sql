@@ -1,0 +1,5 @@
+CREATE TABLE "user_activity" (
+  "userId" TEXT PRIMARY KEY REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  "hidden" BOOLEAN NOT NULL DEFAULT false,
+  "lastActiveAt" TIMESTAMP(3)
+);

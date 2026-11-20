@@ -8,7 +8,7 @@ const empty: User = { nationalId:'', fullName:null, phone:null, email:null, date
 export default function RegistryDataPage() {
   const [form,setForm]=useState(empty); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [message,setMessage]=useState(''); const [error,setError]=useState('');
   const navigate=useNavigate();
-  useEffect(()=>{ (async()=>{ const token=registryToken.get(); if(!token){navigate('/register',{replace:true});return;} try{const {data}=await registryApi.get<User>('/registry/me');setForm(data);}catch(e){registryToken.clear();setError(apiError(e,'انتهت جلسة الدخول.'));}finally{setLoading(false)}})()},[navigate]);
+  useEffect(()=>{ (async()=>{ const token=await registryToken.get(); if(!token){navigate('/register',{replace:true});return;} try{const {data}=await registryApi.get<User>('/registry/me');setForm(data);}catch(e){await registryToken.clear();setError(apiError(e,'انتهت جلسة الدخول.'));}finally{setLoading(false)}})()},[navigate]);
   const set=(key:keyof User,value:string)=>setForm(f=>({...f,[key]:value}));
   async function save(e:FormEvent){e.preventDefault();setMessage('');setError('');setSaving(true);try{const {data}=await registryApi.patch<User>('/registry/me',{fullName:form.fullName,phone:form.phone,email:form.email,dateOfBirth:form.dateOfBirth||undefined,gender:form.gender||undefined,city:form.city,address:form.address,notes:form.notes});setForm(data);setMessage('تم حفظ البيانات بنجاح.')}catch(e){setError(apiError(e))}finally{setSaving(false)}}
   if(loading)return <main dir="rtl" className="grid min-h-screen place-items-center bg-slate-50 text-slate-500">جارٍ تحميل بياناتك...</main>;

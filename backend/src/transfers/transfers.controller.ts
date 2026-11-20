@@ -11,12 +11,16 @@ import {
   QueryTransfersDto,
 } from './dto/transfer.dto';
 import { TransfersService } from './transfers.service';
+import { UpdatePendingReasonDto } from '../common/dto/pending-request.dto';
 
 @ApiTags('طلبات النقل والتبادل')
 @ApiBearerAuth()
 @Controller('transfers')
 export class TransfersController {
   constructor(private readonly service: TransfersService) {}
+  @Patch(':id')
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
+  updateReason(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdatePendingReasonDto) { return this.service.updatePendingReason(user, id, dto); }
 
   @Get()
   @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)

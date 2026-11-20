@@ -41,7 +41,6 @@ export default function AnnouncementBar() {
     queryFn: async () =>
       (await api.get<Announcement[]>('/announcements/active')).data,
     staleTime: 2 * 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
   });
 
   const visible = useMemo(

@@ -3,6 +3,7 @@ import { TicketPriority, TicketStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsEmail,
+  IsBoolean,
   IsEnum,
   IsNotEmpty,
   IsOptional,
@@ -21,6 +22,8 @@ import { PhoneField } from '../../common/validators/phone';
  * otherwise there would be no way to reply.
  */
 export class PublicTicketDto {
+  @IsOptional() @IsUUID('4')
+  requestId?: string;
   @ApiProperty({ example: 'أحمد محمد' })
   @IsString()
   @IsNotEmpty({ message: 'الاسم مطلوب' })
@@ -77,6 +80,13 @@ export class CreateTicketDto {
   priority?: TicketPriority;
 }
 
+export class AccountDeletionDto {
+  @IsString() @IsNotEmpty() @MaxLength(128)
+  currentPassword: string;
+  @IsOptional() @IsString() @MaxLength(1000)
+  reason?: string;
+}
+
 export class ReplyTicketDto {
   @ApiProperty()
   @IsString()
@@ -86,6 +96,7 @@ export class ReplyTicketDto {
 
   @ApiPropertyOptional({ description: 'ملاحظة داخلية بين موظفي الدعم فقط' })
   @IsOptional()
+  @IsBoolean()
   isInternal?: boolean;
 }
 
@@ -113,6 +124,8 @@ export class UpdateTicketDto {
 }
 
 export class QueryTicketsDto extends PaginationDto {
+  @IsOptional() @IsString() @MaxLength(80)
+  category?: string;
   @ApiPropertyOptional({ enum: TicketStatus })
   @IsOptional()
   @IsEnum(TicketStatus)

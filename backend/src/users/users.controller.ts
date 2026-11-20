@@ -32,56 +32,56 @@ export class UsersController {
   }
 
   @Get('stats')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'إحصائيات المستخدمين' })
   stats() {
     return this.service.stats();
   }
 
   @Get()
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'قائمة المستخدمين' })
   findAll(@Query() query: QueryUsersDto) {
     return this.service.findAll(query);
   }
 
   @Get(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'تفاصيل مستخدم' })
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
   }
 
   @Post()
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'إنشاء مستخدم' })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateUserDto) {
     return this.service.create(user, dto);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'تعديل مستخدم' })
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateUserDto) {
     return this.service.update(user, id, dto);
   }
 
   @Patch(':id/reset-password')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'إعادة تعيين كلمة مرور مستخدم (بواسطة الإدارة)' })
   resetPassword(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: ResetPasswordDto) {
     return this.service.resetPassword(user, id, dto);
   }
 
   @Patch(':id/activate')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'تفعيل حساب' })
   activate(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.setActive(user, id, true);
   }
 
   @Patch(':id/deactivate')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'إيقاف حساب' })
   deactivate(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.setActive(user, id, false);
@@ -92,14 +92,14 @@ export class UsersController {
    * bodies on DELETE are poorly supported by proxies and fetch alike.
    */
   @Post('bulk-delete')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'حذف عدة مستخدمين دفعة واحدة' })
   removeMany(@CurrentUser() user: AuthUser, @Body() dto: BulkIdsDto) {
     return this.service.removeMany(user, dto);
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.FOUNDER)
   @ApiOperation({ summary: 'حذف مستخدم (حذف ناعم)' })
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.remove(user, id);

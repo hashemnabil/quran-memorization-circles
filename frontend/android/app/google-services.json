@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "641944164249",
+    "project_id": "halaqat-9cc95",
+    "storage_bucket": "halaqat-9cc95.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:641944164249:android:627321c5eb4efcb0122508",
+        "android_client_info": {
+          "package_name": "com.abdullahschool.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCd_dr5fAmzfxUTd4wegR8KhwZqPY5BqaM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

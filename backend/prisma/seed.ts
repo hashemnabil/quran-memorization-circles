@@ -386,8 +386,8 @@ async function main() {
     }
   }
 
-  // --- parents & students --------------------------------------------------
-  console.log('› أولياء الأمور والطلاب');
+  // --- students ------------------------------------------------------------
+  console.log('› الطلاب وحساباتهم');
   const evaluations = [
     Evaluation.EXCELLENT,
     Evaluation.VERY_GOOD,
@@ -396,53 +396,26 @@ async function main() {
     Evaluation.UNSATISFACTORY,
   ];
 
-  const parents = [];
-  for (let i = 0; i < 12; i++) {
-    const parent = await prisma.parentProfile.create({
-      data: {
-        nationalId: `20${String(2000000 + i)}`,
-        phone: `05552002${String(i).padStart(2, '0')}`,
-        address: 'الرياض - حي النزهة',
-        occupation: pick(['موظف حكومي', 'معلم', 'مهندس', 'تاجر', 'طبيب'], i),
-        user: {
-          create: {
-            username: `parent${i + 1}`,
-            email: `parent${i + 1}@alnoor-quran.sa`,
-            passwordHash,
-            fullName: `${pick(FIRST_NAMES, i + 3)} ${pick(FAMILY_NAMES, i)}`,
-            role: Role.PARENT,
-            phone: `05552002${String(i).padStart(2, '0')}`,
-                },
-        },
-      },
-      include: { user: true },
-    });
-    parents.push(parent);
-  }
-
   const students = [];
   let studentIndex = 0;
   for (let c = 0; c < circles.length; c++) {
     const count = randInt(9, 13);
     for (let s = 0; s < count; s++) {
       studentIndex++;
-      const parent = parents[studentIndex % parents.length];
+      const fullName = `${pick(FIRST_NAMES, studentIndex)} ${pick(FIRST_NAMES, studentIndex + 3)} ${pick(FAMILY_NAMES, studentIndex)}`;
       const student = await prisma.student.create({
         data: {
           code: String(studentIndex).padStart(4, '0'),
-          fullName: `${pick(FIRST_NAMES, studentIndex)} ${parent.user.fullName.split(' ')[0]} ${pick(
-            FAMILY_NAMES,
-            studentIndex,
-          )}`,
+          fullName,
+          user: { create: { username: `student${studentIndex}`, fullName, passwordHash, role: Role.STUDENT, mustChangePassword: true } },
           birthDate: new Date(2010 + (studentIndex % 6), studentIndex % 12, 1 + (studentIndex % 27)),
           nationalId: `30${String(3000000 + studentIndex)}`,
-          fatherNationalId: parent.nationalId,
+          fatherNationalId: `20${String(2000000 + studentIndex)}`,
           address: 'الرياض - حي النزهة',
-          parentId: parent.id,
-          guardianName: parent.user.fullName,
-          guardianPhone: parent.phone,
+          guardianName: `${pick(FIRST_NAMES, studentIndex + 3)} ${pick(FAMILY_NAMES, studentIndex)}`,
+          guardianPhone: `05552002${String(studentIndex % 12).padStart(2, '0')}`,
           guardianRelation: 'الأب',
-          circleId: circles[c].id,
+          circle: { connect: { id: circles[c].id } },
           enrollmentDate: daysAgo(120 - studentIndex),
           evaluation: pick(evaluations, studentIndex),
           evaluationNote: 'تقييم أولي بناءً على أداء الأسابيع الماضية',
@@ -823,14 +796,14 @@ async function main() {
       description: 'أرجو تحديث رقم الجوال المسجل لدى الحلقة.',
       category: 'استفسار',
       priority: TicketPriority.NORMAL,
-      createdById: parents[0].userId,
+      createdById: students[0].userId!,
       createdAt: daysAgo(1),
     },
   });
   await prisma.ticketMessage.create({
     data: {
       ticketId: ticket2.id,
-      senderId: parents[0].userId,
+      senderId: students[0].userId!,
       body: 'أرجو تحديث رقم الجوال المسجل لدى الحلقة.',
       createdAt: daysAgo(1),
     },
@@ -880,10 +853,10 @@ async function main() {
   const directConversation = await prisma.conversation.create({
     data: {
       type: ConversationType.DIRECT,
-      createdById: parents[0].userId,
+      createdById: students[0].userId!,
       lastMessageAt: daysAgo(0),
       members: {
-        create: [{ userId: parents[0].userId }, { userId: teachers[0].userId }],
+        create: [{ userId: students[0].userId! }, { userId: teachers[0].userId }],
       },
     },
   });
@@ -891,8 +864,8 @@ async function main() {
     data: [
       {
         conversationId: directConversation.id,
-        senderId: parents[0].userId,
-        body: 'السلام عليكم أستاذ، كيف مستوى ابني في الحلقة؟',
+        senderId: students[0].userId!,
+        body: 'السلام عليكم أستاذ، كيف مستواي في الحلقة؟',
         createdAt: daysAgo(1),
       },
       {
@@ -937,11 +910,11 @@ async function main() {
         link: '/chat',
       },
       {
-        userId: parents[0].userId,
+        userId: students[0].userId!,
         type: NotificationType.EXAM_SCHEDULED,
         title: 'موعد اختبار قادم',
-        body: 'تم تحديد موعد اختبار لابنكم',
-        link: '/parent/children',
+        body: 'تم تحديد موعد اختبارك؛ راجع ملفك الدراسي',
+        link: '/student',
       },
       {
         userId: support.id,
@@ -1179,10 +1152,10 @@ async function main() {
         publishedAt: daysAgo(6),
       },
       {
-        title: 'اجتماع أولياء الأمور',
-        body: 'اجتماع أولياء الأمور يوم الخميس القادم بعد صلاة المغرب في مصلى الجامع.',
-        link: '/parent/children',
-        audience: [Role.PARENT],
+        title: 'لقاء الطلاب',
+        body: 'لقاء الطلاب يوم الخميس القادم بعد صلاة المغرب في مصلى الجامع.',
+        link: '/student',
+        audience: [Role.STUDENT],
         createdById: admin.id,
         publishedAt: daysAgo(1),
         expiresAt: daysAhead(10),
@@ -1220,7 +1193,7 @@ async function main() {
     { الدور: 'مشرف', 'اسم المستخدم': 'supervisor1', 'كلمة المرور': PASSWORD },
     { الدور: 'معلم', 'اسم المستخدم': 'teacher1', 'كلمة المرور': PASSWORD },
     { الدور: 'لجنة اختبارات', 'اسم المستخدم': 'committee1', 'كلمة المرور': PASSWORD },
-    { الدور: 'ولي أمر', 'اسم المستخدم': 'parent1', 'كلمة المرور': PASSWORD },
+    { الدور: 'طالب', 'اسم المستخدم': 'student1', 'كلمة المرور': PASSWORD },
     { الدور: 'دعم فني', 'اسم المستخدم': 'support', 'كلمة المرور': PASSWORD },
   ]);
 }

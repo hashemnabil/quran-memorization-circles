@@ -17,7 +17,7 @@ export interface AuthUser {
   fullName: string;
   role: Role;
   teacherId?: string | null;
-  parentId?: string | null;
+  mustChangePassword?: boolean;
 }
 
 /** Injects the authenticated user (or one of its properties) into a handler. */

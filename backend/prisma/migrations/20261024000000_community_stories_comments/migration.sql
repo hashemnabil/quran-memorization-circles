@@ -1,0 +1,11 @@
+ALTER TABLE "CommunityComment" ADD COLUMN IF NOT EXISTS "parentId" TEXT;
+CREATE TABLE IF NOT EXISTS "CommunityCommentLike" ("userId" TEXT NOT NULL, "commentId" TEXT NOT NULL, CONSTRAINT "CommunityCommentLike_pkey" PRIMARY KEY ("userId","commentId"));
+CREATE TABLE IF NOT EXISTS "CommunityStory" ("id" TEXT NOT NULL, "authorId" TEXT NOT NULL, "body" VARCHAR(500) NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "expiresAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "CommunityStory_pkey" PRIMARY KEY ("id"));
+CREATE TABLE IF NOT EXISTS "CommunityStoryView" ("storyId" TEXT NOT NULL, "userId" TEXT NOT NULL, "liked" BOOLEAN NOT NULL DEFAULT false, "viewedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "CommunityStoryView_pkey" PRIMARY KEY ("storyId","userId"));
+CREATE INDEX IF NOT EXISTS "CommunityStory_expiresAt_idx" ON "CommunityStory"("expiresAt");
+ALTER TABLE "CommunityComment" ADD CONSTRAINT "CommunityComment_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "CommunityComment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CommunityCommentLike" ADD CONSTRAINT "CommunityCommentLike_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CommunityCommentLike" ADD CONSTRAINT "CommunityCommentLike_commentId_fkey" FOREIGN KEY ("commentId") REFERENCES "CommunityComment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CommunityStory" ADD CONSTRAINT "CommunityStory_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CommunityStoryView" ADD CONSTRAINT "CommunityStoryView_storyId_fkey" FOREIGN KEY ("storyId") REFERENCES "CommunityStory"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CommunityStoryView" ADD CONSTRAINT "CommunityStoryView_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

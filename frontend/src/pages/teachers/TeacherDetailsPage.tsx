@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -40,7 +41,7 @@ export default function TeacherDetailsPage() {
   if (isError || !teacher) return <ErrorState message="تعذر تحميل بيانات المعلم" onRetry={() => refetch()} />;
 
   const isSelf = user.teacherId === teacher.id;
-  const canEdit = user.role === 'ADMIN' || isSelf;
+  const canEdit = (user.role === 'ADMIN' || user.role === 'FOUNDER') || isSelf;
 
   const active = teacher.circleRoles?.filter((r) => !r.endedAt) ?? [];
   const past = teacher.circleRoles?.filter((r) => r.endedAt) ?? [];
@@ -60,7 +61,8 @@ export default function TeacherDetailsPage() {
         subtitle={`${teacher.qualification ?? 'معلم'} • ${EMPLOYMENT_LABELS[teacher.employmentType]}`}
         action={
           <>
-            {canEdit && (
+            {isSelf && user.role === 'TEACHER' && <Link to="/verify-profile"><Button size="sm" variant="secondary">تحقق من بياناتي</Button></Link>}
+            {canEdit && (user.role === 'ADMIN' || user.role === 'FOUNDER') && (
               <Button size="sm" variant="secondary" icon={<IconEdit size={15} />} onClick={() => setModal('edit')}>
                 تعديل
               </Button>
@@ -101,7 +103,7 @@ export default function TeacherDetailsPage() {
           <Row label="التخصص" value={teacher.specialization} />
           <Row label="نوع التعاقد" value={EMPLOYMENT_LABELS[teacher.employmentType]} />
           <Row label="تاريخ التعيين" value={formatDate(teacher.hireDate)} />
-          {user.role === 'ADMIN' && teacher.salary != null && (
+          {(user.role === 'ADMIN' || user.role === 'FOUNDER') && teacher.salary != null && (
             <Row label="الراتب" value={<span className="numeric">{Number(teacher.salary).toLocaleString('en-US')}</span>} />
           )}
           <Row label="آخر دخول" value={formatDate(teacher.user.lastLoginAt)} />
@@ -215,7 +217,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 function EditTeacherModal({ teacher, onClose }: { teacher: TeacherProfile; onClose: () => void }) {
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
-  const isAdmin = user.role === 'ADMIN';
+  const isAdmin = (user.role === 'ADMIN' || user.role === 'FOUNDER');
 
   const [form, setForm] = useState({
     fullName: teacher.user.fullName,
@@ -246,8 +248,8 @@ function EditTeacherModal({ teacher, onClose }: { teacher: TeacherProfile; onClo
           };
       return api.patch(`/teachers/${teacher.id}`, payload);
     },
-    onSuccess: () => {
-      toast.success('تم تحديث بيانات المعلم');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم تحديث بيانات المعلم');
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
       onClose();
     },

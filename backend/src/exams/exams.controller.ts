@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser, Roles } from '../common/decorators';
@@ -11,6 +11,7 @@ import {
   ReviewExamRequestDto,
   ScheduleExamDto,
   UpdateExamDto,
+  UpdateExamRequestNoteDto,
   UpdateExamMilestoneDto,
 } from './dto/exam.dto';
 import { ExamsService } from './exams.service';
@@ -20,6 +21,25 @@ import { ExamsService } from './exams.service';
 @Controller('exams')
 export class ExamsController {
   constructor(private readonly service: ExamsService) {}
+  @Delete(':id')
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) { return this.service.removeUngraded(user, id); }
+
+  @Get('committees/:id/grading-settings')
+  @Roles(Role.ADMIN,Role.EXAM_COMMITTEE)
+  committeeGradingSettings(@Param('id') id:string){return this.service.committeeGradingSettings(id);}
+
+  @Patch('committees/:id/grading-settings')
+  @Roles(Role.ADMIN,Role.EXAM_COMMITTEE)
+  updateCommitteeGradingSettings(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body() dto:{mistakePenalty:number;alertPenalty:number}){return this.service.updateCommitteeGradingSettings(user,id,dto);}
+
+  @Get('grading-settings')
+  @Roles(Role.ADMIN,Role.EXAM_COMMITTEE)
+  gradingSettings(){return this.service.gradingSettings();}
+
+  @Patch('grading-settings')
+  @Roles(Role.ADMIN)
+  updateGradingSettings(@CurrentUser() user:AuthUser,@Body() dto:{mistakePenalty:number;alertPenalty:number}){return this.service.updateGradingSettings(user,dto);}
 
   // --- reference ----------------------------------------------------------
 
@@ -73,6 +93,12 @@ export class ExamsController {
     return this.service.updateMilestoneRecord(user, studentId, sectionId, dto);
   }
 
+  @Patch('combined-milestones/:studentId/:stageCode')
+  @Roles(Role.ADMIN)
+  updateCombinedMilestone(@CurrentUser() user:AuthUser,@Param('studentId') studentId:string,@Param('stageCode') stageCode:string,@Body() dto:UpdateExamMilestoneDto){
+    return this.service.updateCombinedMilestone(user,studentId,stageCode,dto);
+  }
+
   @Get('eligibility/:studentId')
   @ApiOperation({ summary: 'أهلية الطالب للاختبار وتسلسل المقررات' })
   eligibility(@CurrentUser() user: AuthUser, @Param('studentId') studentId: string) {
@@ -98,6 +124,12 @@ export class ExamsController {
   @ApiOperation({ summary: 'تقديم طلب اختبار لطالب' })
   requestExam(@CurrentUser() user: AuthUser, @Body() dto: CreateExamRequestDto) {
     return this.service.requestExam(user, dto);
+  }
+
+  @Patch('requests/:id')
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
+  updateRequestNote(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateExamRequestNoteDto) {
+    return this.service.updateRequestNote(user, id, dto);
   }
 
   @Patch('requests/:id/reject')

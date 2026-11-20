@@ -1,3 +1,4 @@
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { FormEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -28,7 +29,6 @@ const AUDIENCE_ROLES: Role[] = [
   'SUPERVISOR',
   'TEACHER',
   'EXAM_COMMITTEE',
-  'PARENT',
   'SUPPORT',
 ];
 
@@ -39,7 +39,6 @@ const LINK_OPTIONS = [
   { value: '/circles', label: 'الحلقات' },
   { value: '/exams', label: 'الاختبارات' },
   { value: '/students', label: 'الطلاب' },
-  { value: '/parent/children', label: 'متابعة الأبناء (لأولياء الأمور)' },
   { value: '/support', label: 'الدعم الفني' },
 ];
 
@@ -67,8 +66,8 @@ export default function AnnouncementsPage() {
   const remove = useMutation({
     mutationFn: async (id: string) =>
       (await api.delete(`/announcements/${id}`)).data,
-    onSuccess: () => {
-      toast.success('تم حذف الإعلان');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حذف الإعلان');
       void qc.invalidateQueries({ queryKey: ['announcements'] });
     },
     onError: (err) => toast.error(apiError(err, 'تعذر حذف الإعلان')),
@@ -332,8 +331,8 @@ function AnnouncementForm({
           ).data
         : (await api.post('/announcements', payload)).data,
 
-    onSuccess: () => {
-      toast.success(
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult,
         announcement ? 'تم تحديث الإعلان' : 'تم نشر الإعلان',
       );
 

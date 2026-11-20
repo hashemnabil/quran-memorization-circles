@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.abdullahschool.myapp",
+      "sha256_cert_fingerprints": [
+        "F5:7E:39:62:BF:DF:69:58:66:0D:92:44:5D:53:E8:0F:44:20:C6:AC:50:32:1E:B3:C6:E1:4B:B3:93:C1:22:96",
+        "B0:69:FF:A7:DF:F7:E3:75:62:1C:85:B0:85:A9:48:81:5D:F7:EA:51:2F:36:19:F4:16:93:07:72:CD:24:99:B6"
+      ]
+    }
+  }
+]

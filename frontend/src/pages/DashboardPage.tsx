@@ -1,4 +1,7 @@
 import { Link } from 'react-router-dom';
+import PrayerCard from '@/components/PrayerCard';
+import HonorRoll, { CircleHonorRoll } from '@/components/HonorRoll';
+import DailyOverview from '@/components/DailyOverview';
 import { useQuery } from '@tanstack/react-query';
 import {
   Area,
@@ -16,6 +19,7 @@ import {
   YAxis,
 } from 'recharts';
 import { api } from '@/lib/api';
+import { localDashboard } from '@/lib/local-analytics';
 import { useAuthStore } from '@/store/auth';
 import {
   Badge,
@@ -29,6 +33,9 @@ import {
   cx,
 } from '@/components/ui';
 import {
+  IconBell,
+  IconChat,
+  IconUser,
   IconAward,
   IconBook,
   IconCalendar,
@@ -61,19 +68,66 @@ import type { Evaluation } from '@/types';
 
 const CHART_COLORS = ['#1d7c55', '#dc2626', '#d98c26', '#0284c7'];
 
+export function dashboardGreeting(fullName: string, role: string, date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Gaza', weekday: 'short', hour: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  const weekday = parts.find(part => part.type === 'weekday')?.value;
+  const hour = Number(parts.find(part => part.type === 'hour')?.value ?? 12);
+  const name = role === 'TEACHER' ? `شيخ ${fullName}` : fullName;
+  const salutation = weekday === 'Fri'
+    ? 'جمعة مباركة'
+    : hour >= 5 && hour < 12
+      ? 'صباح الخير'
+      : hour >= 12 && hour < 18
+        ? 'طاب يومك'
+        : hour >= 18 && hour < 23
+          ? 'مساء الخير'
+          : 'ليلة مباركة';
+  return `${salutation}، ${name} · ${ROLE_LABELS[role as keyof typeof ROLE_LABELS] ?? role}`;
+}
+
+const DAILY_ENCOURAGEMENTS = [
+  'خطوة صغيرة مع القرآن اليوم تصنع أثراً كبيراً غداً.',
+  'بارك الله في وقتك، واجعل إنجازك اليوم خالصاً ومثمراً.',
+  'كل آية تُتقنها نور، وكل طالب تعينه أجر ممتد.',
+  'ابدأ يومك بنية طيبة؛ فالبركة تسكن البدايات الصادقة.',
+  'إنجاز اليوم يبني ثمرة الغد، فامضِ بهدوء وثبات.',
+  'جعلك الله مفتاحاً للخير، وكتب لك أثر ما تعلّم وتعلّم.',
+  'يوم جديد وفرصة أجمل لخدمة كتاب الله وأهله.',
+  'بالاستمرار تصنع الفرق، وبالإخلاص يبارك الله في القليل.',
+  'رتّب أولوياتك، وابدأ بالأهم، واستعن بالله في كل خطوة.',
+  'أحسن العمل اليوم؛ فالأثر الجميل يبقى وإن مضى الوقت.',
+] as const;
+
+export function dashboardEncouragement(accountKey: string, date = new Date()) {
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Gaza', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  const seed = `${accountKey}:${day}`;
+  const hash = [...seed].reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 0);
+  return DAILY_ENCOURAGEMENTS[hash % DAILY_ENCOURAGEMENTS.length];
+}
+
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)!;
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['dashboard', 'overview'],
-    queryFn: async () => (await api.get('/dashboard/overview')).data,
-    refetchInterval: 120000,
+    queryFn: async () => {
+      try { return (await api.get('/dashboard/overview')).data; }
+      catch (error) {
+        if (navigator.onLine) return localDashboard(user.role);
+        return localDashboard(user.role);
+      }
+    },
   });
 
   if (isLoading) {
     return (
       <>
         <PageHeader title="الرئيسية" subtitle="جارٍ تجهيز ملخص اليوم..." />
+        <HonorRoll />
+        <CircleHonorRoll />
+        <PrayerCard />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="card h-24 animate-pulse" />
@@ -83,39 +137,49 @@ export default function DashboardPage() {
     );
   }
 
-  if (isError || !data) {
-    return <ErrorState message="تعذر تحميل لوحة المعلومات" onRetry={() => refetch()} />;
+  if (!data) {
+    return <><HonorRoll /><CircleHonorRoll /><PrayerCard /><ErrorState message="تعذر تحميل لوحة المعلومات" onRetry={() => refetch()} /></>;
   }
 
-  const greeting = `${ROLE_LABELS[user.role]} — ${user.fullName}`;
+  const greeting = dashboardGreeting(user.fullName, user.role);
 
   return (
     <>
-      <PageHeader
-        title="الرئيسية"
-        subtitle={greeting}
-        action={
-          <Badge className="bg-primary-50 text-primary-700">
-            {new Intl.DateTimeFormat('ar-EG', { dateStyle: 'full', numberingSystem: 'latn' }).format(new Date())}
-          </Badge>
-        }
-      />
+      <header className="mb-3 flex flex-wrap items-end justify-between gap-3 border-b border-emerald-900/10 pb-3" dir="rtl">
+        <div className="min-w-0">
+          <p className="mb-1 text-[11px] font-bold text-emerald-700">الرئيسية</p>
+          <h1 className="text-xl font-extrabold leading-snug text-slate-800 sm:text-2xl">{greeting}</h1>
+          <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">{dashboardEncouragement(user.id)}</p>
+        </div>
+        <Badge className="bg-emerald-50 text-emerald-800">
+          {new Intl.DateTimeFormat('ar-EG', { dateStyle: 'full', numberingSystem: 'latn', timeZone: 'Asia/Gaza' }).format(new Date())}
+        </Badge>
+      </header>
 
-      <section className="relative mb-6 overflow-hidden rounded-[1.5rem] border border-primary-800/10 border-b-4 border-b-gold-400 bg-gradient-to-l from-primary-950 via-primary-900 to-primary-700 px-5 py-7 text-white shadow-card sm:px-8 sm:py-8">
-        <div className="pointer-events-none absolute -left-8 -top-10 h-40 w-40 rounded-full border-[24px] border-white/5" aria-hidden />
-        <div className="pointer-events-none absolute -bottom-16 right-[42%] h-40 w-40 rounded-full border border-gold-300/15" aria-hidden />
-        <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-          <div className="max-w-2xl">
-            <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-gold-200/25 bg-gold-200/10 px-3 py-1.5 text-xs font-bold tracking-wide text-gold-100"><span className="h-1.5 w-1.5 rounded-full bg-gold-300" /> نظام إدارة حلقات تحفيظ القرآن الكريم</p>
-            <h2 className="text-2xl font-extrabold leading-relaxed sm:text-3xl">أهلاً وسهلاً، {user.fullName}</h2>
-            <p className="mt-2 max-w-xl text-sm leading-7 text-primary-100/90">كل ما تحتاجه لمتابعة حلقات التحفيظ والمهام اليومية، مرتب أمامك في مكان واحد.</p>
+      <div className="dashboard-home-hero mb-3 grid items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
+      <section className="overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-l from-emerald-50 via-white to-white p-3 shadow-sm sm:p-4" aria-label="ملخص المدرسة">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div><p className="text-[11px] font-bold text-emerald-700">مدرستنا بالأرقام</p><h2 className="mt-0.5 text-lg font-extrabold text-slate-800">مجتمع القرآن الكريم</h2></div>
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">إحصائيات المدرسة</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="flex items-center gap-2.5 rounded-xl border border-emerald-100 bg-white p-3 shadow-sm">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700"><IconGraduation size={20}/></span>
+            <div><p className="text-[11px] font-semibold text-slate-500">عدد الطلاب</p><strong className="numeric text-xl font-black text-slate-800">{data.schoolStats?.students ?? data.counts?.students ?? '—'}</strong></div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link to="/support" className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-bold transition hover:bg-white/20"><IconLifeBuoy size={17} /> الدعم الفني</Link>
-            <Link to="/notifications" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-bold text-primary-900 transition hover:bg-primary-50"><IconCalendar size={17} /> الإشعارات</Link>
+          <div className="flex items-center gap-2.5 rounded-xl border border-sky-100 bg-white p-3 shadow-sm">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-700"><IconCircleGroup size={20}/></span>
+            <div><p className="text-[11px] font-semibold text-slate-500">عدد الحلقات</p><strong className="numeric text-xl font-black text-slate-800">{data.schoolStats?.circles ?? data.counts?.circles ?? '—'}</strong></div>
           </div>
         </div>
       </section>
+      <PrayerCard />
+      </div>
+      <section className="dashboard-honor-grid mb-3 grid items-start gap-3 xl:grid-cols-2" aria-label="لوحات الشرف">
+        <HonorRoll />
+        <CircleHonorRoll />
+      </section>
+      <DailyOverview/>
 
       <section className="mb-6">
         <div className="mb-3 flex items-end justify-between gap-3">
@@ -128,12 +192,12 @@ export default function DashboardPage() {
         <QuickAccess role={data.role} />
       </section>
 
+      {['ADMIN','SUPERVISOR','TEACHER','EXAM_COMMITTEE'].includes(data.role)&&<section aria-label="إحصائيات المدرسة" className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">{[{label:'الحلقات',value:data.counts?.circles,path:'/circles'},{label:'الطلاب',value:data.counts?.students,path:'/students'},{label:'الدورات',value:data.counts?.courses,path:'/courses'},{label:'الاختبارات',value:data.counts?.exams,path:'/exams'},{label:'طلاب طلبوا اختبارًا',value:data.counts?.examApplicants,path:'/exams'}].map(item=><StatCard key={item.label} label={item.label} value={item.value??0}/>)}</section>}
       {data.role === 'ADMIN' && <AdminDashboard data={data} />}
       {data.role === 'SUPERVISOR' && <SupervisorDashboard data={data} />}
       {data.role === 'TEACHER' && <TeacherDashboard data={data} />}
       {data.role === 'EXAM_COMMITTEE' && <CommitteeDashboard data={data} />}
       {data.role === 'SUPPORT' && <SupportDashboard data={data} />}
-      {data.role === 'PARENT' && <ParentDashboard data={data} />}
     </>
   );
 }
@@ -160,23 +224,18 @@ function QuickAccess({ role }: { role: string }) {
   ] : role === 'EXAM_COMMITTEE' ? [
     { to: '/exams', label: 'الاختبارات', detail: 'المواعيد والطلبات', icon: <IconAward size={21} />, tone: 'mint' },
     { to: '/students', label: 'الطلاب', detail: 'الوصول لملفات الطلاب', icon: <IconGraduation size={21} />, tone: 'blue' },
-    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'amber' },
-    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconUsers size={21} />, tone: 'violet' },
+    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconBell size={21} />, tone: 'amber' },
+    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconChat size={21} />, tone: 'violet' },
   ] : role === 'SUPPORT' ? [
     { to: '/support', label: 'طلبات الدعم', detail: 'متابعة التذاكر', icon: <IconLifeBuoy size={21} />, tone: 'mint' },
-    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'blue' },
-    { to: '/profile', label: 'الملف الشخصي', detail: 'بيانات حسابك', icon: <IconUsers size={21} />, tone: 'amber' },
-    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconUsers size={21} />, tone: 'violet' },
-  ] : role === 'PARENT' ? [
-    { to: '/profile', label: 'الملف الشخصي', detail: 'بيانات حسابك', icon: <IconGraduation size={21} />, tone: 'mint' },
-    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'blue' },
-    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع المدرسة', icon: <IconUsers size={21} />, tone: 'amber' },
-    { to: '/support', label: 'الدعم الفني', detail: 'مساعدة ومتابعة الطلبات', icon: <IconLifeBuoy size={21} />, tone: 'violet' },
+    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconBell size={21} />, tone: 'blue' },
+    { to: '/profile', label: 'الملف الشخصي', detail: 'بيانات حسابك', icon: <IconUser size={21} />, tone: 'amber' },
+    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع الفريق', icon: <IconChat size={21} />, tone: 'violet' },
   ] : [
     { to: '/student', label: 'ملفي الدراسي', detail: 'متابعة تقدمك', icon: <IconGraduation size={21} />, tone: 'mint' },
     { to: '/my-files', label: 'ملفاتي', detail: 'الملفات والشهادات', icon: <IconBook size={21} />, tone: 'blue' },
-    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconCalendar size={21} />, tone: 'amber' },
-    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع المعلمين', icon: <IconUsers size={21} />, tone: 'violet' },
+    { to: '/notifications', label: 'الإشعارات', detail: 'آخر المستجدات', icon: <IconBell size={21} />, tone: 'amber' },
+    { to: '/chat', label: 'المحادثات', detail: 'التواصل مع المعلمين', icon: <IconChat size={21} />, tone: 'violet' },
   ];
 
   const tones: Record<string, string> = {
@@ -193,7 +252,6 @@ function QuickAccess({ role }: { role: string }) {
           <span className={cx('grid h-12 w-12 shrink-0 place-items-center rounded-2xl ring-1 transition group-hover:scale-105', tones[item.tone])}>{item.icon}</span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-extrabold text-slate-800">{item.label}</span>
-            <span className="mt-1 block truncate text-xs text-slate-500">{item.detail}</span>
           </span>
           <span className="text-slate-300 transition group-hover:-translate-x-0.5 group-hover:text-primary-600" aria-hidden>←</span>
         </Link>
@@ -342,9 +400,12 @@ function AdminDashboard({ data }: { data: any }) {
       <div className="grid gap-5 lg:grid-cols-3">
         <Card title="الطلبات المعلقة" subtitle="بانتظار قرار الإدارة" className="lg:col-span-1">
           <div className="space-y-2">
+            <PendingRow to="/students?approval=false" label="طلاب بانتظار الاعتماد" count={data.counts.unapprovedStudents ?? 0} icon={<IconGraduation size={17} />} tone="bg-amber-50 text-amber-700" />
+            <PendingRow to="/student-summons" label="إنذارات آخر 30 يومًا" count={data.counts.recentWarnings ?? 0} icon={<IconBell size={17} />} tone="bg-rose-50 text-rose-700" />
             <PendingRow to="/transfers" label="طلبات النقل" count={data.pending.transfers} icon={<IconExchange size={17} />} tone="bg-sky-50 text-sky-600" />
             <PendingRow to="/suspensions" label="طلبات الإيقاف" count={data.pending.suspensions} icon={<IconPause size={17} />} tone="bg-red-50 text-red-600" />
             <PendingRow to="/exams" label="طلبات الاختبار" count={data.pending.examRequests} icon={<IconAward size={17} />} tone="bg-gold-50 text-gold-700" />
+            <PendingRow to="/exams" label="اختبارات قادمة" count={data.upcomingExamsCount ?? 0} icon={<IconCalendar size={17} />} tone="bg-violet-50 text-violet-700" />
             <PendingRow to="/support" label="تذاكر الدعم المفتوحة" count={data.pending.supportTickets} icon={<IconLifeBuoy size={17} />} tone="bg-slate-100 text-slate-600" />
           </div>
         </Card>
@@ -420,7 +481,7 @@ function AdminDashboard({ data }: { data: any }) {
           )}
         </Card>
 
-        <Card title="النشاط الأخير">
+        <Card title="النشاط الأخير" action={<Link to="/admin/activity" className="inline-flex min-h-11 items-center font-bold text-primary-700">عرض الكل</Link>}>
           {data.activity?.length ? (
             <ul className="space-y-3">
               {data.activity.slice(0, 8).map((entry: any) => (
@@ -722,90 +783,6 @@ function SupportDashboard({ data }: { data: any }) {
           <EmptyState title="لا توجد تذاكر مفتوحة" icon={<IconLifeBuoy size={24} />} />
         )}
       </Card>
-    </div>
-  );
-}
-
-// --- parent -----------------------------------------------------------------
-
-function ParentDashboard({ data }: { data: any }) {
-  return (
-    <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="عدد الأبناء" value={data.counts.children} icon={<IconGraduation size={22} />} />
-        <StatCard label="غياب هذا الشهر" value={data.counts.absencesThisMonth} icon={<IconClipboard size={22} />} tone="amber" />
-        <StatCard label="موقوفون" value={data.counts.suspended} icon={<IconPause size={22} />} tone="red" />
-      </div>
-
-      <Card title="أبنائي" action={<Link to="/parent/children" className="text-xs font-bold text-primary-700 hover:underline">المتابعة التفصيلية</Link>} padded={false}>
-        {data.children?.length ? (
-          <ul className="divide-y divide-slate-100">
-            {data.children.map((child: any) => (
-              <li key={child.id}>
-                <Link to={`/parent/children/${child.id}`} className="flex flex-wrap items-center gap-3 px-5 py-4 transition hover:bg-slate-50">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold text-slate-800">{child.fullName}</p>
-                    <p className="numeric text-xs text-slate-400">{formatParts(child.memorizedParts)} جزء محفوظ</p>
-                  </div>
-                  {child.evaluation && (
-                    <Badge className={EVALUATION_COLORS[child.evaluation as Evaluation]}>
-                      {EVALUATION_LABELS[child.evaluation as Evaluation]}
-                    </Badge>
-                  )}
-                  <Badge className={STUDENT_STATUS_COLORS[child.status as keyof typeof STUDENT_STATUS_COLORS]}>
-                    {STUDENT_STATUS_LABELS[child.status as keyof typeof STUDENT_STATUS_LABELS]}
-                  </Badge>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState title="لا يوجد أبناء مرتبطون بحسابك" message="يرجى مراجعة الإدارة لربط أبنائك بالحساب." icon={<IconGraduation size={24} />} />
-        )}
-      </Card>
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="الاختبارات القادمة">
-          {data.upcomingExams?.length ? (
-            <ul className="divide-y divide-slate-100">
-              {data.upcomingExams.map((exam: any) => (
-                <li key={exam.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-700">{exam.student.fullName}</p>
-                    <p className="text-xs text-slate-400">{describeExamSections(exam.section, exam.sections)}</p>
-                  </div>
-                  <p className="text-xs font-bold text-slate-600">{formatDateTime(exam.scheduledAt)}</p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState title="لا توجد اختبارات مجدولة" icon={<IconAward size={24} />} />
-          )}
-        </Card>
-
-        <Card title="آخر التسميع">
-          {data.recentRecitations?.length ? (
-            <ul className="divide-y divide-slate-100">
-              {data.recentRecitations.map((r: any) => (
-                <li key={r.id} className="py-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-700">{r.student.fullName}</p>
-                    {r.score != null && (
-                      <Badge className="bg-primary-50 text-primary-700 numeric">{r.score}/100</Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    {r.fromSurah} <span className="numeric">{r.fromAyah}</span> — {r.toSurah}{' '}
-                    <span className="numeric">{r.toAyah}</span> • {formatDateShort(r.date)}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState title="لا توجد سجلات تسميع" icon={<IconBook size={24} />} />
-          )}
-        </Card>
-      </div>
     </div>
   );
 }

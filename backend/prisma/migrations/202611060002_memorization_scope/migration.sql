@@ -1,0 +1,3 @@
+ALTER TABLE "memorization_plans" ADD COLUMN IF NOT EXISTS "scope" JSONB;
+ALTER TABLE "memorization_progress" ADD COLUMN IF NOT EXISTS "itemIds" INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[];
+ALTER TABLE "memorization_progress" ADD COLUMN IF NOT EXISTS "versesCount" INTEGER NOT NULL DEFAULT 0;

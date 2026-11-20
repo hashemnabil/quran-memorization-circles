@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { Type } from 'class-transformer';
 
 /**
  * School information is entirely optional: a small mosque should be able to
@@ -16,6 +17,80 @@ const filled = (o: Record<string, unknown>, key: string) =>
   o[key] !== null && o[key] !== undefined && o[key] !== '';
 
 export class UpdateSettingsDto {
+  @ApiPropertyOptional()
+  @IsOptional() @Transform(blankToNull) @IsString() @MaxLength(120)
+  donationBankPalestine?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional() @Transform(blankToNull) @IsString() @MaxLength(120)
+  donationIslamicBank?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional() @Transform(blankToNull) @IsString() @MaxLength(120)
+  donationJawwal?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional() @Transform(blankToNull) @IsString() @MaxLength(120)
+  donationPalPay?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  donationsEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(blankToNull)
+  @IsString()
+  @MaxLength(150)
+  donationTitle?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(blankToNull)
+  @IsString()
+  @MaxLength(2000)
+  donationDescription?: string | null;
+
+  @ApiPropertyOptional({ description: 'Donation campaign target in the school currency' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1000000000)
+  donationGoalAmount?: number | null;
+
+  @ApiPropertyOptional({ description: 'Manually reported donated amount' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1000000000)
+  donationRaisedAmount?: number | null;
+
+  @ApiPropertyOptional({ description: 'Optional currency label, such as SAR or JOD' })
+  @IsOptional()
+  @Transform(blankToNull)
+  @IsString()
+  @MaxLength(12)
+  donationCurrency?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(blankToNull)
+  @IsString()
+  @MaxLength(500)
+  donationMethod?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(blankToNull)
+  @ValidateIf((o) => filled(o, 'donationLink'))
+  @IsString()
+  @Matches(/^https?:\/\//i, { message: 'Donation link must use HTTPS or HTTP' })
+  @MaxLength(500)
+  donationLink?: string | null;
+
   @ApiPropertyOptional({ example: 'حلقات تحفيظ القرآن الكريم' })
   @IsOptional()
   @Transform(blankToNull)

@@ -15,6 +15,7 @@ import {
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export class AttendanceEntryDto {
+  @IsOptional() @IsString() @MaxLength(60) customStatus?: string;
   @ApiProperty()
   @IsUUID('4', { message: 'معرّف الطالب غير صالح' })
   studentId: string;
@@ -55,6 +56,7 @@ export class RecordAttendanceDto {
  * this carries.
  */
 export class UpdateAttendanceEntryDto {
+  @IsOptional() @IsString() @MaxLength(60) customStatus?: string;
   @ApiProperty({ enum: AttendanceStatus })
   @IsEnum(AttendanceStatus, { message: 'حالة الحضور غير صالحة' })
   status: AttendanceStatus;

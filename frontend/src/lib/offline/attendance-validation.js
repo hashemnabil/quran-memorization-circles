@@ -1,4 +1,4 @@
-export const ATTENDANCE_STATUSES = new Set(['PRESENT', 'ABSENT', 'EXCUSED']);
+export const ATTENDANCE_STATUSES = new Set(['PRESENT', 'LATE', 'ABSENT', 'EXCUSED']);
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -45,6 +45,7 @@ export function validateAttendancePayload(payload, now = new Date()) {
     if (!ATTENDANCE_STATUSES.has(entry.status)) {
       return 'حالة الحضور غير صالحة';
     }
+    if(entry.customStatus!==undefined&&entry.customStatus!==null&&(typeof entry.customStatus!=='string'||!/^[-a-zA-Z0-9_]{1,60}$/.test(entry.customStatus)))return 'حالة الحضور الإضافية غير صالحة';
     if (entry.note !== undefined && entry.note !== null &&
       (typeof entry.note !== 'string' || entry.note.length > 300)) {
       return 'ملاحظة الحضور غير صالحة';

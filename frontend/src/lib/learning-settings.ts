@@ -1,0 +1,3 @@
+import {api} from './api';import {resolveRules,type LearningRules} from './learning-rules';
+export async function fetchLearningSettings(circleId?:string):Promise<LearningRules>{const data=(await api.get<LearningRules>('/recitations/learning-settings',{params:{circleId:circleId||undefined}})).data;if(!data||typeof data.revision!=='string'||!Array.isArray(data.types)||!Array.isArray(data.attendance))throw Error('تعذر تحميل قواعد التقييم؛ حدّث البيانات عند الاتصال');return resolveRules(data);}
+export async function fetchCircleOptions():Promise<{id:string;name:string}[]>{const data=(await api.get<{id:string;name:string}[]>('/circles/options')).data;if(!Array.isArray(data))throw Error('تعذر تحميل خيارات الحلقات');return data;}

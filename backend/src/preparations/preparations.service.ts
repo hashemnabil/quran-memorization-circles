@@ -39,9 +39,7 @@ const INCLUDE = {
 /**
  * "Prepare Al-Baqarah 1–20 for the next session."
  *
- * The teacher sets the passage; the guardian is notified the moment it is
- * created, so a parent does not have to open the app to find out what their
- * child owes.
+ * The teacher sets the passage; the student receives the assignment directly.
  */
 @Injectable()
 export class PreparationsService {
@@ -101,7 +99,7 @@ export class PreparationsService {
       include: INCLUDE,
     });
 
-    await this.notifyGuardian(assignment.studentId, student.fullName, dto);
+    await this.notifyStudent(assignment.studentId, student.fullName, dto);
 
     await this.activity.log({
       userId: actor.id,
@@ -175,30 +173,22 @@ export class PreparationsService {
 
   // -------------------------------------------------------------------------
 
-  private async notifyGuardian(
+  private async notifyStudent(
     studentId: string,
     studentName: string,
     dto: CreatePreparationDto,
   ) {
-    const student = await this.prisma.student.findUnique({
-      where: { id: studentId },
-      select: { parentProfile: { select: { userId: true } } },
-    });
-    if (!student?.parentProfile?.userId) return;
-
     const range =
       dto.fromSurah === dto.toSurah
         ? `${dto.fromSurah} من الآية ${dto.fromAyah} إلى ${dto.toAyah}`
         : `من ${dto.fromSurah} (${dto.fromAyah}) إلى ${dto.toSurah} (${dto.toAyah})`;
 
-    await this.notifications.notify({
-      userId: student.parentProfile.userId,
+    await this.notifications.notifyStudent(studentId, {
       type: NotificationType.PREPARATION,
       title: 'تحضير مطلوب',
-      body: `ابنكم ${studentName} لديه تحضير ${range}، يُرجى تحضيره للتسميع القادم${
+      body: `الطالب ${studentName} لديه تحضير ${range}، يُرجى تحضيره للتسميع القادم${
         dto.dueDate ? ` بتاريخ ${dto.dueDate}` : ''
       }`,
-      link: `/parent/children/${studentId}`,
     });
   }
 

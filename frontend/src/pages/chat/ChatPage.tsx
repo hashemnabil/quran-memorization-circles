@@ -1,11 +1,17 @@
+import CommunityImage from '@/pages/community/CommunityImage';
+import LinkedText from '@/components/LinkedText';
+import { notifyWriteSuccess } from '@/lib/write-feedback';
+import { BackgroundChoice, useCuratedBackground } from '@/components/CuratedBackground';
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
+import { cancelRejectedMessageChange } from '@/lib/local-api';
 import { getSocket } from '@/lib/socket';
 import { useAuthStore } from '@/store/auth';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useChatViewport } from '@/hooks/useChatViewport';
 import {
   Avatar,
   Badge,
@@ -37,10 +43,30 @@ import {
 import { ROLE_COLORS, ROLE_LABELS } from '@/lib/labels';
 import { timeAgo } from '@/lib/format';
 import type { ChatMessage, Conversation, PaginatedResponse, Role } from '@/types';
+import { groupInviteUrl } from '@/lib/app-links';
+import ReportContentDialog, { type ReportTarget } from '@/components/ReportContentDialog';
+
+type SharedPost = { id:string; body:string; mediaIds?:string[]; schoolPost:boolean; createdAt:string; author:{id:string;fullName:string;avatarUrl?:string|null} };
+
+function SharedPostCard({postId}:{postId:string}) {
+  const post=useQuery({queryKey:['community','shared-post',postId],queryFn:async()=>(await api.get<SharedPost>(`/community/posts/${postId}`)).data,staleTime:60_000,retry:1});
+  if(post.isLoading)return <div className="shared-post-card shared-post-loading">جارٍ تحميل المنشور…</div>;
+  if(!post.data)return <div className="shared-post-card text-xs">المنشور غير متاح أو تم حذفه.</div>;
+  const author=post.data.schoolPost?'المدرسة':post.data.author.fullName;
+  return <Link to={`/community/posts?post=${encodeURIComponent(postId)}`} className="shared-post-card" aria-label={`فتح منشور ${author}`}>
+    <div className="shared-post-author"><Avatar name={author} src={post.data.schoolPost?null:post.data.author.avatarUrl} size={34}/><span><strong>{author}</strong><small>منشور تمت مشاركته</small></span></div>
+    <p>{post.data.body}</p>
+    {post.data.mediaIds?.[0]&&<CommunityImage id={post.data.mediaIds[0]}/>}<span className="shared-post-open">عرض المنشور</span>
+  </Link>;
+}
 
 export default function ChatPage() {
+  const background = useCuratedBackground('CHAT_BACKGROUND');
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteCode = searchParams.get('join');
+  const attemptedInvite = useRef<string | null>(null);
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -49,25 +75,71 @@ export default function ChatPage() {
   const [panel, setPanel] = useState<'members' | 'settings' | null>(null);
   const [search, setSearch] = useState('');
   const [body, setBody] = useState('');
+  const [reportTarget,setReportTarget]=useState<ReportTarget|null>(null);
+  const [soundsEnabled,setSoundsEnabled]=useState(()=>localStorage.getItem('chat-sounds-enabled')!=='false');
+  const soundContext=useRef<AudioContext|null>(null);
+  const lastSound=useRef(0);
+  const playSound=(kind:'sent'|'received')=>{
+    if(!soundsEnabled||document.visibilityState!=='visible'||document.querySelector('[data-security-blocked]')||Date.now()-lastSound.current<180)return;
+    lastSound.current=Date.now();
+    try{
+      const ctx=soundContext.current??new AudioContext();soundContext.current=ctx;
+      if(ctx.state==='suspended')void ctx.resume();
+      // Two short, clear chimes. A stronger fundamental and a soft overtone
+      // are more audible on phone speakers than the previous quiet sine beep.
+      const notes=kind==='sent'?[{hz:880,at:0},{hz:1175,at:0.085}]:[{hz:660,at:0},{hz:880,at:0.095}];
+      for(const {hz,at} of notes){
+        const start=ctx.currentTime+at;
+        const oscillator=ctx.createOscillator(),gain=ctx.createGain();
+        oscillator.type='triangle';
+        oscillator.frequency.setValueAtTime(hz,start);
+        gain.gain.setValueAtTime(0.0001,start);
+        gain.gain.exponentialRampToValueAtTime(0.24,start+0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001,start+0.15);
+        oscillator.connect(gain);gain.connect(ctx.destination);
+        oscillator.start(start);oscillator.stop(start+0.16);
+      }
+    }catch{/* Browsers may block audio until user interaction. */}
+  };
   const [editing, setEditing] = useState<ChatMessage | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const chatViewportRef = useRef<HTMLDivElement>(null);
+  useChatViewport(chatViewportRef, id);
+  useEffect(() => {
+    const field = composerRef.current;
+    if (field) { field.style.height = 'auto'; field.style.height = Math.min(128, Math.max(44, field.scrollHeight)) + 'px'; }
+  }, [body, id]);
   const typingTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const { data: conversations, isLoading: loadingList } = useQuery({
     queryKey: ['chat', 'conversations'],
+    refetchInterval: 30_000,
     queryFn: async () => (await api.get<Conversation[]>('/chat/conversations')).data,
-    refetchInterval: 45000,
   });
+  useEffect(() => {
+    if (!inviteCode || attemptedInvite.current === inviteCode) return;
+    attemptedInvite.current = inviteCode;
+    void api.post(`/chat/join/${encodeURIComponent(inviteCode)}`).then(response => {
+      void queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
+      navigate(`/chat/${response.data.id}`, { replace: true });
+      toast.success('انضممت إلى المجموعة');
+    }).catch(error => { toast.error(apiError(error)); navigate('/chat', { replace: true }); });
+  }, [inviteCode, navigate, queryClient]);
 
   // The detail endpoint carries the member list and the moderation flags.
   const { data: active } = useQuery({
     queryKey: ['chat', 'conversation', id],
+    refetchInterval: 30_000,
     queryFn: async () => (await api.get<Conversation>(`/chat/conversations/${id}`)).data,
     enabled: !!id,
   });
+  useEffect(() => {
+    if (active?.id && active.id !== id) navigate(`/chat/${active.id}`, { replace: true });
+  }, [active?.id, id, navigate]);
 
   const { data: messages, isLoading: loadingMessages } = useQuery({
     queryKey: ['chat', 'messages', id],
@@ -87,8 +159,9 @@ export default function ChatPage() {
 
   const send = useMutation({
     mutationFn: (text: string) => api.post(`/chat/conversations/${id}/messages`, { body: text }),
-    onSuccess: () => {
-      setBody('');
+    onSuccess: (response) => {
+      if (response.data?.synced === 0) toast('حُفظت الرسالة على الجهاز، بانتظار تأكيد الإرسال');
+      else playSound('sent');      setBody('');
       queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
     },
@@ -98,8 +171,9 @@ export default function ChatPage() {
   const edit = useMutation({
     mutationFn: ({ messageId, text }: { messageId: string; text: string }) =>
       api.patch(`/chat/conversations/${id}/messages/${messageId}`, { body: text }),
-    onSuccess: () => {
-      toast.success('تم تعديل الرسالة');
+    onSuccess: (response) => {
+      if (response.data?.synced === 0) toast('حُفظ التعديل على الجهاز، بانتظار تأكيد الخادم');
+      else toast.success('تم تعديل الرسالة');
       setEditing(null);
       setBody('');
       queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
@@ -110,8 +184,9 @@ export default function ChatPage() {
 
   const remove = useMutation({
     mutationFn: (messageId: string) => api.delete(`/chat/conversations/${id}/messages/${messageId}`),
-    onSuccess: () => {
-      toast.success('تم حذف الرسالة');
+    onSuccess: (response) => {
+      if (response.data?.synced === 0) toast('حُفظ طلب الحذف على الجهاز، بانتظار تأكيد الخادم');
+      else toast.success('تم حذف الرسالة');
       queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
     },
@@ -125,8 +200,7 @@ export default function ChatPage() {
     markRead.mutate(id);
     setTypingUsers([]);
     setEditing(null);
-    setBody('');
-    setPanel(null);
+    setBody('');    setPanel(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -144,30 +218,42 @@ export default function ChatPage() {
           : prev.filter((n) => n !== p.fullName),
       );
     };
+    const onMessage=(message:ChatMessage)=>{
+      if(message.sender.id!==user.id&&message.conversationId===id)playSound('received');
+      queryClient.invalidateQueries({queryKey:['chat','messages',id]});
+    };
     const onEdited = () => queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] });
     const onRead = () => {
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['chat', 'unread'] });
+    };
+    const onInbox = (event: { conversationId: string }) => {
+      if (event.conversationId === id && document.visibilityState === 'visible') markRead.mutate(id!);
     };
     const onConversationUpdated = () => {
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
     };
 
+    socket.on('chat:message',onMessage);
     socket.on('typing', onTyping);
     socket.on('chat:message-edited', onEdited);
     socket.on('chat:read', onRead);
+    socket.on('chat:inbox', onInbox);
     socket.on('chat:conversation-updated', onConversationUpdated);
     return () => {
+      socket.off('chat:message',onMessage);
       socket.off('typing', onTyping);
       socket.off('chat:message-edited', onEdited);
       socket.off('chat:read', onRead);
+      socket.off('chat:inbox', onInbox);
       socket.off('chat:conversation-updated', onConversationUpdated);
     };
-  }, [id, user.id, queryClient]);
+  }, [id, user.id, queryClient, soundsEnabled]);
 
   useEffect(() => {
-    if (!editing) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!editing && messagesRef.current) messagesRef.current.scrollTo({ top: messagesRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages?.data.length, id, editing]);
 
   const handleTyping = (value: string) => {
@@ -214,33 +300,26 @@ export default function ChatPage() {
 
   const filtered = conversations?.filter((c) => c.title.toLowerCase().includes(search.toLowerCase())) ?? [];
   const isGroup = active?.type === 'GROUP';
-  const canModerate = !!active?.isAdmin;
+  const canModerate = !!active && active.synced !== 0 && (active.isAdmin || user.role === 'ADMIN' || user.role === 'FOUNDER');
   const otherMember = active?.type === 'DIRECT' ? active.members?.find((member) => member.user.id !== user.id) : undefined;
   const otherLastReadAt = otherMember?.lastReadAt ? new Date(otherMember.lastReadAt).getTime() : 0;
 
   return (
     <>
-      <PageHeader
+      <div className="chat-page-heading"><PageHeader
         title="المحادثات"
-        subtitle="تواصل مباشر بين المعلمين والمشرفين وأولياء الأمور"
-        action={
-          <>
-            <Button variant="secondary" icon={<IconPlus size={16} />} onClick={() => setShowNew('direct')}>
-              محادثة جديدة
-            </Button>
-            <Button icon={<IconUsers size={16} />} onClick={() => setShowNew('group')}>
-              مجموعة
-            </Button>
-          </>
-        }
-      />
+        subtitle="تواصل آمن مع أعضاء المدرسة ضمن صلاحيات حسابك"
 
-      <div className="grid gap-5 lg:grid-cols-[20rem_1fr]">
+      /></div>
+
+      <div ref={chatViewportRef} data-conversation={id || undefined} className="chat-layout grid gap-5 lg:grid-cols-[20rem_1fr]">
         {/* Conversation list */}
-        <Card className={cx('overflow-hidden', id && 'hidden lg:block')} padded={false}>
+        <Card className={cx('chat-conversation-list overflow-hidden', id && 'hidden lg:block')} padded={false}>
           <div className="border-b border-slate-100 p-3">
+            <h1 className="mb-3 font-extrabold md:hidden">المحادثات</h1>
             <SearchInput value={search} onChange={setSearch} placeholder="بحث في المحادثات..." />
           </div>
+          <div className="chat-create-actions"><Button aria-label="مجموعة" icon={<IconUsers size={20}/>} onClick={() => setShowNew('group')}>مجموعة</Button><Button aria-label="محادثة جديدة" icon={<IconPlus size={20}/>} onClick={() => setShowNew('direct')}>محادثة</Button></div>
           {loadingList ? (
             <LoadingState rows={4} />
           ) : !filtered.length ? (
@@ -266,6 +345,7 @@ export default function ChatPage() {
                       <span className="flex items-center gap-1.5">
                         <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">
                           {conversation.title}
+                          {conversation.synced === 0 && <span className="block text-[10px] font-normal text-amber-700">{conversation.syncError ? 'تعذرت المزامنة؛ الطلب محفوظ' : 'بانتظار تأكيد الخادم'}</span>}
                         </span>
                         {conversation.isClosed && <IconLock size={12} className="shrink-0 text-slate-400" />}
                         {conversation.lastMessageAt && (
@@ -297,7 +377,7 @@ export default function ChatPage() {
         </Card>
 
         {/* Message pane */}
-        <Card className={cx('flex flex-col overflow-hidden', !id && 'hidden lg:flex')} padded={false}>
+        <Card className={cx('chat-conversation flex flex-col overflow-hidden', !id && 'hidden lg:flex')} padded={false}>
           {!id ? (
             <EmptyState
               title="اختر محادثة"
@@ -306,7 +386,7 @@ export default function ChatPage() {
             />
           ) : (
             <>
-              <header className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5">
+              <header className="relative flex items-center gap-3 border-b border-slate-100 px-4 py-3.5 pe-16 sm:px-5 sm:pe-16">
                 <button
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 lg:hidden"
                   onClick={() => navigate('/chat')}
@@ -322,15 +402,16 @@ export default function ChatPage() {
                   online={active?.type === 'DIRECT' ? active?.isOnline : undefined}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-bold text-slate-800">{active?.title ?? 'محادثة'}</p>
+                  <button type="button" className="truncate font-bold text-slate-800 hover:underline" onClick={()=>isGroup?setPanel('members'):otherMember&&navigate('/community/users/'+otherMember.user.id)}>{active?.title ?? 'محادثة'}</button>
+                  {active?.synced === 0 && <p className="text-[11px] text-amber-700" role="status">{active.syncError || 'المحادثة والرسائل محفوظة على الجهاز؛ بانتظار تأكيد الخادم'}</p>}
                   <p className="truncate text-[11px] text-slate-400">
                     {typingUsers.length
                       ? `${typingUsers.join('، ')} يكتب الآن...`
                       : isGroup
                         ? `${active?.memberCount ?? 0} أعضاء`
                         : active?.isOnline
-                          ? 'متصل الآن'
-                          : 'غير متصل'}
+                          ? 'نشط الآن'
+                          : active?.lastActiveAt ? `آخر ظهور ${timeAgo(active.lastActiveAt)}` : 'حالة النشاط غير متاحة'}
                   </p>
                 </div>
 
@@ -356,23 +437,23 @@ export default function ChatPage() {
                     >
                       <IconUsers size={18} />
                     </button>
-                    {canModerate && (
-                      <button
+                      {canModerate && <button
                         onClick={() => setPanel('settings')}
                         className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
                         title="إعدادات المجموعة"
                         aria-label="إعدادات المجموعة"
                       >
                         <IconSettings size={18} />
-                      </button>
-                    )}
+                      </button>}
                   </>
                 )}
+                <div className="chat-background-choice absolute bottom-2 end-3"><BackgroundChoice value={background} label="خلفية المحادثة" /></div>
               </header>
 
               <div
-                className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-4 py-4 sm:px-5"
-                style={{ minHeight: '24rem', maxHeight: 'calc(100vh - 24rem)' }}
+                ref={messagesRef}
+                className="chat-messages flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5"
+                style={{ minHeight: 0, ...(background.url ? { backgroundImage: `linear-gradient(#ffffffb8,#ffffffb8),url("${background.url}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}) }}
               >
                 {loadingMessages ? (
                   <div className="grid h-40 place-items-center">
@@ -385,8 +466,8 @@ export default function ChatPage() {
                     const mine = message.sender.id === user.id;
                     const showAuthor = !mine && (index === 0 || messages.data[index - 1].sender.id !== message.sender.id);
                     // Author may edit; author or group admin may delete.
-                    const canEdit = mine;
-                    const canDelete = mine || canModerate;
+                    const canEdit = mine && message.synced !== 0;
+                    const canDelete = message.synced !== 0 && (mine || canModerate);
 
                     return (
                       <div
@@ -401,7 +482,7 @@ export default function ChatPage() {
 
                         <div className={cx('max-w-[75%] min-w-0', mine && 'items-end')}>
                           {showAuthor && (
-                            <p className="mb-1 text-[11px] font-bold text-slate-500">{message.sender.fullName}</p>
+                            <button type="button" onClick={()=>navigate('/community/users/'+message.sender.id)} className="mb-1 text-[11px] font-bold text-slate-500 hover:underline">{message.sender.fullName}</button>
                           )}
                           <div
                             className={cx(
@@ -412,12 +493,18 @@ export default function ChatPage() {
                                 : 'rounded-tr-md border border-slate-100 bg-white text-slate-700',
                             )}
                           >
-                            <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                            <p className="whitespace-pre-wrap break-words"><LinkedText text={message.body}/></p>
+                            {message.attachmentUrl?.startsWith('community-media:')&&<CommunityImage id={message.attachmentUrl.slice(16)}/>}
+                            {message.attachmentUrl?.startsWith('community-post:')&&<SharedPostCard postId={message.attachmentUrl.slice(15)}/>}
                           </div>
                           <p className={cx('mt-1 text-[10px] text-slate-400', mine && 'text-left')}>
                             {timeAgo(message.createdAt)}
                             {message.editedAt && <span className="mr-1">• مُعدَّلة</span>}
-                            {mine && active?.type === 'DIRECT' && (
+                            {message.synced === 0 && !message.syncError && <span className="mr-1 text-amber-700">• بانتظار تأكيد الخادم</span>}
+                            {message.syncError && <span className="block text-red-700" role="status">{message.syncError}
+                              {message.rejectedChange && <button type="button" className="mx-1 underline" onClick={async () => { try { await cancelRejectedMessageChange(message.id); await queryClient.invalidateQueries({ queryKey: ['chat', 'messages', id] }); toast('أُلغي الطلب المرفوض؛ تُجلب النسخة الحديثة عند الاتصال'); } catch (error) { toast.error(apiError(error)); } }}>إلغاء الطلب المرفوض</button>}
+                            </span>}
+                            {mine && message.synced !== 0 && active?.type === 'DIRECT' && (
                               <span className={cx('mr-1', otherLastReadAt >= new Date(message.createdAt).getTime() ? 'font-semibold text-sky-600' : 'text-slate-400')}>
                                 • {otherLastReadAt >= new Date(message.createdAt).getTime() ? 'تمت المشاهدة' : 'تم الإرسال'}
                               </span>
@@ -426,7 +513,7 @@ export default function ChatPage() {
                         </div>
 
                         {/* Actions appear on hover / focus; only what the user may actually do. */}
-                        {(canEdit || canDelete) && (
+                        {(canEdit || canDelete || !mine) && (
                           <div className="flex shrink-0 gap-0.5 self-center opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
                             {canEdit && (
                               <button
@@ -448,6 +535,13 @@ export default function ChatPage() {
                                 <IconTrash size={14} />
                               </button>
                             )}
+                            {!mine && message.synced !== 0 && <button
+                              type="button"
+                              onClick={()=>setReportTarget({type:'MESSAGE',id:message.id,label:'الرسالة'})}
+                              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-100 hover:text-red-600"
+                              title="إبلاغ"
+                              aria-label="الإبلاغ عن الرسالة"
+                            >⚑</button>}
                           </div>
                         )}
                       </div>
@@ -460,12 +554,16 @@ export default function ChatPage() {
               {active && !active.canPost ? (
                 <p className="flex items-center justify-center gap-2 border-t border-slate-100 px-4 py-4 text-center text-xs text-slate-500">
                   <IconLock size={14} />
-                  {active.isClosed
+                  {active.contactRestricted ? 'التواصل مع أعضاء هذه المحادثة غير متاح حسب صلاحياتك الحالية.' : active.members?.find(member => member.user.id === user.id)?.isMuted ? 'أوقف مشرف المجموعة إرسال الرسائل من حسابك.' : active.isClosed
                     ? 'هذه المجموعة مغلقة، لا يمكن إرسال رسائل جديدة.'
                     : 'الإرسال في هذه المجموعة متاح لمشرفيها فقط.'}
                 </p>
               ) : (
-                <form onSubmit={submit} className="border-t border-slate-100 px-4 py-3">
+                <form onSubmit={submit} className="chat-composer border-t border-slate-100 px-4 py-3">
+                  <label className="mb-2 flex items-center gap-2 text-xs text-slate-600 chat-sound-setting">
+                    <input type="checkbox" checked={soundsEnabled} onChange={e=>{setSoundsEnabled(e.target.checked);localStorage.setItem('chat-sounds-enabled',String(e.target.checked));}}/>
+                    أصوات إرسال واستقبال الرسائل
+                  </label>
                   {editing && (
                     <div className="mb-2 flex items-center gap-2 rounded-lg bg-gold-50 px-3 py-2 text-xs text-gold-800">
                       <IconEdit size={14} />
@@ -511,9 +609,10 @@ export default function ChatPage() {
       {panel === 'members' && active && (
         <MembersModal conversation={active} canModerate={canModerate} onClose={() => setPanel(null)} />
       )}
-      {panel === 'settings' && active && (
-        <GroupSettingsModal conversation={active} onClose={() => setPanel(null)} />
+      {panel === 'settings' && active && canModerate && (
+        <GroupSettingsModal conversation={active} canModerate={canModerate} onClose={() => setPanel(null)} />
       )}
+      <ReportContentDialog target={reportTarget} onClose={()=>setReportTarget(null)}/>
     </>
   );
 }
@@ -532,6 +631,7 @@ function MembersModal({
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
 
   const refresh = () => {
@@ -548,11 +648,17 @@ function MembersModal({
     },
     onError: (error) => toast.error(apiError(error)),
   });
+  const setMute = useMutation({
+    mutationFn: ({ userId, isMuted }: { userId: string; isMuted: boolean }) =>
+      api.patch(`/chat/conversations/${conversation.id}/members/${userId}/mute`, { isMuted }),
+    onSuccess: (_, value) => { toast.success(value.isMuted ? 'تم كتم العضو' : 'تم السماح للعضو بالحديث'); refresh(); },
+    onError: error => toast.error(apiError(error)),
+  });
 
   const removeMember = useMutation({
     mutationFn: (userId: string) => api.delete(`/chat/conversations/${conversation.id}/members/${userId}`),
-    onSuccess: () => {
-      toast.success('تمت إزالة العضو');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت إزالة العضو');
       refresh();
     },
     onError: (error) => toast.error(apiError(error)),
@@ -585,17 +691,19 @@ function MembersModal({
               <li key={member.id} className="flex items-center gap-3 py-2.5">
                 <Avatar name={member.user.fullName} src={member.user.avatarUrl} size={38} preview />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-800">
+                  <button type="button" onClick={()=>{onClose();navigate('/community/users/'+member.user.id);}} className="truncate text-sm font-semibold text-slate-800 hover:underline">
                     {member.user.fullName}
                     {isSelf && <span className="mr-1 text-[11px] font-normal text-slate-400">(أنت)</span>}
-                  </p>
+                  </button>
                   <p className="text-[11px] text-slate-400">{ROLE_LABELS[member.user.role]}</p>
                 </div>
 
                 {member.isAdmin && <Badge className="bg-primary-100 text-primary-800">مشرف</Badge>}
+                {member.isMuted && <Badge className="bg-amber-100 text-amber-800">مكتوم</Badge>}
 
                 {canModerate && !isSelf && (
                   <div className="flex shrink-0 gap-1">
+                    {!member.isAdmin && <button type="button" disabled={setMute.isPending} onClick={() => setMute.mutate({ userId: member.user.id, isMuted: !member.isMuted })} className="rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-500 hover:bg-slate-100">{member.isMuted ? 'إلغاء الكتم' : 'كتم'}</button>}
                     <button
                       onClick={() => setAdmin.mutate({ userId: member.user.id, isAdmin: !member.isAdmin })}
                       className="rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-500 transition hover:bg-slate-100"
@@ -655,8 +763,8 @@ function AddMembersModal({ conversation, onClose }: { conversation: Conversation
 
   const add = useMutation({
     mutationFn: () => api.post(`/chat/conversations/${conversation.id}/members`, { memberIds: selected }),
-    onSuccess: () => {
-      toast.success('تمت إضافة الأعضاء');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت إضافة الأعضاء');
       onClose();
     },
     onError: (error) => toast.error(apiError(error)),
@@ -718,21 +826,24 @@ function AddMembersModal({ conversation, onClose }: { conversation: Conversation
 
 // --- group settings ---------------------------------------------------------
 
-function GroupSettingsModal({ conversation, onClose }: { conversation: Conversation; onClose: () => void }) {
+function GroupSettingsModal({ conversation, canModerate, onClose }: { conversation: Conversation; canModerate: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const confirm = useConfirm();
 
   const [title, setTitle] = useState(conversation.title);
   const [description, setDescription] = useState(conversation.description ?? '');
+  const [avatarUrl, setAvatarUrl] = useState(conversation.avatarUrl ?? '');
+  const [uploading, setUploading] = useState(false);
+  const [inviteCode, setInviteCode] = useState(conversation.inviteCode ?? '');
   const [adminOnly, setAdminOnly] = useState(conversation.adminOnly);
   const [isClosed, setIsClosed] = useState(conversation.isClosed);
 
   const save = useMutation({
     mutationFn: () =>
-      api.patch(`/chat/conversations/${conversation.id}`, { title, description, adminOnly, isClosed }),
-    onSuccess: () => {
-      toast.success('تم حفظ إعدادات المجموعة');
+      api.patch(`/chat/conversations/${conversation.id}`, { title, description, avatarUrl, adminOnly, isClosed }),
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تم حفظ إعدادات المجموعة');
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', conversation.id] });
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
       onClose();
@@ -742,14 +853,29 @@ function GroupSettingsModal({ conversation, onClose }: { conversation: Conversat
 
   const leave = useMutation({
     mutationFn: () => api.delete(`/chat/conversations/${conversation.id}/members/me`),
-    onSuccess: () => {
-      toast.success('تمت مغادرة المجموعة');
+    onSuccess: (_offlineWriteResult) => {
+      notifyWriteSuccess(_offlineWriteResult, 'تمت مغادرة المجموعة');
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
       onClose();
       navigate('/chat');
     },
     onError: (error) => toast.error(apiError(error)),
   });
+  const invite = useMutation({
+    mutationFn: (enabled: boolean) => api.post(`/chat/conversations/${conversation.id}/invite`, { enabled }),
+    onSuccess: response => { setInviteCode(response.data.inviteCode ?? ''); queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', conversation.id] }); toast.success(response.data.inviteCode ? 'رابط الدعوة جاهز' : 'تم إيقاف رابط الدعوة'); },
+    onError: error => toast.error(apiError(error)),
+  });
+  const uploadImage = async (file?: File) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData(); form.append('file', file);
+      const response = await api.post('/uploads/image', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setAvatarUrl(response.data.url);
+      toast.success('تم رفع الصورة، اضغط حفظ لتطبيقها');
+    } catch (error) { toast.error(apiError(error)); } finally { setUploading(false); }
+  };
 
   return (
     <Modal
@@ -762,21 +888,27 @@ function GroupSettingsModal({ conversation, onClose }: { conversation: Conversat
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
-          <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!title.trim()}>
+          {canModerate && <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!title.trim() || uploading}>
             حفظ
-          </Button>
+          </Button>}
         </>
       }
     >
-      <Input label="اسم المجموعة" required value={title} onChange={(e) => setTitle(e.target.value)} />
+      <div className="mb-4 flex items-center gap-3">
+        <Avatar name={title} src={avatarUrl || null} size={56} preview />
+        {canModerate && <label className="cursor-pointer text-sm font-semibold text-primary-700">{uploading ? 'جارٍ رفع الصورة...' : 'تغيير صورة المجموعة'}<input type="file" accept="image/*" disabled={uploading} className="sr-only" onChange={event => void uploadImage(event.target.files?.[0])}/></label>}
+        {canModerate && avatarUrl && <button type="button" className="text-xs text-red-600" onClick={() => setAvatarUrl('')}>إزالة</button>}
+      </div>
+      <Input label="اسم المجموعة" required value={title} readOnly={!canModerate} onChange={(e) => setTitle(e.target.value)} />
       <Textarea
         label="الوصف"
         className="mt-3"
         value={description}
+        readOnly={!canModerate}
         onChange={(e) => setDescription(e.target.value)}
       />
 
-      <div className="mt-4 space-y-2">
+      {canModerate && <div className="mt-4 space-y-2">
         <Toggle
           checked={adminOnly}
           onChange={setAdminOnly}
@@ -789,7 +921,15 @@ function GroupSettingsModal({ conversation, onClose }: { conversation: Conversat
           label="إغلاق المجموعة"
           hint="إيقاف الرسائل الجديدة نهائياً مع الاحتفاظ بالسجل"
         />
-      </div>
+      </div>}
+      {canModerate && <div className="mt-5 rounded-xl border border-slate-200 p-3">
+        <p className="mb-2 text-sm font-bold">رابط دعوة المجموعة</p>
+        {inviteCode ? <>
+          <Input readOnly value={groupInviteUrl(inviteCode)} dir="ltr" />
+          <div className="mt-2 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => { void navigator.clipboard.writeText(groupInviteUrl(inviteCode)).then(() => toast.success('تم نسخ رابط المجموعة')); }}>نسخ الرابط</Button><Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate(true)}>تجديد الرابط</Button><Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate(false)}>إيقاف الرابط</Button></div>
+        </> : <Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate(true)}>إنشاء رابط دعوة</Button>}
+        <p className="mt-2 text-xs text-slate-500">يمكن لمن يملك الرابط الانضمام إذا كانت صلاحيات التواصل تسمح له بذلك.</p>
+      </div>}
 
       <button
         onClick={async () => {
@@ -856,13 +996,14 @@ function NewConversationModal({ mode, onClose }: { mode: 'direct' | 'group'; onC
   });
 
   const create = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (directUserId?: string) => {
       if (mode === 'direct') {
-        return (await api.post('/chat/conversations/direct', { userId: selected[0] })).data;
+        return (await api.post('/chat/conversations/direct', { userId: directUserId ?? selected[0] })).data;
       }
       return (await api.post('/chat/conversations/group', { title, memberIds: selected })).data;
     },
     onSuccess: (conversation: any) => {
+      if (conversation.synced === 0) toast('حُفظت المحادثة على الجهاز، بانتظار تأكيد الخادم');
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
       onClose();
       navigate(`/chat/${conversation.id}`);
@@ -871,7 +1012,7 @@ function NewConversationModal({ mode, onClose }: { mode: 'direct' | 'group'; onC
   });
 
   const toggle = (userId: string) => {
-    if (mode === 'direct') setSelected([userId]);
+    if (mode === 'direct') { if (!create.isPending) create.mutate(userId); }
     else setSelected((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]));
   };
 
@@ -888,7 +1029,7 @@ function NewConversationModal({ mode, onClose }: { mode: 'direct' | 'group'; onC
           <Button variant="secondary" onClick={onClose}>
             إلغاء
           </Button>
-          <Button onClick={() => create.mutate()} loading={create.isPending} disabled={!canSubmit}>
+          <Button onClick={() => create.mutate(mode === 'direct' ? selected[0] : undefined)} loading={create.isPending} disabled={!canSubmit}>
             {mode === 'direct' ? 'بدء المحادثة' : 'إنشاء المجموعة'}
           </Button>
         </>

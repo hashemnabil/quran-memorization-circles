@@ -1,0 +1,31 @@
+name: community-recovery
+on:
+  pull_request:
+    paths:
+      - 'backend/prisma/recovery/add-mobile-community.sql'
+      - 'backend/scripts/community-recovery.integration.mjs'
+      - '.github/workflows/community-recovery.yml'
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: quran_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d quran_test"
+          --health-interval 5s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres@localhost:5432/quran_test?schema=public
+      DIRECT_URL: postgresql://postgres@localhost:5432/quran_test?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - run: npm ci --prefix backend
+      - run: npm --prefix backend run prisma:generate
+      - run: node backend/scripts/community-recovery.integration.mjs

@@ -42,7 +42,11 @@
                 <data
                     android:scheme="https"
                     android:host="quran-frontend-sknr.onrender.com"
-                    android:pathPrefix="/chat" />
+                    android:path="/chat" />
+                <data
+                    android:scheme="https"
+                    android:host="quran-frontend-sknr.onrender.com"
+                    android:pathPrefix="/chat/" />
             </intent-filter>
 
             <intent-filter>

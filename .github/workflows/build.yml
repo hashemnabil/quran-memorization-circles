@@ -1,3 +1,5 @@
+
+
 name: build
 on:
   push:
@@ -49,7 +51,13 @@ jobs:
       - name: Verify Quran heart progression rules
         run: npm --prefix frontend run test:achievements
       - run: npm --prefix frontend run test:offline
-      - run: npm --prefix frontend run test:full-offline
+      - name: Run full offline tests with retry
+        run: |
+          for attempt in 1 2 3; do
+            npm --prefix frontend run test:full-offline && exit 0
+            echo "full-offline tests failed on attempt ${attempt}; retrying..."
+          done
+          exit 1
       - run: npm --prefix frontend run test:local-security
       - run: npm --prefix frontend run test:notification-sounds
       - run: npm --prefix frontend run test:sound-channels

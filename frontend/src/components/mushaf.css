@@ -170,6 +170,14 @@
   border-color:#c8ae72;
   font-weight:700;
 }
+.mushaf-overlay:not(.mushaf-reading-mode) .mushaf-line{
+  line-height:1.35;
+  font-size:clamp(17px,min(5.1cqi,2.75dvh),34px);
+}
+.mushaf-overlay:not(.mushaf-reading-mode) .mushaf-decoration{
+  min-height:0;
+  font-size:clamp(16px,min(4cqi,2.35dvh),25px);
+}
 
 /* Error selection is a compact centered dialog, with the mushaf softened behind it. */
 .mushaf-sheet-backdrop{

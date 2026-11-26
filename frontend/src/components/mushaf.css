@@ -155,3 +155,54 @@
   .mushaf-reading-mode .mushaf-toolbar-title small{display:none}
   .mushaf-reading-mode .mushaf-line{line-height:1.2;font-size:clamp(10px,min(4.8cqi,2.6dvh),29px)}
 }
+
+/* The review mushaf uses the same page treatment as the standalone reader. */
+.mushaf-overlay:not(.mushaf-reading-mode) .mushaf-paper{
+  background:#fffaf0;
+  border:7px double #b08c45;
+  border-radius:4px;
+  outline:2px solid #e7c785;
+  outline-offset:-12px;
+  box-shadow:0 12px 35px #1b3e2a1a;
+}
+.mushaf-overlay:not(.mushaf-reading-mode) .mushaf-page-heading{
+  color:#16513e;
+  border-color:#c8ae72;
+  font-weight:700;
+}
+.mushaf-overlay:not(.mushaf-reading-mode) .mushaf-line{
+  line-height:1.35;
+  font-size:clamp(17px,min(5.1cqi,2.75dvh),34px);
+}
+.mushaf-overlay:not(.mushaf-reading-mode) .mushaf-decoration{
+  min-height:0;
+  font-size:clamp(16px,min(4cqi,2.35dvh),25px);
+}
+
+/* Error selection is a compact centered dialog, with the mushaf softened behind it. */
+.mushaf-sheet-backdrop{
+  align-items:center;
+  padding:20px;
+  background:rgba(7,30,24,.58);
+  backdrop-filter:blur(7px);
+  -webkit-backdrop-filter:blur(7px);
+}
+.mushaf-sheet{
+  width:min(100%,380px);
+  max-height:min(80dvh,560px);
+  border-radius:20px;
+  padding:18px;
+  box-shadow:0 20px 60px rgba(0,0,0,.28);
+  animation:mushaf-sheet-in .18s ease-out;
+}
+@keyframes mushaf-sheet-in{
+  from{opacity:0;transform:translateY(10px) scale(.97)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+@media(max-width:420px){
+  .mushaf-sheet-backdrop{padding:14px}
+  .mushaf-sheet{width:100%;padding:16px;border-radius:18px}
+}
+@media(prefers-reduced-motion:reduce){
+  .mushaf-sheet{animation:none}
+}

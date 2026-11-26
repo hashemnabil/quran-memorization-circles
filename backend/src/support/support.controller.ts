@@ -5,6 +5,7 @@ import { Request } from 'express';
 import { AuthUser, CurrentUser, Public, Roles } from '../common/decorators';
 import {
   CreateTicketDto,
+  AccountDeletionDto,
   PublicTicketDto,
   QueryTicketsDto,
   ReplyTicketDto,
@@ -17,6 +18,17 @@ import { SupportService } from './support.service';
 @Controller('support')
 export class SupportController {
   constructor(private readonly service: SupportService) {}
+
+  @Post('account-deletion')
+  deletion(@CurrentUser() user: AuthUser, @Body() dto: AccountDeletionDto) {
+    return this.service.requestDeletion(user, dto);
+  }
+
+  @Post('account-deletion/:id/complete')
+  @Roles(Role.ADMIN)
+  completeDeletion(@CurrentUser() user:AuthUser,@Param('id') id:string,@Body() dto:{retentionNote?:string;confirmed?:boolean}){
+    return this.service.completeDeletion(user,id,dto);
+  }
 
   /**
    * Reachable without a token: it is linked from the login page for people who

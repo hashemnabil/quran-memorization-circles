@@ -14,6 +14,7 @@ import {
   TransferKind,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdatePendingReasonDto } from '../common/dto/pending-request.dto';
 import { AccessControlService } from '../common/services/access-control.service';
 import { ActivityService } from '../common/services/activity.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -82,6 +83,9 @@ export class TransfersService {
       entityId: request.id,
     });
 
+    await this.notifications.notify({ userId: actor.id, type: NotificationType.TRANSFER_REQUEST, title: 'تم تقديم الطلب', body: 'الطلب بانتظار المراجعة', link: `/transfers/${request.id}` });
+    if (request.studentId) await this.notifications.notifyStudent(request.studentId, { type: NotificationType.TRANSFER_REQUEST, title: 'تم تقديم طلب بخصوصك', body: 'الطلب بانتظار المراجعة', data: { requestId: request.id } });
+    await this.notifyAffectedTeachers(request, 'طلب نقل قيد المراجعة', actor.id);
     return request;
   }
 
@@ -149,6 +153,9 @@ export class TransfersService {
       entityId: request.id,
     });
 
+    await this.notifications.notify({ userId: actor.id, type: NotificationType.TRANSFER_REQUEST, title: 'تم تقديم الطلب', body: 'الطلب بانتظار المراجعة', link: `/transfers/${request.id}` });
+    if (request.studentId) await this.notifications.notifyStudent(request.studentId, { type: NotificationType.TRANSFER_REQUEST, title: 'تم تقديم طلب بخصوصك', body: 'الطلب بانتظار المراجعة', data: { requestId: request.id } });
+    await this.notifyAffectedTeachers(request, 'طلب نقل قيد المراجعة', actor.id);
     return request;
   }
 
@@ -195,6 +202,9 @@ export class TransfersService {
       entityId: request.id,
     });
 
+    await this.notifications.notify({ userId: actor.id, type: NotificationType.TRANSFER_REQUEST, title: 'تم تقديم الطلب', body: 'الطلب بانتظار المراجعة', link: `/transfers/${request.id}` });
+    if (request.studentId) await this.notifications.notifyStudent(request.studentId, { type: NotificationType.TRANSFER_REQUEST, title: 'تم تقديم طلب بخصوصك', body: 'الطلب بانتظار المراجعة', data: { requestId: request.id } });
+    await this.notifyAffectedTeachers(request, 'طلب نقل قيد المراجعة', actor.id);
     return request;
   }
 
@@ -319,11 +329,16 @@ export class TransfersService {
       throw new ForbiddenException('يمكن إلغاء الطلب من قبل مُنشئه أو الإدارة فقط');
     }
 
-    return this.prisma.transferRequest.update({
+    const updated = await this.prisma.transferRequest.update({
       where: { id },
       data: { status: RequestStatus.CANCELLED, decidedAt: new Date() },
       include: TRANSFER_INCLUDE,
     });
+    await this.notifications.notifyMany([request.requestedById], { type: NotificationType.TRANSFER_DECISION, title: 'تم إلغاء طلب النقل', link: `/transfers/${id}` });
+    await this.notifyDecisionMakers('إلغاء طلب نقل', '', `/transfers/${id}`);
+    await this.notifyAffectedTeachers(request, 'تم إلغاء طلب النقل', request.requestedById);
+    if (request.studentId) await this.notifications.notifyStudent(request.studentId, { type: NotificationType.TRANSFER_DECISION, title: 'تم إلغاء طلب النقل' });
+    return updated;
   }
 
   // --- reads ---------------------------------------------------------------
@@ -364,6 +379,19 @@ export class TransfersService {
 
     const data = await this.attachTeachers(rows);
     return paginate(data, total, query.page, query.limit);
+  }
+
+  async updatePendingReason(actor: AuthUser, id: string, dto: UpdatePendingReasonDto) {
+    const request = await this.prisma.transferRequest.findUnique({ where: { id } });
+    if (!request) throw new NotFoundException('الطلب غير موجود');
+    if (request.kind !== TransferKind.STUDENT_TRANSFER || request.status !== RequestStatus.PENDING) throw new BadRequestException('يمكن تعديل سبب طلب نقل طالب معلق فقط');
+    if (request.requestedById !== actor.id && actor.role !== Role.ADMIN) throw new ForbiddenException('التعديل متاح لمنشئ الطلب أو الإدارة فقط');
+    if (!request.studentId) throw new BadRequestException('الطلب غير مرتبط بطالب');
+    await this.acl.assertStudentWriteAccess(actor, request.studentId);
+    if (!dto.reason.trim()) throw new BadRequestException('سبب الطلب مطلوب');
+    const result = await this.prisma.transferRequest.updateMany({ where: { id, status: RequestStatus.PENDING, reason: dto.previousReason }, data: { reason: dto.reason.trim() } });
+    if (!result.count) throw new ConflictException('تغيّر الطلب أو تم البت فيه؛ راجع النسخة الحديثة قبل التعديل');
+    return this.findOne(actor, id);
   }
 
   async findOne(user: AuthUser, id: string) {
@@ -513,6 +541,15 @@ export class TransfersService {
     }));
   }
 
+  private async notifyAffectedTeachers(request: any, title: string, excludeId: string) {
+    const ids = [...new Set([request.teacherAId, request.teacherBId].filter(Boolean))] as string[];
+    if (!ids.length) return;
+    const teachers = await this.prisma.teacherProfile.findMany({ where: { id: { in: ids } }, select: { userId: true } });
+    await this.notifications.notifyMany(teachers.map(t => t.userId).filter(id => id !== excludeId), {
+      type: NotificationType.TRANSFER_REQUEST, title, link: `/transfers/${request.id}`, data: { requestId: request.id },
+    });
+  }
+
   private async notifyDecisionMakers(title: string, body: string, link: string) {
     await this.notifications.notifyRoles([Role.ADMIN], {
       type: NotificationType.TRANSFER_REQUEST,
@@ -532,10 +569,14 @@ export class TransfersService {
       data: { requestId: request.id, approved },
     });
 
+    if (request.studentId) await this.notifications.notifyStudent(request.studentId, {
+      type: NotificationType.TRANSFER_DECISION, title: approved ? 'تمت الموافقة على طلب النقل' : 'تم رفض طلب النقل',
+      body: note, data: { requestId: request.id, approved },
+    });
     // The moved teacher should hear about it too.
-    if (request.teacherAId) {
+    for (const teacherId of new Set([request.teacherAId, request.teacherBId].filter(Boolean) as string[])) {
       const teacher = await this.prisma.teacherProfile.findUnique({
-        where: { id: request.teacherAId },
+        where: { id: teacherId },
         select: { userId: true },
       });
       if (teacher && teacher.userId !== request.requestedById) {

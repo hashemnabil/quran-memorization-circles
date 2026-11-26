@@ -17,9 +17,16 @@ export class SettingsService {
 
   /** The settings row is a singleton; it is created on first read. */
   async get() {
-    const existing = await this.prisma.schoolSettings.findUnique({ where: { id: SETTINGS_ID } });
-    const row = existing ?? (await this.prisma.schoolSettings.create({ data: { id: SETTINGS_ID } }));
-    return { ...row, logoUrl: this.absoluteLogo(row.logoUrl) };
+    let row = await this.prisma.schoolSettings.findUnique({ where: { id: SETTINGS_ID } });
+    if (!row) {
+      // Prisma can emulate an upsert with empty update as read-then-insert.
+      // Native ON CONFLICT DO NOTHING keeps concurrent first requests safe.
+      await this.prisma.schoolSettings.createMany({ data: [{ id: SETTINGS_ID, name: 'مدرسة عبدالله بن عمر لتعليم القران الكريم والسنة النبوية' }], skipDuplicates: true });
+      row = await this.prisma.schoolSettings.findUniqueOrThrow({ where: { id: SETTINGS_ID } });
+    }
+    const oldNames = ['مدرسة عبدالله بن عمر لتعلم القرآن الكريم والسنة النبوية', 'مدرسة عبدالله بن عمر', 'مدرسة عبدالله بن عمر لتحفيظ القرآن الكريم', 'مدرسة عبدالله بن عمر لتحفيظ القرآن الكريم والسنة النبوية'];
+    const name = oldNames.includes(row.name.trim()) ? 'مدرسة عبدالله بن عمر لتعليم القران الكريم والسنة النبوية' : row.name;
+    return { ...row, name, logoUrl: this.absoluteLogo(row.logoUrl) };
   }
 
   /**
@@ -38,7 +45,7 @@ export class SettingsService {
 
     // `undefined` means "not sent, leave alone"; `null` means "the admin
     // cleared this field". Only the keys actually present are written.
-    const data: Record<string, string | null> = {};
+    const data: Record<string, string | number | boolean | null> = {};
     const keys = [
       'name',
       'mosqueName',
@@ -55,6 +62,9 @@ export class SettingsService {
       'whatsapp',
       'website',
       'academicYear',
+      'donationsEnabled', 'donationTitle', 'donationDescription', 'donationGoalAmount',
+      'donationRaisedAmount', 'donationCurrency', 'donationMethod', 'donationLink',
+      'donationBankPalestine', 'donationIslamicBank', 'donationJawwal', 'donationPalPay',
     ] as const;
     for (const key of keys) {
       const value = dto[key];
@@ -64,7 +74,7 @@ export class SettingsService {
     // The school name backs page titles and the login screen, so it falls back
     // to the default rather than becoming blank.
     if (data.name === null || data.name === '') {
-      data.name = 'حلقات تحفيظ القرآن الكريم';
+      data.name = 'مدرسة عبدالله بن عمر لتعليم القران الكريم والسنة النبوية';
     }
 
     const updated = await this.prisma.schoolSettings.update({
@@ -101,6 +111,36 @@ export class SettingsService {
       telegram: settings.telegram,
       whatsapp: settings.whatsapp,
       website: settings.website,
+      donationsEnabled: settings.donationsEnabled,
+      donationTitle: settings.donationTitle,
+      donationDescription: settings.donationDescription,
+      donationGoalAmount: settings.donationGoalAmount,
+      donationRaisedAmount: settings.donationRaisedAmount,
+      donationCurrency: settings.donationCurrency,
+      donationMethod: settings.donationMethod,
+      donationLink: settings.donationLink,
+      donationBankPalestine: settings.donationBankPalestine,
+      donationIslamicBank: settings.donationIslamicBank,
+      donationJawwal: settings.donationJawwal,
+      donationPalPay: settings.donationPalPay,
+    };
+  }
+
+  async donationInfo() {
+    const settings = await this.get();
+    return {
+      donationsEnabled: settings.donationsEnabled,
+      donationTitle: settings.donationTitle,
+      donationDescription: settings.donationDescription,
+      donationGoalAmount: settings.donationGoalAmount,
+      donationRaisedAmount: settings.donationRaisedAmount,
+      donationCurrency: settings.donationCurrency,
+      donationMethod: settings.donationMethod,
+      donationLink: settings.donationLink,
+      donationBankPalestine: settings.donationBankPalestine,
+      donationIslamicBank: settings.donationIslamicBank,
+      donationJawwal: settings.donationJawwal,
+      donationPalPay: settings.donationPalPay,
     };
   }
 }

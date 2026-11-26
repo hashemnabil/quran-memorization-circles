@@ -105,7 +105,7 @@ function SheetTab() {
     <Card
       title={`كشف حضور ${formatDate(date)}`}
       action={
-        <div className="flex gap-2">
+        <div className="staff-attendance-filters flex gap-2">
           <Select value={role} onChange={(e) => setRole(e.target.value as Role | '')} className="w-40">
             <option value="">كل الأدوار</option>
             {STAFF_ROLES.map((r) => (
@@ -140,7 +140,7 @@ function SheetTab() {
         <>
           <div className="divide-y divide-slate-100">
             {staff.map((person: any) => (
-              <div key={person.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+              <div key={person.id} className="staff-attendance-row flex flex-wrap items-center gap-3 px-5 py-3">
                 <Avatar name={person.fullName} src={person.avatarUrl} size={34} preview />
                 <div className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-slate-700">
@@ -150,7 +150,7 @@ function SheetTab() {
                     {person.jobTitle ?? ROLE_LABELS[person.role as Role]}
                   </span>
                 </div>
-                <div className="flex gap-1.5">
+                <div className="staff-attendance-statuses flex gap-1.5">
                   {STATUS_ORDER.map((status) => {
                     const active = (entries[person.id] ?? 'PRESENT') === status;
                     return (

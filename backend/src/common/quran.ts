@@ -185,7 +185,7 @@ export const HIZB_SECTIONS = Array.from({ length: 60 }, (_, i) => {
     order: (Math.floor((60 - hizb) / 2) * 3) + ((60 - hizb) % 2) + 1,
     kind: 'HIZB' as const,
     pagesCount: 10,
-    minScore: 60,
+    minScore: 80,
     isRequired: true,
     description: `اختبار حفظ وإتقان الحزب ${hizb} (من الجزء ${juz})`,
   };

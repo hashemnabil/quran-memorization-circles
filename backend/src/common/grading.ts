@@ -25,6 +25,16 @@ export function evaluationFromScore(score: number): Evaluation {
   );
 }
 
+export interface RecitationThresholds { excellent: number; veryGood: number; good: number; acceptable: number }
+export const DEFAULT_RECITATION_THRESHOLDS: RecitationThresholds = { excellent: 90, veryGood: 80, good: 70, acceptable: 60 };
+export function recitationEvaluation(score: number, limits: RecitationThresholds = DEFAULT_RECITATION_THRESHOLDS): Evaluation {
+  if (score >= limits.excellent) return Evaluation.EXCELLENT;
+  if (score >= limits.veryGood) return Evaluation.VERY_GOOD;
+  if (score >= limits.good) return Evaluation.GOOD;
+  if (score >= limits.acceptable) return Evaluation.ACCEPTABLE;
+  return Evaluation.UNSATISFACTORY;
+}
+
 /** Arabic wording, used in notifications and the activity log. */
 export const EVALUATION_LABELS: Record<Evaluation, string> = {
   EXCELLENT: 'ممتاز',

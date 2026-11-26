@@ -10,6 +10,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
+import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser } from '../common/decorators';
 import { UploadsService } from './uploads.service';
 
@@ -38,17 +39,16 @@ export class UploadsController {
   @interceptor()
   async avatar(@CurrentUser() user: AuthUser, @UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('لم يتم اختيار ملف');
-    void user;
-    return this.service.upload(file, 'avatars');
+    return this.service.upload(file, 'avatars', user.id);
   }
 
   @Post('image')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'رفع صورة عامة' })
   @interceptor()
-  async image(@UploadedFile() file: Express.Multer.File) {
+  async image(@CurrentUser() user: AuthUser, @UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('لم يتم اختيار ملف');
-    return this.service.upload(file, 'courses');
+    return this.service.upload(file, 'courses', user.id);
   }
 
   /**
@@ -61,9 +61,9 @@ export class UploadsController {
    */
   @Delete()
   @ApiOperation({ summary: 'حذف صورة مرفوعة' })
-  async remove(@Body('url') url: string) {
+  async remove(@CurrentUser() user: AuthUser, @Body('url') url: string) {
     if (!url) throw new BadRequestException('لم يتم تحديد الملف');
-    const deleted = await this.service.remove(url);
+    const deleted = await this.service.remove(url, user.role === Role.ADMIN ? '*' : user.id);
     return { deleted, message: deleted ? 'تم حذف الصورة' : 'الصورة غير موجودة' };
   }
 }

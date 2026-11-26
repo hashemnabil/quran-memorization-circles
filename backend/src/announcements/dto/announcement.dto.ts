@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsNotIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -49,13 +50,14 @@ export class CreateAnnouncementDto {
   link?: string;
 
   @ApiPropertyOptional({
-    enum: Role,
+    enum: Object.values(Role).filter(role => role !== Role.PARENT),
     isArray: true,
     description: 'الفئات المستهدفة — اتركها فارغة ليظهر الإعلان للجميع',
   })
   @IsOptional()
   @IsArray()
   @IsEnum(Role, { each: true, message: 'إحدى الفئات المحددة غير صالحة' })
+  @IsNotIn([Role.PARENT], { each: true })
   audience?: Role[];
 
   @ApiPropertyOptional({ default: true })

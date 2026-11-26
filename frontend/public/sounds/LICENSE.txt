@@ -1,0 +1,5 @@
+Original notification tones: calm.wav, electronic.wav, clear.wav.
+Generated for this repository by scripts/generate-notification-sounds.mjs.
+No third-party recordings, speech, adhan or reference-video audio are included.
+These recordings and their generator are dedicated to the public domain under CC0 1.0:
+https://creativecommons.org/publicdomain/zero/1.0/

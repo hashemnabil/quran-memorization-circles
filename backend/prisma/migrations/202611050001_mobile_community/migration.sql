@@ -1,0 +1,11 @@
+ALTER TABLE "users" ADD COLUMN "bio" VARCHAR(280);
+ALTER TABLE "CommunityPost" ADD COLUMN "audience" TEXT NOT NULL DEFAULT 'ALL', ADD COLUMN "recipientIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[], ADD COLUMN "mentions" JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE "CommunityPost" ADD CONSTRAINT "community_audience_valid" CHECK (("audience" = 'ALL' AND cardinality("recipientIds") = 0) OR ("audience" = 'SELECTED' AND cardinality("recipientIds") BETWEEN 1 AND 100));
+CREATE INDEX "CommunityPost_recipientIds_idx" ON "CommunityPost" USING GIN ("recipientIds");
+ALTER TABLE "CommunityStory" ADD COLUMN "mentions" JSONB NOT NULL DEFAULT '[]', ADD COLUMN "background" TEXT NOT NULL DEFAULT '#123c30', ADD COLUMN "textColor" TEXT NOT NULL DEFAULT '#ffffff', ADD COLUMN "fontSize" INTEGER NOT NULL DEFAULT 28, ADD COLUMN "bold" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "users" ADD COLUMN "communityMentionNotifications" BOOLEAN NOT NULL DEFAULT true;
+CREATE TABLE "CommunityMedia" ("id" TEXT PRIMARY KEY, "ownerId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE, "mime" TEXT NOT NULL, "bytes" BYTEA NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX "CommunityMedia_ownerId_createdAt_idx" ON "CommunityMedia"("ownerId","createdAt");
+ALTER TABLE "CommunityPost" ADD COLUMN "mediaIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "CommunityStory" ADD COLUMN "mediaIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "support_tickets" ADD COLUMN "deletionCompletedAt" TIMESTAMP(3), ADD COLUMN "retentionNote" VARCHAR(2000);

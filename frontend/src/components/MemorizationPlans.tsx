@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, apiError } from '@/lib/api';
+import { notifyWriteSuccess } from '@/lib/write-feedback';
 import { useAuthStore } from '@/store/auth';
 import { Button, Card, ErrorState, Input, LoadingState, Modal, ProgressBar, Select, Textarea } from '@/components/ui';
 import { IconBook, IconCheck } from '@/components/ui/Icons';
@@ -38,16 +39,16 @@ export default function MemorizationPlans({studentId}: {studentId: string}) {
     mutationFn: async () => {
       const body = {...draft, target: draft.scope ? draft.unit==='VERSES' ? (draft.scope.to||0)-(draft.scope.from||0)+1 : draft.scope.items?.length || 0 : Number(draft.target), dueAt: draft.dueAt || null};
       return editor === 'new' ? api.post(`/students/${studentId}/plans`, body) : api.patch(`/students/${studentId}/plans/${(editor as Plan).id}`, body);
-    }, onSuccess: () => { setEditor(null); refresh(); toast.success('تم حفظ الخطة'); }, onError: error => toast.error(apiError(error)),
+    }, onSuccess: response => { setEditor(null); refresh(); notifyWriteSuccess(response, 'تم حفظ الخطة'); }, onError: error => toast.error(apiError(error)),
   });
   const addProgress = useMutation({
     mutationFn: () => api.post(`/students/${studentId}/plans/${progress!.id}/progress`, {amount: Number(amount), itemIds: chosen, versesCount: Number(verses), note, requestId}),
-    onSuccess: response => { setProgress(null); refresh(); toast.success(response.data.completed >= response.data.target ? 'مبارك! أتممت الخطة بنجاح' : 'تم اعتماد الإنجاز'); },
+    onSuccess: response => { setProgress(null); refresh(); notifyWriteSuccess(response, response.data.completed >= response.data.target ? 'مبارك! أتممت الخطة بنجاح' : 'تم اعتماد الإنجاز'); },
     onError: error => toast.error(apiError(error)),
   });
   const archive = useMutation({
     mutationFn: (plan: Plan) => api.patch(`/students/${studentId}/plans/${plan.id}`, {...plan, archived: !plan.archived}),
-    onSuccess: refresh, onError: error => toast.error(apiError(error)),
+    onSuccess: response => { refresh(); notifyWriteSuccess(response, 'تم تحديث حالة الخطة'); }, onError: error => toast.error(apiError(error)),
   });
   const openEditor = (plan: Plan | 'new') => { setEditor(plan); setDraft(plan === 'new' ? {...EMPTY,scope:{items:[]}} : {title: plan.title, unit: plan.unit, period: plan.period, target: String(plan.target), dueAt: plan.dueAt?.slice(0,10) || '',scope:plan.scope??null}); };
   return <Card className="mb-5 memorization-plans" title="خطط الحفظ والمراجعة" subtitle="خطوات صغيرة، وإنجاز يزداد كل يوم" action={canManage && <Button size="sm" onClick={() => openEditor('new')} icon={<IconBook size={16}/>}>خطة جديدة</Button>}>

@@ -68,6 +68,11 @@ export class EditMessageDto {
 }
 
 export class UpdateConversationDto {
+  @ApiPropertyOptional({ description: 'رابط صورة المجموعة المرفوعة' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  avatarUrl?: string;
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -96,6 +101,12 @@ export class SetMemberAdminDto {
   @ApiProperty({ description: 'true لترقية العضو مشرفاً، false لإزالة الإشراف' })
   @IsBoolean()
   isAdmin: boolean;
+}
+
+export class SetMemberMuteDto {
+  @ApiProperty({ description: 'منع العضو من إرسال الرسائل أو السماح له مجددًا' })
+  @IsBoolean()
+  isMuted: boolean;
 }
 
 export class QueryMessagesDto extends PaginationDto {}

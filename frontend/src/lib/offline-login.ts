@@ -37,7 +37,7 @@ export async function rememberOfflineLogin(username: string, password: string, u
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await derive(password, salt);
   const identity = { id: user.id, username: user.username, fullName: user.fullName, role: user.role,
-    isActive: true, mustChangePassword: !!user.mustChangePassword };
+    avatarUrl: user.avatarUrl ?? null, isActive: true, mustChangePassword: !!user.mustChangePassword };
   const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key,
     new TextEncoder().encode(JSON.stringify({ user: identity, dataKey: encodeBytes(localKey) })));
   if (accountVersion !== (accountGeneration.get(user.id) || 0) || usernameVersion !== (usernameGeneration.get(recordKey(username)) || 0)) return;
@@ -45,6 +45,32 @@ export async function rememberOfflineLogin(username: string, password: string, u
   const aliases = JSON.parse(localStorage.getItem(aliasKey(user.id)) || '[]') as string[];
   localStorage.setItem(aliasKey(user.id), JSON.stringify([...new Set([...aliases, username.trim().toLowerCase()])]));
   activateDataKey(user.id, localKey);
+}
+
+/** Re-wrap the existing data key after the server accepts a password change. */
+export async function rotateOfflineLoginPassword(username: string, currentPassword: string, newPassword: string, user: AuthUser) {
+  const keyName = recordKey(username);
+  // Invalidate a slower preparation started by the preceding online login so
+  // it cannot restore the old password envelope after this rotation finishes.
+  usernameGeneration.set(keyName, (usernameGeneration.get(keyName) || 0) + 1);
+  let localKey = dataKey(user.id);
+  if (!localKey) {
+    const raw = localStorage.getItem(keyName);
+    if (!raw) {
+      if (encryptedAccount(user.id)) throw new Error('تعذر فتح البيانات المحلية بكلمة المرور الحالية؛ بقيت البيانات محفوظة');
+    } else {
+      try {
+        const record = JSON.parse(raw);
+        const oldKey = await derive(currentPassword, decode(record.salt));
+        const bytes = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: decode(record.iv) }, oldKey, decode(record.data));
+        const previous = JSON.parse(new TextDecoder().decode(bytes));
+        if (previous.user?.id !== user.id || !previous.dataKey) throw new Error();
+        localKey = decodeBytes(previous.dataKey);
+        activateDataKey(user.id, localKey);
+      } catch { throw new Error('تعذر تحديث حماية البيانات المحلية؛ استخدم كلمة المرور الحالية الصحيحة'); }
+    }
+  }
+  await rememberOfflineLogin(username, newPassword, user);
 }
 export function forgetOfflineLogin(username: string) {
   const key = recordKey(username); usernameGeneration.set(key, (usernameGeneration.get(key) || 0) + 1);

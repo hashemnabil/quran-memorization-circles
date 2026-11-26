@@ -56,7 +56,7 @@ export default function SuspensionsPage() {
       <PageHeader
         title="إيقاف الطلاب"
         subtitle={
-          user.role === 'ADMIN'
+          (user.role === 'ADMIN' || user.role === 'FOUNDER')
             ? 'مراجعة طلبات الإيقاف ومتابعة الطلاب الموقوفين'
             : 'متابعة طلبات الإيقاف التي قدمتها'
         }
@@ -185,7 +185,7 @@ function ActiveTab({ suspensions }: { suspensions: Suspension[] }) {
               </div>
             )}
 
-            {user.role === 'ADMIN' && (
+            {(user.role === 'ADMIN' || user.role === 'FOUNDER') && (
               <Button variant="success" size="sm" className="w-full" onClick={() => setReturning(s)}>
                 {s.action === 'ACTIVITY_PROGRAM'
                   ? 'إسناد الطالب إلى حلقة'
@@ -211,7 +211,7 @@ function RequestsTab() {
   const [page, setPage] = useState(1);
   const [decision, setDecision] = useState<{ request: Suspension; approve: boolean } | null>(null);
 
-  const isAdmin = user.role === 'ADMIN';
+  const isAdmin = (user.role === 'ADMIN' || user.role === 'FOUNDER');
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['suspensions', { status, page }],

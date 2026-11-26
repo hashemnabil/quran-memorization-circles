@@ -2,6 +2,7 @@ import { ThemeProvider } from '@/components/ThemeSelect';
 import AppSecurityGate from '@/components/AppSecurityGate';
 import ProfileVerificationPage, { ProfileReviewsPage } from '@/pages/ProfileVerificationPage';
 import NativeBackNavigation from '@/components/NativeBackNavigation';
+import NativeDeepLinks from '@/components/NativeDeepLinks';
 import MeetingsPage from '@/pages/MeetingsPage';
 import { lazy, Suspense, useEffect } from 'react';
 import { LoadingState } from '@/components/ui';
@@ -25,11 +26,14 @@ import PrivacyPage from '@/pages/PrivacyPage';
 import AboutPage from '@/pages/AboutPage';
 import AccountDeletionPage from '@/pages/AccountDeletionPage';
 import BroadcastPage from '@/pages/BroadcastPage';
+import SmsPage from '@/pages/SmsPage';
 import ActivityPage from '@/pages/ActivityPage';
 import PasswordRequestsPage from '@/pages/PasswordRequestsPage';
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const StudentRankingPage = lazy(() => import('@/pages/StudentRankingPage'));
+const MushafPage = lazy(() => import('@/pages/MushafPage'));
 import StudentPortalPage from '@/pages/StudentPortalPage';
+import StudentHomePage from '@/pages/StudentHomePage';
 const ReportsPage = lazy(() => import('@/pages/ReportsPage'));
 import StudentAccountsPage from '@/pages/students/StudentAccountsPage';
 import StudentFilesPage from '@/pages/StudentFilesPage';
@@ -55,6 +59,7 @@ import SuspensionsPage from '@/pages/suspensions/SuspensionsPage';
 const CommunityComposer = lazy(() => import('@/pages/community/CommunityComposer'));
 const CommunityPage = lazy(() => import('@/pages/community/CommunityPage'));
 const ChatPage = lazy(() => import('@/pages/chat/ChatPage'));
+const ModerationPage = lazy(() => import('@/pages/ModerationPage'));
 import NotificationsPage from '@/pages/NotificationsPage';
 import SupportPage from '@/pages/support/SupportPage';
 import SupportTicketPage from '@/pages/support/SupportTicketPage';
@@ -104,6 +109,7 @@ export default function App() {
   return (
     <AppLaunchGate><ThemeProvider />
       <NativeBackNavigation />
+      <NativeDeepLinks />
       <AppSecurityGate><PopupAnnouncements /><CuratedWebAudio /><Suspense fallback={<LoadingState />}>
       <Routes>
       <Route path="/privacy" element={<PrivacyPage />} />
@@ -126,14 +132,16 @@ export default function App() {
         <Route path="prayer-times/reminders" element={<PrayerReminderSettingsPage key={currentUser?.id} />} />
         <Route path="profile/settings/notifications/sound" element={<NotificationSoundSettingsPage key={currentUser?.id} />} />
         <Route path="donations" element={<DonationsPage />} />
+        <Route path="admin/sms" element={<RequireRole roles={['ADMIN']}><SmsPage /></RequireRole>} />
         <Route path="admin/notifications" element={<RequireRole roles={['ADMIN']}><BroadcastPage /></RequireRole>} />
         <Route path="meetings" element={<RequireRole roles={['ADMIN']}><MeetingsPage /></RequireRole>} />
         <Route path="admin/activity" element={<RequireRole roles={['ADMIN']}><ActivityPage /></RequireRole>} />
         <Route path="admin/password-requests" element={<RequireRole roles={['ADMIN']}><PasswordRequestsPage /></RequireRole>} />
-        <Route index element={currentUser?.role === 'FOUNDER' ? <FounderPage /> : currentUser?.role === 'STUDENT' ? <StudentPortalPage /> : <DashboardPage />} />
+        <Route index element={currentUser?.role === 'FOUNDER' ? <FounderPage /> : currentUser?.role === 'STUDENT' ? <StudentHomePage /> : <DashboardPage />} />
         <Route path="student/achievements" element={<RequireRole roles={['STUDENT']}><StudentPersonalAchievementsPage /></RequireRole>} />
         <Route path="student" element={<RequireRole roles={['STUDENT']}><StudentPortalPage /></RequireRole>} />
         <Route path="student-ranking" element={<StudentRankingPage />} />
+        <Route path="mushaf" element={<MushafPage />} />
         <Route path="reports" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
         <Route path="documents/:report" element={<RequireRole roles={['ADMIN']}><ReportsPage /></RequireRole>} />
         <Route path="student-accounts" element={<RequireRole roles={['ADMIN']}><StudentAccountsPage /></RequireRole>} />
@@ -173,6 +181,7 @@ export default function App() {
         <Route path="community/users/:userId" element={<CommunityPage />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="chat/:id" element={<ChatPage />} />
+        <Route path="moderation" element={<RequireRole roles={['ADMIN', 'SUPERVISOR', 'FOUNDER']}><ModerationPage /></RequireRole>} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="support" element={<SupportPage />} />
         <Route path="support/:id" element={<SupportTicketPage />} />

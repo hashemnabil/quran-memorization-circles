@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { DEFAULT_LEARNING_RULES, resolveRules, scoreSession } from './learning-rules';
 import { validatePolicy } from '../recitations/learning-policy';
 const error = (id: string, typeId = 'word') => ({ id, wordId: '78:1:1', typeId });
+test('default attendance awards count teacher-recorded presence and lateness', () => {
+  assert.equal(DEFAULT_LEARNING_RULES.attendance.find(rule => rule.id === 'PRESENT')?.points, 1);
+  assert.equal(DEFAULT_LEARNING_RULES.attendance.find(rule => rule.id === 'LATE')?.points, 0.5);
+});
 test('marked words are included in counters and deducted exactly once', () => { const r = scoreSession({ versesCount: 10, mistakes: 2, warnings: 1, tajweedErrors: 1, wordErrors: [error('a'), error('b', 'warning')] }); assert.equal(r.points, 7.25); assert.deepEqual(r.manual, { mistake: 1, warning: 0, tajweed: 1 }); });
 test('custom penalties, zero deductions and first-warning policy apply by type', () => { const rules = resolveRules({ types: DEFAULT_LEARNING_RULES.types.map(t => t.id === 'warning' ? { ...t, penalty: 0.75, freeFirst: true } : t) }); const r = scoreSession({ versesCount: 10, mistakes: 0, warnings: 3, tajweedErrors: 0, wordErrors: [error('a', 'warning'), error('b', 'warning')], typeCounters: [{ typeId: 'warning', count: 1 }] }, rules); assert.equal(r.deducted, 1.5); assert.equal(r.points, 8.5); });
 test('manual type counters and word errors share counters without duplication', () => { const r = scoreSession({ versesCount: 10, mistakes: 3, warnings: 0, tajweedErrors: 0, wordErrors: [error('a', 'omission')], typeCounters: [{ typeId: 'omission', count: 2 }] }); assert.equal(r.deducted, 1.5); assert.equal(r.points, 8.5); });

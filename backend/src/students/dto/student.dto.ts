@@ -164,6 +164,12 @@ export class CreateStudentDto {
 
 export class UpdateStudentDto extends PartialType(CreateStudentDto) {}
 
+export class SetStudentApprovalDto {
+  @ApiProperty({ description: 'حالة اعتماد الطالب من الإدارة' })
+  @IsBoolean()
+  isApproved: boolean;
+}
+
 export class StudentQuestionnaireDto extends PartialType(PickType(CreateStudentDto, [
   'fullName', 'birthDate', 'address', 'nationalId', 'fatherNationalId',
   'guardianName', 'guardianPhone', 'guardianRelation',
@@ -185,6 +191,14 @@ export enum StudentTrack {
 }
 
 export class QueryStudentsDto extends PaginationDto {
+  @ApiPropertyOptional({ description: 'تصفية الطلاب حسب اعتماد الإدارة' })
+  @IsOptional()
+  // Keep the reflected type as a union (`Object`) so Nest's global implicit
+  // conversion cannot turn the non-empty string "false" into boolean true
+  // before this explicit parser runs.
+  @Transform(({ value }) => value === true || value === 'true' ? true : value === false || value === 'false' ? false : value)
+  @IsBoolean()
+  isApproved?: boolean | 'true' | 'false';
   @ApiPropertyOptional({ enum: StudentStatus })
   @IsOptional()
   @IsEnum(StudentStatus)

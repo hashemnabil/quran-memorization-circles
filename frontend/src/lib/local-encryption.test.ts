@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { after, beforeEach, test } from 'node:test';
 import { db } from './db';
 import { activateDataKey, dataKey, forgetEncryptionMarker, lockDataKeys, openValue, sealValue } from './local-encryption';
-import { rememberOfflineLogin, unlockOfflineLogin } from './offline-login';
+import { rememberOfflineLogin, rotateOfflineLoginPassword, unlockOfflineLogin } from './offline-login';
 import { protectLocalAccount } from './local-data-session';
 import { configureOffline, syncAll } from './offline-engine';
 import { enqueueOfflineOperation, listOfflineOperations, clearOfflineOperations } from './offline/outbox';
@@ -101,6 +101,19 @@ test('updating a verified password wraps the same data key instead of replacing 
   await unlockOfflineLogin('alpha', 'New long passphrase');
   assert.deepEqual(dataKey('alpha'), key);
   assert.equal((await db.students.get(['alpha', 'student']))?.fullName, 'Keep this record');
+});
+
+test('password rotation opens the old envelope and preserves the encrypted avatar identity', async () => {
+  const pictured = { ...identity, avatarUrl: '/uploads/avatar/account.jpg' };
+  await rememberOfflineLogin('alpha', 'Old long passphrase', pictured);
+  const key = new Uint8Array(dataKey('alpha')!);
+  lockDataKeys();
+  await rotateOfflineLoginPassword('alpha', 'Old long passphrase', 'New long passphrase', pictured);
+  lockDataKeys();
+  await assert.rejects(unlockOfflineLogin('alpha', 'Old long passphrase'));
+  const session = await unlockOfflineLogin('alpha', 'New long passphrase');
+  assert.deepEqual(dataKey('alpha'), key);
+  assert.equal(session.user.avatarUrl, pictured.avatarUrl);
 });
 
 test('reload verification is encrypted, bound to the unlocked account and removed on logout', () => {

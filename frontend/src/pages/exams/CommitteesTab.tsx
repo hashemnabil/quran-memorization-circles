@@ -21,7 +21,7 @@ function CommitteePenaltySettings({committee}:{committee:Committee}){
  return <Card><h3 className="mb-3 font-bold">إعدادات الأخطاء والتنبيهات — لجنة {committee.number}</h3><div className="grid gap-3 sm:grid-cols-2"><Input label="خصم الخطأ الواحد" type="number" min={0} max={90} step="0.25" value={mistakeValue} onChange={e=>setMistake(e.target.value)}/><Input label="خصم التنبيه الواحد" type="number" min={0} max={90} step="0.25" value={alertValue} onChange={e=>setAlert(e.target.value)}/></div><Button disabled={!valid||save.isPending} onClick={()=>save.mutate()}>حفظ إعدادات اللجنة</Button></Card>;
 }
 export default function CommitteesTab() {
-  const user=useAuthStore(state=>state.user)!;const client=useQueryClient();const admin=user.role==='ADMIN';const canGrade=admin||user.role==='EXAM_COMMITTEE';
+  const user=useAuthStore(state=>state.user)!;const client=useQueryClient();const admin=(user.role === 'ADMIN' || user.role === 'FOUNDER');const canGrade=admin||user.role==='EXAM_COMMITTEE';
   const [selected,setSelected]=useState<Committee>();const [editing,setEditing]=useState<Committee|null|undefined>();const [grading,setGrading]=useState<Exam>();const [moving,setMoving]=useState<Exam>();const [targetCommittee,setTargetCommittee]=useState('');const [historical,setHistorical]=useState(false);const [busy,setBusy]=useState(false);const [search,setSearch]=useState('');
   const committees=useQuery({queryKey:['examCommittees'],queryFn:async()=>(await api.get<Committee[]>('/examCommittees')).data});
   const exams=useQuery({queryKey:['exams','committee',selected?.id],enabled:!!selected,queryFn:async()=>{

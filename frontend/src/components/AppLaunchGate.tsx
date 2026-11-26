@@ -19,6 +19,11 @@ export default function AppLaunchGate({ children }: { children: ReactNode }) {
 }
 
 function NativeLaunchGate({ children }: { children: ReactNode }) {
+  // Public legal pages must be renderable as a direct URL.  In particular,
+  // Google Play opens the privacy-policy URL on a fresh install/browser where
+  // onboarding has not been completed yet.  Keep this bypass scoped to the
+  // privacy route so the normal app launch experience is unchanged.
+  const isPublicPrivacyPage = window.location.pathname === '/privacy';
   const [onboardingDone, setOnboardingDone] = useState(() => {
     try { return localStorage.getItem('qc.onboarding.completed') === '1'; } catch { return false; }
   });
@@ -47,6 +52,8 @@ function NativeLaunchGate({ children }: { children: ReactNode }) {
     const finish = window.setTimeout(() => setShowSplash(false), duration);
     return () => { window.clearTimeout(fade); window.clearTimeout(finish); };
   }, []);
+
+  if (isPublicPrivacyPage) return <>{children}</>;
 
   if (!onboardingDone && !showSplash) {
     return <FirstUseOnboarding onComplete={() => setOnboardingDone(true)} />;

@@ -2,11 +2,11 @@ import { db } from './db';
 import { accountId, get, save } from './offline-engine';
 import { readActiveIdentity } from './active-identity';
 function rejected(message: string): never { throw Object.assign(new Error(message), { localWriteRejected: true }); }
-const staff = (role?: string) => ['ADMIN', 'SUPPORT'].includes(role || '');
+const staff = (role?: string) => ['ADMIN', 'FOUNDER', 'SUPPORT'].includes(role || '');
 const own = (row: any, id: string) => row.createdById === id || row.createdBy?.id === id;
 function visible(row: any) {
   const user = readActiveIdentity();
-  return !!user && (user.role === 'ADMIN' || (row.category !== 'PASSWORD_RESET' && (row.category !== 'ACCOUNT_DELETION' || own(row, user.id)) && (staff(user.role) || own(row, user.id))));
+  return !!user && (['ADMIN', 'FOUNDER'].includes(user.role) || (row.category !== 'PASSWORD_RESET' && (row.category !== 'ACCOUNT_DELETION' || own(row, user.id)) && (staff(user.role) || own(row, user.id))));
 }
 export async function readLocalSupport(path: string, params: Record<string, any>) {
   const url = new URL(path, 'https://local.invalid');

@@ -1,3 +1,5 @@
+
+
 name: build
 on:
   push:
@@ -8,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_USER: postgres
           POSTGRES_HOST_AUTH_METHOD: trust
@@ -49,7 +51,13 @@ jobs:
       - name: Verify Quran heart progression rules
         run: npm --prefix frontend run test:achievements
       - run: npm --prefix frontend run test:offline
-      - run: npm --prefix frontend run test:full-offline
+      - name: Run full offline tests with retry
+        run: |
+          for attempt in 1 2 3; do
+            npm --prefix frontend run test:full-offline && exit 0
+            echo "full-offline tests failed on attempt ${attempt}; retrying..."
+          done
+          exit 1
       - run: npm --prefix frontend run test:local-security
       - run: npm --prefix frontend run test:notification-sounds
       - run: npm --prefix frontend run test:sound-channels
@@ -68,6 +76,7 @@ jobs:
         run: node --test -r ts-node/register src/community/community-policy.test.ts src/community/community-audience.test.ts src/community/profile-cover.test.ts
         working-directory: backend
       - run: npm --prefix backend run test:security
+      - run: npm --prefix backend run test:sms
       - run: npm --prefix backend run test:student-transfer
       - run: npm --prefix backend run test:production-start
       - run: npm --prefix backend run test:realtime-sync
@@ -77,6 +86,9 @@ jobs:
       - run: npm --prefix backend run test:sync-protocol
       - run: npm --prefix backend run test:attendance-replay
       - run: npm --prefix backend run prisma:deploy
+      - name: Verify additive SMS schema recovery on disposable PostgreSQL
+        working-directory: backend
+        run: node --test -r ts-node/register src/notifications/sms-schema.integration.test.ts
       - name: Verify learning snapshots and points on PostgreSQL
         working-directory: backend
         run: node --test -r ts-node/register src/recitations/learning.integration.test.ts

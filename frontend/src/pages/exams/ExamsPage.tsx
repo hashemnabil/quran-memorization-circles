@@ -92,10 +92,10 @@ export default function ExamsPage() {
   const location = useLocation();
   const requestStudent = (location.state as { requestStudent?: Student } | null)?.requestStudent ?? null;
   const user = useAuthStore((s) => s.user)!;
-  const canManage = user.role === 'ADMIN' || user.role === 'EXAM_COMMITTEE';
+  const canManage = (user.role === 'ADMIN' || user.role === 'FOUNDER') || user.role === 'EXAM_COMMITTEE';
   const canRequest = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(user.role);
 
-  const [tab, setTab] = useState<'requests' | 'scheduled' | 'history' | 'progression' | 'combined' | 'committees'>('requests');
+  const [tab, setTab] = useState<'requests' | 'scheduled' | 'history' | 'progression' | 'combined' | 'committees'>(location.search.includes('tab=committees') ? 'committees' : 'requests');
   const [creating, setCreating] = useState(!!requestStudent);
   const [progressSearch, setProgressSearch] = useState('');
   const debouncedProgressSearch = useDebounce(progressSearch);
@@ -175,7 +175,7 @@ export default function ExamsPage() {
               </div>
             )}
           </Card>
-          {progressStudent && <ExamProgressionTable studentId={progressStudent.id} canRequest={canRequest} canEditMilestones={user.role === 'ADMIN'} eligibility={progressEligibility.data} exams={progressExams.data?.data ?? []} loading={progressEligibility.isLoading || progressExams.isLoading} />}
+          {progressStudent && <ExamProgressionTable studentId={progressStudent.id} canRequest={canRequest} canEditMilestones={(user.role === 'ADMIN' || user.role === 'FOUNDER')} eligibility={progressEligibility.data} exams={progressExams.data?.data ?? []} loading={progressEligibility.isLoading || progressExams.isLoading} />}
         </div>
       )}
 
@@ -334,7 +334,7 @@ function RequestsTab({ canManage }: { canManage: boolean }) {
 // ============================================================================
 
 function ExamsTab({ mode, canManage }: { mode: 'scheduled' | 'history'; canManage: boolean }) {
-  const canCorrect = useAuthStore(state => state.user?.role === 'ADMIN');
+  const canCorrect = useAuthStore(state => (state.user?.role === 'ADMIN' || state.user?.role === 'FOUNDER'));
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [historyStatus, setHistoryStatus] = useState('COMPLETED');

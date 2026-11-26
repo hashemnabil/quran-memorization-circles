@@ -28,7 +28,7 @@ export default function FirstUseOnboarding({ onComplete }: { onComplete: () => v
     </section>
     <footer className="relative z-10 w-full max-w-md self-center">
       <div className="mb-7 flex justify-start gap-2" aria-label={`الخطوة ${index + 1} من ${slides.length}`}>{slides.map((item, step) => <button type="button" key={item.title} aria-label={`عرض الخطوة ${step + 1}`} aria-current={step === index ? 'step' : undefined} onClick={() => setIndex(step)} className="flex h-11 items-center px-1"><span className={`block h-1.5 rounded-full transition-all ${step === index ? 'w-8 bg-[#e7ca83]' : 'w-3 bg-white/30'}`} /></button>)}</div>
-      <div className="flex gap-3">{index > 0 && <button type="button" onClick={() => setIndex(index - 1)} className="min-h-14 rounded-2xl border border-white/20 px-5 font-semibold">السابق</button>}<button type="button" onClick={() => index === slides.length - 1 ? finish() : setIndex(index + 1)} className="flex min-h-14 flex-1 items-center justify-center gap-3 rounded-2xl bg-white px-5 font-bold text-primary-900 shadow-lg">{index === slides.length - 1 ? 'ابدأ الآن' : 'متابعة'}<IconChevronLeft size={18} /></button></div>
+      <div className="flex gap-3">{index > 0 && <button type="button" onClick={() => setIndex(index - 1)} className="min-h-14 rounded-2xl border border-white/20 px-5 font-semibold">السابق</button>}<button type="button" onClick={() => index === slides.length - 1 ? finish() : setIndex(index + 1)} className="onboarding-next-button flex min-h-14 flex-1 items-center justify-center gap-3 rounded-2xl px-5 font-bold shadow-lg">{index === slides.length - 1 ? 'ابدأ الآن' : 'متابعة'}<IconChevronLeft size={18} aria-hidden="true" /></button></div>
     </footer>
   </main>;
 }

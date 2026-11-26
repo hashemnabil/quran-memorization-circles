@@ -54,7 +54,7 @@ export default function CircleDetailsPage() {
   const [tab, setTab] = useState('students');
   const [modal, setModal] = useState<'edit' | 'assistant' | 'primary' | null>(null);
 
-  const isAdmin = user.role === 'ADMIN';
+  const isAdmin = (user.role === 'ADMIN' || user.role === 'FOUNDER');
   const canManageTeachers = isAdmin || user.role === 'SUPERVISOR';
 
   const { data: circle, isLoading, isError, refetch } = useQuery({
@@ -505,7 +505,7 @@ function AssignTeacherModal({
 function EditCircleModal({ circle, onClose }: { circle: Circle; onClose: () => void }) {
   const user = useAuthStore((s) => s.user)!;
   const queryClient = useQueryClient();
-  const isAdmin = user.role === 'ADMIN';
+  const isAdmin = (user.role === 'ADMIN' || user.role === 'FOUNDER');
 
   const [form, setForm] = useState({
     name: circle.name,

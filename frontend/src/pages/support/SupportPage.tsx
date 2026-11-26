@@ -36,7 +36,7 @@ import type { PaginatedResponse, SupportTicket } from '@/types';
 
 export default function SupportPage() {
   const user = useAuthStore((s) => s.user)!;
-  const isStaff = user.role === 'SUPPORT' || user.role === 'ADMIN';
+  const isStaff = user.role === 'SUPPORT' || (user.role === 'ADMIN' || user.role === 'FOUNDER');
 
   const [status, setStatus] = useState('');
   const [priority, setPriority] = useState('');

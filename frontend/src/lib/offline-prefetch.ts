@@ -2,6 +2,7 @@ import { db } from './db';
 import { reportSyncProgress } from './sync-progress';
 import { applySnapshotPatch } from './snapshot-delta';
 import { cacheConversations } from './conversation-cache';
+import { mergeRows } from './offline-engine';
 
 type Send = (method: string, path: string, headers?: Record<string, string>) => Promise<any>;
 type Snapshot = { data: any; rows?: any[]; paginated: boolean; registry?: boolean; savedAt: string };
@@ -14,18 +15,18 @@ const key = (account: string, path: string, params: Record<string, any> = {}) =>
 
 /** Read-only boot download. Every request still passes server authorization. */
 export async function prefetchSections(send: Send, account: string, currentAccount: () => string, role: string, changedEntities?: string[]) {
-  const staff = ['ADMIN', 'SUPERVISOR', 'TEACHER'].includes(role);
-  const manager = ['ADMIN', 'SUPERVISOR'].includes(role);
+  const staff = ['ADMIN', 'FOUNDER', 'SUPERVISOR', 'TEACHER'].includes(role);
+  const manager = ['ADMIN', 'FOUNDER', 'SUPERVISOR'].includes(role);
   const today = new Date().toISOString().slice(0, 10);
   const paths = new Set(['/settings/public', '/settings', '/announcements/active', '/users/directory', '/support', '/support/stats', '/chat/conversations', '/chat/unread-count', '/dashboard/overview']);
   paths.add('/attendance/absence-permissions');
   if (staff) ['/transfers', '/suspensions', '/suspensions/active', '/preparations', '/attendance/stats', '/exams/upcoming'].forEach(path => paths.add(path));
   if (manager) ['/users/staff', '/courses/stats', '/staff-attendance', '/staff-attendance/history', '/staff-attendance/summary', '/media-activities'].forEach(path => paths.add(path));
   if (manager) paths.add(`/staff-attendance/sheet?date=${today}`);
-  if (['ADMIN', 'SUPPORT'].includes(role)) paths.add('/support/staff');
-  if (['ADMIN', 'EXAM_COMMITTEE'].includes(role)) paths.add('/exams/examiners');
-  if (role === 'ADMIN') ['/users', '/users/stats', '/announcements', '/certificates/templates', '/certificates/issued', '/certificates/requests', '/dashboard/activity', '/students/accounts', '/notifications/recipients'].forEach(path => paths.add(path));
-  if (role === 'ADMIN') {
+  if (['ADMIN', 'FOUNDER', 'SUPPORT'].includes(role)) paths.add('/support/staff');
+  if (['ADMIN', 'FOUNDER', 'EXAM_COMMITTEE'].includes(role)) paths.add('/exams/examiners');
+  if (['ADMIN', 'FOUNDER'].includes(role)) ['/users', '/users/stats', '/announcements', '/certificates/templates', '/certificates/issued', '/certificates/requests', '/dashboard/activity', '/students/accounts', '/notifications/recipients', '/sms/recipients', '/sms/templates', '/sms/campaigns'].forEach(path => paths.add(path));
+  if (['ADMIN', 'FOUNDER'].includes(role)) {
     paths.add('/registry/admin/stats'); paths.add('/registry/admin/users');
     paths.add(`/certificates/monthly-report-data?from=${today.slice(0, 7)}-01&to=${today}`);
   }
@@ -59,8 +60,9 @@ export async function prefetchSections(send: Send, account: string, currentAccou
     registry: ['registry_users'], circles: ['circles', 'circle_teachers', 'circle_memberships', 'students', 'attendance', 'recitations', 'exams'],
     students: ['students', 'student_evaluations', 'student_notes', 'attendance', 'recitations', 'exams', 'exam_requests', 'preparation_assignments', 'surah_completions', 'memorization_plans', 'memorization_progress'],
     teachers: ['teacher_profiles', 'users', 'students', 'attendance', 'recitations', 'circle_teachers'],
+    sms: ['students', 'users', 'school_settings', 'sms_templates', 'sms_campaigns'],
   };
-  const affected = (path: string) => !changedEntities || path.startsWith('/dashboard/') ||
+  const affected = (path: string) => !changedEntities || path.startsWith('/dashboard/') || path.startsWith('/sms/') ||
     (dependencies[path.split('/')[1]] || []).some(entity => changedEntities.includes(entity));
   if (['STUDENT', 'TEACHER'].includes(role)) paths.add('/profile-reviews/me');
   const pending = [...paths].filter(path => path === '/profile-reviews/me' ? !changedEntities || changedEntities.some(entity => ['profile_reviews', 'students', 'teacher_profiles', 'users'].includes(entity)) : affected(path));
@@ -92,6 +94,12 @@ export async function prefetchSections(send: Send, account: string, currentAccou
     }
     if (currentAccount() !== account) return;
     const data = paginated ? { ...result, [registry ? 'items' : 'data']: rows } : result;
+    const plansPath = path.match(/^\/students\/([^/]+)\/plans$/);
+    if (plansPath && Array.isArray(data)) {
+      const visible = new Set(data.map(plan => plan.id));
+      await db.table('memorizationPlans').where('accountId').equals(account).filter(row => row.studentId === plansPath[1] && row.synced === 1 && !visible.has(row.id)).delete();
+      await mergeRows('memorizationPlans', data.map(plan => ({ ...plan, studentId: plansPath[1] })), account);
+    }
     if (path === '/chat/conversations' && Array.isArray(data)) await cacheConversations(account, data, true);
     if (/^\/chat\/conversations\/[^/]+$/.test(path) && data?.id) await cacheConversations(account, [data]);
     if (path === '/profile-reviews/me' && data?.profile && Array.isArray(data.requests)) {

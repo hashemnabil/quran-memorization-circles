@@ -1,0 +1,88 @@
+name: android-release-smoke
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/android-release-smoke.yml'
+      - '.github/workflows/mobile-build.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  android-release-smoke:
+    # PR-only signed build using a disposable key; never publish this artifact.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+      - name: Build web assets
+        run: npm --prefix frontend run build
+        env:
+          VITE_API_URL: https://quran-memorization-circles.onrender.com/api
+          VITE_SOCKET_URL: https://quran-memorization-circles.onrender.com
+          VITE_SITE_URL: https://quran-frontend-sknr.onrender.com
+      - name: Sync Capacitor assets
+        working-directory: frontend
+        run: npm run mobile:sync -- android
+      - name: Generate disposable signing key
+        run: |
+          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/pr-smoke.p12" -storetype PKCS12 -alias smoke -storepass smokeonly123 -keypass smokeonly123 -keyalg RSA -keysize 2048 -validity 2 -dname "CN=PR Build Smoke Test"
+      - name: Verify optimized release bundle builds
+        working-directory: frontend/android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/pr-smoke.p12
+          ANDROID_KEYSTORE_PASSWORD: smokeonly123
+          ANDROID_KEY_ALIAS: smoke
+          ANDROID_KEY_PASSWORD: smokeonly123
+        run: bash ./gradlew assembleRelease bundleRelease
+      - name: Report bundle size
+        run: |
+          python3 frontend/scripts/android-release-report.py \
+            --aab frontend/android/app/build/outputs/bundle/release/app-release.aab \
+            --apk frontend/android/app/build/outputs/apk/release/app-release.apk \
+            --mapping frontend/android/app/build/outputs/mapping/release/mapping.txt --out release-smoke-report
+          cat release-smoke-report/size-report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test actual optimized release on an offline emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/pr-smoke.p12
+          ANDROID_KEYSTORE_PASSWORD: smokeonly123
+          ANDROID_KEY_ALIAS: smoke
+          ANDROID_KEY_PASSWORD: smokeonly123
+          ANDROID_RELEASE_INSTRUMENTATION: 'true'
+        with:
+          api-level: 35
+          arch: x86_64
+          disable-animations: true
+          script: |
+            adb shell cmd connectivity airplane-mode enable
+            cd frontend/android && bash ./gradlew connectedReleaseAndroidTest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-release-verification
+          path: |
+            release-smoke-report/
+            frontend/android/app/build/outputs/mapping/release/
+            frontend/android/app/build/reports/androidTests/
+          if-no-files-found: warn
+      - name: Delete disposable signing key
+        if: always()
+        run: rm -f -- "$RUNNER_TEMP/pr-smoke.p12"

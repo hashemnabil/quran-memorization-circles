@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Native notification channels look these up by name, including on API 24. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/school_*,@drawable/ic_stat_halaqat" />

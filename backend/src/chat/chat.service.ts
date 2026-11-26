@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConversationType, NotificationType, Prisma, Role } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AccessControlService } from '../common/services/access-control.service';
@@ -14,6 +15,7 @@ import { AuthUser } from '../common/decorators';
 import { ActivityService } from '../realtime/activity.service';
 import { publicActivity } from '../realtime/activity-policy';
 import { paginate } from '../common/dto/pagination.dto';
+import { visibility } from '../community/community-policy';
 import {
   AddMembersDto,
   CreateDirectConversationDto,
@@ -26,6 +28,7 @@ import {
 const MEMBER_SELECT = {
   id: true,
   isAdmin: true,
+  isMuted: true,
   lastReadAt: true,
   user: { select: { id: true, fullName: true, role: true, avatarUrl: true } },
 } satisfies Prisma.ConversationMemberSelect;
@@ -98,7 +101,7 @@ export class ChatService {
           // Mirrors the checks in `send()` so the UI can disable the composer.
           contactRestricted: m.conversation.members.some(member => member.user.id !== user.id && !contactIds.has(member.user.id)),
           canPost: m.conversation.members.every(member => member.user.id === user.id || contactIds.has(member.user.id)) &&
-            (!isGroup || (!m.conversation.isClosed && (!m.conversation.adminOnly || m.isAdmin))),
+            (!isGroup || (!m.conversation.isClosed && !m.isMuted && (!m.conversation.adminOnly || m.isAdmin))),
         };
       }),
     );
@@ -238,6 +241,7 @@ export class ChatService {
 
     return {
       ...conversation,
+      inviteCode: membership.isAdmin || user.role === Role.ADMIN || user.role === Role.FOUNDER ? conversation.inviteCode : null,
       title: conversation.title ?? other?.user.fullName ?? 'محادثة',
       // A direct thread has no picture of its own, so it wears the other
       // person's — the same fallback `listConversations` applies, without which
@@ -248,7 +252,7 @@ export class ChatService {
       memberCount: conversation.members.length,
       isAdmin: membership.isAdmin,
       contactRestricted,
-      canPost: !contactRestricted && (!isGroup || (!conversation.isClosed && (!conversation.adminOnly || membership.isAdmin))),
+      canPost: !contactRestricted && (!isGroup || (!conversation.isClosed && !membership.isMuted && (!conversation.adminOnly || membership.isAdmin))),
     };
   }
 
@@ -285,6 +289,7 @@ export class ChatService {
       select: { isClosed: true, adminOnly: true, type: true },
     });
     if (settings?.type === ConversationType.GROUP) {
+      if (membership.isMuted) throw new ForbiddenException('أوقف مشرف المجموعة إرسال الرسائل من حسابك');
       if (settings.isClosed) {
         throw new BadRequestException('هذه المجموعة مغلقة، لا يمكن إرسال رسائل جديدة');
       }
@@ -295,7 +300,10 @@ export class ChatService {
 
     if(dto.attachmentUrl){
       const mediaId=dto.attachmentUrl.match(/^community-media:([0-9a-f-]{36})$/i)?.[1];
-      if(!mediaId||!await this.prisma.communityMedia.count({where:{id:mediaId,ownerId:user.id}}))throw new BadRequestException('الصورة المرفقة غير صالحة أو لا تملكها');
+      const postId=dto.attachmentUrl.match(/^community-post:([0-9a-f-]{36})$/i)?.[1];
+      const validMedia=mediaId&&await this.prisma.communityMedia.count({where:{id:mediaId,ownerId:user.id}});
+      const validPost=postId&&await this.prisma.communityPost.count({where:{AND:[{id:postId},visibility(user.id)]}});
+      if(!validMedia&&!validPost)throw new BadRequestException('المرفق غير صالح أو غير متاح لك');
     }
     const message = await this.prisma.$transaction(async (tx) => {
       const created = await tx.message.create({
@@ -375,7 +383,7 @@ export class ChatService {
     if (conversation.type !== ConversationType.GROUP) {
       throw new BadRequestException('يمكن إضافة أعضاء إلى المجموعات فقط');
     }
-    if (!membership.isAdmin) throw new ForbiddenException('إضافة الأعضاء متاحة لمشرف المجموعة فقط');
+    if (!membership.isAdmin && user.role !== Role.ADMIN && user.role !== Role.FOUNDER) throw new ForbiddenException('إضافة الأعضاء متاحة لمشرف المجموعة فقط');
 
     await this.assertAllContactable(user, dto.memberIds);
 
@@ -417,7 +425,9 @@ export class ChatService {
 
   /** Editing is limited to the author; the message is flagged as edited. */
   async editMessage(user: AuthUser, conversationId: string, messageId: string, body: string, expected?: { body: string; editedAt: string | null }) {
-    await this.assertMember(user, conversationId);
+    const membership = await this.assertMember(user, conversationId);
+    const conversation = await this.prisma.conversation.findUnique({ where: { id: conversationId }, select: { type: true } });
+    if (conversation?.type === ConversationType.GROUP && membership.isMuted) throw new ForbiddenException('أوقف مشرف المجموعة إرسال الرسائل من حسابك');
     const recipients = await this.prisma.conversationMember.findMany({
       where: { conversationId, leftAt: null, userId: { not: user.id } }, select: { userId: true },
     });
@@ -485,12 +495,14 @@ export class ChatService {
   /** Group settings: rename, archive, or restrict posting to admins. */
   async updateConversation(user: AuthUser, id: string, dto: UpdateConversationDto) {
     await this.assertGroupAdmin(user, id);
+    if (dto.avatarUrl && !/^https:\/\/[^\s]+$|^\/uploads\/[^\s]+$/i.test(dto.avatarUrl)) throw new BadRequestException('رابط صورة المجموعة غير صالح');
 
     const updated = await this.prisma.conversation.update({
       where: { id },
       data: {
         title: dto.title,
         description: dto.description,
+        avatarUrl: dto.avatarUrl,
         isClosed: dto.isClosed,
         adminOnly: dto.adminOnly,
       },
@@ -525,6 +537,36 @@ export class ChatService {
 
     this.realtime.emitToConversation(id, 'chat:conversation-updated', { conversationId: id });
     return this.findOne(user, id);
+  }
+
+  async setMemberMute(user: AuthUser, id: string, memberUserId: string, isMuted: boolean) {
+    await this.assertGroupAdmin(user, id);
+    if (memberUserId === user.id) throw new BadRequestException('لا يمكنك كتم حسابك');
+    const member = await this.prisma.conversationMember.findFirst({ where: { conversationId: id, userId: memberUserId, leftAt: null } });
+    if (!member) throw new NotFoundException('العضو غير موجود في المجموعة');
+    if (member.isAdmin && isMuted) throw new BadRequestException('أزل الإشراف عن العضو قبل كتمه');
+    await this.prisma.conversationMember.update({ where: { id: member.id }, data: { isMuted } });
+    this.realtime.emitToConversation(id, 'chat:conversation-updated', { conversationId: id });
+    return this.findOne(user, id);
+  }
+
+  async rotateInvite(user: AuthUser, id: string, enabled: boolean) {
+    await this.assertGroupAdmin(user, id);
+    const updated = await this.prisma.conversation.update({ where: { id }, data: { inviteCode: enabled ? randomUUID() : null } });
+    this.realtime.emitToConversation(id, 'chat:conversation-updated', { conversationId: id });
+    return { inviteCode: updated.inviteCode };
+  }
+
+  async joinByInvite(user: AuthUser, code: string) {
+    const conversation = await this.prisma.conversation.findFirst({ where: { inviteCode: code, type: ConversationType.GROUP, isClosed: false }, include: { members: { where: { leftAt: null }, select: { userId: true } } } });
+    if (!conversation) throw new NotFoundException('رابط المجموعة غير صالح أو انتهى');
+    if (!conversation.members.some(member => member.userId === user.id)) {
+      const members = conversation.members.map(member => member.userId);
+      await this.assertAllContactable(user, members);
+      await this.prisma.conversationMember.upsert({ where: { conversationId_userId: { conversationId: conversation.id, userId: user.id } }, create: { conversationId: conversation.id, userId: user.id }, update: { leftAt: null, joinedAt: new Date(), isMuted: false } });
+      this.realtime.emitToConversation(conversation.id, 'chat:conversation-updated', { conversationId: conversation.id });
+    }
+    return { id: conversation.id };
   }
 
   async removeMember(user: AuthUser, id: string, memberUserId: string) {
@@ -571,7 +613,7 @@ export class ChatService {
     }
 
     const membership = await this.assertMember(user, conversationId);
-    if (!membership.isAdmin && user.role !== Role.ADMIN) {
+    if (!membership.isAdmin && user.role !== Role.ADMIN && user.role !== Role.FOUNDER) {
       throw new ForbiddenException('هذا الإجراء متاح لمشرفي المجموعة فقط');
     }
     return membership;

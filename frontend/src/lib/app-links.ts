@@ -17,8 +17,12 @@ export function nativeRouteFromUrl(value: string) {
     const url = new URL(value);
     const isVerifiedWebLink = url.protocol === 'https:' && url.origin === productionSiteOrigin;
     const isCustomAppLink = url.protocol === 'halaqat:' && url.hostname === 'chat';
-    if (isVerifiedWebLink && url.pathname === '/chat') return `/chat${url.search}`;
-    if (isCustomAppLink) return `/chat${url.search}`;
+    if (isVerifiedWebLink && /^\/chat(?:\/[^/]+)?$/.test(url.pathname)) {
+      return `${url.pathname}${url.search}`;
+    }
+    if (isCustomAppLink && (url.pathname === '' || url.pathname === '/' || /^\/[^/]+$/.test(url.pathname))) {
+      return `/chat${url.pathname === '/' ? '' : url.pathname}${url.search}`;
+    }
   } catch { /* Ignore malformed or untrusted URLs. */ }
   return null;
 }
